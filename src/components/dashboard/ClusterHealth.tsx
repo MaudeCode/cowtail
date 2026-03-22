@@ -61,7 +61,7 @@ export default function ClusterHealth({ health, alerts }: ClusterHealthProps) {
           {health.cephMessage}
           {health.cephStatus !== 'HEALTH_OK' && (
             <a
-              href="https://rook.example.com"
+              href={import.meta.env.VITE_CEPH_DASHBOARD_URL ?? "#"}
               target="_blank"
               rel="noopener noreferrer"
               className="block font-mono text-[0.6rem] uppercase tracking-[0.1em] text-accent mt-1.5 hover:underline"

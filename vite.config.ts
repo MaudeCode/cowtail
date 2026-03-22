@@ -6,6 +6,6 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [tailwindcss(), react()],
   server: {
-    allowedHosts: ['k8s-alerts-dev.example.com'],
+    allowedHosts: true,
   },
 })
