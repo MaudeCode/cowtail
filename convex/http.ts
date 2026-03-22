@@ -103,6 +103,7 @@ app.get("/api/digest-html", async (c) => {
   const to = new Date(toParam + "T23:59:59Z").getTime();
 
   const alerts = await ctx.runQuery(api.alerts.getByTimeRange, { from, to });
+  const fixes = await ctx.runQuery(api.fixes.getByTimeRange, { from, to });
 
   // Format date range — parse as noon UTC to avoid timezone date shifts
   const fmtDate = (d: string) => {
@@ -192,6 +193,44 @@ app.get("/api/digest-html", async (c) => {
     </td></tr>`;
   }
 
+  // Build fixes section
+  const scopeConfig: Record<string, { label: string; bg: string }> = {
+    reactive: { label: "Reactive", bg: "#2D9B52" },
+    weekly: { label: "Weekly", bg: "#3A7BD5" },
+    monthly: { label: "Monthly", bg: "#8b5cf6" },
+  };
+
+  let fixesSections = "";
+  if (fixes.length > 0) {
+    let fixRows = "";
+    const sortedFixes = [...fixes].sort((a: any, b: any) => a.timestamp - b.timestamp);
+    for (const f of sortedFixes) {
+      const sc = scopeConfig[f.scope] ?? { label: f.scope, bg: "#6E6E76" };
+      const commitHtml = f.commit
+        ? `<div style="margin-top:4px;"><span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;">Commit: </span><span style="font-family:'DM Mono',monospace;font-size:13px;color:#9A9AA2;">${f.commit.slice(0, 7)}</span></div>`
+        : "";
+
+      fixRows += `<tr><td style="padding:12px 0 12px 12px;border-left:3px solid #3A3A3F;">
+        <div style="margin-bottom:4px;">
+          <span style="display:inline-block;font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;padding:2px 6px;color:#fff;background:${sc.bg};">${sc.label}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:#6E6E76;margin-left:8px;">${fmtTs(f.timestamp)}</span>
+        </div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;color:#E8E8EA;margin-bottom:4px;word-break:break-word;">${f.description}</div>
+        <div style="margin-top:4px;"><span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;">Root cause: </span><span style="font-family:'Space Grotesk',sans-serif;font-size:13px;color:#9A9AA2;">${f.rootCause}</span></div>
+        ${commitHtml}
+      </td></tr>`;
+    }
+
+    fixesSections = `<tr><td style="padding:0 0 24px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr><td style="font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;border-bottom:2px solid #3A3A3F;padding-bottom:8px;margin-bottom:16px;">
+          Fixes Applied <span style="color:#3A7BD5;">(${fixes.length})</span>
+        </td></tr>
+        ${fixRows}
+      </table>
+    </td></tr>`;
+  }
+
   // Build full HTML
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -207,15 +246,17 @@ app.get("/api/digest-html", async (c) => {
   <tr><td style="padding:0 0 24px;">
     <table width="100%" cellpadding="0" cellspacing="1" style="background:#3A3A3F;">
       <tr>
-        <td width="20%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#E8E8EA;">${stats.total}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Total</div></td>
-        <td width="20%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#2D9B52;">${stats.fixed}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Fixed</div></td>
-        <td width="20%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#3A7BD5;">${stats.selfResolved}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Self-Res</div></td>
-        <td width="20%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#5A5A64;">${stats.noise}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Noise</div></td>
-        <td width="20%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#D4880A;">${stats.escalated}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Escalated</div></td>
+        <td width="16%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#E8E8EA;">${stats.total}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Total</div></td>
+        <td width="16%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#2D9B52;">${stats.fixed}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Fixed</div></td>
+        <td width="16%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#3A7BD5;">${stats.selfResolved}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Self-Res</div></td>
+        <td width="16%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#5A5A64;">${stats.noise}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Noise</div></td>
+        <td width="16%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#D4880A;">${stats.escalated}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Escalated</div></td>
+        <td width="16%" style="background:#161618;padding:14px 8px;text-align:center;"><div style="font-size:22px;font-weight:700;color:#3A7BD5;">${fixes.length}</div><div style="font-family:'DM Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;margin-top:4px;">Fixes</div></td>
       </tr>
     </table>
   </td></tr>
   ${alertSections}
+  ${fixesSections}
   <tr><td style="padding:24px 0 0;border-top:1px solid #3A3A3F;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="font-family:'DM Mono',monospace;font-size:10px;color:#6E6E76;text-transform:uppercase;letter-spacing:0.8px;">Maude 🐄</td>
