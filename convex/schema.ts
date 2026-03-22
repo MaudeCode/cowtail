@@ -16,4 +16,13 @@ export default defineSchema({
     messaged: v.boolean(),
     resolvedAt: v.optional(v.number()),
   }).index("by_timestamp", ["timestamp"]),
+
+  fixes: defineTable({
+    timestamp: v.number(),
+    alertIds: v.array(v.id("alerts")),
+    description: v.string(),
+    rootCause: v.string(),
+    commit: v.optional(v.string()),
+    scope: v.union(v.literal("reactive"), v.literal("weekly"), v.literal("monthly")),
+  }).index("by_timestamp", ["timestamp"]),
 });

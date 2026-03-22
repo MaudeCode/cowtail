@@ -9,6 +9,7 @@
  */
 
 import type * as alerts from "../alerts.js";
+import type * as fixes from "../fixes.js";
 import type * as http from "../http.js";
 
 import type {
@@ -19,6 +20,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   alerts: typeof alerts;
+  fixes: typeof fixes;
   http: typeof http;
 }>;
 

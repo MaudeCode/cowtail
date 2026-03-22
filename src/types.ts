@@ -21,6 +21,18 @@ export interface NodeHealth {
   memory: number;
 }
 
+export type FixScope = 'reactive' | 'weekly' | 'monthly';
+
+export interface Fix {
+  id: string;
+  timestamp: string;
+  alertIds: string[];
+  description: string;
+  rootCause: string;
+  commit?: string;
+  scope: FixScope;
+}
+
 export interface ClusterHealth {
   nodes: NodeHealth[];
   cephStatus: 'HEALTH_OK' | 'HEALTH_WARN' | 'HEALTH_ERR';

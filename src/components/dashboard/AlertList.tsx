@@ -3,6 +3,8 @@ import { useState } from 'react';
 import type { AlertGroup } from '../../hooks/useDashboard';
 import AlertRow from './AlertRow';
 import AlertDetail from './AlertDetail';
+import FixesList from './FixesList';
+import { useFixes } from '../../hooks/useFixes';
 
 
 const outcomeBg: Record<string, string> = {
@@ -47,6 +49,99 @@ function sortGroups(groups: AlertGroup[], field: SortField, dir: SortDir): Alert
 
 const cols = 'grid grid-cols-[120px_1fr_80px_110px] gap-3';
 
+interface AlertGroupRowProps {
+  group: AlertGroup;
+  isExpanded: boolean;
+  expandedAlert: string | null;
+  onToggleGroup: (name: string) => void;
+  onToggleAlert: (id: string) => void;
+}
+
+function AlertGroupRow({ group, isExpanded, expandedAlert, onToggleGroup, onToggleAlert }: AlertGroupRowProps) {
+  const alertIds = group.alerts.map(a => a.id);
+  const { fixes } = useFixes(alertIds);
+  const hasFixes = fixes.length > 0;
+
+  const outcomeKey = `outcome-${group.alerts[0].outcome}` as keyof typeof outcomeBg;
+  const isSingle = group.alerts.length === 1;
+  const alert = group.alerts[0];
+
+  return (
+    <div>
+      {/* Desktop row */}
+      <div
+        className={`${cols} py-3.5 border-b cursor-pointer transition-[background] duration-100 items-center text-[0.85rem] hover:bg-[rgba(184,36,44,0.04)] max-lg:hidden ${
+          isExpanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
+        }`}
+        onClick={() => onToggleGroup(group.alertName)}
+      >
+        <span className="font-mono text-[0.75rem] text-gray-400">{formatTs(group.latestTimestamp)}</span>
+        <span className="font-semibold tracking-[-0.01em]">
+          {group.alertName}
+          {hasFixes && <span className="ml-1.5" title="Has fixes applied">🔧</span>}
+          {!isSingle && (
+            <span className="font-mono text-[0.65rem] text-gray-400 bg-gray-100 px-2 py-0.5 ml-2 inline-block">
+              ×{group.alerts.length}
+            </span>
+          )}
+        </span>
+        <span className={`font-mono text-[0.7rem] uppercase ${severityStyle[group.highestSeverity] || ''}`}>
+          {group.highestSeverity}
+        </span>
+        <span className={`inline-block font-mono text-[0.65rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[3px] font-medium ${outcomeBg[outcomeKey] || ''}`}>
+          {alert.outcome.replace('-', ' ')}
+        </span>
+      </div>
+
+      {/* Mobile card */}
+      <div
+        className={`hidden max-lg:block py-3 px-3 border-b cursor-pointer transition-[background] duration-100 hover:bg-[rgba(184,36,44,0.04)] ${
+          isExpanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
+        }`}
+        onClick={() => onToggleGroup(group.alertName)}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold text-[0.85rem] tracking-[-0.01em] truncate mr-2">
+            {group.alertName}
+            {hasFixes && <span className="ml-1.5" title="Has fixes applied">🔧</span>}
+          </span>
+          <span className={`inline-block font-mono text-[0.6rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[3px] font-medium shrink-0 ${outcomeBg[outcomeKey] || ''}`}>
+            {alert.outcome.replace('-', ' ')}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 font-mono text-[0.7rem] text-gray-400">
+          <span>{formatTs(group.latestTimestamp)}</span>
+          <span className={`uppercase ${severityStyle[group.highestSeverity] || ''}`}>
+            {group.highestSeverity}
+          </span>
+          {!isSingle && (
+            <span className="bg-gray-100 px-1.5 py-0.5 text-[0.6rem]">×{group.alerts.length}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded content */}
+      {isExpanded && (
+        <div className="bg-surface slide-in">
+          {isSingle ? (
+            <AlertDetail alert={alert} />
+          ) : (
+            group.alerts.map(a => (
+              <AlertRow
+                key={a.id}
+                alert={a}
+                showDetail={expandedAlert === a.id}
+                onToggle={() => onToggleAlert(a.id)}
+              />
+            ))
+          )}
+          <FixesList fixes={fixes} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface AlertListProps {
   groups: AlertGroup[];
   expandedGroup: string | null;
@@ -87,86 +182,16 @@ export default function AlertList({ groups, expandedGroup, expandedAlert, onTogg
         </div>
       )}
 
-      {sortedGroups.map(group => {
-        const outcomeKey = `outcome-${group.alerts[0].outcome}` as keyof typeof outcomeBg;
-        const isExpanded = expandedGroup === group.alertName;
-        const isSingle = group.alerts.length === 1;
-        const alert = group.alerts[0];
-
-        return (
-          <div key={group.alertName}>
-            {/* Desktop row */}
-            <div
-              className={`${cols} py-3.5 border-b cursor-pointer transition-[background] duration-100 items-center text-[0.85rem] hover:bg-[rgba(184,36,44,0.04)] max-lg:hidden ${
-                isExpanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
-              }`}
-              onClick={() => onToggleGroup(group.alertName)}
-            >
-              <span className="font-mono text-[0.75rem] text-gray-400">{formatTs(group.latestTimestamp)}</span>
-              <span className="font-semibold tracking-[-0.01em]">
-                {group.alertName}
-                {!isSingle && (
-                  <span className="font-mono text-[0.65rem] text-gray-400 bg-gray-100 px-2 py-0.5 ml-2 inline-block">
-                    ×{group.alerts.length}
-                  </span>
-                )}
-              </span>
-              <span className={`font-mono text-[0.7rem] uppercase ${severityStyle[group.highestSeverity] || ''}`}>
-                {group.highestSeverity}
-              </span>
-              <span className={`inline-block font-mono text-[0.65rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[3px] font-medium ${outcomeBg[outcomeKey] || ''}`}>
-                {alert.outcome.replace('-', ' ')}
-              </span>
-            </div>
-
-            {/* Mobile card */}
-            <div
-              className={`hidden max-lg:block py-3 px-3 border-b cursor-pointer transition-[background] duration-100 hover:bg-[rgba(184,36,44,0.04)] ${
-                isExpanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
-              }`}
-              onClick={() => onToggleGroup(group.alertName)}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-[0.85rem] tracking-[-0.01em] truncate mr-2">
-                  {group.alertName}
-                </span>
-                <span className={`inline-block font-mono text-[0.6rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[3px] font-medium shrink-0 ${outcomeBg[outcomeKey] || ''}`}>
-                  {alert.outcome.replace('-', ' ')}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 font-mono text-[0.7rem] text-gray-400">
-                <span>{formatTs(group.latestTimestamp)}</span>
-                <span className={`uppercase ${severityStyle[group.highestSeverity] || ''}`}>
-                  {group.highestSeverity}
-                </span>
-                {!isSingle && (
-                  <span className="bg-gray-100 px-1.5 py-0.5 text-[0.6rem]">×{group.alerts.length}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Expanded content */}
-            {isExpanded && (
-              <div className="bg-surface slide-in">
-                {isSingle ? (
-                  /* Single alert — show detail directly, no sub-row */
-                  <AlertDetail alert={alert} />
-                ) : (
-                  /* Grouped — show individual rows, each clickable for detail */
-                  group.alerts.map(a => (
-                    <AlertRow
-                      key={a.id}
-                      alert={a}
-                      showDetail={expandedAlert === a.id}
-                      onToggle={() => onToggleAlert(a.id)}
-                    />
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {sortedGroups.map(group => (
+        <AlertGroupRow
+          key={group.alertName}
+          group={group}
+          isExpanded={expandedGroup === group.alertName}
+          expandedAlert={expandedAlert}
+          onToggleGroup={onToggleGroup}
+          onToggleAlert={onToggleAlert}
+        />
+      ))}
     </div>
   );
 }

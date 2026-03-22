@@ -43,6 +43,34 @@ app.delete("/api/alerts/:id", async (c) => {
   }
 });
 
+// POST /api/fixes — write endpoint
+app.post("/api/fixes", async (c) => {
+  const body = await c.req.json();
+  const ctx = c.env;
+  const args: Record<string, unknown> = {
+    timestamp: body.timestamp ?? Date.now(),
+    alertIds: body.alertIds,
+    description: body.description,
+    rootCause: body.rootCause,
+    scope: body.scope,
+  };
+  if (body.commit) args.commit = body.commit;
+  const id = await ctx.runMutation(api.fixes.insert, args as any);
+  return c.json({ ok: true, id });
+});
+
+// DELETE /api/fixes/:id — delete a single fix
+app.delete("/api/fixes/:id", async (c) => {
+  const ctx = c.env;
+  const id = c.req.param("id");
+  try {
+    await ctx.runMutation(api.fixes.deleteById, { id: id as any });
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ ok: false, error: String(e) }, 400);
+  }
+});
+
 // GET /api/health — placeholder for Prometheus proxy
 app.get("/api/health", async (c) => {
   return c.json({
