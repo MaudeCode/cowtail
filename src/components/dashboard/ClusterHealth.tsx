@@ -59,6 +59,16 @@ export default function ClusterHealth({ health, alerts }: ClusterHealthProps) {
         </div>
         <div className="text-[0.8rem] text-gray-600 leading-[1.4] mb-3">
           {health.cephMessage}
+          {health.cephStatus !== 'HEALTH_OK' && (
+            <a
+              href="https://rook.example.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block font-mono text-[0.6rem] uppercase tracking-[0.1em] text-accent mt-1.5 hover:underline"
+            >
+              Open Ceph Dashboard →
+            </a>
+          )}
         </div>
         <div className="font-mono text-[0.6rem] text-gray-400 uppercase tracking-[0.1em] mb-1.5">
           Storage: {health.storageUsed} / {health.storageTotal} {health.storageUnit}
