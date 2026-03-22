@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Alert } from '../../types';
 import type { ClusterHealth as ClusterHealthType } from '../../types';
 
@@ -8,9 +9,10 @@ interface ClusterHealthProps {
 
 export default function ClusterHealth({ health, alerts }: ClusterHealthProps) {
   const storagePercent = (health.storageUsed / health.storageTotal) * 100;
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
-    <aside className="border-l border-gray-200 py-[30px] px-10 bg-surface max-md:!px-5 max-md:!py-6">
+  const content = (
+    <>
       <div className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-gray-400 mb-6 pb-2 border-b-2 border-gray-200">
         Cluster Health
       </div>
@@ -87,6 +89,55 @@ export default function ClusterHealth({ health, alerts }: ClusterHealthProps) {
           <div className="font-mono text-[0.55rem] uppercase tracking-[0.12em] text-gray-400 mt-1">Escalated</div>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="border-l border-gray-200 py-[30px] px-10 bg-surface max-lg:hidden">
+        {content}
+      </aside>
+
+      {/* Mobile bottom sheet */}
+      <div className="hidden max-lg:block fixed bottom-0 left-0 right-0 z-50">
+        {/* Tab handle */}
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="w-full bg-surface border-t border-gray-200 px-5 py-3 flex items-center justify-between cursor-pointer"
+        >
+          <div className="flex items-center gap-4">
+            <span className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-gray-400">
+              Cluster Health
+            </span>
+            <span className={`font-mono text-[0.75rem] font-bold ${
+              health.cephStatus === 'HEALTH_OK' ? 'text-outcome-fixed' : 'text-accent'
+            }`}>
+              {health.cephStatus.replace('HEALTH_', '')}
+            </span>
+            <span className="font-mono text-[0.65rem] text-gray-400">
+              {health.nodes.filter(n => n.status === 'Ready').length}/{health.nodes.length} nodes
+            </span>
+          </div>
+          <span className={`text-gray-400 text-[0.8rem] transition-transform duration-200 ${mobileOpen ? 'rotate-180' : ''}`}>
+            ▲
+          </span>
+        </button>
+
+        {/* Expandable panel */}
+        <div
+          className={`bg-surface border-t border-gray-200 overflow-y-auto transition-[max-height] duration-300 ease-in-out ${
+            mobileOpen ? 'max-h-[70vh]' : 'max-h-0'
+          }`}
+        >
+          <div className="px-5 py-6">
+            {content}
+          </div>
+        </div>
+      </div>
+
+      {/* Spacer so alert list doesn't get hidden behind the fixed tab */}
+      <div className="hidden max-lg:block h-[52px]" />
+    </>
   );
 }

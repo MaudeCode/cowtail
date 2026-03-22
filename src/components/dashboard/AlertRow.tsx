@@ -31,23 +31,43 @@ export default function AlertRow({ alert, expanded, onToggle }: AlertRowProps) {
 
   return (
     <div>
+      {/* Desktop row */}
       <div
-        className={`grid grid-cols-[120px_1fr_80px_100px_120px_110px] gap-3 py-3.5 pl-5 border-b cursor-pointer transition-[background] duration-100 items-center text-[0.85rem] hover:bg-[rgba(184,36,44,0.04)] max-md:grid-cols-[1fr_1fr] max-md:gap-x-3 max-md:gap-y-1 max-md:py-3 ${
+        className={`grid grid-cols-[120px_1fr_80px_110px] gap-3 py-3.5 pl-5 border-b cursor-pointer transition-[background] duration-100 items-center text-[0.85rem] hover:bg-[rgba(184,36,44,0.04)] max-lg:hidden ${
           expanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
         }`}
         onClick={e => { e.stopPropagation(); onToggle(); }}
       >
         <span className="font-mono text-[0.75rem] text-gray-400">{formatTs(alert.timestamp)}</span>
-        <span>{alert.namespace}</span>
+        <span className="text-gray-600">{alert.namespace}{alert.node ? ` · ${alert.node}` : ''}</span>
         <span className={`font-mono text-[0.7rem] uppercase ${severityStyle[alert.severity] || ''}`}>
           {alert.severity}
         </span>
-        <span className="font-mono text-[0.75rem] text-gray-400">{alert.node}</span>
-        <span className="font-mono text-[0.75rem] text-gray-400">{alert.node}</span>
         <span className={`inline-block font-mono text-[0.65rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[3px] font-medium ${outcomeBg[outcomeKey] || ''}`}>
           {alert.outcome.replace('-', ' ')}
         </span>
       </div>
+
+      {/* Mobile card */}
+      <div
+        className={`hidden max-lg:block py-3 px-3 pl-5 border-b cursor-pointer transition-[background] duration-100 hover:bg-[rgba(184,36,44,0.04)] ${
+          expanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
+        }`}
+        onClick={e => { e.stopPropagation(); onToggle(); }}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-mono text-[0.75rem] text-gray-400">{formatTs(alert.timestamp)}</span>
+          <span className={`inline-block font-mono text-[0.6rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[3px] font-medium shrink-0 ${outcomeBg[outcomeKey] || ''}`}>
+            {alert.outcome.replace('-', ' ')}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 font-mono text-[0.7rem] text-gray-400">
+          <span>{alert.namespace}</span>
+          {alert.node && <span>{alert.node}</span>}
+          <span className={`uppercase ${severityStyle[alert.severity] || ''}`}>{alert.severity}</span>
+        </div>
+      </div>
+
       {expanded && <AlertDetail alert={alert} />}
     </div>
   );
