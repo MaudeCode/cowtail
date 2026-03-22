@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Alert } from '../../types';
 import type { ClusterHealth as ClusterHealthType } from '../../types';
+import { getConfig } from '../../lib/config';
 
 interface ClusterHealthProps {
   health: ClusterHealthType;
@@ -10,6 +11,11 @@ interface ClusterHealthProps {
 export default function ClusterHealth({ health, alerts }: ClusterHealthProps) {
   const storagePercent = (health.storageUsed / health.storageTotal) * 100;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [cephDashboardUrl, setCephDashboardUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getConfig().then(c => setCephDashboardUrl(c.cephDashboardUrl ?? null));
+  }, []);
 
   const content = (
     <>
@@ -59,9 +65,9 @@ export default function ClusterHealth({ health, alerts }: ClusterHealthProps) {
         </div>
         <div className="text-[0.8rem] text-gray-600 leading-[1.4] mb-3">
           {health.cephMessage}
-          {health.cephStatus !== 'HEALTH_OK' && (
+          {health.cephStatus !== 'HEALTH_OK' && cephDashboardUrl && (
             <a
-              href={import.meta.env.VITE_CEPH_DASHBOARD_URL ?? "#"}
+              href={cephDashboardUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="block font-mono text-[0.6rem] uppercase tracking-[0.1em] text-accent mt-1.5 hover:underline"
