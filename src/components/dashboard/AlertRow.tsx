@@ -1,11 +1,7 @@
+import { formatTs } from '../../lib/format';
 import type { Alert } from '../../types';
 import AlertDetail from './AlertDetail';
 
-function formatTs(ts: string) {
-  const d = new Date(ts);
-  return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) + ' ' +
-    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
 
 const outcomeBg: Record<string, string> = {
   'outcome-fixed': 'bg-outcome-fixed text-white',
