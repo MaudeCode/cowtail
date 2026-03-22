@@ -22,21 +22,21 @@ const severityStyle: Record<string, string> = {
 
 interface AlertRowProps {
   alert: Alert;
-  expanded: boolean;
-  onToggle: () => void;
+  showDetail?: boolean;
+  onToggle?: () => void;
 }
 
-export default function AlertRow({ alert, expanded, onToggle }: AlertRowProps) {
+export default function AlertRow({ alert, showDetail = false, onToggle }: AlertRowProps) {
   const outcomeKey = `outcome-${alert.outcome}` as keyof typeof outcomeBg;
 
   return (
     <div>
       {/* Desktop row */}
       <div
-        className={`grid grid-cols-[120px_1fr_80px_110px] gap-3 py-3.5 pl-5 border-b cursor-pointer transition-[background] duration-100 items-center text-[0.85rem] hover:bg-[rgba(184,36,44,0.04)] max-lg:hidden ${
-          expanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
-        }`}
-        onClick={e => { e.stopPropagation(); onToggle(); }}
+        className={`grid grid-cols-[120px_1fr_80px_110px] gap-3 py-3.5 pl-5 border-b items-center text-[0.85rem] max-lg:hidden ${
+          onToggle ? 'cursor-pointer hover:bg-[rgba(184,36,44,0.04)] transition-[background] duration-100' : ''
+        } ${showDetail ? 'border-b-accent bg-surface' : 'border-b-gray-100'}`}
+        onClick={e => { if (onToggle) { e.stopPropagation(); onToggle(); } }}
       >
         <span className="font-mono text-[0.75rem] text-gray-400">{formatTs(alert.timestamp)}</span>
         <span className="text-gray-600">{alert.namespace}{alert.node ? ` · ${alert.node}` : ''}</span>
@@ -48,12 +48,12 @@ export default function AlertRow({ alert, expanded, onToggle }: AlertRowProps) {
         </span>
       </div>
 
-      {/* Mobile card */}
+      {/* Mobile row */}
       <div
-        className={`hidden max-lg:block py-3 px-3 pl-5 border-b cursor-pointer transition-[background] duration-100 hover:bg-[rgba(184,36,44,0.04)] ${
-          expanded ? 'border-b-accent bg-surface' : 'border-b-gray-100'
-        }`}
-        onClick={e => { e.stopPropagation(); onToggle(); }}
+        className={`hidden max-lg:block py-3 px-3 pl-5 border-b ${
+          onToggle ? 'cursor-pointer hover:bg-[rgba(184,36,44,0.04)] transition-[background] duration-100' : ''
+        } ${showDetail ? 'border-b-accent bg-surface' : 'border-b-gray-100'}`}
+        onClick={e => { if (onToggle) { e.stopPropagation(); onToggle(); } }}
       >
         <div className="flex items-center justify-between mb-1">
           <span className="font-mono text-[0.75rem] text-gray-400">{formatTs(alert.timestamp)}</span>
@@ -68,7 +68,7 @@ export default function AlertRow({ alert, expanded, onToggle }: AlertRowProps) {
         </div>
       </div>
 
-      {expanded && <AlertDetail alert={alert} />}
+      {showDetail && <AlertDetail alert={alert} />}
     </div>
   );
 }
