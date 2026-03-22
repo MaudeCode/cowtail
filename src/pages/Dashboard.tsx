@@ -1,6 +1,16 @@
 import { useDashboard } from '../hooks/useDashboard';
-import { clusterHealth } from '../data/mockAlerts';
 import { StatsBar, DateRangeBar, AlertList, ClusterHealth } from '../components/dashboard';
+import type { ClusterHealth as ClusterHealthType } from '../types';
+
+// TODO: Replace with live Prometheus data (item #1)
+const clusterHealth: ClusterHealthType = {
+  nodes: [],
+  cephStatus: 'HEALTH_OK',
+  cephMessage: 'Waiting for Prometheus integration',
+  storageTotal: 1,
+  storageUsed: 0,
+  storageUnit: 'TiB',
+};
 
 export default function Dashboard() {
   const {

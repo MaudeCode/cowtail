@@ -72,7 +72,7 @@ app.get("/api/digest-html", async (c) => {
     ? `${fmtDate(fromParam)}, ${year}`
     : `${fmtDate(fromParam)}–${fmtDate(toParam)}, ${year}`;
 
-  const digestUrl = `https://k8s-alerts.example.com/digest?from=${fromParam}&to=${toParam}`;
+  const digestUrl = `https://cowtail.example.com/digest?from=${fromParam}&to=${toParam}`;
 
   // Stats
   const stats = {
