@@ -3,3 +3,5 @@ dist
 logs
 .git
 *.md
+.env
+.env.*
