@@ -12,20 +12,22 @@ app.use("/api/*", cors());
 app.post("/api/alerts", async (c) => {
   const body = await c.req.json();
   const ctx = c.env;
-  const id = await ctx.runMutation(api.alerts.insert, {
+  // Strip null/undefined values — Convex optional fields must be omitted, not null
+  const args: Record<string, unknown> = {
     timestamp: body.timestamp ?? Date.now(),
     alertname: body.alertname,
     severity: body.severity,
     namespace: body.namespace,
-    node: body.node,
     status: body.status,
     outcome: body.outcome,
     summary: body.summary,
     action: body.action,
-    rootCause: body.rootCause,
     messaged: body.messaged ?? false,
-    resolvedAt: body.resolvedAt,
-  });
+  };
+  if (body.node) args.node = body.node;
+  if (body.rootCause) args.rootCause = body.rootCause;
+  if (body.resolvedAt) args.resolvedAt = body.resolvedAt;
+  const id = await ctx.runMutation(api.alerts.insert, args as any);
   return c.json({ ok: true, id });
 });
 
