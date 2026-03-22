@@ -24,10 +24,10 @@ export default function Dashboard() {
       <header className="shrink-0 grid grid-cols-[1fr_auto] items-end px-10 pt-10 pb-5 border-b-2 border-gray-200 gap-5 header-glow max-lg:px-4 max-lg:pt-3 max-lg:pb-2">
         <div>
           <h1 className="text-5xl font-bold leading-none tracking-[-0.03em] uppercase text-txt max-lg:text-[1.4rem]">
-            K8s <span className="text-accent title-glow">Alerts</span>
+            Cow<span className="text-accent title-glow">Alerts</span>
           </h1>
           <div className="font-mono text-[0.7rem] uppercase tracking-[0.12em] text-gray-400 mt-1 max-lg:hidden">
-            Cluster Alert History
+            Alert Investigation Log
           </div>
         </div>
       </header>
