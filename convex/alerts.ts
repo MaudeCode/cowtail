@@ -53,3 +53,11 @@ export const deleteAll = mutation({
     return { deleted: alerts.length };
   },
 });
+
+export const deleteById = mutation({
+  args: { id: v.id("alerts") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
