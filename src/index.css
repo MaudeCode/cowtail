@@ -26,12 +26,17 @@
   --color-grid-line: rgba(255,255,255,0.025);
 }
 
-body {
+html, body {
   background: #0E0E10;
   color: #E8E8EA;
   font-family: 'Space Grotesk', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  overscroll-behavior: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 input[type="date"] {
