@@ -111,7 +111,7 @@ export default function ClusterHealth({ health, alerts }: ClusterHealthProps) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="border-l border-gray-200 py-[30px] px-10 bg-surface max-lg:hidden">
+      <aside className="border-l border-gray-200 py-[30px] px-10 bg-surface max-lg:hidden overflow-y-auto">
         {content}
       </aside>
 

@@ -43,6 +43,14 @@ export default function Dashboard() {
             Alert Investigation Log
           </div>
         </div>
+        <nav className="flex gap-4 pb-1">
+          <a href="/fixes" className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors">
+            🔧 Fixes
+          </a>
+          <a href="/digest" className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors">
+            Digest
+          </a>
+        </nav>
       </header>
 
       <div className="shrink-0">
