@@ -36,7 +36,7 @@ app.delete("/api/alerts/:id", async (c) => {
   const ctx = c.env;
   const id = c.req.param("id");
   try {
-    await ctx.runMutation(api.alerts.deleteById, { id });
+    await ctx.runMutation(api.alerts.deleteById, { id: id as any });
     return c.json({ ok: true });
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 400);
