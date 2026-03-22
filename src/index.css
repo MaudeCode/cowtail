@@ -1,15 +1,89 @@
-*, *::before, *::after {
-  box-sizing: border-box;
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Space Grotesk', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  /* Override Tailwind's default grays with our dark theme grays */
+  --color-gray-100: #2A2A2E;
+  --color-gray-200: #3A3A3F;
+  --color-gray-400: #6E6E76;
+  --color-gray-600: #9A9AA2;
+
+  /* Custom theme colors */
+  --color-bg: #0E0E10;
+  --color-surface: #161618;
+  --color-surface-2: #1C1C1F;
+  --color-txt: #E8E8EA;
+  --color-accent: #B8242C;
+  --color-accent-dim: rgba(184, 36, 44, 0.6);
+  --color-outcome-fixed: #2D9B52;
+  --color-self-resolved: #3A7BD5;
+  --color-noise: #5A5A64;
+  --color-escalated: #D4880A;
+  --color-glow: rgba(184, 36, 44, 0.08);
+  --color-grid-line: rgba(255,255,255,0.025);
 }
 
 body {
-  margin: 0;
-  padding: 0;
+  background: #0E0E10;
+  color: #E8E8EA;
+  font-family: 'Space Grotesk', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-img, svg {
-  display: block;
-  max-width: 100%;
+input[type="date"] {
+  color-scheme: dark;
+}
+
+/* ===== Custom utilities Tailwind can't express ===== */
+
+.grid-bg {
+  background-image:
+    repeating-linear-gradient(90deg, var(--color-grid-line) 0, var(--color-grid-line) 1px, transparent 1px, transparent),
+    repeating-linear-gradient(0deg, var(--color-grid-line) 0, var(--color-grid-line) 1px, transparent 1px, transparent);
+  background-size: 60px 60px;
+}
+
+.header-glow {
+  background: linear-gradient(180deg, var(--color-glow) 0%, transparent 100%);
+}
+
+.title-glow {
+  text-shadow: 0 0 30px var(--color-accent-dim);
+}
+
+.severity-glow-critical {
+  text-shadow: 0 0 12px var(--color-accent-dim);
+}
+
+.node-notready-glow {
+  text-shadow: 0 0 10px var(--color-accent-dim);
+}
+
+.ceph-warn-glow {
+  text-shadow: 0 0 12px rgba(212, 136, 10, 0.3);
+}
+
+.ceph-err-glow {
+  text-shadow: 0 0 12px var(--color-accent-dim);
+}
+
+.critical-num-glow {
+  text-shadow: 0 0 20px var(--color-accent-dim);
+}
+
+.bar-fill-high-glow {
+  box-shadow: 0 0 8px var(--color-accent-dim);
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in {
+  animation: slide-in 0.2s ease-out;
 }
