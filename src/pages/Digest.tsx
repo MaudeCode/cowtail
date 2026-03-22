@@ -92,10 +92,15 @@ export default function Digest() {
       <div className="max-w-[700px] mx-auto px-6 py-10 max-lg:px-4 max-lg:py-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold tracking-[-0.03em] uppercase max-lg:text-2xl">
-            Cow<span className="text-accent title-glow">tail</span>
-            <span className="text-gray-400 font-normal text-lg ml-3 max-lg:text-sm max-lg:ml-2">Digest</span>
-          </h1>
+          <div className="flex items-end justify-between">
+            <h1 className="text-4xl font-bold tracking-[-0.03em] uppercase max-lg:text-2xl">
+              Cow<span className="text-accent title-glow">tail</span>
+              <span className="text-gray-400 font-normal text-lg ml-3 max-lg:text-sm max-lg:ml-2">Digest</span>
+            </h1>
+            <a href="/" className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors pb-1">
+              ← Dashboard
+            </a>
+          </div>
           <div className="font-mono text-[0.75rem] text-gray-400 uppercase tracking-[0.12em] mt-2">
             {formatDateRange(fromParam, toParam)}
           </div>
