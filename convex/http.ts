@@ -76,12 +76,12 @@ app.get("/api/digest-html", async (c) => {
 
   const alerts = await ctx.runQuery(api.alerts.getByTimeRange, { from, to });
 
-  // Format date range
+  // Format date range — parse as noon UTC to avoid timezone date shifts
   const fmtDate = (d: string) => {
-    const date = new Date(d);
+    const date = new Date(d + "T12:00:00Z");
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
   };
-  const year = new Date(toParam).toLocaleDateString("en-US", { year: "numeric", timeZone: "America/New_York" });
+  const year = new Date(toParam + "T12:00:00Z").toLocaleDateString("en-US", { year: "numeric", timeZone: "America/New_York" });
   const dateRange = fmtDate(fromParam) === fmtDate(toParam)
     ? `${fmtDate(fromParam)}, ${year}`
     : `${fmtDate(fromParam)}–${fmtDate(toParam)}, ${year}`;
