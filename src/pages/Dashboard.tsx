@@ -1,12 +1,12 @@
 import { useDashboard } from '../hooks/useDashboard';
+import { useClusterHealth } from '../hooks/useClusterHealth';
 import { StatsBar, DateRangeBar, AlertList, ClusterHealth } from '../components/dashboard';
 import type { ClusterHealth as ClusterHealthType } from '../types';
 
-// TODO: Replace with live Prometheus data (item #1)
-const clusterHealth: ClusterHealthType = {
+const fallbackHealth: ClusterHealthType = {
   nodes: [],
   cephStatus: 'HEALTH_OK',
-  cephMessage: 'Waiting for Prometheus integration',
+  cephMessage: 'Loading...',
   storageTotal: 1,
   storageUsed: 0,
   storageUnit: 'TiB',
@@ -28,6 +28,9 @@ export default function Dashboard() {
     expandedAlert,
     toggleAlert,
   } = useDashboard();
+
+  const { health: clusterHealth } = useClusterHealth();
+  const healthData = clusterHealth ?? fallbackHealth;
 
   return (
     <div className="font-sans bg-bg text-txt h-screen flex flex-col overflow-hidden grid-bg">
@@ -69,7 +72,7 @@ export default function Dashboard() {
             onToggleAlert={toggleAlert}
           />
         </div>
-        <ClusterHealth health={clusterHealth} alerts={alerts} />
+        <ClusterHealth health={healthData} alerts={alerts} />
       </div>
     </div>
   );
