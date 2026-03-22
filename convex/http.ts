@@ -31,6 +31,18 @@ app.post("/api/alerts", async (c) => {
   return c.json({ ok: true, id });
 });
 
+// DELETE /api/alerts/:id — delete a single alert
+app.delete("/api/alerts/:id", async (c) => {
+  const ctx = c.env;
+  const id = c.req.param("id");
+  try {
+    await ctx.runMutation(api.alerts.deleteById, { id });
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ ok: false, error: String(e) }, 400);
+  }
+});
+
 // GET /api/health — placeholder for Prometheus proxy
 app.get("/api/health", async (c) => {
   return c.json({
