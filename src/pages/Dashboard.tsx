@@ -45,7 +45,7 @@ export default function Dashboard() {
         </div>
         <nav className="flex gap-4 pb-1">
           <a href="/fixes" className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors flex items-center gap-1">
-            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M14.25 1.75L12 4l-1-1 2.25-2.25a4 4 0 00-5.07.82 4 4 0 00.3 5.32l-5.72 5.72a1.5 1.5 0 102.12 2.12l5.72-5.72a4 4 0 005.32.3 4 4 0 00.82-5.07L14.5 7l-1-1 2.25-2.25-.5-.5-.5-.5z"/></svg>
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
             Fixes
           </a>
           <a href="/digest" className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors">
