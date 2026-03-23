@@ -6,6 +6,14 @@ import AlertDetail from './AlertDetail';
 import FixesList from './FixesList';
 import { useFixes } from '../../hooks/useFixes';
 
+function WrenchIcon() {
+  return (
+    <svg className="inline-block w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14.25 1.75L12 4l-1-1 2.25-2.25a4 4 0 00-5.07.82 4 4 0 00.3 5.32l-5.72 5.72a1.5 1.5 0 102.12 2.12l5.72-5.72a4 4 0 005.32.3 4 4 0 00.82-5.07L14.5 7l-1-1 2.25-2.25-.5-.5-.5-.5z" fill="currentColor" />
+    </svg>
+  );
+}
+
 
 const outcomeBg: Record<string, string> = {
   'outcome-fixed': 'bg-outcome-fixed text-white',
@@ -76,9 +84,9 @@ function AlertGroupRow({ group, isExpanded, expandedAlert, onToggleGroup, onTogg
         onClick={() => onToggleGroup(group.alertName)}
       >
         <span className="font-mono text-[0.75rem] text-gray-400">{formatTs(group.latestTimestamp)}</span>
-        <span className="font-semibold tracking-[-0.01em]">
-          {group.alertName}
-          {hasFixes && <span className="ml-1.5" title="Has fixes applied">🔧</span>}
+        <span className="font-semibold tracking-[-0.01em] flex items-center gap-1.5">
+          <span className="truncate">{group.alertName}</span>
+          {hasFixes && <span className="text-accent shrink-0" title="Has fixes applied"><WrenchIcon /></span>}
           {!isSingle && (
             <span className="font-mono text-[0.65rem] text-gray-400 bg-gray-100 px-2 py-0.5 ml-2 inline-block">
               ×{group.alerts.length}
@@ -100,11 +108,11 @@ function AlertGroupRow({ group, isExpanded, expandedAlert, onToggleGroup, onTogg
         }`}
         onClick={() => onToggleGroup(group.alertName)}
       >
-        <div className="flex items-center justify-between mb-1">
-          <span className="font-semibold text-[0.85rem] tracking-[-0.01em] truncate mr-2">
+        <div className="flex items-center justify-between mb-1 gap-2">
+          <span className="font-semibold text-[0.85rem] tracking-[-0.01em] truncate">
             {group.alertName}
-            {hasFixes && <span className="ml-1.5" title="Has fixes applied">🔧</span>}
           </span>
+          {hasFixes && <span className="text-accent shrink-0" title="Has fixes applied"><WrenchIcon /></span>}
           <span className={`inline-block font-mono text-[0.6rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[3px] font-medium shrink-0 ${outcomeBg[outcomeKey] || ''}`}>
             {alert.outcome.replace('-', ' ')}
           </span>
