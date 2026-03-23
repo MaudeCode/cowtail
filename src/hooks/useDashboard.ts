@@ -117,8 +117,8 @@ export function useDashboard() {
   }, [dateRange]);
 
   // Query Convex for alerts in the date range
-  const from = dateRange.start ? new Date(dateRange.start).getTime() : 0;
-  const to = dateRange.end ? new Date(dateRange.end + 'T23:59:59Z').getTime() : Date.now();
+  const from = dateRange.start ? new Date(dateRange.start + 'T00:00:00').getTime() : 0;
+  const to = dateRange.end ? new Date(dateRange.end + 'T23:59:59').getTime() : Date.now();
 
   const { data: convexAlerts } = useQuery(
     convexQuery(api.alerts.getByTimeRange, { from, to })
