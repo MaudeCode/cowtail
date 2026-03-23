@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { convexQuery } from '@convex-dev/react-query';
 import { api } from '../../convex/_generated/api';
 import { formatTs } from '../lib/format';
+import { parseLocalDate, parseLocalDateEnd, formatDateLocal } from '../lib/dates';
 import type { Outcome } from '../types';
 
 interface ConvexAlert {
@@ -36,12 +37,12 @@ const severityStyle: Record<string, string> = {
 };
 
 function formatDateRange(from: string, to: string) {
-  const f = new Date(from);
-  const t = new Date(to);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', timeZone: 'America/New_York' };
+  const f = parseLocalDate(from);
+  const t = parseLocalDate(to);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
   const fromStr = f.toLocaleDateString('en-US', opts);
   const toStr = t.toLocaleDateString('en-US', opts);
-  const year = t.toLocaleDateString('en-US', { year: 'numeric', timeZone: 'America/New_York' });
+  const year = t.toLocaleDateString('en-US', { year: 'numeric' });
   if (fromStr === toStr) return `${fromStr}, ${year}`;
   return `${fromStr}–${toStr}, ${year}`;
 }
@@ -51,8 +52,8 @@ function getDefaultRange() {
   const twoDaysAgo = new Date(now);
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   return {
-    from: twoDaysAgo.toISOString().slice(0, 10),
-    to: now.toISOString().slice(0, 10),
+    from: formatDateLocal(twoDaysAgo),
+    to: formatDateLocal(now),
   };
 }
 
@@ -62,8 +63,8 @@ export default function Digest() {
   const fromParam = searchParams.get('from') ?? defaults.from;
   const toParam = searchParams.get('to') ?? defaults.to;
 
-  const from = new Date(fromParam).getTime();
-  const to = new Date(toParam + 'T23:59:59Z').getTime();
+  const from = parseLocalDate(fromParam).getTime();
+  const to = parseLocalDateEnd(toParam).getTime();
 
   const { data: convexAlerts, isPending } = useQuery(
     convexQuery(api.alerts.getByTimeRange, { from, to })

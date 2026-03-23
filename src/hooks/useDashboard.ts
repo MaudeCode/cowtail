@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { convexQuery } from '@convex-dev/react-query';
 import { api } from '../../convex/_generated/api';
 import type { Outcome } from '../types';
+import { parseLocalDate, parseLocalDateEnd, formatDateLocal } from '../lib/dates';
 
 type DatePreset = '24h' | '7d' | '30d' | 'custom';
 
@@ -42,7 +43,7 @@ function toAlert(a: ConvexAlert) {
 type Alert = ReturnType<typeof toAlert>;
 
 function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return formatDateLocal(d);
 }
 
 function getPresetRange(preset: DatePreset): { start: string; end: string } {
@@ -117,8 +118,8 @@ export function useDashboard() {
   }, [dateRange]);
 
   // Query Convex for alerts in the date range
-  const from = dateRange.start ? new Date(dateRange.start + 'T00:00:00').getTime() : 0;
-  const to = dateRange.end ? new Date(dateRange.end + 'T23:59:59').getTime() : Date.now();
+  const from = dateRange.start ? parseLocalDate(dateRange.start).getTime() : 0;
+  const to = dateRange.end ? parseLocalDateEnd(dateRange.end).getTime() : Date.now();
 
   const { data: convexAlerts } = useQuery(
     convexQuery(api.alerts.getByTimeRange, { from, to })
