@@ -71,6 +71,49 @@ app.delete("/api/fixes/:id", async (c) => {
   }
 });
 
+// POST /api/alerts/webhook — Alertmanager-native webhook receiver
+// Accepts Alertmanager's payload format and writes alerts directly to Convex.
+// Used for known-noise alerts that don't need AI investigation.
+app.post("/api/alerts/webhook", async (c) => {
+  const body = await c.req.json();
+  const ctx = c.env;
+
+  // Alertmanager sends { status, alerts: [...] }
+  const alerts = body.alerts;
+  if (!Array.isArray(alerts) || alerts.length === 0) {
+    return c.json({ ok: false, error: "No alerts in payload" }, 400);
+  }
+
+  const ids: string[] = [];
+  for (const alert of alerts) {
+    const labels = alert.labels ?? {};
+    const annotations = alert.annotations ?? {};
+    const status = alert.status ?? "firing";
+
+    const args: Record<string, unknown> = {
+      timestamp: alert.startsAt ? new Date(alert.startsAt).getTime() : Date.now(),
+      alertname: labels.alertname ?? "unknown",
+      severity: labels.severity ?? "warning",
+      namespace: labels.namespace ?? "unknown",
+      status,
+      outcome: "noise",
+      summary: annotations.description || annotations.summary || `${labels.alertname} ${status}`,
+      action: "Auto-logged via direct webhook (no AI investigation)",
+      messaged: false,
+    };
+    if (labels.node) args.node = labels.node;
+    if (labels.instance) args.node = labels.instance;
+    if (status === "resolved" && alert.endsAt) {
+      args.resolvedAt = new Date(alert.endsAt).getTime();
+    }
+
+    const id = await ctx.runMutation(api.alerts.insert, args as any);
+    ids.push(id);
+  }
+
+  return c.json({ ok: true, ids, count: ids.length });
+});
+
 // GET /api/health — placeholder for Prometheus proxy
 app.get("/api/health", async (c) => {
   return c.json({
