@@ -9,8 +9,11 @@
  */
 
 import type * as alerts from "../alerts.js";
+import type * as apns from "../apns.js";
 import type * as fixes from "../fixes.js";
 import type * as http from "../http.js";
+import type * as push from "../push.js";
+import type * as pushActions from "../pushActions.js";
 
 import type {
   ApiFromModules,
@@ -20,8 +23,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   alerts: typeof alerts;
+  apns: typeof apns;
   fixes: typeof fixes;
   http: typeof http;
+  push: typeof push;
+  pushActions: typeof pushActions;
 }>;
 
 /**

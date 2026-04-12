@@ -17,6 +17,21 @@ export default defineSchema({
     resolvedAt: v.optional(v.number()),
   }).index("by_timestamp", ["timestamp"]),
 
+  deviceRegistrations: defineTable({
+    userId: v.string(),
+    deviceToken: v.string(),
+    platform: v.string(),
+    environment: v.string(),
+    enabled: v.boolean(),
+    deviceName: v.optional(v.string()),
+    lastSeenAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_deviceToken", ["deviceToken"])
+    .index("by_userId_enabled", ["userId", "enabled"]),
+
   fixes: defineTable({
     timestamp: v.number(),
     alertIds: v.array(v.id("alerts")),

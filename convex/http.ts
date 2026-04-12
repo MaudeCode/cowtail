@@ -2,11 +2,37 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
 import type { ActionCtx } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const app: HonoWithConvex<ActionCtx> = new Hono();
 
 app.use("/api/*", cors());
+
+function jsonError(message: string, status = 400, details?: Record<string, unknown>) {
+  return Response.json({ ok: false, error: message, ...(details ?? {}) }, { status });
+}
+
+function parsePushData(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("data must be an object when provided");
+  }
+  return value as Record<string, unknown>;
+}
+
+function requirePushServiceAuth(c: { req: { header(name: string): string | undefined } }) {
+  const expected = process.env.PUSH_API_BEARER_TOKEN?.trim();
+  if (!expected) {
+    return jsonError("Push API bearer token is not configured", 500);
+  }
+
+  const authorization = c.req.header("authorization")?.trim();
+  if (authorization !== `Bearer ${expected}`) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  return null;
+}
 
 // POST /api/alerts — write endpoint
 app.post("/api/alerts", async (c) => {
@@ -112,6 +138,173 @@ app.post("/api/alerts/webhook", async (c) => {
   }
 
   return c.json({ ok: true, ids, count: ids.length });
+});
+
+// POST /api/push/register — register or refresh an iOS device token
+app.post("/api/push/register", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  if (!body.userId || !body.deviceToken) {
+    return jsonError("userId and deviceToken are required");
+  }
+
+  const ctx = c.env;
+  const result = await ctx.runMutation(api.push.upsertDeviceRegistration, {
+    userId: String(body.userId).trim(),
+    deviceToken: String(body.deviceToken).trim(),
+    platform: body.platform ? String(body.platform).trim() : "ios",
+    environment: body.environment ? String(body.environment).trim() : (process.env.APNS_ENV?.trim() || "development"),
+    enabled: true,
+    deviceName: body.deviceName ? String(body.deviceName).trim() : undefined,
+    lastSeenAt: Date.now(),
+  });
+
+  return c.json({ ok: true, ...result });
+});
+
+// POST /api/push/unregister — disable a device token without deleting history
+app.post("/api/push/unregister", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  if (!body.deviceToken) {
+    return jsonError("deviceToken is required");
+  }
+
+  const ctx = c.env;
+  const result = await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
+    deviceToken: String(body.deviceToken).trim(),
+  });
+
+  return c.json(result);
+});
+
+async function sendPushToUser(ctx: ActionCtx, args: {
+  userId: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}) {
+  const devices = await ctx.runQuery(api.push.listEnabledDevicesForUser, { userId: args.userId });
+
+  if (devices.length === 0) {
+    return {
+      ok: true,
+      userId: args.userId,
+      sent: 0,
+      failed: 0,
+      results: [] as Array<Record<string, unknown>>,
+    };
+  }
+
+  const results: Array<Record<string, unknown>> = [];
+  let sent = 0;
+  let failed = 0;
+
+  for (const device of devices) {
+    const result = await ctx.runAction(internal.pushActions.sendApnsToDevice, {
+      deviceToken: device.deviceToken,
+      title: args.title,
+      body: args.body,
+      data: args.data,
+    });
+
+    if (result.ok) {
+      sent += 1;
+    } else {
+      failed += 1;
+      if (result.reason && ["BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"].includes(String(result.reason))) {
+        await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
+          deviceToken: device.deviceToken,
+        });
+      }
+    }
+
+    results.push({
+      deviceToken: device.deviceToken.length <= 12
+        ? device.deviceToken
+        : `${device.deviceToken.slice(0, 6)}…${device.deviceToken.slice(-6)}`,
+      ...result,
+    });
+  }
+
+  return {
+    ok: failed === 0,
+    userId: args.userId,
+    sent,
+    failed,
+    results,
+  };
+}
+
+// POST /api/push/send — authenticated push send endpoint for Maude
+app.post("/api/push/send", async (c) => {
+  const authError = requirePushServiceAuth(c);
+  if (authError) return authError;
+
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  if (!body.userId || !body.title || !body.body) {
+    return jsonError("userId, title, and body are required");
+  }
+
+  let data: Record<string, unknown> | undefined;
+  try {
+    data = parsePushData(body.data);
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : String(error));
+  }
+
+  const result = await sendPushToUser(c.env, {
+    userId: String(body.userId).trim(),
+    title: String(body.title),
+    body: String(body.body),
+    data,
+  });
+
+  return c.json(result);
+});
+
+// POST /api/push/test — authenticated helper for test sends
+app.post("/api/push/test", async (c) => {
+  const authError = requirePushServiceAuth(c);
+  if (authError) return authError;
+
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  if (!body.userId) {
+    return jsonError("userId is required");
+  }
+
+  let data: Record<string, unknown> | undefined;
+  try {
+    data = parsePushData(body.data);
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : String(error));
+  }
+
+  const result = await sendPushToUser(c.env, {
+    userId: String(body.userId).trim(),
+    title: body.title ? String(body.title) : "Cowtail test notification",
+    body: body.body ? String(body.body) : "Push delivery from Cowtail is working.",
+    data: {
+      test: true,
+      ...(data ?? {}),
+    },
+  });
+
+  return c.json(result);
 });
 
 // GET /api/health — placeholder for Prometheus proxy
