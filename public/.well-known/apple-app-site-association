@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "Q28NF3NH3D.dev.kil.cowtail",
+        "paths": [
+          "/",
+          "/alerts",
+          "/alerts/*",
+          "/digest",
+          "/digest/*",
+          "/fixes",
+          "/fixes/*"
+        ]
+      }
+    ]
+  }
+}

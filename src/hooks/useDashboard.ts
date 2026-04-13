@@ -3,42 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { convexQuery } from '@convex-dev/react-query';
 import { api } from '../../convex/_generated/api';
 import type { Outcome } from '../types';
+import type { ConvexAlert } from '../lib/alerts';
+import { toAlert } from '../lib/alerts';
 import { parseLocalDate, parseLocalDateEnd, formatDateLocal } from '../lib/dates';
 
 type DatePreset = '24h' | '7d' | '30d' | 'custom';
-
-interface ConvexAlert {
-  _id: string;
-  _creationTime: number;
-  timestamp: number;
-  alertname: string;
-  severity: string;
-  namespace: string;
-  node?: string;
-  status: string;
-  outcome: string;
-  summary: string;
-  action: string;
-  rootCause?: string;
-  messaged: boolean;
-  resolvedAt?: number;
-}
-
-// Normalize Convex alert to our frontend Alert type
-function toAlert(a: ConvexAlert) {
-  return {
-    id: a._id,
-    timestamp: new Date(a.timestamp).toISOString(),
-    alertName: a.alertname,
-    severity: a.severity as 'critical' | 'warning' | 'info',
-    namespace: a.namespace,
-    node: a.node ?? '',
-    outcome: a.outcome as Outcome,
-    summary: a.summary,
-    rootCause: a.rootCause ?? '',
-    actionTaken: a.action,
-  };
-}
 
 type Alert = ReturnType<typeof toAlert>;
 

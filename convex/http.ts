@@ -20,6 +20,52 @@ function parsePushData(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
+function nonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function extractAlertId(value: Record<string, unknown>): string | undefined {
+  return nonEmptyString(value.alertId)
+    ?? nonEmptyString(value.alertID)
+    ?? nonEmptyString(value.alert_id);
+}
+
+function buildAlertURL(alertId: string): string {
+  const origin = nonEmptyString(process.env.COWTAIL_WEB_ORIGIN) ?? "https://cowtail.thezoo.house";
+  return `${origin.replace(/\/+$/, "")}/alerts/${encodeURIComponent(alertId)}`;
+}
+
+function enrichPushData(
+  data: Record<string, unknown> | undefined,
+  alertId: string | undefined
+): Record<string, unknown> | undefined {
+  const enriched = data ? { ...data } : {};
+  const resolvedAlertId = alertId ?? extractAlertId(enriched);
+
+  if (!resolvedAlertId) {
+    return Object.keys(enriched).length > 0 ? enriched : undefined;
+  }
+
+  enriched.alertId = resolvedAlertId;
+
+  if (
+    !nonEmptyString(enriched.url)
+    && !nonEmptyString(enriched.link)
+    && !nonEmptyString(enriched.deepLinkURL)
+    && !nonEmptyString(enriched.deepLinkUrl)
+    && !nonEmptyString(enriched.deep_link_url)
+  ) {
+    enriched.url = buildAlertURL(resolvedAlertId);
+  }
+
+  return enriched;
+}
+
 function requirePushServiceAuth(c: { req: { header(name: string): string | undefined } }) {
   const expected = process.env.PUSH_API_BEARER_TOKEN?.trim();
   if (!expected) {
@@ -263,6 +309,8 @@ app.post("/api/push/send", async (c) => {
     return jsonError(error instanceof Error ? error.message : String(error));
   }
 
+  data = enrichPushData(data, extractAlertId(body));
+
   const result = await sendPushToUser(c.env, {
     userId: String(body.userId).trim(),
     title: String(body.title),
@@ -293,6 +341,8 @@ app.post("/api/push/test", async (c) => {
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : String(error));
   }
+
+  data = enrichPushData(data, extractAlertId(body));
 
   const result = await sendPushToUser(c.env, {
     userId: String(body.userId).trim(),

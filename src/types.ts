@@ -8,10 +8,13 @@ export interface Alert {
   severity: Severity;
   namespace: string;
   node: string;
+  status: string;
   outcome: Outcome;
   summary: string;
   rootCause: string;
   actionTaken: string;
+  messaged: boolean;
+  resolvedAt?: string;
 }
 
 export interface NodeHealth {

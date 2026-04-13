@@ -36,6 +36,15 @@ export const getByTimeRange = query({
   },
 });
 
+export const getById = query({
+  args: {
+    id: v.id("alerts"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
 export const getAll = query({
   args: {},
   handler: async (ctx) => {
