@@ -30,6 +30,8 @@ If you want an LLM or another engineer to finish the implementation, start here:
 
 ## Development
 ```bash
+cd ..
+bun install
 cd cli
 bun install
 bun run check

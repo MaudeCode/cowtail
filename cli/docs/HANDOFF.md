@@ -566,6 +566,8 @@ with the bearer token header.
 At minimum, the implementer should be able to run:
 
 ```bash
+cd ..
+bun install
 cd cli
 bun install
 bun run check
