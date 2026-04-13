@@ -29,8 +29,11 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 ## Local Build
 
 - Install dependencies from the repo root with `bun install --frozen-lockfile`.
+- Build the CLI with `cd cli && bun run build`.
+- Check the CLI with `cd cli && bun run check`.
 - Build the web app with `cd web && bun run build`.
 - The web app source lives in [`web/`](./web).
+- The CLI source lives in [`cli/`](./cli).
 - Shared contracts live in [`protocol/`](./protocol).
 - The production image is built from [`Dockerfile`](./Dockerfile).
 - Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).

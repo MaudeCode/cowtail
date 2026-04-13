@@ -12,6 +12,7 @@ Alert investigation log and cluster health dashboard for Kubernetes. Built to gi
 
 This repo is a Bun workspace:
 
+- `cli/` contains the local command-line client
 - `web/` contains the React app and Convex functions
 - `protocol/` contains shared transport contracts and schemas
 

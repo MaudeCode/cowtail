@@ -1,0 +1,5 @@
+{
+  "baseUrl": "https://your-cowtail.example/actions",
+  "pushBearerToken": "replace-me",
+  "timeoutMs": 10000
+}
