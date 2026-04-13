@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Deploy Convex
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "convex/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/convex-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: convex-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Convex
+    runs-on: ["ghar-set-maudecode"]
+    timeout-minutes: 15
+    env:
+      CONVEX_SELF_HOSTED_URL: "${{ vars.CONVEX_SELF_HOSTED_URL }}"
+      CONVEX_SELF_HOSTED_ADMIN_KEY: "${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Validate Convex deploy configuration
+        run: |
+          if [ -z "${CONVEX_SELF_HOSTED_URL}" ]; then
+            echo "Missing Actions variable CONVEX_SELF_HOSTED_URL" >&2
+            exit 1
+          fi
+
+          if [ -z "${CONVEX_SELF_HOSTED_ADMIN_KEY}" ]; then
+            echo "Missing Actions secret CONVEX_SELF_HOSTED_ADMIN_KEY" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Deploy Convex
+        run: bunx convex deploy
