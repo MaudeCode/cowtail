@@ -1,6 +1,6 @@
 "use node";
 
-import { connect } from "node:http2";
+import { connect, type IncomingHttpHeaders } from "node:http2";
 import { createPrivateKey, sign } from "node:crypto";
 
 export type PushData = Record<string, unknown>;
@@ -120,7 +120,7 @@ export async function sendApnsNotification(args: SendApnsNotificationArgs): Prom
       }
     };
 
-    client.on("error", (error) => {
+    client.on("error", (error: Error) => {
       if (settled) return;
       settled = true;
       reject(new ApnsError(`APNs connection error: ${error.message}`));
@@ -139,10 +139,14 @@ export async function sendApnsNotification(args: SendApnsNotificationArgs): Prom
 
     request.setEncoding("utf8");
 
-    request.on("response", (headers) => {
+    request.on("response", (headers: IncomingHttpHeaders) => {
       status = Number(headers[":status"] ?? 0);
       const headerValue = headers["apns-id"];
-      apnsId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+      apnsId = typeof headerValue === "string"
+        ? headerValue
+        : Array.isArray(headerValue)
+        ? headerValue[0]
+        : undefined;
     });
 
     request.on("data", (chunk: string) => {
@@ -175,7 +179,7 @@ export async function sendApnsNotification(args: SendApnsNotificationArgs): Prom
       ));
     });
 
-    request.on("error", (error) => {
+    request.on("error", (error: Error) => {
       cleanup();
       if (settled) return;
       settled = true;

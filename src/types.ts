@@ -1,3 +1,8 @@
+export type {
+  HealthNode as NodeHealth,
+  HealthResponse as ClusterHealth,
+} from '@maudecode/cowtail-protocol';
+
 export type Severity = 'critical' | 'warning' | 'info';
 export type Outcome = 'fixed' | 'self-resolved' | 'noise' | 'escalated';
 
@@ -17,13 +22,6 @@ export interface Alert {
   resolvedAt?: string;
 }
 
-export interface NodeHealth {
-  name: string;
-  status: 'Ready' | 'NotReady' | 'Unknown';
-  cpu: number;
-  memory: number;
-}
-
 export type FixScope = 'reactive' | 'weekly' | 'monthly';
 
 export interface Fix {
@@ -34,13 +32,4 @@ export interface Fix {
   rootCause: string;
   commit?: string;
   scope: FixScope;
-}
-
-export interface ClusterHealth {
-  nodes: NodeHealth[];
-  cephStatus: 'HEALTH_OK' | 'HEALTH_WARN' | 'HEALTH_ERR';
-  cephMessage: string;
-  storageTotal: number;
-  storageUsed: number;
-  storageUnit: string;
 }

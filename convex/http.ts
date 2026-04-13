@@ -5,11 +5,13 @@ import {
   alertCreateRequestSchema,
   createResponseSchema,
   fixCreateRequestSchema,
+  healthResponseSchema,
   pushResultSchema,
   pushSendRequestSchema,
   pushTestRequestSchema,
   subsListResponseSchema,
 } from "@maudecode/cowtail-protocol";
+import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 
@@ -88,6 +90,144 @@ function formatIssues(issues: Array<{ message: string; path?: ReadonlyArray<Prop
       return `${path}${issue.message}`;
     })
     .join("; ");
+}
+
+type PrometheusResult = {
+  metric: Record<string, string>;
+  value: [number, string];
+};
+
+type PrometheusResponse = {
+  status: string;
+  data?: {
+    result?: PrometheusResult[];
+  };
+};
+
+function prometheusBaseUrl(): string {
+  const configured = nonEmptyString(process.env.PROMETHEUS_BASE_URL);
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  const origin = nonEmptyString(process.env.COWTAIL_WEB_ORIGIN) ?? "https://cowtail.thezoo.house";
+  return `${origin.replace(/\/+$/, "")}/prometheus`;
+}
+
+function looksLikeHtml(body: string): boolean {
+  const trimmed = body.trim().toLowerCase();
+  return trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html");
+}
+
+function prometheusValue(result: PrometheusResult): number {
+  return Number.parseFloat(result.value[1]);
+}
+
+async function promQuery(query: string): Promise<PrometheusResult[]> {
+  const url = new URL(`${prometheusBaseUrl()}/api/v1/query`);
+  url.searchParams.set("query", query);
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  const body = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Prometheus query failed with status ${response.status}`);
+  }
+
+  if (looksLikeHtml(body)) {
+    if (body.toLowerCase().includes("cloudflare access")) {
+      throw new Error("Prometheus query was blocked by Cloudflare Access");
+    }
+
+    throw new Error("Prometheus returned HTML instead of JSON");
+  }
+
+  let data: PrometheusResponse;
+  try {
+    data = JSON.parse(body) as PrometheusResponse;
+  } catch {
+    throw new Error("Prometheus returned invalid JSON");
+  }
+
+  if (data.status !== "success" || !Array.isArray(data.data?.result)) {
+    throw new Error("Prometheus query did not return a success result");
+  }
+
+  return data.data.result;
+}
+
+async function fetchClusterHealth(): Promise<HealthResponse> {
+  const [cpuResults, memoryResults, readyResults, cephHealthResults, storageTotalResults, storageUsedResults] =
+    await Promise.all([
+      promQuery(
+        '(1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 * on(instance) group_left(nodename) node_uname_info'
+      ),
+      promQuery(
+        '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 * on(instance) group_left(nodename) node_uname_info'
+      ),
+      promQuery('kube_node_status_condition{condition="Ready",status="true"}'),
+      promQuery("ceph_health_status"),
+      promQuery("ceph_cluster_total_bytes"),
+      promQuery("ceph_cluster_total_used_bytes"),
+    ]);
+
+  const readyNodes = new Set(
+    readyResults
+      .filter((result) => prometheusValue(result) === 1)
+      .map((result) => result.metric.node)
+      .filter(Boolean)
+  );
+
+  const cpuByNode = new Map<string, number>();
+  for (const result of cpuResults) {
+    const nodeName = result.metric.nodename;
+    if (nodeName) {
+      cpuByNode.set(nodeName, Math.round(prometheusValue(result)));
+    }
+  }
+
+  const memoryByNode = new Map<string, number>();
+  for (const result of memoryResults) {
+    const nodeName = result.metric.nodename;
+    if (nodeName) {
+      memoryByNode.set(nodeName, Math.round(prometheusValue(result)));
+    }
+  }
+
+  const nodeNames = new Set([...cpuByNode.keys(), ...memoryByNode.keys()]);
+  const nodes: HealthNode[] = Array.from(nodeNames)
+    .sort()
+    .map((name) => ({
+      name,
+      status: readyNodes.has(name) ? "Ready" : "NotReady",
+      cpu: cpuByNode.get(name) ?? 0,
+      memory: memoryByNode.get(name) ?? 0,
+    }));
+
+  const cephStatusValue = cephHealthResults.length > 0 ? Math.round(prometheusValue(cephHealthResults[0])) : 0;
+  const cephStatusMap: Record<number, HealthResponse["cephStatus"]> = {
+    0: "HEALTH_OK",
+    1: "HEALTH_WARN",
+    2: "HEALTH_ERR",
+  };
+
+  const totalTiB = storageTotalResults.length > 0 ? prometheusValue(storageTotalResults[0]) / 1024 ** 4 : 0;
+  const usedTiB = storageUsedResults.length > 0 ? prometheusValue(storageUsedResults[0]) / 1024 ** 4 : 0;
+
+  return {
+    version: 1,
+    nodes,
+    cephStatus: cephStatusMap[cephStatusValue] ?? "HEALTH_OK",
+    cephMessage: cephStatusValue === 0 ? "All PGs active+clean" : "Degraded — check Ceph dashboard",
+    storageUsed: Number.parseFloat(usedTiB.toFixed(2)),
+    storageTotal: Number.parseFloat(totalTiB.toFixed(2)),
+    storageUnit: "TiB",
+  };
 }
 
 // POST /api/alerts — write endpoint
@@ -386,22 +526,14 @@ app.get("/api/subs", async (c) => {
   }));
 });
 
-// GET /api/health — placeholder for Prometheus proxy
+// GET /api/health — aggregated cluster health for native clients and web fallback
 app.get("/api/health", async (c) => {
-  return c.json({
-    nodes: [
-      { name: "k8s-chronos", status: "Ready", cpu: 11, memory: 33 },
-      { name: "k8s-coeus", status: "Ready", cpu: 12, memory: 33 },
-      { name: "k8s-oceanus", status: "Ready", cpu: 9, memory: 33 },
-      { name: "k8s-rhea", status: "Ready", cpu: 2, memory: 19 },
-      { name: "k8s-tethys", status: "Ready", cpu: 12, memory: 42 },
-    ],
-    cephStatus: "HEALTH_OK",
-    cephMessage: "All PGs active+clean",
-    storageUsed: 1.7,
-    storageTotal: 3.7,
-    storageUnit: "TiB",
-  });
+  try {
+    return c.json(healthResponseSchema.parse(await fetchClusterHealth()));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to fetch cluster health";
+    return jsonError(message, 502);
+  }
 });
 
 // GET /api/digest-html — pre-rendered email HTML for the digest

@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@convex-dev/react-query": "^0.1.0",
-    "@maudecode/cowtail-protocol": "git+ssh://git@github.com/MaudeCode/cowtail-protocol.git#a0e0716d26331c470aa081f25d5c92e4131e36e7",
+    "@maudecode/cowtail-protocol": "git+ssh://git@github.com/MaudeCode/cowtail-protocol.git#a36fde3033cbd3f8f1b3679665feffb6690cf2b0",
     "@tanstack/react-query": "^5.94.5",
     "convex": "^1.34.0",
     "convex-helpers": "^0.1.114",

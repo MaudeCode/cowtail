@@ -16,6 +16,16 @@ Keep this document scrubbed:
 - Do not patch running cluster resources directly when the source of truth lives in a separate infrastructure repo.
 - Keep deployment documentation generic and non-identifying.
 
+## Protocol Boundary
+
+Use `cowtail-protocol` for any versioned contract that crosses repo or process boundaries.
+
+- Put request and response schemas there for HTTP actions, CLI payloads, push payloads, and shared read endpoints such as cluster health.
+- Put shared enums and literals there when multiple repos need the same allowed values.
+- Keep runtime implementation details out of `cowtail-protocol`: no Convex queries or mutations, no env loading, no HTTP clients, no UI state, no Swift-only mapping code.
+- If a payload shape is only a local view model for this web app, keep it in this repo instead of promoting it to the protocol package.
+- When a protocol changes, update `cowtail-protocol` first, publish a new tag, then bump the pinned dependency in this repo. Do not re-declare the wire format locally as a shortcut.
+
 ## Local Build
 
 - Install dependencies with `bun install --frozen-lockfile`.
