@@ -10,9 +10,10 @@ Alert investigation log and cluster health dashboard for Kubernetes. Built to gi
 ![Dashboard](https://img.shields.io/badge/stack-React%20%2B%20Vite%20%2B%20Tailwind-0E0E10?style=flat&labelColor=B8242C)
 ![Backend](https://img.shields.io/badge/backend-Convex-0E0E10?style=flat&labelColor=B8242C)
 
-This repo contains three projects:
+This repo contains four projects:
 
 - `cli/` contains the local command-line client
+- `ios/` contains the native iPhone app and XcodeGen project
 - `web/` contains the React app and Convex functions
 - `protocol/` contains shared transport contracts and schemas
 
@@ -64,6 +65,8 @@ bun run dev
 For container/runtime values, copy `web/.env.container.example` into your deployment environment and set the real upstreams there instead of hardcoding them in tracked nginx config.
 
 For CLI development, install dependencies inside `cli/` and run commands there.
+
+For iOS development, work from `ios/`, run `xcodegen generate`, and open `ios/Cowtail.xcodeproj`.
 
 ### Deploy to Kubernetes
 

@@ -1,0 +1,28 @@
+# Xcode
+DerivedData/
+build/
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+
+# XcodeGen generated project
+Cowtail.xcodeproj/
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# macOS
+.DS_Store
+
+# Local project config
+Config/project.env

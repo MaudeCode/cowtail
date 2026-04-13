@@ -35,6 +35,7 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - Build the web app with `cd web && bun run build`.
 - The web app source lives in [`web/`](./web).
 - The CLI source lives in [`cli/`](./cli).
+- The native iOS app lives in [`ios/`](./ios) and remains outside the Bun workspace.
 - Shared contracts live in [`protocol/`](./protocol).
 - The production image is built from [`web/Dockerfile`](./web/Dockerfile) using the repo root as the Docker build context.
 - Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).
