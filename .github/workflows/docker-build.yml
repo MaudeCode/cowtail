@@ -1,0 +1,41 @@
+name: Docker Build
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+            artifact: docker-amd64
+          - platform: linux/arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+            artifact: docker-arm64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Build image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          outputs: type=docker,dest=/tmp/image.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: /tmp/image.tar
+          retention-days: 1
