@@ -1,6 +1,6 @@
 {
   "name": "cowtail-cli",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "description": "Cowtail CLI",
@@ -9,8 +9,8 @@
   },
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "bun build ./src/cli.ts --compile --outfile ./dist/cowtail",
-    "build:js": "bun build ./src/cli.ts --target=node --outfile ./dist/cowtail.js",
+    "build": "bun build ./src/cli.ts --compile --outfile ./dist/cowtail --env='COWTAIL_*'",
+    "build:js": "bun build ./src/cli.ts --target=node --outfile ./dist/cowtail.js --env='COWTAIL_*'",
     "check": "tsc --noEmit"
   },
   "engines": {
@@ -24,6 +24,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@maudecode/cowtail-protocol": "workspace:*"
+    "@maudecode/cowtail-protocol": "file:../protocol"
   }
 }

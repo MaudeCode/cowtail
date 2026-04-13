@@ -1,0 +1,86 @@
+name: CLI Build
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: dev
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: CLI Check
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: bun install --frozen-lockfile
+
+      - name: Check CLI
+        working-directory: cli
+        run: bun run check
+
+      - name: Verify version command
+        working-directory: cli
+        env:
+          COWTAIL_VERSION: ${{ inputs.version }}
+        run: |
+          bun run build:js
+          test "$(node ./dist/cowtail.js version)" = "${COWTAIL_VERSION}"
+
+  build:
+    name: Build CLI (${{ matrix.asset }})
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: check
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: bun-darwin-arm64
+            asset: cowtail-darwin-arm64
+          - target: bun-darwin-x64
+            asset: cowtail-darwin-x64
+          - target: bun-linux-arm64
+            asset: cowtail-linux-arm64
+          - target: bun-linux-x64
+            asset: cowtail-linux-x64
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: bun install --frozen-lockfile
+
+      - name: Build release binary
+        working-directory: cli
+        env:
+          COWTAIL_VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p "release/${{ matrix.asset }}"
+          bun build ./src/cli.ts \
+            --compile \
+            --target=${{ matrix.target }} \
+            --env='COWTAIL_*' \
+            --outfile "./release/${{ matrix.asset }}/cowtail"
+
+      - name: Archive binary
+        working-directory: cli
+        run: |
+          tar -C "./release/${{ matrix.asset }}" -czf "./release/${{ matrix.asset }}.tar.gz" cowtail
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.asset }}
+          path: cli/release/${{ matrix.asset }}.tar.gz
+          retention-days: 1

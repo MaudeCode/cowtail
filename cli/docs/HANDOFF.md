@@ -2,7 +2,7 @@
 
 This document is the real implementation handoff for the `cowtail-cli` scaffold.
 
-It is written for a future LLM or human picking up the `cli/` workspace and finishing the CLI.
+It is written for a future LLM or human picking up the `cli/` project and finishing the CLI.
 
 ## What this CLI is for
 
@@ -566,10 +566,12 @@ with the bearer token header.
 At minimum, the implementer should be able to run:
 
 ```bash
+cd cli
 bun install
 bun run check
 bun run build
 ./dist/cowtail help
+./dist/cowtail version
 ./dist/cowtail auth whoami
 ```
 
@@ -586,9 +588,11 @@ Present now:
 - Bun build config
 - TypeScript project setup
 - compiled binary build
+- build version output from `COWTAIL_VERSION`
 - config file loading
 - argument parsing and validation
 - structured output and JSON mode
+- `version`
 - `alert create`
 - `fix create`
 - `subs list`

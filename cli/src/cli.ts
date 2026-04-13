@@ -6,9 +6,15 @@ import { runFixCommand } from "./commands/fix";
 import { printHelp } from "./commands/help";
 import { runPushCommand } from "./commands/push";
 import { runSubsCommand } from "./commands/subs";
+import { printVersion } from "./commands/version";
 
 async function main(argv: string[]) {
   const [command, subcommand, ...rest] = argv;
+
+  if (command === "version" || command === "--version" || command === "-v") {
+    printVersion();
+    return;
+  }
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
     printHelp(command === "help" ? argv.slice(1) : []);

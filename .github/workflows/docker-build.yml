@@ -2,6 +2,11 @@ name: Docker Build
 
 on:
   workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: dev
 
 permissions:
   contents: read
@@ -30,6 +35,9 @@ jobs:
         uses: useblacksmith/build-push-action@v2
         with:
           context: .
+          file: web/Dockerfile
+          build-args: |
+            COWTAIL_VERSION=${{ inputs.version }}
           platforms: ${{ matrix.platform }}
           outputs: type=docker,dest=/tmp/image.tar
 

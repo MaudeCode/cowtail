@@ -1,0 +1,26 @@
+name: CLI Verify
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "cli/**"
+      - "protocol/**"
+      - ".github/workflows/cli-build.yml"
+      - ".github/workflows/cli-verify.yml"
+      - ".github/workflows/release.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "cli/**"
+      - "protocol/**"
+      - ".github/workflows/cli-build.yml"
+      - ".github/workflows/cli-verify.yml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+jobs:
+  cli-build:
+    uses: ./.github/workflows/cli-build.yml

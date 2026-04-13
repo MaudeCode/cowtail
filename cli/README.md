@@ -10,6 +10,7 @@ Cowtail CLI for Cowtail backend actions.
 
 ## Current status
 Phase 1 is implemented:
+- `cowtail version`
 - `cowtail alert create`
 - `cowtail fix create`
 - `cowtail subs list`
@@ -29,8 +30,8 @@ If you want an LLM or another engineer to finish the implementation, start here:
 
 ## Development
 ```bash
-bun install
 cd cli
+bun install
 bun run check
 bun run dev -- help
 ```
@@ -41,6 +42,13 @@ cd cli
 bun run build
 ./dist/cowtail help
 ```
+
+## Install From A Release
+```bash
+curl -fsSL https://raw.githubusercontent.com/MaudeCode/cowtail/main/cli/install.sh | sh
+```
+
+Set `COWTAIL_VERSION=vX.Y.Z` to pin a specific release tag. Set `INSTALL_DIR=/your/bin` to override the install location.
 
 ## Config
 The CLI reads runtime settings from a JSON config file.
@@ -64,7 +72,10 @@ Example config:
 
 `cowtail auth whoami` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
+Tagged release builds embed the Git tag as the canonical CLI version. Local builds default to `dev` unless `COWTAIL_VERSION` is set.
+
 ## Planned command shape
+- `cowtail version`
 - `cowtail alert create`
 - `cowtail fix create`
 - `cowtail subs list`
@@ -74,6 +85,8 @@ Example config:
 
 ## Examples
 ```bash
+cowtail version
+
 cowtail auth whoami
 
 cowtail subs list

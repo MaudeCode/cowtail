@@ -10,7 +10,7 @@ Alert investigation log and cluster health dashboard for Kubernetes. Built to gi
 ![Dashboard](https://img.shields.io/badge/stack-React%20%2B%20Vite%20%2B%20Tailwind-0E0E10?style=flat&labelColor=B8242C)
 ![Backend](https://img.shields.io/badge/backend-Convex-0E0E10?style=flat&labelColor=B8242C)
 
-This repo is a Bun workspace:
+This repo contains three projects:
 
 - `cli/` contains the local command-line client
 - `web/` contains the React app and Convex functions
@@ -63,11 +63,13 @@ bun run dev
 
 For container/runtime values, copy `web/.env.container.example` into your deployment environment and set the real upstreams there instead of hardcoding them in tracked nginx config.
 
+For CLI development, install dependencies inside `cli/` and run commands there.
+
 ### Deploy to Kubernetes
 
 1. **Build the Docker image:**
    ```bash
-   docker build -t cowtail .
+   docker build -f web/Dockerfile -t cowtail .
    ```
 
 2. **Set container environment variables** from `web/.env.container.example` for:
