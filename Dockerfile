@@ -1,9 +1,9 @@
-FROM node:22-alpine AS build
+FROM oven/bun:1.3.11-alpine AS build
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN npm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 COPY . .
-RUN npx tsc -b && npx vite build
+RUN bun run build
 
 FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/nginx.conf
