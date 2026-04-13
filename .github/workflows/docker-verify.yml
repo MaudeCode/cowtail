@@ -3,7 +3,7 @@ name: Docker Verify
 on:
   push:
     branches:
-      - "**"
+      - "main"
     paths:
       - ".dockerignore"
       - "Dockerfile"
@@ -15,6 +15,8 @@ on:
       - ".github/workflows/docker-verify.yml"
       - ".github/workflows/release.yml"
   pull_request:
+    branches:
+      - "main"
     paths:
       - ".dockerignore"
       - "Dockerfile"
@@ -25,8 +27,6 @@ on:
       - ".github/workflows/docker-build.yml"
       - ".github/workflows/docker-verify.yml"
       - ".github/workflows/release.yml"
-  workflow_dispatch:
-
 jobs:
   docker-build:
     uses: ./.github/workflows/docker-build.yml
