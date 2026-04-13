@@ -1,6 +1,15 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
+import {
+  alertCreateRequestSchema,
+  createResponseSchema,
+  fixCreateRequestSchema,
+  pushResultSchema,
+  pushSendRequestSchema,
+  pushTestRequestSchema,
+  subsListResponseSchema,
+} from "@maudecode/cowtail-protocol";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 
@@ -10,14 +19,6 @@ app.use("/api/*", cors());
 
 function jsonError(message: string, status = 400, details?: Record<string, unknown>) {
   return Response.json({ ok: false, error: message, ...(details ?? {}) }, { status });
-}
-
-function parsePushData(value: unknown): Record<string, unknown> | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("data must be an object when provided");
-  }
-  return value as Record<string, unknown>;
 }
 
 function nonEmptyString(value: unknown): string | undefined {
@@ -80,27 +81,45 @@ function requireServiceAuth(c: { req: { header(name: string): string | undefined
   return null;
 }
 
+function formatIssues(issues: Array<{ message: string; path?: ReadonlyArray<PropertyKey> }>) {
+  return issues
+    .map((issue) => {
+      const path = issue.path?.length ? `${issue.path.join(".")}: ` : "";
+      return `${path}${issue.message}`;
+    })
+    .join("; ");
+}
+
 // POST /api/alerts — write endpoint
 app.post("/api/alerts", async (c) => {
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  const parsed = alertCreateRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues));
+  }
+
   const ctx = c.env;
   // Strip null/undefined values — Convex optional fields must be omitted, not null
   const args: Record<string, unknown> = {
-    timestamp: body.timestamp ?? Date.now(),
-    alertname: body.alertname,
-    severity: body.severity,
-    namespace: body.namespace,
-    status: body.status,
-    outcome: body.outcome,
-    summary: body.summary,
-    action: body.action,
-    messaged: body.messaged ?? false,
+    timestamp: parsed.data.timestamp ?? Date.now(),
+    alertname: parsed.data.alertname,
+    severity: parsed.data.severity,
+    namespace: parsed.data.namespace,
+    status: parsed.data.status,
+    outcome: parsed.data.outcome,
+    summary: parsed.data.summary,
+    action: parsed.data.action,
+    messaged: parsed.data.messaged ?? false,
   };
-  if (body.node) args.node = body.node;
-  if (body.rootCause) args.rootCause = body.rootCause;
-  if (body.resolvedAt) args.resolvedAt = body.resolvedAt;
+  if (parsed.data.node) args.node = parsed.data.node;
+  if (parsed.data.rootCause) args.rootCause = parsed.data.rootCause;
+  if (parsed.data.resolvedAt) args.resolvedAt = parsed.data.resolvedAt;
   const id = await ctx.runMutation(api.alerts.insert, args as any);
-  return c.json({ ok: true, id });
+  return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
 // DELETE /api/alerts/:id — delete a single alert
@@ -117,18 +136,27 @@ app.delete("/api/alerts/:id", async (c) => {
 
 // POST /api/fixes — write endpoint
 app.post("/api/fixes", async (c) => {
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  const parsed = fixCreateRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues));
+  }
+
   const ctx = c.env;
   const args: Record<string, unknown> = {
-    timestamp: body.timestamp ?? Date.now(),
-    alertIds: body.alertIds,
-    description: body.description,
-    rootCause: body.rootCause,
-    scope: body.scope,
+    timestamp: parsed.data.timestamp ?? Date.now(),
+    alertIds: parsed.data.alertIds,
+    description: parsed.data.description,
+    rootCause: parsed.data.rootCause,
+    scope: parsed.data.scope,
   };
-  if (body.commit) args.commit = body.commit;
+  if (parsed.data.commit) args.commit = parsed.data.commit;
   const id = await ctx.runMutation(api.fixes.insert, args as any);
-  return c.json({ ok: true, id });
+  return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
 // DELETE /api/fixes/:id — delete a single fix
@@ -298,27 +326,21 @@ app.post("/api/push/send", async (c) => {
     return jsonError("Invalid JSON body");
   }
 
-  if (!body.userId || !body.title || !body.body) {
-    return jsonError("userId, title, and body are required");
+  const parsed = pushSendRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues));
   }
 
-  let data: Record<string, unknown> | undefined;
-  try {
-    data = parsePushData(body.data);
-  } catch (error) {
-    return jsonError(error instanceof Error ? error.message : String(error));
-  }
-
-  data = enrichPushData(data, extractAlertId(body));
+  const data = enrichPushData(parsed.data.data, extractAlertId(body));
 
   const result = await sendPushToUser(c.env, {
-    userId: String(body.userId).trim(),
-    title: String(body.title),
-    body: String(body.body),
+    userId: parsed.data.userId,
+    title: parsed.data.title,
+    body: parsed.data.body,
     data,
   });
 
-  return c.json(result);
+  return c.json(pushResultSchema.parse(result));
 });
 
 // POST /api/push/test — authenticated helper for test sends
@@ -331,30 +353,24 @@ app.post("/api/push/test", async (c) => {
     return jsonError("Invalid JSON body");
   }
 
-  if (!body.userId) {
-    return jsonError("userId is required");
+  const parsed = pushTestRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues));
   }
 
-  let data: Record<string, unknown> | undefined;
-  try {
-    data = parsePushData(body.data);
-  } catch (error) {
-    return jsonError(error instanceof Error ? error.message : String(error));
-  }
-
-  data = enrichPushData(data, extractAlertId(body));
+  const data = enrichPushData(parsed.data.data, extractAlertId(body));
 
   const result = await sendPushToUser(c.env, {
-    userId: String(body.userId).trim(),
-    title: body.title ? String(body.title) : "Cowtail test notification",
-    body: body.body ? String(body.body) : "Push delivery from Cowtail is working.",
+    userId: parsed.data.userId,
+    title: parsed.data.title ?? "Cowtail test notification",
+    body: parsed.data.body ?? "Push delivery from Cowtail is working.",
     data: {
       test: true,
       ...(data ?? {}),
     },
   });
 
-  return c.json(result);
+  return c.json(pushResultSchema.parse(result));
 });
 
 // GET /api/subs — list current enabled Apple subs with enabled device counts
@@ -363,11 +379,11 @@ app.get("/api/subs", async (c) => {
   if (authError) return authError;
 
   const subs = await c.env.runQuery(api.push.listCurrentSubs, {});
-  return c.json({
+  return c.json(subsListResponseSchema.parse({
     ok: true,
     count: subs.length,
     subs,
-  });
+  }));
 });
 
 // GET /api/health — placeholder for Prometheus proxy
