@@ -3,12 +3,8 @@ name: Deploy Convex
 
 on:
   push:
-    branches: ["main"]
-    paths:
-      - "convex/**"
-      - "package.json"
-      - "bun.lock"
-      - ".github/workflows/convex-deploy.yml"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 concurrency:

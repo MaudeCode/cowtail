@@ -39,8 +39,7 @@ Convex is deployed separately from the web image.
 
 - Workflow: [`.github/workflows/convex-deploy.yml`](./.github/workflows/convex-deploy.yml)
 - Trigger:
-  - push to `main`
-  - only when changes touch `convex/**`, `package.json`, `bun.lock`, or the workflow itself
+  - push of a version tag matching `v*`
   - can also be run manually with `workflow_dispatch`
 - Runtime:
   - runs on a self-hosted GitHub Actions runner
