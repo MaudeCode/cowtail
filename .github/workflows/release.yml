@@ -37,28 +37,10 @@ jobs:
           name: docker-arm64
           path: docker-arm64
 
-      - name: Download CLI darwin arm64
+      - name: Download CLI release artifacts
         uses: actions/download-artifact@v8
         with:
-          name: cowtail-darwin-arm64
-          path: cli-release
-
-      - name: Download CLI darwin x64
-        uses: actions/download-artifact@v8
-        with:
-          name: cowtail-darwin-x64
-          path: cli-release
-
-      - name: Download CLI linux arm64
-        uses: actions/download-artifact@v8
-        with:
-          name: cowtail-linux-arm64
-          path: cli-release
-
-      - name: Download CLI linux x64
-        uses: actions/download-artifact@v8
-        with:
-          name: cowtail-linux-x64
+          name: cli-release
           path: cli-release
 
       - name: Verify artifacts exist
@@ -94,28 +76,10 @@ jobs:
           name: docker-arm64
           path: docker-arm64
 
-      - name: Download CLI darwin arm64
+      - name: Download CLI release artifacts
         uses: actions/download-artifact@v8
         with:
-          name: cowtail-darwin-arm64
-          path: cli-release
-
-      - name: Download CLI darwin x64
-        uses: actions/download-artifact@v8
-        with:
-          name: cowtail-darwin-x64
-          path: cli-release
-
-      - name: Download CLI linux arm64
-        uses: actions/download-artifact@v8
-        with:
-          name: cowtail-linux-arm64
-          path: cli-release
-
-      - name: Download CLI linux x64
-        uses: actions/download-artifact@v8
-        with:
-          name: cowtail-linux-x64
+          name: cli-release
           path: cli-release
 
       - name: Set up Docker Buildx
