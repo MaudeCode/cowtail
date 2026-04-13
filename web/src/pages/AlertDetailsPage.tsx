@@ -5,6 +5,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { api } from '../../convex/_generated/api';
 import AlertDetail from '../components/dashboard/AlertDetail';
 import FixesList from '../components/dashboard/FixesList';
+import { BuildVersion } from '../components/ui';
 import { toAlert } from '../lib/alerts';
 import { formatTs } from '../lib/format';
 
@@ -52,6 +53,7 @@ export default function AlertDetailsPage() {
             </Link>
             <div className="font-mono text-[0.65rem] uppercase tracking-[0.12em] text-gray-400 mt-1">
               Alert Detail
+              <BuildVersion />
             </div>
           </div>
 

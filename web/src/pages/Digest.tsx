@@ -4,6 +4,7 @@ import { convexQuery } from '@convex-dev/react-query';
 import { api } from '../../convex/_generated/api';
 import { formatTs } from '../lib/format';
 import { parseLocalDate, parseLocalDateEnd, formatDateLocal } from '../lib/dates';
+import { BuildVersion } from '../components/ui';
 import type { Outcome } from '../types';
 
 interface ConvexAlert {
@@ -104,6 +105,7 @@ export default function Digest() {
           </div>
           <div className="font-mono text-[0.75rem] text-gray-400 uppercase tracking-[0.12em] mt-2">
             {formatDateRange(fromParam, toParam)}
+            <BuildVersion />
           </div>
         </div>
 

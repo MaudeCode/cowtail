@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { convexQuery } from '@convex-dev/react-query';
 import { api } from '../../convex/_generated/api';
 import { formatTs } from '../lib/format';
+import { BuildVersion } from '../components/ui';
 import type { FixScope } from '../types';
 
 interface ConvexFix {
@@ -84,6 +85,7 @@ export default function Fixes() {
           </h1>
           <div className="font-mono text-[0.7rem] uppercase tracking-[0.12em] text-gray-400 mt-1 max-lg:hidden">
             Applied Remediations
+            <BuildVersion />
           </div>
         </div>
         <a href="/" className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors pb-1">

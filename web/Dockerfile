@@ -1,5 +1,7 @@
 FROM oven/bun:1.3.11-alpine AS build
 WORKDIR /app
+ARG COWTAIL_VERSION=dev
+ENV VITE_APP_VERSION=${COWTAIL_VERSION}
 
 COPY package.json bun.lock ./
 COPY web/package.json web/package.json

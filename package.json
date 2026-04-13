@@ -7,7 +7,9 @@
     "protocol"
   ],
   "scripts": {
+    "build:cli": "cd cli && bun run build",
     "dev:web": "cd web && bun run dev",
+    "check:cli": "cd cli && bun run check",
     "build:web": "cd web && bun run build",
     "check:protocol": "cd protocol && bun run check"
   }

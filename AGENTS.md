@@ -24,15 +24,19 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - Put shared enums and literals there when multiple repos need the same allowed values.
 - Keep runtime implementation details out of `protocol`: no Convex queries or mutations, no env loading, no HTTP clients, no UI state, no Swift-only mapping code.
 - If a payload shape is only a local view model for this web app, keep it in this repo instead of promoting it to the protocol package.
-- The shared package is consumed through the Bun workspace as `@maudecode/cowtail-protocol`. Do not re-declare the wire format locally as a shortcut.
+- The web app consumes the shared package through the Bun workspace as `@maudecode/cowtail-protocol`. The CLI consumes the local package from `../protocol`. Do not re-declare the wire format locally as a shortcut.
 
 ## Local Build
 
-- Install dependencies from the repo root with `bun install --frozen-lockfile`.
+- Install web and protocol dependencies from the repo root with `bun install --frozen-lockfile`.
+- Install CLI dependencies with `cd cli && bun install --frozen-lockfile`.
+- Build the CLI with `cd cli && bun run build`.
+- Check the CLI with `cd cli && bun run check`.
 - Build the web app with `cd web && bun run build`.
 - The web app source lives in [`web/`](./web).
+- The CLI source lives in [`cli/`](./cli).
 - Shared contracts live in [`protocol/`](./protocol).
-- The production image is built from [`Dockerfile`](./Dockerfile).
+- The production image is built from [`web/Dockerfile`](./web/Dockerfile) using the repo root as the Docker build context.
 - Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).
 - Example app/Convex env values live in [`web/.env.example`](./web/.env.example).
 - Example container runtime env values live in [`web/.env.container.example`](./web/.env.container.example).
@@ -64,13 +68,16 @@ The web app is shipped as a container image.
 - Trigger:
   - push of a version tag matching `v*`
 - Runtime:
-  - builds the image from [`Dockerfile`](./Dockerfile)
+  - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context
+  - builds CLI release binaries from [`cli/`](./cli)
   - publishes multi-architecture container images
-  - creates a GitHub Release for the tag
+  - creates a GitHub Release for the tag and attaches the CLI artifacts
+  - passes the Git tag into both the web and CLI builds as the canonical release version
 
 Important boundary:
 
 - This repository builds and publishes the web image.
+- The root Bun workspace is intentionally limited to `web/` and `protocol/` so the web container build does not depend on CLI workspace metadata.
 - The actual Kubernetes rollout is managed outside this repo by GitOps.
 - Runtime upstreams and public association identifiers are injected with container env vars instead of being hardcoded in tracked nginx config.
 - If the running web deployment needs changes, update the external infrastructure source of truth rather than applying resources manually to the cluster.

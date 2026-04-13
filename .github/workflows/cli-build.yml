@@ -1,0 +1,91 @@
+name: CLI Build
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: dev
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: CLI Check
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install protocol dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: bun install --frozen-lockfile
+
+      - name: Check CLI
+        working-directory: cli
+        run: bun run check
+
+      - name: Verify version command
+        working-directory: cli
+        env:
+          COWTAIL_VERSION: ${{ inputs.version }}
+        run: |
+          bun run build:js
+          test "$(node ./dist/cowtail.js version)" = "${COWTAIL_VERSION}"
+
+  build:
+    name: Build CLI Release Artifacts
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install protocol dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: bun install --frozen-lockfile
+
+      - name: Build release binary
+        working-directory: cli
+        env:
+          COWTAIL_VERSION: ${{ inputs.version }}
+        run: |
+          rm -rf release
+          mkdir -p release
+
+          for target in \
+            "bun-darwin-arm64:cowtail-darwin-arm64" \
+            "bun-darwin-x64:cowtail-darwin-x64" \
+            "bun-linux-arm64:cowtail-linux-arm64" \
+            "bun-linux-x64:cowtail-linux-x64"
+          do
+            build_target="${target%%:*}"
+            asset_name="${target##*:}"
+            asset_dir="./release/${asset_name}"
+
+            mkdir -p "${asset_dir}"
+            bun build ./src/cli.ts \
+              --compile \
+              --target="${build_target}" \
+              --env='COWTAIL_*' \
+              --outfile "${asset_dir}/cowtail"
+
+            tar -C "${asset_dir}" -czf "./release/${asset_name}.tar.gz" cowtail
+          done
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cli-release
+          path: cli/release/*.tar.gz
+          retention-days: 1

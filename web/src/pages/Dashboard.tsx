@@ -1,6 +1,7 @@
 import { useDashboard } from '../hooks/useDashboard';
 import { useClusterHealth } from '../hooks/useClusterHealth';
 import { StatsBar, DateRangeBar, AlertList, ClusterHealth } from '../components/dashboard';
+import { BuildVersion } from '../components/ui';
 import type { ClusterHealth as ClusterHealthType } from '../types';
 
 const fallbackHealth: ClusterHealthType = {
@@ -41,6 +42,7 @@ export default function Dashboard() {
           </h1>
           <div className="font-mono text-[0.7rem] uppercase tracking-[0.12em] text-gray-400 mt-1 max-lg:hidden">
             Alert Investigation Log
+            <BuildVersion />
           </div>
         </div>
         <nav className="flex gap-4 pb-1">
