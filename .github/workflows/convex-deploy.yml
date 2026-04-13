@@ -53,6 +53,7 @@ jobs:
 
       - name: Configure git access for private protocol dependency
         run: |
+          git config --global url."https://x-access-token:${COWTAIL_PROTOCOL_TOKEN}@github.com/".insteadOf "git+ssh://git@github.com/"
           git config --global url."https://x-access-token:${COWTAIL_PROTOCOL_TOKEN}@github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://x-access-token:${COWTAIL_PROTOCOL_TOKEN}@github.com/".insteadOf "git@github.com:"
 
