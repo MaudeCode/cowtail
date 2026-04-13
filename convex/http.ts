@@ -66,7 +66,7 @@ function enrichPushData(
   return enriched;
 }
 
-function requirePushServiceAuth(c: { req: { header(name: string): string | undefined } }) {
+function requireServiceAuth(c: { req: { header(name: string): string | undefined } }) {
   const expected = process.env.PUSH_API_BEARER_TOKEN?.trim();
   if (!expected) {
     return jsonError("Push API bearer token is not configured", 500);
@@ -290,7 +290,7 @@ async function sendPushToUser(ctx: ActionCtx, args: {
 
 // POST /api/push/send — authenticated push send endpoint for Maude
 app.post("/api/push/send", async (c) => {
-  const authError = requirePushServiceAuth(c);
+  const authError = requireServiceAuth(c);
   if (authError) return authError;
 
   const body = await c.req.json().catch(() => null);
@@ -323,7 +323,7 @@ app.post("/api/push/send", async (c) => {
 
 // POST /api/push/test — authenticated helper for test sends
 app.post("/api/push/test", async (c) => {
-  const authError = requirePushServiceAuth(c);
+  const authError = requireServiceAuth(c);
   if (authError) return authError;
 
   const body = await c.req.json().catch(() => null);
@@ -355,6 +355,19 @@ app.post("/api/push/test", async (c) => {
   });
 
   return c.json(result);
+});
+
+// GET /api/subs — list current enabled Apple subs with enabled device counts
+app.get("/api/subs", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const subs = await c.env.runQuery(api.push.listCurrentSubs, {});
+  return c.json({
+    ok: true,
+    count: subs.length,
+    subs,
+  });
 });
 
 // GET /api/health — placeholder for Prometheus proxy

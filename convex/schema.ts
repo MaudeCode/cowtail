@@ -30,6 +30,7 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_deviceToken", ["deviceToken"])
+    .index("by_enabled", ["enabled"])
     .index("by_userId_enabled", ["userId", "enabled"]),
 
   fixes: defineTable({
