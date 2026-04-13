@@ -18,20 +18,24 @@ Keep this document scrubbed:
 
 ## Protocol Boundary
 
-Use `cowtail-protocol` for any versioned contract that crosses repo or process boundaries.
+Use `protocol` for any versioned contract that crosses repo or process boundaries.
 
 - Put request and response schemas there for HTTP actions, CLI payloads, push payloads, and shared read endpoints such as cluster health.
 - Put shared enums and literals there when multiple repos need the same allowed values.
-- Keep runtime implementation details out of `cowtail-protocol`: no Convex queries or mutations, no env loading, no HTTP clients, no UI state, no Swift-only mapping code.
+- Keep runtime implementation details out of `protocol`: no Convex queries or mutations, no env loading, no HTTP clients, no UI state, no Swift-only mapping code.
 - If a payload shape is only a local view model for this web app, keep it in this repo instead of promoting it to the protocol package.
-- When a protocol changes, update `cowtail-protocol` first, publish a new tag, then bump the pinned dependency in this repo. Do not re-declare the wire format locally as a shortcut.
+- The shared package is consumed through the Bun workspace as `@maudecode/cowtail-protocol`. Do not re-declare the wire format locally as a shortcut.
 
 ## Local Build
 
-- Install dependencies with `bun install --frozen-lockfile`.
-- Build the web app with `bun run build`.
+- Install dependencies from the repo root with `bun install --frozen-lockfile`.
+- Build the web app with `cd web && bun run build`.
+- The web app source lives in [`web/`](./web).
+- Shared contracts live in [`protocol/`](./protocol).
 - The production image is built from [`Dockerfile`](./Dockerfile).
-- Static assets are served by nginx using [`nginx.conf`](./nginx.conf).
+- Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).
+- Example app/Convex env values live in [`web/.env.example`](./web/.env.example).
+- Example container runtime env values live in [`web/.env.container.example`](./web/.env.container.example).
 
 ## Convex Deploy Path
 
@@ -43,15 +47,14 @@ Convex is deployed separately from the web image.
   - can also be run manually with `workflow_dispatch`
 - Runtime:
   - runs on a self-hosted GitHub Actions runner
-  - uses `bun install --frozen-lockfile`
-  - deploys with `bunx convex deploy`
+  - installs dependencies from the repo root workspace
+  - deploys from `web/` with `bunx convex deploy`
 
 Important implementation detail:
 
-- The repo depends on a private Git dependency fetched during `bun install`.
-- The workflow rewrites Git SSH URLs to HTTPS with a token before installing dependencies.
-- `actions/checkout` must keep `persist-credentials: false`, otherwise the checkout token can override the intended Git auth for the private dependency.
-- If Convex deploy starts failing during dependency installation, inspect the Git rewrite and checkout credential behavior before changing package managers or deployment logic.
+- The install must run at the repo root so Bun can link the local workspace packages correctly.
+- `actions/checkout` still keeps `persist-credentials: false` to avoid mutating the repo's auth state during deploy jobs.
+- If Convex deploy starts failing during dependency installation, inspect the root workspace manifests and `bun.lock` before changing package managers or deployment logic.
 
 ## Web Deploy Path
 
@@ -69,6 +72,7 @@ Important boundary:
 
 - This repository builds and publishes the web image.
 - The actual Kubernetes rollout is managed outside this repo by GitOps.
+- Runtime upstreams and public association identifiers are injected with container env vars instead of being hardcoded in tracked nginx config.
 - If the running web deployment needs changes, update the external infrastructure source of truth rather than applying resources manually to the cluster.
 
 ## Agent Checklist

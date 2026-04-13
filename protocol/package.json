@@ -1,0 +1,25 @@
+{
+  "name": "@maudecode/cowtail-protocol",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "description": "Shared protocol schemas and types for Cowtail services and clients",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

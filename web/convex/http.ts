@@ -38,9 +38,16 @@ function extractAlertId(value: Record<string, unknown>): string | undefined {
     ?? nonEmptyString(value.alert_id);
 }
 
+function cowtailWebOrigin(): string {
+  const origin = nonEmptyString(process.env.COWTAIL_WEB_ORIGIN)
+    ?? nonEmptyString(process.env.SITE_ORIGIN)
+    ?? "https://cowtail.example.com";
+
+  return origin.replace(/\/+$/, "");
+}
+
 function buildAlertURL(alertId: string): string {
-  const origin = nonEmptyString(process.env.COWTAIL_WEB_ORIGIN) ?? "https://cowtail.thezoo.house";
-  return `${origin.replace(/\/+$/, "")}/alerts/${encodeURIComponent(alertId)}`;
+  return `${cowtailWebOrigin()}/alerts/${encodeURIComponent(alertId)}`;
 }
 
 function enrichPushData(
@@ -110,8 +117,7 @@ function prometheusBaseUrl(): string {
     return configured.replace(/\/+$/, "");
   }
 
-  const origin = nonEmptyString(process.env.COWTAIL_WEB_ORIGIN) ?? "https://cowtail.thezoo.house";
-  return `${origin.replace(/\/+$/, "")}/prometheus`;
+  return `${cowtailWebOrigin()}/prometheus`;
 }
 
 function looksLikeHtml(body: string): boolean {

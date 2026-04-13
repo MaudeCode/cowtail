@@ -10,6 +10,11 @@ Alert investigation log and cluster health dashboard for Kubernetes. Built to gi
 ![Dashboard](https://img.shields.io/badge/stack-React%20%2B%20Vite%20%2B%20Tailwind-0E0E10?style=flat&labelColor=B8242C)
 ![Backend](https://img.shields.io/badge/backend-Convex-0E0E10?style=flat&labelColor=B8242C)
 
+This repo is a Bun workspace:
+
+- `web/` contains the React app and Convex functions
+- `protocol/` contains shared transport contracts and schemas
+
 ## Features
 
 - **Alert history** — every alert that fired, with timestamp, severity, namespace, outcome
@@ -48,12 +53,14 @@ Browser ──→ nginx ──→ Static files (Vite build)
 ### Development
 
 ```bash
-cp .env.example .env
-# Edit .env with your Convex URL
-
 bun install
+cp web/.env.example web/.env
+# Edit .env with your Convex URL
+cd web
 bun run dev
 ```
+
+For container/runtime values, copy `web/.env.container.example` into your deployment environment and set the real upstreams there instead of hardcoding them in tracked nginx config.
 
 ### Deploy to Kubernetes
 
@@ -62,10 +69,16 @@ bun run dev
    docker build -t cowtail .
    ```
 
-2. **Update `nginx.conf`** with your Convex and Prometheus service URLs.
+2. **Set container environment variables** from `web/.env.container.example` for:
+   - `CONVEX_API_UPSTREAM`
+   - `CONVEX_ACTIONS_UPSTREAM`
+   - `PROMETHEUS_UPSTREAM`
+   - `UNIVERSAL_LINKS_APP_ID`
 
 3. **Set environment variables** for the Convex HTTP actions:
+   - `COWTAIL_WEB_ORIGIN` — your Cowtail URL (used in alert deep links)
    - `SITE_ORIGIN` — your Cowtail URL (used in digest email links)
+   - `PROMETHEUS_BASE_URL` — optional explicit Prometheus endpoint if it does not live behind `/prometheus`
 
 4. **Deploy** using the HelmRelease in your GitOps repo, or any Kubernetes deployment method.
 

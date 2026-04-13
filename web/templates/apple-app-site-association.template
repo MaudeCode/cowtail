@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "${UNIVERSAL_LINKS_APP_ID}",
+        "paths": [
+          "/",
+          "/alerts",
+          "/alerts/*",
+          "/digest",
+          "/digest/*",
+          "/fixes",
+          "/fixes/*"
+        ]
+      }
+    ]
+  }
+}

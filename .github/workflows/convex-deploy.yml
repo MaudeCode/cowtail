@@ -22,7 +22,6 @@ jobs:
     env:
       CONVEX_SELF_HOSTED_URL: "${{ vars.CONVEX_SELF_HOSTED_URL }}"
       CONVEX_SELF_HOSTED_ADMIN_KEY: "${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}"
-      COWTAIL_PROTOCOL_TOKEN: "${{ secrets.COWTAIL_PROTOCOL_TOKEN }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -44,22 +43,9 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${COWTAIL_PROTOCOL_TOKEN}" ]; then
-            echo "Missing Actions secret COWTAIL_PROTOCOL_TOKEN" >&2
-            exit 1
-          fi
-
-      - name: Configure git access for private protocol dependency
-        run: |
-          git config --global --add url."https://x-access-token:${COWTAIL_PROTOCOL_TOKEN}@github.com/".insteadOf "git+ssh://git@github.com/"
-          git config --global --add url."https://x-access-token:${COWTAIL_PROTOCOL_TOKEN}@github.com/".insteadOf "ssh://git@github.com/"
-          git config --global --add url."https://x-access-token:${COWTAIL_PROTOCOL_TOKEN}@github.com/".insteadOf "git@github.com:"
-
-      - name: Verify access to private protocol dependency
-        run: git ls-remote ssh://git@github.com/MaudeCode/cowtail-protocol.git HEAD >/dev/null
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Deploy Convex
+        working-directory: web
         run: bunx convex deploy
