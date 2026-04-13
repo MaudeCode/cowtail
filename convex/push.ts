@@ -31,6 +31,29 @@ async function listEnabledDevices(ctx: MutationCtx | QueryCtx, userId: string) {
     .collect();
 }
 
+async function listCurrentSubsSummary(ctx: QueryCtx) {
+  const registrations = await ctx.db
+    .query("deviceRegistrations")
+    .withIndex("by_enabled", (q) => q.eq("enabled", true))
+    .collect();
+
+  const enabledDeviceCounts = new Map<string, number>();
+
+  for (const registration of registrations) {
+    enabledDeviceCounts.set(
+      registration.userId,
+      (enabledDeviceCounts.get(registration.userId) ?? 0) + 1,
+    );
+  }
+
+  return Array.from(enabledDeviceCounts.entries())
+    .map(([userId, enabledDeviceCount]) => ({
+      userId,
+      enabledDeviceCount,
+    }))
+    .sort((left, right) => left.userId.localeCompare(right.userId));
+}
+
 export const upsertDeviceRegistration = mutation({
   args: {
     userId: v.string(),
@@ -85,6 +108,13 @@ export const listEnabledDevicesForUser = query({
   },
   handler: async (ctx, args) => {
     return await listEnabledDevices(ctx, args.userId);
+  },
+});
+
+export const listCurrentSubs = query({
+  args: {},
+  handler: async (ctx) => {
+    return await listCurrentSubsSummary(ctx);
   },
 });
 
