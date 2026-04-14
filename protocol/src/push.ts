@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  jsonObjectSchema,
-  nonEmptyStringSchema,
-} from "./shared.js";
+import { jsonObjectSchema, nonEmptyStringSchema } from "./shared.js";
 
 export const pushSendRequestSchema = z.object({
   userId: nonEmptyStringSchema,

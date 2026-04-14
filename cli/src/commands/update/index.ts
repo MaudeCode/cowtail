@@ -35,7 +35,9 @@ export class UpdateCommand extends JsonCommand {
       }
 
       if (!result.updateAllowed && result.blockedReason === "dev-build") {
-        this.printLine(`Development build detected; use --force to replace it with ${result.targetVersion}`);
+        this.printLine(
+          `Development build detected; use --force to replace it with ${result.targetVersion}`,
+        );
         return;
       }
 

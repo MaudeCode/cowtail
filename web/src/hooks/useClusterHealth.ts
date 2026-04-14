@@ -1,19 +1,20 @@
-import { healthResponseSchema } from '@maudecode/cowtail-protocol';
-import { useState, useEffect, useCallback } from 'react';
-import type { ClusterHealth } from '../types';
+import { healthResponseSchema } from "@maudecode/cowtail-protocol";
+import { useState, useEffect, useCallback } from "react";
+import type { ClusterHealth } from "../types";
 
 async function fetchClusterHealth(): Promise<ClusterHealth> {
-  const res = await fetch('/actions/api/health');
+  const res = await fetch("/actions/api/health");
   const body = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const error = body && typeof body.error === 'string' ? body.error : `Health endpoint failed: ${res.status}`;
+    const error =
+      body && typeof body.error === "string" ? body.error : `Health endpoint failed: ${res.status}`;
     throw new Error(error);
   }
 
   const parsed = healthResponseSchema.safeParse(body);
   if (!parsed.success) {
-    throw new Error('Health endpoint returned an invalid payload');
+    throw new Error("Health endpoint returned an invalid payload");
   }
 
   return parsed.data;
@@ -29,7 +30,7 @@ export function useClusterHealth(refreshIntervalMs = 30000) {
       setHealth(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
+      setError(e instanceof Error ? e.message : "Unknown error");
     }
   }, []);
 

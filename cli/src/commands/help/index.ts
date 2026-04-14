@@ -1,6 +1,12 @@
 import { Command, Option, type CommandClass } from "clipanion";
 
-import { commandGroupMap, commandGroups, leafCommandTargets, standaloneCommands, type CommandGroupDefinition } from "..";
+import {
+  commandGroupMap,
+  commandGroups,
+  leafCommandTargets,
+  standaloneCommands,
+  type CommandGroupDefinition,
+} from "..";
 import { usageError } from "../../lib/errors";
 import { BaseCommand } from "../../lib/output";
 

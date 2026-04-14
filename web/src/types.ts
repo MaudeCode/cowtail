@@ -1,10 +1,10 @@
 export type {
   HealthNode as NodeHealth,
   HealthResponse as ClusterHealth,
-} from '@maudecode/cowtail-protocol';
+} from "@maudecode/cowtail-protocol";
 
-export type Severity = 'critical' | 'warning' | 'info';
-export type Outcome = 'fixed' | 'self-resolved' | 'noise' | 'escalated';
+export type Severity = "critical" | "warning" | "info";
+export type Outcome = "fixed" | "self-resolved" | "noise" | "escalated";
 
 export interface Alert {
   id: string;
@@ -22,7 +22,7 @@ export interface Alert {
   resolvedAt?: string;
 }
 
-export type FixScope = 'reactive' | 'weekly' | 'monthly';
+export type FixScope = "reactive" | "weekly" | "monthly";
 
 export interface Fix {
   id: string;

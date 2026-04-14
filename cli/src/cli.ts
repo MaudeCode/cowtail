@@ -3,7 +3,13 @@
 import { Builtins, Cli, type Command as ClipanionCommand } from "clipanion";
 
 import { groupedCommandClasses, standaloneCommands } from "./commands";
-import { HelpCompatCommand, getGroupHelpTopic, lookupHelpGroup, renderGroupHelp, renderRootHelp } from "./commands/help";
+import {
+  HelpCompatCommand,
+  getGroupHelpTopic,
+  lookupHelpGroup,
+  renderGroupHelp,
+  renderRootHelp,
+} from "./commands/help";
 import { handleCommandError } from "./lib/output";
 import { cowtailVersionLabel } from "./lib/version";
 
@@ -95,7 +101,7 @@ main(process.argv.slice(2)).catch((error) => {
 
 function shouldRenderRootHelp(argv: string[]): boolean {
   return (
-    argv.length === 0
-    || (argv.length === 1 && (argv[0] === "help" || argv[0] === "--help" || argv[0] === "-h"))
+    argv.length === 0 ||
+    (argv.length === 1 && (argv[0] === "help" || argv[0] === "--help" || argv[0] === "-h"))
   );
 }

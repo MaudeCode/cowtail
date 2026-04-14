@@ -7,7 +7,7 @@ let cached: AppConfig | null = null;
 export async function getConfig(): Promise<AppConfig> {
   if (cached) return cached;
   try {
-    const res = await fetch('/config.json');
+    const res = await fetch("/config.json");
     if (res.ok) {
       cached = await res.json();
       return cached!;

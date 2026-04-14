@@ -32,9 +32,10 @@ export const sendApnsToDevice = internalAction({
         apnsId: response.apnsId,
       };
     } catch (error) {
-      const apnsError = error instanceof ApnsError
-        ? error
-        : new ApnsError(error instanceof Error ? error.message : String(error));
+      const apnsError =
+        error instanceof ApnsError
+          ? error
+          : new ApnsError(error instanceof Error ? error.message : String(error));
 
       return {
         ok: false,

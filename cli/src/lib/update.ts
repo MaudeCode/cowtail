@@ -1,6 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -55,7 +63,9 @@ export async function installUpdate(
     : await fetchLatestReleaseTag();
 
   if (isDevBuild() && options.force !== true) {
-    throw usageError("Current binary is a development build; rerun with --force to replace it with a release binary");
+    throw usageError(
+      "Current binary is a development build; rerun with --force to replace it with a release binary",
+    );
   }
 
   if (cowtailVersionLabel === targetVersion) {
@@ -180,7 +190,7 @@ async function fetchLatestReleaseTag(): Promise<string> {
     throw new CliError(`Failed to resolve latest release (${response.status})`);
   }
 
-  const payload = await response.json() as { tag_name?: unknown };
+  const payload = (await response.json()) as { tag_name?: unknown };
   if (typeof payload.tag_name !== "string" || payload.tag_name.trim() === "") {
     throw new CliError("Latest release response did not include a tag_name");
   }

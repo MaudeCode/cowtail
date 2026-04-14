@@ -51,19 +51,19 @@ export function toCliError(error: unknown): CliError {
 
 function hasClipanionUsageMeta(error: unknown): error is ErrorWithMeta {
   return (
-    typeof error === "object"
-    && error !== null
-    && "clipanion" in error
-    && typeof (error as { clipanion?: { type?: unknown } }).clipanion?.type === "string"
-    && (error as { clipanion: { type: string } }).clipanion.type === "usage"
-    && "message" in error
-    && typeof (error as { message?: unknown }).message === "string"
+    typeof error === "object" &&
+    error !== null &&
+    "clipanion" in error &&
+    typeof (error as { clipanion?: { type?: unknown } }).clipanion?.type === "string" &&
+    (error as { clipanion: { type: string } }).clipanion.type === "usage" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
   );
 }
 
 function hasClipanionSyntaxErrorName(error: unknown): error is Error {
   return (
-    error instanceof Error
-    && (error.name === "UnknownSyntaxError" || error.name === "AmbiguousSyntaxError")
+    error instanceof Error &&
+    (error.name === "UnknownSyntaxError" || error.name === "AmbiguousSyntaxError")
   );
 }

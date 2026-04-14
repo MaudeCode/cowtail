@@ -35,7 +35,10 @@ export class UsersListCommand extends JsonCommand {
 
     this.printLine(
       response.users
-        .map((entry) => `${entry.userId} (${entry.enabledDeviceCount} enabled device${entry.enabledDeviceCount === 1 ? "" : "s"})`)
+        .map(
+          (entry) =>
+            `${entry.userId} (${entry.enabledDeviceCount} enabled device${entry.enabledDeviceCount === 1 ? "" : "s"})`,
+        )
         .join("\n"),
     );
   }

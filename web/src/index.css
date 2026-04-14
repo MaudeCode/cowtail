@@ -1,35 +1,36 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Space Grotesk', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  --font-sans: "Space Grotesk", sans-serif;
+  --font-mono: "DM Mono", monospace;
 
   /* Override Tailwind's default grays with our dark theme grays */
-  --color-gray-100: #2A2A2E;
-  --color-gray-200: #3A3A3F;
-  --color-gray-400: #6E6E76;
-  --color-gray-600: #9A9AA2;
+  --color-gray-100: #2a2a2e;
+  --color-gray-200: #3a3a3f;
+  --color-gray-400: #6e6e76;
+  --color-gray-600: #9a9aa2;
 
   /* Custom theme colors */
-  --color-bg: #0E0E10;
+  --color-bg: #0e0e10;
   --color-surface: #161618;
-  --color-surface-2: #1C1C1F;
-  --color-txt: #E8E8EA;
-  --color-accent: #B8242C;
+  --color-surface-2: #1c1c1f;
+  --color-txt: #e8e8ea;
+  --color-accent: #b8242c;
   --color-accent-dim: rgba(184, 36, 44, 0.6);
-  --color-outcome-fixed: #2D9B52;
-  --color-self-resolved: #3A7BD5;
-  --color-noise: #5A5A64;
-  --color-escalated: #D4880A;
+  --color-outcome-fixed: #2d9b52;
+  --color-self-resolved: #3a7bd5;
+  --color-noise: #5a5a64;
+  --color-escalated: #d4880a;
   --color-glow: rgba(184, 36, 44, 0.08);
-  --color-grid-line: rgba(255,255,255,0.025);
+  --color-grid-line: rgba(255, 255, 255, 0.025);
 }
 
-html, body {
-  background: #0E0E10;
-  color: #E8E8EA;
-  font-family: 'Space Grotesk', sans-serif;
+html,
+body {
+  background: #0e0e10;
+  color: #e8e8ea;
+  font-family: "Space Grotesk", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
@@ -43,8 +44,20 @@ input[type="date"] {
 
 .grid-bg {
   background-image:
-    repeating-linear-gradient(90deg, var(--color-grid-line) 0, var(--color-grid-line) 1px, transparent 1px, transparent),
-    repeating-linear-gradient(0deg, var(--color-grid-line) 0, var(--color-grid-line) 1px, transparent 1px, transparent);
+    repeating-linear-gradient(
+      90deg,
+      var(--color-grid-line) 0,
+      var(--color-grid-line) 1px,
+      transparent 1px,
+      transparent
+    ),
+    repeating-linear-gradient(
+      0deg,
+      var(--color-grid-line) 0,
+      var(--color-grid-line) 1px,
+      transparent 1px,
+      transparent
+    );
   background-size: 60px 60px;
 }
 
@@ -81,8 +94,14 @@ input[type="date"] {
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .slide-in {

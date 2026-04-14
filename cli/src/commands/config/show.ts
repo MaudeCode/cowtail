@@ -29,12 +29,14 @@ export class ConfigShowCommand extends JsonCommand {
       return;
     }
 
-    this.printLine([
-      `Config path: ${config.configPath}`,
-      `Config found: ${formatBoolean(config.configFound)}`,
-      `Base URL: ${config.baseUrl ?? "(not configured)"}`,
-      `Push token configured: ${formatBoolean(Boolean(config.pushBearerToken))}`,
-      `Timeout (ms): ${config.timeoutMs}`,
-    ].join("\n"));
+    this.printLine(
+      [
+        `Config path: ${config.configPath}`,
+        `Config found: ${formatBoolean(config.configFound)}`,
+        `Base URL: ${config.baseUrl ?? "(not configured)"}`,
+        `Push token configured: ${formatBoolean(Boolean(config.pushBearerToken))}`,
+        `Timeout (ms): ${config.timeoutMs}`,
+      ].join("\n"),
+    );
   }
 }
