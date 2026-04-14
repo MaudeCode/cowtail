@@ -30,7 +30,6 @@ cd ios
 Then open `ios/Cowtail.xcodeproj` in Xcode.
 
 See:
-- `docs/plan.md`
 - `docs/apple-setup.md`
 - `docs/architecture.md`
 - `docs/web-parity.md`

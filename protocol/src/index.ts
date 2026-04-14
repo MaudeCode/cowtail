@@ -4,4 +4,4 @@ export * from "./health.js";
 export * from "./push.js";
 export * from "./responses.js";
 export * from "./shared.js";
-export * from "./subs.js";
+export * from "./users.js";

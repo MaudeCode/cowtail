@@ -24,6 +24,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@maudecode/cowtail-protocol": "file:../protocol"
+    "@maudecode/cowtail-protocol": "file:../protocol",
+    "clipanion": "^4.0.0-rc.4"
   }
 }

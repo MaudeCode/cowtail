@@ -11,17 +11,14 @@ Cowtail CLI for Cowtail backend actions.
 ## Current status
 Phase 1 is implemented:
 - `cowtail version`
+- `cowtail update`
 - `cowtail alert create`
+- `cowtail config show`
 - `cowtail fix create`
-- `cowtail subs list`
 - `cowtail push send`
 - `cowtail push test`
-- `cowtail auth whoami`
+- `cowtail users list`
 - `cowtail help`
-
-## Handoff docs
-If you want an LLM or another engineer to finish the implementation, start here:
-- [`docs/HANDOFF.md`](./docs/HANDOFF.md)
 
 ## Layout
 - `src/cli.ts` - entrypoint
@@ -70,28 +67,31 @@ Example config:
 }
 ```
 
-`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `subs list`, `push send`, and `push test`.
+`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `push send`, and `push test`.
 
-`cowtail auth whoami` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
+`cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
 Tagged release builds embed the Git tag as the canonical CLI version. Local builds default to `dev` unless `COWTAIL_VERSION` is set.
 
 ## Planned command shape
 - `cowtail version`
+- `cowtail update`
 - `cowtail alert create`
+- `cowtail config show`
 - `cowtail fix create`
-- `cowtail subs list`
 - `cowtail push send`
 - `cowtail push test`
-- `cowtail auth whoami`
+- `cowtail users list`
 
 ## Examples
 ```bash
 cowtail version
 
-cowtail auth whoami
+cowtail update --check
 
-cowtail subs list
+cowtail config show
+
+cowtail users list
 
 cowtail alert create \
   --alertname KubePodCrashLooping \

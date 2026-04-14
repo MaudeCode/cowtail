@@ -9,7 +9,7 @@ import {
   pushResultSchema,
   pushSendRequestSchema,
   pushTestRequestSchema,
-  subsListResponseSchema,
+  usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
 import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
 import type { ActionCtx } from "./_generated/server";
@@ -519,16 +519,16 @@ app.post("/api/push/test", async (c) => {
   return c.json(pushResultSchema.parse(result));
 });
 
-// GET /api/subs — list current enabled Apple subs with enabled device counts
-app.get("/api/subs", async (c) => {
+// GET /api/users — list current users with enabled push device counts
+app.get("/api/users", async (c) => {
   const authError = requireServiceAuth(c);
   if (authError) return authError;
 
-  const subs = await c.env.runQuery(api.push.listCurrentSubs, {});
-  return c.json(subsListResponseSchema.parse({
+  const users = await c.env.runQuery(api.push.listCurrentUsers, {});
+  return c.json(usersListResponseSchema.parse({
     ok: true,
-    count: subs.length,
-    subs,
+    count: users.length,
+    users,
   }));
 });
 
