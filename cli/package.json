@@ -11,7 +11,8 @@
     "dev": "bun run src/cli.ts",
     "build": "bun build ./src/cli.ts --compile --outfile ./dist/cowtail --env='COWTAIL_*'",
     "build:js": "bun build ./src/cli.ts --target=node --outfile ./dist/cowtail.js --env='COWTAIL_*'",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "bun test"
   },
   "engines": {
     "bun": ">=1.1.0"
