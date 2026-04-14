@@ -1,9 +1,6 @@
 import { Command, Option } from "clipanion";
 
-import {
-  createResponseSchema,
-  fixCreateRequestSchema,
-} from "@maudecode/cowtail-protocol";
+import { createResponseSchema, fixCreateRequestSchema } from "@maudecode/cowtail-protocol";
 
 import { formatIssueList, validationError } from "../../lib/errors";
 import { postJson } from "../../lib/http";
@@ -54,10 +51,9 @@ export class FixCreateCommand extends JsonCommand {
   });
 
   async execute(): Promise<void> {
-    const alertIds = [
-      ...(this.alertId ?? []),
-      ...parseCommaSeparatedStrings(this.alertIds),
-    ].map((value) => requireNonEmptyString(value, "alert ID"));
+    const alertIds = [...(this.alertId ?? []), ...parseCommaSeparatedStrings(this.alertIds)].map(
+      (value) => requireNonEmptyString(value, "alert ID"),
+    );
 
     if (alertIds.length === 0) {
       throw validationError("--alert-id or --alert-ids is required");
@@ -76,9 +72,7 @@ export class FixCreateCommand extends JsonCommand {
       throw validationError(formatIssueList(payloadResult.error.issues));
     }
 
-    const response = createResponseSchema.parse(
-      await postJson("/api/fixes", payloadResult.data),
-    );
+    const response = createResponseSchema.parse(await postJson("/api/fixes", payloadResult.data));
 
     this.printSuccess(`Created fix ${response.id}`, response);
   }

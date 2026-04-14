@@ -2,10 +2,18 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
 import {
+  alertGetResponseSchema,
+  alertListQuerySchema,
+  alertListResponseSchema,
+  alertRecordSchema,
   alertCreateRequestSchema,
   createResponseSchema,
+  fixGetResponseSchema,
+  fixListQuerySchema,
+  fixListResponseSchema,
   fixCreateRequestSchema,
   healthResponseSchema,
+  okResponseSchema,
   pushResultSchema,
   pushSendRequestSchema,
   pushTestRequestSchema,
@@ -20,7 +28,7 @@ const app: HonoWithConvex<ActionCtx> = new Hono();
 app.use("/api/*", cors());
 
 function jsonError(message: string, status = 400, details?: Record<string, unknown>) {
-  return Response.json({ ok: false, error: message, ...(details ?? {}) }, { status });
+  return Response.json({ ok: false, error: message, ...details }, { status });
 }
 
 function nonEmptyString(value: unknown): string | undefined {
@@ -33,15 +41,16 @@ function nonEmptyString(value: unknown): string | undefined {
 }
 
 function extractAlertId(value: Record<string, unknown>): string | undefined {
-  return nonEmptyString(value.alertId)
-    ?? nonEmptyString(value.alertID)
-    ?? nonEmptyString(value.alert_id);
+  return (
+    nonEmptyString(value.alertId) ?? nonEmptyString(value.alertID) ?? nonEmptyString(value.alert_id)
+  );
 }
 
 function cowtailWebOrigin(): string {
-  const origin = nonEmptyString(process.env.COWTAIL_WEB_ORIGIN)
-    ?? nonEmptyString(process.env.SITE_ORIGIN)
-    ?? "https://cowtail.example.com";
+  const origin =
+    nonEmptyString(process.env.COWTAIL_WEB_ORIGIN) ??
+    nonEmptyString(process.env.SITE_ORIGIN) ??
+    "https://cowtail.example.com";
 
   return origin.replace(/\/+$/, "");
 }
@@ -52,7 +61,7 @@ function buildAlertURL(alertId: string): string {
 
 function enrichPushData(
   data: Record<string, unknown> | undefined,
-  alertId: string | undefined
+  alertId: string | undefined,
 ): Record<string, unknown> | undefined {
   const enriched = data ? { ...data } : {};
   const resolvedAlertId = alertId ?? extractAlertId(enriched);
@@ -64,11 +73,11 @@ function enrichPushData(
   enriched.alertId = resolvedAlertId;
 
   if (
-    !nonEmptyString(enriched.url)
-    && !nonEmptyString(enriched.link)
-    && !nonEmptyString(enriched.deepLinkURL)
-    && !nonEmptyString(enriched.deepLinkUrl)
-    && !nonEmptyString(enriched.deep_link_url)
+    !nonEmptyString(enriched.url) &&
+    !nonEmptyString(enriched.link) &&
+    !nonEmptyString(enriched.deepLinkURL) &&
+    !nonEmptyString(enriched.deepLinkUrl) &&
+    !nonEmptyString(enriched.deep_link_url)
   ) {
     enriched.url = buildAlertURL(resolvedAlertId);
   }
@@ -88,6 +97,49 @@ function requireServiceAuth(c: { req: { header(name: string): string | undefined
   }
 
   return null;
+}
+
+function parseOptionalQueryTimestamp(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+
+  if (!/^\d+$/.test(value.trim())) {
+    return undefined;
+  }
+
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+}
+
+function mapAlertRecord(alert: Record<string, unknown> & { _id: string }) {
+  return alertRecordSchema.parse({
+    id: String(alert._id),
+    timestamp: alert.timestamp,
+    alertname: alert.alertname,
+    severity: alert.severity,
+    namespace: alert.namespace,
+    node: alert.node,
+    status: alert.status,
+    outcome: alert.outcome,
+    summary: alert.summary,
+    action: alert.action,
+    rootCause: alert.rootCause,
+    messaged: alert.messaged,
+    resolvedAt: alert.resolvedAt,
+  });
+}
+
+function mapFixRecord(fix: Record<string, unknown> & { _id: string }) {
+  return {
+    id: String(fix._id),
+    timestamp: fix.timestamp,
+    alertIds: fix.alertIds,
+    description: fix.description,
+    rootCause: fix.rootCause,
+    scope: fix.scope,
+    commit: fix.commit,
+  };
 }
 
 function formatIssues(issues: Array<{ message: string; path?: ReadonlyArray<PropertyKey> }>) {
@@ -168,25 +220,31 @@ async function promQuery(query: string): Promise<PrometheusResult[]> {
 }
 
 async function fetchClusterHealth(): Promise<HealthResponse> {
-  const [cpuResults, memoryResults, readyResults, cephHealthResults, storageTotalResults, storageUsedResults] =
-    await Promise.all([
-      promQuery(
-        '(1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 * on(instance) group_left(nodename) node_uname_info'
-      ),
-      promQuery(
-        '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 * on(instance) group_left(nodename) node_uname_info'
-      ),
-      promQuery('kube_node_status_condition{condition="Ready",status="true"}'),
-      promQuery("ceph_health_status"),
-      promQuery("ceph_cluster_total_bytes"),
-      promQuery("ceph_cluster_total_used_bytes"),
-    ]);
+  const [
+    cpuResults,
+    memoryResults,
+    readyResults,
+    cephHealthResults,
+    storageTotalResults,
+    storageUsedResults,
+  ] = await Promise.all([
+    promQuery(
+      '(1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 * on(instance) group_left(nodename) node_uname_info',
+    ),
+    promQuery(
+      "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 * on(instance) group_left(nodename) node_uname_info",
+    ),
+    promQuery('kube_node_status_condition{condition="Ready",status="true"}'),
+    promQuery("ceph_health_status"),
+    promQuery("ceph_cluster_total_bytes"),
+    promQuery("ceph_cluster_total_used_bytes"),
+  ]);
 
   const readyNodes = new Set(
     readyResults
       .filter((result) => prometheusValue(result) === 1)
       .map((result) => result.metric.node)
-      .filter(Boolean)
+      .filter(Boolean),
   );
 
   const cpuByNode = new Map<string, number>();
@@ -215,15 +273,18 @@ async function fetchClusterHealth(): Promise<HealthResponse> {
       memory: memoryByNode.get(name) ?? 0,
     }));
 
-  const cephStatusValue = cephHealthResults.length > 0 ? Math.round(prometheusValue(cephHealthResults[0])) : 0;
+  const cephStatusValue =
+    cephHealthResults.length > 0 ? Math.round(prometheusValue(cephHealthResults[0])) : 0;
   const cephStatusMap: Record<number, HealthResponse["cephStatus"]> = {
     0: "HEALTH_OK",
     1: "HEALTH_WARN",
     2: "HEALTH_ERR",
   };
 
-  const totalTiB = storageTotalResults.length > 0 ? prometheusValue(storageTotalResults[0]) / 1024 ** 4 : 0;
-  const usedTiB = storageUsedResults.length > 0 ? prometheusValue(storageUsedResults[0]) / 1024 ** 4 : 0;
+  const totalTiB =
+    storageTotalResults.length > 0 ? prometheusValue(storageTotalResults[0]) / 1024 ** 4 : 0;
+  const usedTiB =
+    storageUsedResults.length > 0 ? prometheusValue(storageUsedResults[0]) / 1024 ** 4 : 0;
 
   return {
     version: 1,
@@ -268,13 +329,84 @@ app.post("/api/alerts", async (c) => {
   return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
+// GET /api/alerts — list alerts with optional filters
+app.get("/api/alerts", async (c) => {
+  const rawQuery = {
+    from: parseOptionalQueryTimestamp(c.req.query("from")),
+    to: parseOptionalQueryTimestamp(c.req.query("to")),
+    alertname: nonEmptyString(c.req.query("alertname")),
+    severity: nonEmptyString(c.req.query("severity")),
+    namespace: nonEmptyString(c.req.query("namespace")),
+    status: nonEmptyString(c.req.query("status")),
+    outcome: nonEmptyString(c.req.query("outcome")),
+  };
+
+  const parsedQuery = alertListQuerySchema.safeParse(rawQuery);
+  if (!parsedQuery.success) {
+    return jsonError(formatIssues(parsedQuery.error.issues));
+  }
+
+  const alerts = await c.env.runQuery(api.alerts.getAll, {});
+  const filtered = alerts
+    .filter(
+      (alert) => parsedQuery.data.from === undefined || alert.timestamp >= parsedQuery.data.from,
+    )
+    .filter((alert) => parsedQuery.data.to === undefined || alert.timestamp <= parsedQuery.data.to)
+    .filter(
+      (alert) =>
+        parsedQuery.data.alertname === undefined || alert.alertname === parsedQuery.data.alertname,
+    )
+    .filter(
+      (alert) =>
+        parsedQuery.data.severity === undefined || alert.severity === parsedQuery.data.severity,
+    )
+    .filter(
+      (alert) =>
+        parsedQuery.data.namespace === undefined || alert.namespace === parsedQuery.data.namespace,
+    )
+    .filter(
+      (alert) => parsedQuery.data.status === undefined || alert.status === parsedQuery.data.status,
+    )
+    .filter(
+      (alert) =>
+        parsedQuery.data.outcome === undefined || alert.outcome === parsedQuery.data.outcome,
+    )
+    .map((alert) => mapAlertRecord(alert as any));
+
+  return c.json(
+    alertListResponseSchema.parse({
+      ok: true,
+      count: filtered.length,
+      alerts: filtered,
+    }),
+  );
+});
+
+// GET /api/alerts/:id — fetch a single alert
+app.get("/api/alerts/:id", async (c) => {
+  const alert = await c.env.runQuery(api.alerts.getById, {
+    id: c.req.param("id") as any,
+  });
+
+  if (!alert) {
+    return jsonError("Alert not found", 404);
+  }
+
+  return c.json(
+    alertGetResponseSchema.parse({
+      ok: true,
+      alert: mapAlertRecord(alert as any),
+    }),
+  );
+});
+
 // DELETE /api/alerts/:id — delete a single alert
 app.delete("/api/alerts/:id", async (c) => {
   const ctx = c.env;
   const id = c.req.param("id");
   try {
     await ctx.runMutation(api.alerts.deleteById, { id: id as any });
-    return c.json({ ok: true });
+    return c.json(okResponseSchema.parse({ ok: true }));
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 400);
   }
@@ -305,13 +437,66 @@ app.post("/api/fixes", async (c) => {
   return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
+// GET /api/fixes — list fixes with optional filters
+app.get("/api/fixes", async (c) => {
+  const rawQuery = {
+    from: parseOptionalQueryTimestamp(c.req.query("from")),
+    to: parseOptionalQueryTimestamp(c.req.query("to")),
+    scope: nonEmptyString(c.req.query("scope")),
+    alertId: nonEmptyString(c.req.query("alertId")) ?? nonEmptyString(c.req.query("alert-id")),
+  };
+
+  const parsedQuery = fixListQuerySchema.safeParse(rawQuery);
+  if (!parsedQuery.success) {
+    return jsonError(formatIssues(parsedQuery.error.issues));
+  }
+
+  const fixes = await c.env.runQuery(api.fixes.getAll, {});
+  const filtered = fixes
+    .filter((fix) => parsedQuery.data.from === undefined || fix.timestamp >= parsedQuery.data.from)
+    .filter((fix) => parsedQuery.data.to === undefined || fix.timestamp <= parsedQuery.data.to)
+    .filter((fix) => parsedQuery.data.scope === undefined || fix.scope === parsedQuery.data.scope)
+    .filter(
+      (fix) =>
+        parsedQuery.data.alertId === undefined ||
+        fix.alertIds.includes(parsedQuery.data.alertId as any),
+    )
+    .map((fix) => mapFixRecord(fix as any));
+
+  return c.json(
+    fixListResponseSchema.parse({
+      ok: true,
+      count: filtered.length,
+      fixes: filtered,
+    }),
+  );
+});
+
+// GET /api/fixes/:id — fetch a single fix
+app.get("/api/fixes/:id", async (c) => {
+  const fix = await c.env.runQuery(api.fixes.getById, {
+    id: c.req.param("id") as any,
+  });
+
+  if (!fix) {
+    return jsonError("Fix not found", 404);
+  }
+
+  return c.json(
+    fixGetResponseSchema.parse({
+      ok: true,
+      fix: mapFixRecord(fix as any),
+    }),
+  );
+});
+
 // DELETE /api/fixes/:id — delete a single fix
 app.delete("/api/fixes/:id", async (c) => {
   const ctx = c.env;
   const id = c.req.param("id");
   try {
     await ctx.runMutation(api.fixes.deleteById, { id: id as any });
-    return c.json({ ok: true });
+    return c.json(okResponseSchema.parse({ ok: true }));
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 400);
   }
@@ -376,7 +561,9 @@ app.post("/api/push/register", async (c) => {
     userId: String(body.userId).trim(),
     deviceToken: String(body.deviceToken).trim(),
     platform: body.platform ? String(body.platform).trim() : "ios",
-    environment: body.environment ? String(body.environment).trim() : (process.env.APNS_ENV?.trim() || "development"),
+    environment: body.environment
+      ? String(body.environment).trim()
+      : process.env.APNS_ENV?.trim() || "development",
     enabled: true,
     deviceName: body.deviceName ? String(body.deviceName).trim() : undefined,
     lastSeenAt: Date.now(),
@@ -404,12 +591,15 @@ app.post("/api/push/unregister", async (c) => {
   return c.json(result);
 });
 
-async function sendPushToUser(ctx: ActionCtx, args: {
-  userId: string;
-  title: string;
-  body: string;
-  data?: Record<string, unknown>;
-}) {
+async function sendPushToUser(
+  ctx: ActionCtx,
+  args: {
+    userId: string;
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+  },
+) {
   const devices = await ctx.runQuery(api.push.listEnabledDevicesForUser, { userId: args.userId });
 
   if (devices.length === 0) {
@@ -438,7 +628,10 @@ async function sendPushToUser(ctx: ActionCtx, args: {
       sent += 1;
     } else {
       failed += 1;
-      if (result.reason && ["BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"].includes(String(result.reason))) {
+      if (
+        result.reason &&
+        ["BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"].includes(String(result.reason))
+      ) {
         await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
           deviceToken: device.deviceToken,
         });
@@ -446,9 +639,10 @@ async function sendPushToUser(ctx: ActionCtx, args: {
     }
 
     results.push({
-      deviceToken: device.deviceToken.length <= 12
-        ? device.deviceToken
-        : `${device.deviceToken.slice(0, 6)}…${device.deviceToken.slice(-6)}`,
+      deviceToken:
+        device.deviceToken.length <= 12
+          ? device.deviceToken
+          : `${device.deviceToken.slice(0, 6)}…${device.deviceToken.slice(-6)}`,
       ...result,
     });
   }
@@ -512,7 +706,7 @@ app.post("/api/push/test", async (c) => {
     body: parsed.data.body ?? "Push delivery from Cowtail is working.",
     data: {
       test: true,
-      ...(data ?? {}),
+      ...data,
     },
   });
 
@@ -525,11 +719,13 @@ app.get("/api/users", async (c) => {
   if (authError) return authError;
 
   const users = await c.env.runQuery(api.push.listCurrentUsers, {});
-  return c.json(usersListResponseSchema.parse({
-    ok: true,
-    count: users.length,
-    users,
-  }));
+  return c.json(
+    usersListResponseSchema.parse({
+      ok: true,
+      count: users.length,
+      users,
+    }),
+  );
 });
 
 // GET /api/health — aggregated cluster health for native clients and web fallback
@@ -561,12 +757,20 @@ app.get("/api/digest-html", async (c) => {
   // Format date range — parse as noon UTC to avoid timezone date shifts
   const fmtDate = (d: string) => {
     const date = new Date(d + "T12:00:00Z");
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "America/New_York",
+    });
   };
-  const year = new Date(toParam + "T12:00:00Z").toLocaleDateString("en-US", { year: "numeric", timeZone: "America/New_York" });
-  const dateRange = fmtDate(fromParam) === fmtDate(toParam)
-    ? `${fmtDate(fromParam)}, ${year}`
-    : `${fmtDate(fromParam)}–${fmtDate(toParam)}, ${year}`;
+  const year = new Date(toParam + "T12:00:00Z").toLocaleDateString("en-US", {
+    year: "numeric",
+    timeZone: "America/New_York",
+  });
+  const dateRange =
+    fmtDate(fromParam) === fmtDate(toParam)
+      ? `${fmtDate(fromParam)}, ${year}`
+      : `${fmtDate(fromParam)}–${fmtDate(toParam)}, ${year}`;
 
   const siteOrigin = process.env.SITE_ORIGIN ?? "https://cowtail.example.com";
   const digestUrl = `${siteOrigin}/digest?from=${fromParam}&to=${toParam}`;
@@ -601,8 +805,20 @@ app.get("/api/digest-html", async (c) => {
 
   const fmtTs = (ts: number) => {
     const d = new Date(ts);
-    return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", timeZone: "America/New_York" }) + " " +
-      d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
+    return (
+      d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+        timeZone: "America/New_York",
+      }) +
+      " " +
+      d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "America/New_York",
+      })
+    );
   };
 
   // Build alert sections
@@ -621,7 +837,9 @@ app.get("/api/digest-html", async (c) => {
       const rootCauseHtml = a.rootCause
         ? `<div style="margin-top:6px;"><span style="font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;">Root cause: </span><span style="font-family:'Space Grotesk',sans-serif;font-size:13px;color:#9A9AA2;">${a.rootCause}</span></div>`
         : "";
-      const nodeHtml = a.node ? `<span style="font-weight:400;color:#6E6E76;margin-left:8px;font-size:13px;">${a.node}</span>` : "";
+      const nodeHtml = a.node
+        ? `<span style="font-weight:400;color:#6E6E76;margin-left:8px;font-size:13px;">${a.node}</span>`
+        : "";
 
       rows += `<tr><td style="padding:12px 0 12px 12px;border-left:3px solid #3A3A3F;">
         <div style="margin-bottom:4px;">

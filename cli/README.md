@@ -13,8 +13,15 @@ Phase 1 is implemented:
 - `cowtail version`
 - `cowtail update`
 - `cowtail alert create`
+- `cowtail alert list`
+- `cowtail alert show`
+- `cowtail alert delete`
 - `cowtail config show`
 - `cowtail fix create`
+- `cowtail fix list`
+- `cowtail fix show`
+- `cowtail fix delete`
+- `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
 - `cowtail users list`
@@ -77,8 +84,15 @@ Tagged release builds embed the Git tag as the canonical CLI version. Local buil
 - `cowtail version`
 - `cowtail update`
 - `cowtail alert create`
+- `cowtail alert list`
+- `cowtail alert show`
+- `cowtail alert delete`
 - `cowtail config show`
 - `cowtail fix create`
+- `cowtail fix list`
+- `cowtail fix show`
+- `cowtail fix delete`
+- `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
 - `cowtail users list`
@@ -91,7 +105,13 @@ cowtail update --check
 
 cowtail config show
 
+cowtail health show
+
 cowtail users list
+
+cowtail alert list --severity critical
+
+cowtail fix list --scope reactive
 
 cowtail alert create \
   --alertname KubePodCrashLooping \

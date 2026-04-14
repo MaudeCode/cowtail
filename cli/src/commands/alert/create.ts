@@ -1,18 +1,11 @@
 import { Command, Option } from "clipanion";
 
-import {
-  alertCreateRequestSchema,
-  createResponseSchema,
-} from "@maudecode/cowtail-protocol";
+import { alertCreateRequestSchema, createResponseSchema } from "@maudecode/cowtail-protocol";
 
 import { formatIssueList, validationError } from "../../lib/errors";
 import { postJson } from "../../lib/http";
 import { JsonCommand } from "../../lib/output";
-import {
-  optionalTrimmedString,
-  parseTimestamp,
-  requireNonEmptyString,
-} from "../../lib/parse";
+import { optionalTrimmedString, parseTimestamp, requireNonEmptyString } from "../../lib/parse";
 
 export const ALERT_CREATE_DESCRIPTION = `Create an alert record in Cowtail.`;
 
@@ -92,9 +85,7 @@ export class AlertCreateCommand extends JsonCommand {
       throw validationError(formatIssueList(payloadResult.error.issues));
     }
 
-    const response = createResponseSchema.parse(
-      await postJson("/api/alerts", payloadResult.data),
-    );
+    const response = createResponseSchema.parse(await postJson("/api/alerts", payloadResult.data));
 
     this.printSuccess(`Created alert ${response.id}`, response);
   }

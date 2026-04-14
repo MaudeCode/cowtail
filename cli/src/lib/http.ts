@@ -30,7 +30,9 @@ function buildHeaders(requireServiceAuth: boolean) {
 
   if (requireServiceAuth) {
     if (!config.pushBearerToken) {
-      throw configError(`pushBearerToken is required in ${config.configPath} for authenticated commands`);
+      throw configError(
+        `pushBearerToken is required in ${config.configPath} for authenticated commands`,
+      );
     }
 
     headers.authorization = `Bearer ${config.pushBearerToken}`;
@@ -62,7 +64,7 @@ async function readErrorMessage(response: HttpResponse): Promise<string> {
 function requestJson(
   urlString: string,
   options: {
-    method: "GET" | "POST";
+    method: "DELETE" | "GET" | "POST";
     body?: string;
     headers: Record<string, string>;
     timeoutMs: number;
@@ -71,30 +73,34 @@ function requestJson(
   return new Promise((resolve, reject) => {
     const url = new URL(urlString);
     const requestImpl = url.protocol === "https:" ? httpsRequest : httpRequest;
-    const request = requestImpl(url, {
-      method: options.method,
-      headers: options.body
-        ? {
-          ...options.headers,
-          "content-length": String(Buffer.byteLength(options.body)),
-        }
-        : options.headers,
-    }, (response) => {
-      let responseBody = "";
+    const request = requestImpl(
+      url,
+      {
+        method: options.method,
+        headers: options.body
+          ? {
+              ...options.headers,
+              "content-length": String(Buffer.byteLength(options.body)),
+            }
+          : options.headers,
+      },
+      (response) => {
+        let responseBody = "";
 
-      response.setEncoding("utf8");
-      response.on("data", (chunk) => {
-        responseBody += chunk;
-      });
-      response.on("end", () => {
-        resolve({
-          statusCode: response.statusCode ?? 0,
-          statusMessage: response.statusMessage ?? "",
-          headers: response.headers,
-          body: responseBody,
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          responseBody += chunk;
         });
-      });
-    });
+        response.on("end", () => {
+          resolve({
+            statusCode: response.statusCode ?? 0,
+            statusMessage: response.statusMessage ?? "",
+            headers: response.headers,
+            body: responseBody,
+          });
+        });
+      },
+    );
 
     request.setTimeout(options.timeoutMs, () => {
       request.destroy(new CliError(`Request timed out after ${options.timeoutMs}ms`));
@@ -111,15 +117,20 @@ function requestJson(
   });
 }
 
-export async function postJson<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+async function requestJsonResponse<T>(
+  method: "DELETE" | "GET" | "POST",
+  path: string,
+  body: unknown | undefined,
+  options: RequestOptions = {},
+): Promise<T> {
   const { config, headers } = buildHeaders(Boolean(options.requireServiceAuth));
   const url = buildRequestUrl(requireBaseUrl(config), path);
-  const requestBody = JSON.stringify(body);
+  const requestBody = body === undefined ? undefined : JSON.stringify(body);
 
   let response: HttpResponse;
   try {
     response = await requestJson(url, {
-      method: "POST",
+      method,
       body: requestBody,
       headers,
       timeoutMs: config.timeoutMs,
@@ -146,35 +157,18 @@ export async function postJson<T>(path: string, body: unknown, options: RequestO
   }
 }
 
+export async function postJson<T>(
+  path: string,
+  body: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
+  return await requestJsonResponse("POST", path, body, options);
+}
+
 export async function getJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { config, headers } = buildHeaders(Boolean(options.requireServiceAuth));
-  const url = buildRequestUrl(requireBaseUrl(config), path);
+  return await requestJsonResponse("GET", path, undefined, options);
+}
 
-  let response: HttpResponse;
-  try {
-    response = await requestJson(url, {
-      method: "GET",
-      headers,
-      timeoutMs: config.timeoutMs,
-    });
-  } catch (error) {
-    if (error instanceof CliError) {
-      throw error;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    throw new CliError(`Request failed: ${message}`);
-  }
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    const message = await readErrorMessage(response);
-    throw new CliError(`Request failed (${response.statusCode}): ${message}`);
-  }
-
-  try {
-    return JSON.parse(response.body) as T;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new CliError(`Failed to parse JSON response: ${message}`);
-  }
+export async function deleteJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return await requestJsonResponse("DELETE", path, undefined, options);
 }
