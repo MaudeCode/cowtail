@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 @MainActor
 final class CowtailStore: ObservableObject {
@@ -14,6 +15,10 @@ final class CowtailStore: ObservableObject {
     @Published var errorMessage: String?
 
     private let api: CowtailAPI
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
+        category: "store"
+    )
     private var hasLoaded = false
 
     init(
@@ -64,6 +69,7 @@ final class CowtailStore: ObservableObject {
             didLoadAlerts = true
         } catch {
             guard !isCancellation(error) else { return }
+            logger.error("refresh alerts failed: \(String(describing: error), privacy: .public)")
             errorMessage = error.localizedDescription
         }
 
@@ -71,6 +77,7 @@ final class CowtailStore: ObservableObject {
             health = try await healthTask
         } catch {
             guard !isCancellation(error) else { return }
+            logger.error("refresh health failed: \(String(describing: error), privacy: .public)")
             healthErrorMessage = error.localizedDescription
         }
 
@@ -89,6 +96,7 @@ final class CowtailStore: ObservableObject {
             fixesByAlertID[alertID] = try await api.fetchFixes(alertIDs: [alertID])
         } catch {
             guard !isCancellation(error) else { return }
+            logger.error("loadFixes failed for \(alertID, privacy: .public): \(String(describing: error), privacy: .public)")
             errorMessage = error.localizedDescription
         }
     }
@@ -125,6 +133,7 @@ final class CowtailStore: ObservableObject {
             alertCacheByID[alert.id] = alert
         } catch {
             guard !isCancellation(error) else { return }
+            logger.error("loadAlert failed for \(alertID, privacy: .public): \(String(describing: error), privacy: .public)")
             alertLoadErrors[alertID] = error.localizedDescription
         }
     }
