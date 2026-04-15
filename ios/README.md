@@ -10,6 +10,7 @@ Current scope:
 - Apple sign-in session handling
 - push registration and notification-routing logic
 - universal links for alert URLs
+- build-time generated OpenAPI client/types from the shared `protocol/` package
 - planning docs for future native parity work
 
 ## Local config
@@ -28,6 +29,9 @@ cd ios
 ```
 
 Then open `ios/Cowtail.xcodeproj` in Xcode.
+
+The project generation step also refreshes `OpenAPITools/Sources/CowtailGeneratedAPI/openapi.json` from the shared protocol package.
+When building in Xcode, a pre-build script refreshes the OpenAPI spec from the shared protocol package and then regenerates Swift client/types into `OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources` automatically.
 
 See:
 - `docs/apple-setup.md`

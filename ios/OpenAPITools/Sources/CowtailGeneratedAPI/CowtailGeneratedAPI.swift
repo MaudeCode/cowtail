@@ -1,0 +1,3 @@
+import OpenAPIRuntime
+
+enum CowtailGeneratedAPIPlaceholder {}

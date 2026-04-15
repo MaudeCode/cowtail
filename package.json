@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build:cli": "cd cli && bun run build",
+    "codegen:ios": "cd protocol && bun run codegen:ios",
     "dev:web": "cd web && bun run dev",
     "check:cli": "cd cli && bun run check",
     "build:web": "cd web && bun run build",
