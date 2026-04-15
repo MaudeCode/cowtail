@@ -23,7 +23,6 @@ export const pushResultSchema = z.object({
   failed: z.number().int().nonnegative(),
   results: z.array(jsonObjectSchema),
 });
-
 export type PushSendRequest = z.infer<typeof pushSendRequestSchema>;
 export type PushTestRequest = z.infer<typeof pushTestRequestSchema>;
 export type PushResult = z.infer<typeof pushResultSchema>;

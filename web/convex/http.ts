@@ -17,11 +17,13 @@ import {
   pushResultSchema,
   pushSendRequestSchema,
   pushTestRequestSchema,
+  userDevicesResponseSchema,
   usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
 import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
 
 const app: HonoWithConvex<ActionCtx> = new Hono();
 
@@ -139,6 +141,22 @@ function mapFixRecord(fix: Record<string, unknown> & { _id: string }) {
     rootCause: fix.rootCause,
     scope: fix.scope,
     commit: fix.commit,
+  };
+}
+
+function mapUserDevice(device: Record<string, unknown>) {
+  return {
+    deviceToken: String(device.deviceToken),
+    platform: String(device.platform),
+    environment: String(device.environment),
+    enabled: Boolean(device.enabled),
+    deviceName:
+      typeof device.deviceName === "string" && device.deviceName.trim() !== ""
+        ? device.deviceName
+        : undefined,
+    lastSeenAt: Number(device.lastSeenAt),
+    createdAt: Number(device.createdAt),
+    updatedAt: Number(device.updatedAt),
   };
 }
 
@@ -552,20 +570,38 @@ app.post("/api/push/register", async (c) => {
     return jsonError("Invalid JSON body");
   }
 
-  if (!body.userId || !body.deviceToken) {
-    return jsonError("userId and deviceToken are required");
+  const identityToken = nonEmptyString(body.identityToken);
+  if (!identityToken) {
+    return jsonError("identityToken and deviceToken are required");
+  }
+
+  const deviceToken = nonEmptyString(body.deviceToken);
+  if (!deviceToken) {
+    return jsonError("identityToken and deviceToken are required");
+  }
+
+  let userId: string;
+  try {
+    userId = await verifyAppleIdentityToken(identityToken);
+  } catch (error) {
+    if (error instanceof AppleIdentityVerificationError) {
+      return jsonError(error.message, error.statusCode);
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Apple identity token verification failed";
+    return jsonError(message, 500);
   }
 
   const ctx = c.env;
   const result = await ctx.runMutation(api.push.upsertDeviceRegistration, {
-    userId: String(body.userId).trim(),
-    deviceToken: String(body.deviceToken).trim(),
-    platform: body.platform ? String(body.platform).trim() : "ios",
-    environment: body.environment
-      ? String(body.environment).trim()
-      : process.env.APNS_ENV?.trim() || "development",
+    userId,
+    deviceToken: deviceToken.trim(),
+    platform: nonEmptyString(body.platform) ?? "ios",
+    environment:
+      nonEmptyString(body.environment) ?? (process.env.APNS_ENV?.trim() || "development"),
     enabled: true,
-    deviceName: body.deviceName ? String(body.deviceName).trim() : undefined,
+    deviceName: nonEmptyString(body.deviceName),
     lastSeenAt: Date.now(),
   });
 
@@ -579,13 +615,14 @@ app.post("/api/push/unregister", async (c) => {
     return jsonError("Invalid JSON body");
   }
 
-  if (!body.deviceToken) {
+  const deviceToken = nonEmptyString(body.deviceToken);
+  if (!deviceToken) {
     return jsonError("deviceToken is required");
   }
 
   const ctx = c.env;
   const result = await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
-    deviceToken: String(body.deviceToken).trim(),
+    deviceToken: deviceToken.trim(),
   });
 
   return c.json(result);
@@ -724,6 +761,24 @@ app.get("/api/users", async (c) => {
       ok: true,
       count: users.length,
       users,
+    }),
+  );
+});
+
+// GET /api/users/:userId/devices — list enabled devices for a user
+app.get("/api/users/:userId/devices", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const userId = c.req.param("userId");
+  const devices = await c.env.runQuery(api.push.listEnabledDevicesForUser, { userId });
+
+  return c.json(
+    userDevicesResponseSchema.parse({
+      ok: true,
+      userId,
+      count: devices.length,
+      devices: devices.map((device) => mapUserDevice(device as any)),
     }),
   );
 });

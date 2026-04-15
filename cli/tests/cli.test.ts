@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { join } from "node:path";
 
 import {
   buildCliBinary,
@@ -54,6 +55,24 @@ describe("built binary help and structure", () => {
     expect(result.stdout).toContain("show");
     expect(result.stdout).toContain("delete");
   });
+
+  test("config and users help show newly added subcommands", () => {
+    const configResult = runCliBinary(binaryPath, ["config", "-h"]);
+    const usersResult = runCliBinary(binaryPath, ["users", "-h"]);
+    const pushResult = runCliBinary(binaryPath, ["push", "-h"]);
+
+    expect(configResult.status).toBe(0);
+    expect(configResult.stdout).toContain("validate");
+    expect(configResult.stdout).toContain("doctor");
+
+    expect(usersResult.status).toBe(0);
+    expect(usersResult.stdout).toContain("devices");
+
+    expect(pushResult.status).toBe(0);
+    expect(pushResult.stdout).toContain("send");
+    expect(pushResult.stdout).toContain("test");
+    expect(pushResult.stdout).not.toContain("register-device");
+  });
 });
 
 describe("built binary config and version commands", () => {
@@ -80,12 +99,65 @@ describe("built binary config and version commands", () => {
     expect(payload.timeoutMs).toBe(3210);
   });
 
+  test("config show still works when the config file is missing", () => {
+    const missingConfigPath = join(tempDir, "missing-show-config.json");
+    const result = runCliBinary(binaryPath, ["config", "show", "--json"], {
+      env: {
+        COWTAIL_CONFIG_PATH: missingConfigPath,
+      },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+
+    const payload = JSON.parse(result.stdout);
+    expect(payload.configPath).toBe(missingConfigPath);
+    expect(payload.configFound).toBe(false);
+    expect(payload.hasPushBearerToken).toBe(false);
+  });
+
   test("version prints the dev label for local builds", () => {
     const result = runCliBinary(binaryPath, ["version"]);
 
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe("dev");
     expect(result.stderr).toBe("");
+  });
+
+  test("config validate reports a missing config file without network access", () => {
+    const missingConfigPath = join(tempDir, "missing-config.json");
+    const result = runCliBinary(binaryPath, ["config", "validate", "--json"], {
+      env: {
+        COWTAIL_CONFIG_PATH: missingConfigPath,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe("");
+
+    const payload = JSON.parse(result.stdout);
+    expect(payload.valid).toBe(false);
+    expect(payload.configPath).toBe(missingConfigPath);
+    expect(payload.errors).toContain(`Config file not found at ${missingConfigPath}`);
+    expect(payload.pushBearerToken).toBeUndefined();
+  });
+
+  test("config doctor skips remote checks when config is invalid", () => {
+    const missingConfigPath = join(tempDir, "missing-doctor-config.json");
+    const result = runCliBinary(binaryPath, ["config", "doctor", "--json"], {
+      env: {
+        COWTAIL_CONFIG_PATH: missingConfigPath,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe("");
+
+    const payload = JSON.parse(result.stdout);
+    expect(payload.valid).toBe(false);
+    expect(payload.checks.health).toBeNull();
+    expect(payload.checks.pushAuth).toBeNull();
+    expect(payload.pushBearerToken).toBeUndefined();
   });
 });
 

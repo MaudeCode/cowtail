@@ -16,6 +16,8 @@ Phase 1 is implemented:
 - `cowtail alert list`
 - `cowtail alert show`
 - `cowtail alert delete`
+- `cowtail config validate`
+- `cowtail config doctor`
 - `cowtail config show`
 - `cowtail fix create`
 - `cowtail fix list`
@@ -24,6 +26,7 @@ Phase 1 is implemented:
 - `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
+- `cowtail users devices`
 - `cowtail users list`
 - `cowtail help`
 
@@ -74,7 +77,7 @@ Example config:
 }
 ```
 
-`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `push send`, and `push test`.
+`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, and `push test`.
 
 `cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
@@ -87,6 +90,8 @@ Tagged release builds embed the Git tag as the canonical CLI version. Local buil
 - `cowtail alert list`
 - `cowtail alert show`
 - `cowtail alert delete`
+- `cowtail config validate`
+- `cowtail config doctor`
 - `cowtail config show`
 - `cowtail fix create`
 - `cowtail fix list`
@@ -95,6 +100,7 @@ Tagged release builds embed the Git tag as the canonical CLI version. Local buil
 - `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
+- `cowtail users devices`
 - `cowtail users list`
 
 ## Examples
@@ -105,9 +111,15 @@ cowtail update --check
 
 cowtail config show
 
+cowtail config validate
+
+cowtail config doctor
+
 cowtail health show
 
 cowtail users list
+
+cowtail users devices --user-id 001612.bb9a2ce6d90341d880c8e6065c232aae.2317
 
 cowtail alert list --severity critical
 

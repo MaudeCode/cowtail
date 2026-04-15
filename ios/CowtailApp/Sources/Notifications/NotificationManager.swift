@@ -409,12 +409,21 @@ final class NotificationManager: NSObject, ObservableObject {
     private func userFacingServerError(for error: Error) -> String {
         let message = error.localizedDescription
 
-        if message.localizedCaseInsensitiveContains("identityToken and deviceToken are required") {
+        if message.localizedCaseInsensitiveContains("identityToken and deviceToken are required")
+            || message.localizedCaseInsensitiveContains("userId or identityToken is required") {
             return "Cowtail needs a fresh Apple sign-in before it can register this device."
         }
 
         if message.localizedCaseInsensitiveContains("Invalid Apple identity token format") {
             return "Apple sign-in completed, but the verification token was invalid. Sign in with Apple again."
+        }
+
+        if message.localizedCaseInsensitiveContains("Apple identity token verification failed") {
+            return "Apple sign-in completed, but Cowtail could not verify the identity token. Sign in with Apple again."
+        }
+
+        if message.localizedCaseInsensitiveContains("Apple identity verification is not configured") {
+            return "Cowtail is not configured to verify Apple sign-in for push registration."
         }
 
         if message.localizedCaseInsensitiveContains("Unauthorized") {

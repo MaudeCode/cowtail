@@ -85,6 +85,8 @@ For iOS development, work from `ios/`, run `xcodegen generate`, and open `ios/Co
    - `COWTAIL_WEB_ORIGIN` — your Cowtail URL (used in alert deep links)
    - `SITE_ORIGIN` — your Cowtail URL (used in digest email links)
    - `PROMETHEUS_BASE_URL` — optional explicit Prometheus endpoint if it does not live behind `/prometheus`
+   - `APNS_TOPIC` — the native app bundle identifier used for APNs
+   - `APPLE_AUTH_AUDIENCE` — optional explicit Sign in with Apple audience override; defaults to `APNS_TOPIC`
 
 4. **Deploy** using the HelmRelease in your GitOps repo, or any Kubernetes deployment method.
 
