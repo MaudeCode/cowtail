@@ -14,12 +14,14 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "check": "tsc -p tsconfig.json --noEmit",
+    "codegen:ios": "bun run ./scripts/generate-ios-openapi.ts"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.1.0",
     "typescript": "^5.9.3"
   }
 }

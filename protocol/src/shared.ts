@@ -6,4 +6,4 @@ export const fixScopes = ["reactive", "weekly", "monthly"] as const;
 
 export const nonEmptyStringSchema = z.string().trim().min(1);
 export const timestampSchema = z.number().int().nonnegative();
-export const jsonObjectSchema = z.record(z.unknown());
+export const jsonObjectSchema = z.record(z.string(), z.unknown());
