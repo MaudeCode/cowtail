@@ -60,15 +60,7 @@ targets:
           #!/usr/bin/env sh
           set -eu
 
-          REPO_ROOT="$(CDPATH= cd -- "${SRCROOT}/.." && pwd)"
-
-          cd "${REPO_ROOT}"
-          bun run ./protocol/scripts/generate-ios-openapi.ts
-          xcrun --sdk macosx swift package \
-            --package-path "${REPO_ROOT}/ios/OpenAPITools" \
-            --allow-writing-to-package-directory \
-            generate-code-from-openapi \
-            --target CowtailGeneratedAPI
+          /bin/sh "${SRCROOT}/scripts/sync-openapi.sh"
         name: Sync OpenAPI
         basedOnDependencyAnalysis: false
         showEnvVars: false
