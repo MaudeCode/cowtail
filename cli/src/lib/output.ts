@@ -1,40 +1,70 @@
+import { Command, Option } from "clipanion";
+
 import { toCliError } from "./errors";
 
-type CommandRunner = (json: boolean) => Promise<void>;
+type OutputStream = {
+  write(chunk: string): unknown;
+};
 
-export async function runCommand(rawArgs: string[], runner: CommandRunner): Promise<void> {
-  const json = rawArgs.includes("--json");
+export abstract class BaseCommand extends Command {
+  async catch(error: unknown): Promise<void> {
+    handleCommandError(error, this.getJsonOutput(), this.context.stderr);
+  }
 
-  try {
-    await runner(json);
-  } catch (error) {
-    handleCommandError(error, json);
+  protected getJsonOutput(): boolean {
+    return false;
+  }
+
+  protected printSuccess(humanMessage: string, payload: unknown): void {
+    if (this.getJsonOutput()) {
+      printJson(this.context.stdout, payload);
+      return;
+    }
+
+    printLine(this.context.stdout, humanMessage);
+  }
+
+  protected printJson(payload: unknown): void {
+    printJson(this.context.stdout, payload);
+  }
+
+  protected printLine(message: string): void {
+    printLine(this.context.stdout, message);
   }
 }
 
-export function printSuccess(json: boolean, humanMessage: string, payload: unknown): void {
-  if (json) {
-    console.log(JSON.stringify(payload, null, 2));
-    return;
+export abstract class JsonCommand extends BaseCommand {
+  json = Option.Boolean(`--json`, {
+    description: `Print machine-readable JSON output.`,
+  });
+
+  protected override getJsonOutput(): boolean {
+    return this.json === true;
   }
-
-  console.log(humanMessage);
 }
 
-export function printJson(payload: unknown): void {
-  console.log(JSON.stringify(payload, null, 2));
+export function printJson(stream: OutputStream, payload: unknown): void {
+  stream.write(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
-export function handleCommandError(error: unknown, json: boolean): void {
+export function printLine(stream: OutputStream, message: string): void {
+  stream.write(`${message}\n`);
+}
+
+export function handleCommandError(
+  error: unknown,
+  json: boolean,
+  stream: OutputStream = process.stderr,
+): void {
   const cliError = toCliError(error);
 
   if (json) {
-    console.error(JSON.stringify({
+    printJson(stream, {
       ok: false,
       error: cliError.message,
-    }, null, 2));
+    });
   } else {
-    console.error(cliError.message);
+    printLine(stream, cliError.message);
   }
 
   process.exitCode = cliError.exitCode;

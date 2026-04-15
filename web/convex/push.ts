@@ -31,7 +31,7 @@ async function listEnabledDevices(ctx: MutationCtx | QueryCtx, userId: string) {
     .collect();
 }
 
-async function listCurrentSubsSummary(ctx: QueryCtx) {
+async function listCurrentUsersSummary(ctx: QueryCtx) {
   const registrations = await ctx.db
     .query("deviceRegistrations")
     .withIndex("by_enabled", (q) => q.eq("enabled", true))
@@ -111,10 +111,10 @@ export const listEnabledDevicesForUser = query({
   },
 });
 
-export const listCurrentSubs = query({
+export const listCurrentUsers = query({
   args: {},
   handler: async (ctx) => {
-    return await listCurrentSubsSummary(ctx);
+    return await listCurrentUsersSummary(ctx);
   },
 });
 

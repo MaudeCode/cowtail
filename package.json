@@ -11,6 +11,14 @@
     "dev:web": "cd web && bun run dev",
     "check:cli": "cd cli && bun run check",
     "build:web": "cd web && bun run build",
-    "check:protocol": "cd protocol && bun run check"
+    "check:protocol": "cd protocol && bun run check",
+    "lint:ts": "oxlint web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src",
+    "lint:ts:fix": "oxlint --fix web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src",
+    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src",
+    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0"
   }
 }

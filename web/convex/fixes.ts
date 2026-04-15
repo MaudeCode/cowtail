@@ -23,9 +23,7 @@ export const getByTimeRange = query({
   handler: async (ctx, args) => {
     return await ctx.db
       .query("fixes")
-      .withIndex("by_timestamp", (q) =>
-        q.gte("timestamp", args.from).lte("timestamp", args.to)
-      )
+      .withIndex("by_timestamp", (q) => q.gte("timestamp", args.from).lte("timestamp", args.to))
       .collect();
   },
 });
@@ -36,9 +34,16 @@ export const getByAlertIds = query({
   },
   handler: async (ctx, args) => {
     const all = await ctx.db.query("fixes").collect();
-    return all.filter((fix) =>
-      fix.alertIds.some((id) => args.alertIds.includes(id))
-    );
+    return all.filter((fix) => fix.alertIds.some((id) => args.alertIds.includes(id)));
+  },
+});
+
+export const getById = query({
+  args: {
+    id: v.id("fixes"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
   },
 });
 

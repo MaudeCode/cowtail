@@ -12,6 +12,17 @@ export type CowtailConfig = {
   configFound: boolean;
 };
 
+export type CowtailConfigInspection = {
+  baseUrl?: string;
+  timeoutMs: number;
+  configPath: string;
+  configFound: boolean;
+  errors: string[];
+  valid: boolean;
+  hasBaseUrl: boolean;
+  hasPushBearerToken: boolean;
+};
+
 type EnvMap = Record<string, string | undefined>;
 type RawConfigValue = Record<string, unknown>;
 
@@ -85,15 +96,17 @@ function readOptionalPositiveInteger(value: unknown, fieldName: string): number 
 }
 
 export function loadConfig(env: EnvMap = process.env): CowtailConfig {
-  const configPath = resolveConfigPath(env);
-  const { configFound, values } = loadConfigFile(configPath);
+  const state = readConfigState(env);
+  if (state.errors.length > 0) {
+    throw configError(state.errors.join("; "));
+  }
 
   return {
-    baseUrl: readOptionalString(values.baseUrl, "baseUrl"),
-    pushBearerToken: readOptionalString(values.pushBearerToken, "pushBearerToken"),
-    timeoutMs: readOptionalPositiveInteger(values.timeoutMs, "timeoutMs") || DEFAULT_TIMEOUT_MS,
-    configPath,
-    configFound,
+    baseUrl: state.baseUrl,
+    pushBearerToken: state.pushBearerToken,
+    timeoutMs: state.timeoutMs,
+    configPath: state.configPath,
+    configFound: state.configFound,
   };
 }
 
@@ -103,4 +116,84 @@ export function requireBaseUrl(config: CowtailConfig): string {
   }
 
   return config.baseUrl;
+}
+
+export function inspectConfig(env: EnvMap = process.env): CowtailConfigInspection {
+  const state = readConfigState(env);
+  const errors = [...state.errors];
+
+  if (!state.configFound) {
+    errors.push(`Config file not found at ${state.configPath}`);
+  }
+
+  if (state.configFound && state.baseUrl === undefined) {
+    errors.push(`baseUrl is required in ${state.configPath}`);
+  }
+
+  return {
+    baseUrl: state.baseUrl,
+    timeoutMs: state.timeoutMs,
+    configPath: state.configPath,
+    configFound: state.configFound,
+    errors,
+    valid: errors.length === 0,
+    hasBaseUrl: Boolean(state.baseUrl),
+    hasPushBearerToken: Boolean(state.pushBearerToken),
+  };
+}
+
+function readConfigState(env: EnvMap): {
+  baseUrl?: string;
+  pushBearerToken?: string;
+  timeoutMs: number;
+  configPath: string;
+  configFound: boolean;
+  errors: string[];
+} {
+  const configPath = resolveConfigPath(env);
+  const errors: string[] = [];
+  let configFound = existsSync(configPath);
+  let values: RawConfigValue = {};
+
+  if (configFound) {
+    try {
+      ({ configFound, values } = loadConfigFile(configPath));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(message);
+    }
+  }
+
+  let baseUrl: string | undefined;
+  try {
+    baseUrl = readOptionalString(values.baseUrl, "baseUrl");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(message);
+  }
+
+  let pushBearerToken: string | undefined;
+  try {
+    pushBearerToken = readOptionalString(values.pushBearerToken, "pushBearerToken");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(message);
+  }
+
+  let timeoutMs = DEFAULT_TIMEOUT_MS;
+  try {
+    timeoutMs = readOptionalPositiveInteger(values.timeoutMs, "timeoutMs") || DEFAULT_TIMEOUT_MS;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(message);
+  }
+
+  return {
+    baseUrl,
+    pushBearerToken,
+    timeoutMs,
+    configPath,
+    configFound,
+    errors,
+  };
 }

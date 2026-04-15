@@ -1,4 +1,4 @@
-import type { Alert, Outcome } from '../types';
+import type { Alert, Outcome } from "../types";
 
 export interface ConvexAlert {
   _id: string;
@@ -22,13 +22,13 @@ export function toAlert(alert: ConvexAlert): Alert {
     id: alert._id,
     timestamp: new Date(alert.timestamp).toISOString(),
     alertName: alert.alertname,
-    severity: alert.severity as 'critical' | 'warning' | 'info',
+    severity: alert.severity as "critical" | "warning" | "info",
     namespace: alert.namespace,
-    node: alert.node ?? '',
+    node: alert.node ?? "",
     status: alert.status,
     outcome: alert.outcome as Outcome,
     summary: alert.summary,
-    rootCause: alert.rootCause ?? '',
+    rootCause: alert.rootCause ?? "",
     actionTaken: alert.action,
     messaged: alert.messaged,
     resolvedAt: alert.resolvedAt ? new Date(alert.resolvedAt).toISOString() : undefined,

@@ -11,17 +11,24 @@ Cowtail CLI for Cowtail backend actions.
 ## Current status
 Phase 1 is implemented:
 - `cowtail version`
+- `cowtail update`
 - `cowtail alert create`
+- `cowtail alert list`
+- `cowtail alert show`
+- `cowtail alert delete`
+- `cowtail config validate`
+- `cowtail config doctor`
+- `cowtail config show`
 - `cowtail fix create`
-- `cowtail subs list`
+- `cowtail fix list`
+- `cowtail fix show`
+- `cowtail fix delete`
+- `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
-- `cowtail auth whoami`
+- `cowtail users devices`
+- `cowtail users list`
 - `cowtail help`
-
-## Handoff docs
-If you want an LLM or another engineer to finish the implementation, start here:
-- [`docs/HANDOFF.md`](./docs/HANDOFF.md)
 
 ## Layout
 - `src/cli.ts` - entrypoint
@@ -70,28 +77,53 @@ Example config:
 }
 ```
 
-`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `subs list`, `push send`, and `push test`.
+`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, and `push test`.
 
-`cowtail auth whoami` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
+`cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
 Tagged release builds embed the Git tag as the canonical CLI version. Local builds default to `dev` unless `COWTAIL_VERSION` is set.
 
 ## Planned command shape
 - `cowtail version`
+- `cowtail update`
 - `cowtail alert create`
+- `cowtail alert list`
+- `cowtail alert show`
+- `cowtail alert delete`
+- `cowtail config validate`
+- `cowtail config doctor`
+- `cowtail config show`
 - `cowtail fix create`
-- `cowtail subs list`
+- `cowtail fix list`
+- `cowtail fix show`
+- `cowtail fix delete`
+- `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
-- `cowtail auth whoami`
+- `cowtail users devices`
+- `cowtail users list`
 
 ## Examples
 ```bash
 cowtail version
 
-cowtail auth whoami
+cowtail update --check
 
-cowtail subs list
+cowtail config show
+
+cowtail config validate
+
+cowtail config doctor
+
+cowtail health show
+
+cowtail users list
+
+cowtail users devices --user-id 001612.bb9a2ce6d90341d880c8e6065c232aae.2317
+
+cowtail alert list --severity critical
+
+cowtail fix list --scope reactive
 
 cowtail alert create \
   --alertname KubePodCrashLooping \

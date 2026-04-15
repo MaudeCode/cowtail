@@ -37,11 +37,7 @@ export class ApnsError extends Error {
   }
 }
 
-const INVALID_TOKEN_REASONS = new Set([
-  "BadDeviceToken",
-  "DeviceTokenNotForTopic",
-  "Unregistered",
-]);
+const INVALID_TOKEN_REASONS = new Set(["BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"]);
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -52,7 +48,9 @@ function getRequiredEnv(name: string): string {
 }
 
 function getApnsConfig(): ApnsConfig {
-  const environment = (process.env.APNS_ENV?.trim() || "development") as "development" | "production";
+  const environment = (process.env.APNS_ENV?.trim() || "development") as
+    | "development"
+    | "production";
   if (environment !== "development" && environment !== "production") {
     throw new ApnsError(`Invalid APNS_ENV: ${environment}`);
   }
@@ -72,7 +70,9 @@ function base64UrlEncode(value: string | Buffer): string {
 
 function createApnsJwt(config: ApnsConfig): string {
   const header = base64UrlEncode(JSON.stringify({ alg: "ES256", kid: config.keyId }));
-  const payload = base64UrlEncode(JSON.stringify({ iss: config.teamId, iat: Math.floor(Date.now() / 1000) }));
+  const payload = base64UrlEncode(
+    JSON.stringify({ iss: config.teamId, iat: Math.floor(Date.now() / 1000) }),
+  );
   const unsignedToken = `${header}.${payload}`;
   const signature = sign("sha256", Buffer.from(unsignedToken), {
     key: createPrivateKey(config.authKeyP8),
@@ -97,7 +97,7 @@ function buildPayload(args: SendApnsNotificationArgs): string {
       },
       sound: "default",
     },
-    ...(args.data ?? {}),
+    ...args.data,
   });
 }
 
@@ -142,11 +142,12 @@ export async function sendApnsNotification(args: SendApnsNotificationArgs): Prom
     request.on("response", (headers: IncomingHttpHeaders) => {
       status = Number(headers[":status"] ?? 0);
       const headerValue = headers["apns-id"];
-      apnsId = typeof headerValue === "string"
-        ? headerValue
-        : Array.isArray(headerValue)
-        ? headerValue[0]
-        : undefined;
+      apnsId =
+        typeof headerValue === "string"
+          ? headerValue
+          : Array.isArray(headerValue)
+            ? headerValue[0]
+            : undefined;
     });
 
     request.on("data", (chunk: string) => {
@@ -173,10 +174,12 @@ export async function sendApnsNotification(args: SendApnsNotificationArgs): Prom
         }
       }
 
-      reject(new ApnsError(
-        `APNs request failed${reason ? `: ${reason}` : responseBody ? `: ${responseBody}` : ""}`,
-        { status, reason },
-      ));
+      reject(
+        new ApnsError(
+          `APNs request failed${reason ? `: ${reason}` : responseBody ? `: ${responseBody}` : ""}`,
+          { status, reason },
+        ),
+      );
     });
 
     request.on("error", (error: Error) => {

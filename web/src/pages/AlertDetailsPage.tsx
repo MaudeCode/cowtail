@@ -1,47 +1,47 @@
-import { useQuery } from '@tanstack/react-query';
-import { convexQuery } from '@convex-dev/react-query';
-import { Link, useParams } from 'react-router-dom';
-import type { Id } from '../../convex/_generated/dataModel';
-import { api } from '../../convex/_generated/api';
-import AlertDetail from '../components/dashboard/AlertDetail';
-import FixesList from '../components/dashboard/FixesList';
-import { BuildVersion } from '../components/ui';
-import { toAlert } from '../lib/alerts';
-import { formatTs } from '../lib/format';
+import { useQuery } from "@tanstack/react-query";
+import { convexQuery } from "@convex-dev/react-query";
+import { Link, useParams } from "react-router-dom";
+import type { Id } from "../../convex/_generated/dataModel";
+import { api } from "../../convex/_generated/api";
+import AlertDetail from "../components/dashboard/AlertDetail";
+import FixesList from "../components/dashboard/FixesList";
+import { BuildVersion } from "../components/ui";
+import { toAlert } from "../lib/alerts";
+import { formatTs } from "../lib/format";
 
 const outcomeStyle = {
-  fixed: 'bg-outcome-fixed text-white',
-  'self-resolved': 'bg-self-resolved text-white',
-  noise: 'bg-noise text-white',
-  escalated: 'bg-escalated text-white',
+  fixed: "bg-outcome-fixed text-white",
+  "self-resolved": "bg-self-resolved text-white",
+  noise: "bg-noise text-white",
+  escalated: "bg-escalated text-white",
 } as const;
 
 const severityStyle = {
-  critical: 'text-accent severity-glow-critical',
-  warning: 'text-escalated',
-  info: 'text-gray-400',
+  critical: "text-accent severity-glow-critical",
+  warning: "text-escalated",
+  info: "text-gray-400",
 } as const;
 
 export default function AlertDetailsPage() {
-  const { alertId = '' } = useParams();
+  const { alertId = "" } = useParams();
 
   const { data, isPending } = useQuery({
     ...convexQuery(api.alerts.getById, {
-      id: alertId as Id<'alerts'>,
+      id: alertId as Id<"alerts">,
     }),
     enabled: Boolean(alertId),
   });
 
   const { data: fixes = [], isPending: fixesPending } = useQuery({
     ...convexQuery(api.fixes.getByAlertIds, {
-      alertIds: alertId ? [alertId as Id<'alerts'>] : [],
+      alertIds: alertId ? [alertId as Id<"alerts">] : [],
     }),
     enabled: Boolean(alertId),
   });
 
   const alert = data ? toAlert(data) : null;
-  const outcomeClass = alert ? outcomeStyle[alert.outcome] : '';
-  const severityClass = alert ? severityStyle[alert.severity] : '';
+  const outcomeClass = alert ? outcomeStyle[alert.outcome] : "";
+  const severityClass = alert ? severityStyle[alert.severity] : "";
 
   return (
     <div className="min-h-screen bg-bg text-txt grid-bg">
@@ -90,8 +90,10 @@ export default function AlertDetailsPage() {
           <div className="space-y-6">
             <section className="border-2 border-gray-200 bg-surface p-6 max-lg:p-4">
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                <span className={`inline-block font-mono text-[0.62rem] uppercase tracking-[0.08em] px-2 py-[3px] font-medium ${outcomeClass}`}>
-                  {alert.outcome.replace('-', ' ')}
+                <span
+                  className={`inline-block font-mono text-[0.62rem] uppercase tracking-[0.08em] px-2 py-[3px] font-medium ${outcomeClass}`}
+                >
+                  {alert.outcome.replace("-", " ")}
                 </span>
                 <span className={`font-mono text-[0.7rem] uppercase ${severityClass}`}>
                   {alert.severity}
@@ -108,15 +110,16 @@ export default function AlertDetailsPage() {
                 {alert.alertName}
               </h1>
 
-              <p className="mt-3 text-[0.95rem] leading-relaxed text-gray-600">
-                {alert.summary}
-              </p>
+              <p className="mt-3 text-[0.95rem] leading-relaxed text-gray-600">{alert.summary}</p>
 
               <div className="mt-5 grid grid-cols-2 gap-3 max-lg:grid-cols-1">
-                <MetadataCell label="Namespace" value={alert.namespace || 'Unknown'} />
-                <MetadataCell label="Node" value={alert.node || 'Unknown'} />
-                <MetadataCell label="Messaged" value={alert.messaged ? 'Yes' : 'No'} />
-                <MetadataCell label="Resolved" value={alert.resolvedAt ? formatTs(alert.resolvedAt) : 'No'} />
+                <MetadataCell label="Namespace" value={alert.namespace || "Unknown"} />
+                <MetadataCell label="Node" value={alert.node || "Unknown"} />
+                <MetadataCell label="Messaged" value={alert.messaged ? "Yes" : "No"} />
+                <MetadataCell
+                  label="Resolved"
+                  value={alert.resolvedAt ? formatTs(alert.resolvedAt) : "No"}
+                />
                 <MetadataCell label="Alert ID" value={alert.id} mono />
               </div>
             </section>
@@ -152,7 +155,11 @@ function MetadataCell({
       <div className="font-mono text-[0.58rem] uppercase tracking-[0.14em] text-gray-400 mb-1">
         {label}
       </div>
-      <div className={mono ? 'font-mono text-[0.78rem] text-gray-600 break-all' : 'text-[0.9rem] text-gray-600'}>
+      <div
+        className={
+          mono ? "font-mono text-[0.78rem] text-gray-600 break-all" : "text-[0.9rem] text-gray-600"
+        }
+      >
         {value}
       </div>
     </div>

@@ -29,9 +29,7 @@ export const getByTimeRange = query({
   handler: async (ctx, args) => {
     return await ctx.db
       .query("alerts")
-      .withIndex("by_timestamp", (q) =>
-        q.gte("timestamp", args.from).lte("timestamp", args.to)
-      )
+      .withIndex("by_timestamp", (q) => q.gte("timestamp", args.from).lte("timestamp", args.to))
       .collect();
   },
 });

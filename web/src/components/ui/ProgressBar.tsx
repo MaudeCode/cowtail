@@ -5,13 +5,18 @@ interface ProgressBarProps {
   highThreshold?: number;
 }
 
-export default function ProgressBar({ value, label, showLabel = true, highThreshold = 80 }: ProgressBarProps) {
+export default function ProgressBar({
+  value,
+  label,
+  showLabel = true,
+  highThreshold = 80,
+}: ProgressBarProps) {
   const isHigh = value > highThreshold;
   return (
     <div>
       <div className="h-1 bg-gray-100 mt-1.5">
         <div
-          className={`h-full transition-all duration-500 ease-out ${isHigh ? 'bg-accent shadow-[0_0_8px_var(--color-accent-dim)]' : 'bg-gray-400'}`}
+          className={`h-full transition-all duration-500 ease-out ${isHigh ? "bg-accent shadow-[0_0_8px_var(--color-accent-dim)]" : "bg-gray-400"}`}
           style={{ width: `${value}%` }}
         />
       </div>
