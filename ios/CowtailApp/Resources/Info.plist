@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Cowtail</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CowtailAlertWriteURL</key>
+	<string>$(COWTAIL_ALERT_WRITE_URL)</string>
+	<key>CowtailConvexQueryURL</key>
+	<string>$(COWTAIL_CONVEX_QUERY_URL)</string>
+	<key>CowtailHealthSummaryURL</key>
+	<string>$(COWTAIL_HEALTH_SUMMARY_URL)</string>
+	<key>CowtailPublicSiteURL</key>
+	<string>$(COWTAIL_PUBLIC_SITE_URL)</string>
+	<key>CowtailPushRegistrationURL</key>
+	<string>$(COWTAIL_PUSH_REGISTRATION_URL)</string>
+	<key>CowtailPushUnregistrationURL</key>
+	<string>$(COWTAIL_PUSH_UNREGISTRATION_URL)</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+	</dict>
+	<key>UILaunchScreen</key>
+	<dict/>
+</dict>
+</plist>

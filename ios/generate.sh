@@ -33,4 +33,8 @@ do
   fi
 done
 
+cd "${SCRIPT_DIR}/.."
+bun run codegen:ios
+cd "${SCRIPT_DIR}"
+
 exec xcodegen generate

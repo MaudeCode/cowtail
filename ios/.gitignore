@@ -14,6 +14,8 @@ Cowtail.xcodeproj/
 .build/
 Packages/
 Package.resolved
+OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources/
+OpenAPITools/Sources/CowtailGeneratedAPI/openapi.json
 
 # Fastlane
 fastlane/report.xml

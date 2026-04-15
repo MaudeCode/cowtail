@@ -14,9 +14,13 @@ import {
   fixCreateRequestSchema,
   healthResponseSchema,
   okResponseSchema,
+  pushRegisterRequestSchema,
+  pushRegisterResponseSchema,
   pushResultSchema,
   pushSendRequestSchema,
   pushTestRequestSchema,
+  pushUnregisterRequestSchema,
+  pushUnregisterResponseSchema,
   userDevicesResponseSchema,
   usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
@@ -570,12 +574,17 @@ app.post("/api/push/register", async (c) => {
     return jsonError("Invalid JSON body");
   }
 
-  const identityToken = nonEmptyString(body.identityToken);
+  const parsed = pushRegisterRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
+  }
+
+  const identityToken = nonEmptyString(parsed.data.identityToken);
   if (!identityToken) {
     return jsonError("identityToken and deviceToken are required");
   }
 
-  const deviceToken = nonEmptyString(body.deviceToken);
+  const deviceToken = nonEmptyString(parsed.data.deviceToken);
   if (!deviceToken) {
     return jsonError("identityToken and deviceToken are required");
   }
@@ -597,15 +606,15 @@ app.post("/api/push/register", async (c) => {
   const result = await ctx.runMutation(api.push.upsertDeviceRegistration, {
     userId,
     deviceToken: deviceToken.trim(),
-    platform: nonEmptyString(body.platform) ?? "ios",
+    platform: nonEmptyString(parsed.data.platform) ?? "ios",
     environment:
-      nonEmptyString(body.environment) ?? (process.env.APNS_ENV?.trim() || "development"),
+      nonEmptyString(parsed.data.environment) ?? (process.env.APNS_ENV?.trim() || "development"),
     enabled: true,
-    deviceName: nonEmptyString(body.deviceName),
+    deviceName: nonEmptyString(parsed.data.deviceName),
     lastSeenAt: Date.now(),
   });
 
-  return c.json({ ok: true, ...result });
+  return c.json(pushRegisterResponseSchema.parse({ ok: true, ...result }));
 });
 
 // POST /api/push/unregister — disable a device token without deleting history
@@ -615,17 +624,17 @@ app.post("/api/push/unregister", async (c) => {
     return jsonError("Invalid JSON body");
   }
 
-  const deviceToken = nonEmptyString(body.deviceToken);
-  if (!deviceToken) {
-    return jsonError("deviceToken is required");
+  const parsed = pushUnregisterRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
   const ctx = c.env;
   const result = await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
-    deviceToken: deviceToken.trim(),
+    deviceToken: parsed.data.deviceToken.trim(),
   });
 
-  return c.json(result);
+  return c.json(pushUnregisterResponseSchema.parse(result));
 });
 
 async function sendPushToUser(

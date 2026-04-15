@@ -1,69 +1,177 @@
 import Foundation
+import OpenAPIRuntime
+import OpenAPIURLSession
+import OSLog
 
 actor CowtailAPI {
-    private let decoder = JSONDecoder()
-    private let convexQueryURL = AppConfig.convexQueryURL
-    private let healthSummaryURL = AppConfig.healthSummaryURL
-    private let pushRegistrationURL = AppConfig.pushRegistrationURL
-    private let pushUnregistrationURL = AppConfig.pushUnregistrationURL
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
+        category: "network"
+    )
+    private let transport = URLSessionTransport()
+
+    private var queryClient: Client {
+        Client(
+            serverURL: AppConfig.baseURL(for: AppConfig.convexQueryURL, droppingLastPathComponents: 1),
+            transport: transport
+        )
+    }
+
+    private var healthClient: Client {
+        Client(
+            serverURL: AppConfig.baseURL(for: AppConfig.healthSummaryURL, droppingLastPathComponents: 1),
+            transport: transport
+        )
+    }
+
+    private var pushRegistrationClient: Client {
+        Client(
+            serverURL: AppConfig.baseURL(for: AppConfig.pushRegistrationURL, droppingLastPathComponents: 2),
+            transport: transport
+        )
+    }
+
+    private var pushUnregistrationClient: Client {
+        Client(
+            serverURL: AppConfig.baseURL(for: AppConfig.pushUnregistrationURL, droppingLastPathComponents: 2),
+            transport: transport
+        )
+    }
 
     func fetchAlerts(from: Date, to: Date) async throws -> [AlertItem] {
-        let alerts: [AlertDTO] = try await convexQuery(
-            path: "alerts:getByTimeRange",
-            args: [
-                "from": Int(from.timeIntervalSince1970 * 1000),
-                "to": Int(to.timeIntervalSince1970 * 1000)
-            ]
+        logger.info("fetchAlerts baseURL=\(AppConfig.baseURL(for: AppConfig.convexQueryURL, droppingLastPathComponents: 1).absoluteString, privacy: .public)")
+        let output = try await queryClient.query(
+            body: .json(
+                .init(
+                    value1: .init(
+                        path: .alerts_colon_getByTimeRange,
+                        args: .init(
+                            from: milliseconds(from),
+                            to: milliseconds(to)
+                        ),
+                        format: .convexEncodedJson
+                    )
+                )
+            )
         )
 
-        return alerts
-            .map { $0.asAlertItem }
-            .sorted { $0.timestamp > $1.timestamp }
+        switch output {
+        case let .ok(response):
+            let payload = try response.body.json
+            guard let envelope = payload.value1 else {
+                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for alerts.")
+            }
+
+            switch envelope.status {
+            case .success:
+                return (envelope.value ?? [])
+                    .map(makeAlertItem)
+                    .sorted { $0.timestamp > $1.timestamp }
+            case .error:
+                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
+            }
+        case let .undocumented(statusCode, payload):
+            await logUndocumentedResponse(
+                operation: "query.fetchAlerts",
+                statusCode: statusCode,
+                payload: payload
+            )
+            let body = await bodyString(from: payload.body)
+            throw CowtailAPIError.requestFailed("Alert list request failed with status \(statusCode): \(body)")
+        }
     }
 
     func fetchAlert(id: String) async throws -> AlertItem? {
-        do {
-            let alert: AlertDTO? = try await convexQuery(
-                path: "alerts:getById",
-                args: ["id": id]
+        let output = try await queryClient.query(
+            body: .json(
+                .init(
+                    value2: .init(
+                        path: .alerts_colon_getById,
+                        args: .init(id: id),
+                        format: .convexEncodedJson
+                    )
+                )
             )
+        )
 
-            return alert?.asAlertItem
-        } catch let error as CowtailAPIError {
-            guard case .requestFailed(let message) = error,
-                  message.contains("Could not find public function for 'alerts:getById'") else {
-                throw error
+        switch output {
+        case let .ok(response):
+            let payload = try response.body.json
+            guard let envelope = payload.value2 else {
+                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for alert fetch.")
             }
 
-            let now = Date()
-            let fallbackStart = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now.addingTimeInterval(-30 * 24 * 60 * 60)
-            let recentAlerts = try await fetchAlerts(from: fallbackStart, to: now)
-            return recentAlerts.first(where: { $0.id == id })
+            switch envelope.status {
+            case .success:
+                return envelope.value?.value1.map(makeAlertItem)
+            case .error:
+                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
+            }
+        case let .undocumented(statusCode, payload):
+            await logUndocumentedResponse(
+                operation: "query.fetchAlert",
+                statusCode: statusCode,
+                payload: payload
+            )
+            let body = await bodyString(from: payload.body)
+            throw CowtailAPIError.requestFailed("Alert fetch failed with status \(statusCode): \(body)")
         }
     }
 
     func fetchFixes(alertIDs: [String]) async throws -> [AlertFix] {
-        let fixes: [FixDTO] = try await convexQuery(
-            path: "fixes:getByAlertIds",
-            args: ["alertIds": alertIDs]
+        let output = try await queryClient.query(
+            body: .json(
+                .init(
+                    value3: .init(
+                        path: .fixes_colon_getByAlertIds,
+                        args: .init(alertIds: alertIDs),
+                        format: .convexEncodedJson
+                    )
+                )
+            )
         )
 
-        return fixes
-            .map { $0.asAlertFix }
-            .sorted { $0.timestamp > $1.timestamp }
+        switch output {
+        case let .ok(response):
+            let payload = try response.body.json
+            guard let envelope = payload.value3 else {
+                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for fixes.")
+            }
+
+            switch envelope.status {
+            case .success:
+                return (envelope.value ?? [])
+                    .map(makeAlertFix)
+                    .sorted { $0.timestamp > $1.timestamp }
+            case .error:
+                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
+            }
+        case let .undocumented(statusCode, payload):
+            await logUndocumentedResponse(
+                operation: "query.fetchFixes",
+                statusCode: statusCode,
+                payload: payload
+            )
+            let body = await bodyString(from: payload.body)
+            throw CowtailAPIError.requestFailed("Fix list request failed with status \(statusCode): \(body)")
+        }
     }
 
     func fetchHealthSummary() async throws -> HealthSummary {
-        let (data, response) = try await URLSession.shared.data(from: healthSummaryURL)
-        try validate(response: response, data: data)
+        let output = try await healthClient.fetchHealthSummary()
 
-        let decoded = try decode(
-            HealthSummaryDTO.self,
-            from: data,
-            context: "Health response"
-        )
-
-        return decoded.asHealthSummary
+        switch output {
+        case let .ok(response):
+            return makeHealthSummary(try response.body.json)
+        case let .undocumented(statusCode, payload):
+            await logUndocumentedResponse(
+                operation: "fetchHealthSummary",
+                statusCode: statusCode,
+                payload: payload
+            )
+            let body = await bodyString(from: payload.body)
+            throw CowtailAPIError.requestFailed("Health request failed with status \(statusCode): \(body)")
+        }
     }
 
     func registerPushDevice(
@@ -72,111 +180,124 @@ actor CowtailAPI {
         environment: String,
         deviceName: String
     ) async throws -> PushRegistrationResponse {
-        try await jsonRequest(
-            url: pushRegistrationURL,
-            body: [
-                "identityToken": identityToken,
-                "deviceToken": deviceToken,
-                "platform": "ios",
-                "environment": environment,
-                "deviceName": deviceName
-            ]
+        let output = try await pushRegistrationClient.registerPushDevice(
+            body: .json(
+                .init(
+                    identityToken: identityToken,
+                    deviceToken: deviceToken,
+                    platform: "ios",
+                    environment: environment,
+                    deviceName: deviceName
+                )
+            )
         )
+
+        switch output {
+        case let .ok(response):
+            return try response.body.json
+        case let .undocumented(statusCode, payload):
+            await logUndocumentedResponse(
+                operation: "registerPushDevice",
+                statusCode: statusCode,
+                payload: payload
+            )
+            let body = await bodyString(from: payload.body)
+            throw CowtailAPIError.requestFailed("Push registration failed with status \(statusCode): \(body)")
+        }
     }
 
     func unregisterPushDevice(deviceToken: String) async throws -> PushUnregistrationResponse {
-        try await jsonRequest(
-            url: pushUnregistrationURL,
-            body: [
-                "deviceToken": deviceToken
-            ]
+        let output = try await pushUnregistrationClient.unregisterPushDevice(
+            body: .json(.init(deviceToken: deviceToken))
+        )
+
+        switch output {
+        case let .ok(response):
+            return try response.body.json
+        case let .undocumented(statusCode, payload):
+            await logUndocumentedResponse(
+                operation: "unregisterPushDevice",
+                statusCode: statusCode,
+                payload: payload
+            )
+            let body = await bodyString(from: payload.body)
+            throw CowtailAPIError.requestFailed("Push unregistration failed with status \(statusCode): \(body)")
+        }
+    }
+
+    private func makeAlertItem(_ record: Components.Schemas.ConvexAlertRecord) -> AlertItem {
+        AlertItem(
+            id: record._id,
+            timestamp: Date(timeIntervalSince1970: record.timestamp / 1000),
+            alertName: record.alertname,
+            severity: AlertSeverity(rawValue: record.severity) ?? .unknown,
+            namespace: record.namespace,
+            node: record.node ?? "",
+            outcome: AlertOutcome(rawValue: record.outcome) ?? .unknown,
+            summary: record.summary,
+            rootCause: record.rootCause ?? "",
+            actionTaken: record.action ?? "",
+            status: AlertLifecycleStatus(rawValue: record.status) ?? .unknown,
+            resolvedAt: record.resolvedAt.map { Date(timeIntervalSince1970: $0 / 1000) },
+            messaged: record.messaged ?? false
         )
     }
 
-    private func convexQuery<T: Decodable>(path: String, args: [String: Any]) async throws -> T {
-        var request = URLRequest(url: convexQueryURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "path": path,
-            "args": args,
-            "format": "convex_encoded_json"
-        ])
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
-
-        let envelope: ConvexEnvelope<T> = try decode(
-            ConvexEnvelope<T>.self,
-            from: data,
-            context: "Convex response for \(path)"
+    private func makeAlertFix(_ record: Components.Schemas.ConvexFixRecord) -> AlertFix {
+        AlertFix(
+            id: record._id,
+            description: record.description ?? "",
+            rootCause: record.rootCause ?? "",
+            scope: FixScope(rawValue: record.scope ?? "") ?? .unknown,
+            timestamp: Date(timeIntervalSince1970: record.timestamp / 1000)
         )
-        if envelope.status == "success", let value = envelope.value {
-            return value
+    }
+
+    private func makeHealthSummary(_ payload: Components.Schemas.HealthResponse) -> HealthSummary {
+        HealthSummary(
+            nodes: payload.nodes.map {
+                HealthNode(
+                    id: $0.name,
+                    name: $0.name,
+                    isReady: $0.status == .ready,
+                    cpu: Int($0.cpu.rounded()),
+                    memory: Int($0.memory.rounded())
+                )
+            },
+            cephStatus: payload.cephStatus.rawValue,
+            cephMessage: payload.cephMessage,
+            storageTotal: payload.storageTotal,
+            storageUsed: payload.storageUsed,
+            storageUnit: payload.storageUnit
+        )
+    }
+
+    private func milliseconds(_ date: Date) -> Double {
+        date.timeIntervalSince1970 * 1000
+    }
+
+    private func logUndocumentedResponse(
+        operation: String,
+        statusCode: Int,
+        payload: UndocumentedPayload
+    ) async {
+        let body = await bodyString(from: payload.body)
+        logger.error(
+            "\(operation, privacy: .public) undocumented response status=\(statusCode, privacy: .public) headers=\(String(describing: payload.headerFields), privacy: .public) body=\(body, privacy: .public)"
+        )
+    }
+
+    private func bodyString(from body: HTTPBody?) async -> String {
+        guard let body else {
+            return "<empty>"
         }
 
-        throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
-    }
-
-    private func jsonRequest<T: Decodable>(url: URL, body: [String: Any]) async throws -> T {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
-        return try decode(T.self, from: data, context: "JSON response")
-    }
-
-    private func validate(response: URLResponse, data: Data) throws {
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw CowtailAPIError.requestFailed(parseErrorMessage(from: data))
-        }
-    }
-
-    private func parseErrorMessage(from data: Data) -> String {
-        if let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data) {
-            return envelope.error
-        }
-
-        return String(data: data, encoding: .utf8) ?? "Unknown error"
-    }
-
-    private func decode<T: Decodable>(_ type: T.Type, from data: Data, context: String) throws -> T {
         do {
-            return try decoder.decode(T.self, from: data)
-        } catch let error as DecodingError {
-            throw CowtailAPIError.requestFailed("\(context) decode failed: \(describe(error, data: data))")
+            let bytes = try await Array(collecting: body, upTo: 32_768)
+            return String(decoding: bytes, as: UTF8.self)
         } catch {
-            throw error
+            return "<unreadable body: \(error)>"
         }
-    }
-
-    private func describe(_ error: DecodingError, data: Data) -> String {
-        let snippet = String(data: data.prefix(240), encoding: .utf8)?
-            .replacingOccurrences(of: "\n", with: " ") ?? "<non-utf8>"
-
-        switch error {
-        case .typeMismatch(let type, let context):
-            return "type mismatch for \(type) at \(codingPath(context.codingPath)): \(context.debugDescription). Payload: \(snippet)"
-        case .valueNotFound(let type, let context):
-            return "missing \(type) at \(codingPath(context.codingPath)): \(context.debugDescription). Payload: \(snippet)"
-        case .keyNotFound(let key, let context):
-            return "missing key '\(key.stringValue)' at \(codingPath(context.codingPath)): \(context.debugDescription). Payload: \(snippet)"
-        case .dataCorrupted(let context):
-            return "data corrupted at \(codingPath(context.codingPath)): \(context.debugDescription). Payload: \(snippet)"
-        @unknown default:
-            return "unknown decoding error. Payload: \(snippet)"
-        }
-    }
-
-    private func codingPath(_ codingPath: [CodingKey]) -> String {
-        if codingPath.isEmpty {
-            return "<root>"
-        }
-
-        return codingPath.map(\.stringValue).joined(separator: ".")
     }
 }
 
@@ -191,164 +312,5 @@ enum CowtailAPIError: LocalizedError {
     }
 }
 
-private struct ConvexEnvelope<T: Decodable>: Decodable {
-    let status: String
-    let value: T?
-    let errorMessage: String?
-}
-
-private struct AlertDTO: Decodable {
-    let id: String
-    let timestamp: Double
-    let alertname: String
-    let severity: AlertSeverity
-    let namespace: String
-    let node: String?
-    let outcome: AlertOutcome
-    let summary: String
-    let rootCause: String?
-    let action: String?
-    let status: AlertLifecycleStatus
-    let resolvedAt: Double?
-    let messaged: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case timestamp
-        case alertname
-        case severity
-        case namespace
-        case node
-        case outcome
-        case summary
-        case rootCause
-        case action
-        case status
-        case resolvedAt
-        case messaged
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        timestamp = try container.decode(Double.self, forKey: .timestamp)
-        alertname = try container.decode(String.self, forKey: .alertname)
-        severity = try container.decodeIfPresent(AlertSeverity.self, forKey: .severity) ?? .unknown
-        namespace = try container.decodeIfPresent(String.self, forKey: .namespace) ?? ""
-        node = try container.decodeIfPresent(String.self, forKey: .node)
-        outcome = try container.decodeIfPresent(AlertOutcome.self, forKey: .outcome) ?? .unknown
-        summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
-        rootCause = try container.decodeIfPresent(String.self, forKey: .rootCause)
-        action = try container.decodeIfPresent(String.self, forKey: .action)
-        status = try container.decodeIfPresent(AlertLifecycleStatus.self, forKey: .status) ?? .unknown
-        resolvedAt = try container.decodeIfPresent(Double.self, forKey: .resolvedAt)
-        messaged = try container.decodeIfPresent(Bool.self, forKey: .messaged) ?? false
-    }
-
-    var asAlertItem: AlertItem {
-        AlertItem(
-            id: id,
-            timestamp: Date(timeIntervalSince1970: timestamp / 1000),
-            alertName: alertname,
-            severity: severity,
-            namespace: namespace,
-            node: node ?? "",
-            outcome: outcome,
-            summary: summary,
-            rootCause: rootCause ?? "",
-            actionTaken: action ?? "",
-            status: status,
-            resolvedAt: resolvedAt.map { Date(timeIntervalSince1970: $0 / 1000) },
-            messaged: messaged
-        )
-    }
-}
-
-private struct FixDTO: Decodable {
-    let id: String
-    let description: String
-    let rootCause: String
-    let scope: FixScope
-    let timestamp: Double
-
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case description
-        case rootCause
-        case scope
-        case timestamp
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
-        rootCause = try container.decodeIfPresent(String.self, forKey: .rootCause) ?? ""
-        scope = try container.decodeIfPresent(FixScope.self, forKey: .scope) ?? .unknown
-        timestamp = try container.decode(Double.self, forKey: .timestamp)
-    }
-
-    var asAlertFix: AlertFix {
-        AlertFix(
-            id: id,
-            description: description,
-            rootCause: rootCause,
-            scope: scope,
-            timestamp: Date(timeIntervalSince1970: timestamp / 1000)
-        )
-    }
-}
-
-private struct HealthSummaryDTO: Decodable {
-    let version: Int?
-    let nodes: [HealthNodeDTO]
-    let cephStatus: String
-    let cephMessage: String
-    let storageTotal: Double
-    let storageUsed: Double
-    let storageUnit: String
-
-    var asHealthSummary: HealthSummary {
-        HealthSummary(
-            nodes: nodes.map(\.asHealthNode),
-            cephStatus: cephStatus,
-            cephMessage: cephMessage,
-            storageTotal: storageTotal,
-            storageUsed: storageUsed,
-            storageUnit: storageUnit
-        )
-    }
-}
-
-private struct HealthNodeDTO: Decodable {
-    let name: String
-    let status: String
-    let cpu: Int
-    let memory: Int
-
-    var asHealthNode: HealthNode {
-        HealthNode(
-            id: name,
-            name: name,
-            isReady: status == "Ready",
-            cpu: cpu,
-            memory: memory
-        )
-    }
-}
-
-struct PushRegistrationResponse: Decodable {
-    let ok: Bool
-    let created: Bool
-    let id: String
-}
-
-struct PushUnregistrationResponse: Decodable {
-    let ok: Bool
-    let updated: Bool
-}
-
-private struct APIErrorEnvelope: Decodable {
-    let ok: Bool
-    let error: String
-}
+typealias PushRegistrationResponse = Components.Schemas.PushRegisterResponse
+typealias PushUnregistrationResponse = Components.Schemas.PushUnregisterResponse
