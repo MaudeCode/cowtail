@@ -5,6 +5,7 @@ struct NotificationSettingsPanel: View {
     @AppStorage("developerModeEnabled") private var developerModeEnabled = false
     @Environment(\.cowtailPalette) private var palette
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
+    @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
 
     var body: some View {
@@ -85,20 +86,16 @@ struct NotificationSettingsPanel: View {
                 }
             }
 
+            dailyDigestRow
+
             if let error = appleAccountManager.lastError, appleAccountManager.signInState == .failed {
                 Text(error)
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
 
-            if needsAppleSignIn {
-                SignInWithAppleButton(.continue) { request in
-                    appleAccountManager.configure(request)
-                } onCompletion: { result in
-                    appleAccountManager.handleCompletion(result)
-                }
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 50)
+            if needsAppleAccountConnection {
+                appleSignInButton(height: 50)
             }
 
             if notificationManager.authorizationStatus == .denied {
@@ -106,6 +103,8 @@ struct NotificationSettingsPanel: View {
                     openSystemSettings()
                 }
                 .buttonStyle(.borderedProminent)
+            } else if requiresAppleConfirmationForPushSetup {
+                appleSignInButton(height: 44)
             } else if showsSetupAction {
                 Button(primaryActionTitle) {
                     runPrimarySetupAction()
@@ -154,9 +153,11 @@ struct NotificationSettingsPanel: View {
                 Button("Refresh status") {
                     Task {
                         await appleAccountManager.refreshCredentialState()
+                        _ = await appSessionManager.refreshSessionIfPossible()
                         await notificationManager.refreshAuthorizationStatus()
                         notificationManager.resumeNotificationSetupIfNeeded()
                         await notificationManager.syncDeviceRegistration()
+                        await notificationManager.loadDailyDigestPreference()
                     }
                 }
 
@@ -181,6 +182,55 @@ struct NotificationSettingsPanel: View {
             Text("Developer")
         }
         .groupBoxStyle(CowtailCardStyle())
+    }
+
+    private var dailyDigestRow: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Daily digest")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(palette.ink)
+
+                    Text("A once-daily retrospective summary for your Cowtail account.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 12)
+
+                Toggle(
+                    "Daily digest",
+                    isOn: Binding(
+                        get: { notificationManager.dailyDigestEnabled },
+                        set: { newValue in
+                            Task {
+                                await notificationManager.updateDailyDigestEnabled(newValue)
+                            }
+                        }
+                    )
+                )
+                .labelsHidden()
+                .disabled(dailyDigestToggleDisabled)
+                .overlay(alignment: .center) {
+                    if notificationManager.isLoadingDailyDigestPreference || notificationManager.isSavingDailyDigestPreference {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(palette.ink)
+                            .padding(10)
+                            .background(palette.card.opacity(0.92), in: Capsule())
+                    }
+                }
+            }
+
+            if showsDigestReauthenticationButton {
+                appleSignInButton(height: 44)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
+        .background(palette.cardBorder.opacity(0.35), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func compactStateTile(title: String, value: String, systemImage: String, tint: Color) -> some View {
@@ -244,12 +294,28 @@ struct NotificationSettingsPanel: View {
         }
     }
 
-    private var needsAppleSignIn: Bool {
-        appleAccountManager.userID == nil || appleAccountManager.needsFreshIdentityToken()
+    private var requiresAppleConfirmationForPushSetup: Bool {
+        appleAccountManager.userID != nil
+            && appleAccountManager.needsFreshIdentityToken()
+            && notificationManager.serverRegistrationState == .waitingForIdentity
     }
 
     private var hasSetupError: Bool {
         notificationManager.registrationState == .failed || notificationManager.serverRegistrationState == .failed
+    }
+
+    private var dailyDigestToggleDisabled: Bool {
+        needsAppleAccountConnection
+            || notificationManager.dailyDigestPreferenceRequiresSignIn
+            || notificationManager.isLoadingDailyDigestPreference
+            || notificationManager.isSavingDailyDigestPreference
+    }
+
+    private var showsDigestReauthenticationButton: Bool {
+        appleAccountManager.userID != nil
+            && notificationManager.dailyDigestPreferenceRequiresSignIn
+            && !notificationManager.isLoadingDailyDigestPreference
+            && !notificationManager.isSavingDailyDigestPreference
     }
 
     private var isSyncing: Bool {
@@ -258,7 +324,8 @@ struct NotificationSettingsPanel: View {
 
     private var showsSetupAction: Bool {
         !notificationManager.isReadyForRemotePush
-            && !needsAppleSignIn
+            && !needsAppleAccountConnection
+            && !requiresAppleConfirmationForPushSetup
             && notificationManager.authorizationStatus != .denied
     }
 
@@ -267,8 +334,12 @@ struct NotificationSettingsPanel: View {
             return "Push alerts ready"
         }
 
-        if needsAppleSignIn {
-            return appleAccountManager.userID == nil ? "Connect Apple account" : "Confirm Apple sign-in"
+        if needsAppleAccountConnection {
+            return "Connect Apple account"
+        }
+
+        if requiresAppleConfirmationForPushSetup {
+            return "Confirm Apple sign-in"
         }
 
         if notificationManager.authorizationStatus == .denied {
@@ -295,11 +366,11 @@ struct NotificationSettingsPanel: View {
             return nil
         }
 
-        if needsAppleSignIn {
-            if appleAccountManager.userID == nil {
-                return "Sign in once so Cowtail can bind alerts to this device."
-            }
+        if needsAppleAccountConnection {
+            return "Sign in once so Cowtail can bind alerts to this device."
+        }
 
+        if requiresAppleConfirmationForPushSetup {
             return "Apple needs a fresh confirmation before Cowtail can verify this device."
         }
 
@@ -327,7 +398,7 @@ struct NotificationSettingsPanel: View {
             return "bell.badge.fill"
         }
 
-        if needsAppleSignIn {
+        if needsAppleAccountConnection || requiresAppleConfirmationForPushSetup {
             return "person.crop.circle.badge.plus"
         }
 
@@ -371,11 +442,11 @@ struct NotificationSettingsPanel: View {
             return email
         }
 
-        if appleAccountManager.userID == nil {
+        if needsAppleAccountConnection {
             return "Sign in with Apple"
         }
 
-        if appleAccountManager.needsFreshIdentityToken() {
+        if requiresAppleConfirmationForPushSetup {
             return "Needs confirmation"
         }
 
@@ -383,11 +454,11 @@ struct NotificationSettingsPanel: View {
     }
 
     private var accountStatusIcon: String {
-        if appleAccountManager.userID == nil {
+        if needsAppleAccountConnection {
             return "person.crop.circle.badge.plus"
         }
 
-        if appleAccountManager.needsFreshIdentityToken() {
+        if requiresAppleConfirmationForPushSetup {
             return "person.crop.circle.badge.exclamationmark"
         }
 
@@ -395,7 +466,7 @@ struct NotificationSettingsPanel: View {
     }
 
     private var accountStatusColor: Color {
-        if appleAccountManager.userID == nil || appleAccountManager.needsFreshIdentityToken() {
+        if needsAppleAccountConnection || requiresAppleConfirmationForPushSetup {
             return palette.accent
         }
 
@@ -536,23 +607,69 @@ struct NotificationSettingsPanel: View {
     }
 
     private func runPrimarySetupAction() {
-        if needsAppleSignIn {
+        if needsAppleAccountConnection || requiresAppleConfirmationForPushSetup {
             return
         }
 
         notificationManager.completeSetup()
     }
+
+    private var needsAppleAccountConnection: Bool {
+        appleAccountManager.userID == nil
+    }
+
+    private func appleSignInButton(height: CGFloat) -> some View {
+        SignInWithAppleButton(.continue) { request in
+            appleAccountManager.configure(request)
+        } onCompletion: { result in
+            appleAccountManager.handleCompletion(result)
+            Task {
+                await refreshAfterAppleSignIn()
+            }
+        }
+        .signInWithAppleButtonStyle(.black)
+        .frame(height: height)
+    }
+
+    private func refreshAfterAppleSignIn() async {
+        await appleAccountManager.refreshCredentialState()
+        _ = await appSessionManager.refreshSessionIfPossible()
+        await notificationManager.refreshAuthorizationStatus()
+        notificationManager.resumeNotificationSetupIfNeeded()
+        await notificationManager.syncDeviceRegistration()
+        await notificationManager.loadDailyDigestPreference()
+    }
 }
 
-#Preview {
-    NavigationStack {
+struct NotificationSettingsPage: View {
+    @EnvironmentObject private var appleAccountManager: AppleAccountManager
+    @EnvironmentObject private var appSessionManager: AppSessionManager
+    @EnvironmentObject private var notificationManager: NotificationManager
+
+    var body: some View {
         CowtailCanvas {
             ScrollView {
                 NotificationSettingsPanel()
                     .padding()
             }
         }
+        .navigationTitle("Notifications")
+        .task {
+            await appleAccountManager.refreshCredentialState()
+            await notificationManager.refreshAuthorizationStatus()
+            notificationManager.resumeNotificationSetupIfNeeded()
+            await notificationManager.syncDeviceRegistration()
+            _ = await appSessionManager.refreshSessionIfPossible()
+            await notificationManager.loadDailyDigestPreference()
+        }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        NotificationSettingsPage()
         .environmentObject(AppleAccountManager.shared)
+        .environmentObject(AppSessionManager.shared)
         .environmentObject(NotificationManager.shared)
     }
 }

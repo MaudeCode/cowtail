@@ -49,6 +49,34 @@ export function parseTimestamp(value: string | undefined, label: string): number
   return parsedValue;
 }
 
+export function parseDateOnly(value: string | undefined, label: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw validationError(`${label} must not be empty`);
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw validationError(`${label} must be in YYYY-MM-DD format`);
+  }
+
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw validationError(`${label} must be a valid calendar date`);
+  }
+
+  return trimmed;
+}
+
 export function parseJsonObject(
   value: string | undefined,
   label: string,

@@ -3,6 +3,17 @@ import { convexQuery } from "@convex-dev/react-query";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
+interface ConvexFix {
+  _id: string;
+  _creationTime: number;
+  timestamp: number;
+  alertIds: string[];
+  description: string;
+  rootCause: string;
+  commit?: string;
+  scope: "reactive" | "weekly" | "monthly";
+}
+
 export function useFixes(alertIds: string[]) {
   const { data, isPending } = useQuery({
     ...convexQuery(api.fixes.getByAlertIds, {
@@ -12,7 +23,7 @@ export function useFixes(alertIds: string[]) {
   });
 
   return {
-    fixes: data ?? [],
+    fixes: (data as ConvexFix[] | undefined) ?? [],
     isLoading: isPending && alertIds.length > 0,
   };
 }

@@ -72,6 +72,7 @@ final class AppleAccountManager: NSObject, ObservableObject {
             let resolvedDisplayName = PersonNameComponentsFormatter().string(from: credential.fullName ?? PersonNameComponents())
             let trimmedDisplayName = resolvedDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
             let identityToken = credential.identityToken.flatMap { String(data: $0, encoding: .utf8) }
+            print("[digest-debug] AppleAccountManager.handleCompletion success userIDPresent=\(!credential.user.isEmpty) identityTokenPresent=\(identityToken != nil)")
 
             storeIdentity(
                 userID: credential.user,
@@ -80,6 +81,7 @@ final class AppleAccountManager: NSObject, ObservableObject {
                 email: credential.email ?? email
             )
         case .failure(let error):
+            print("[digest-debug] AppleAccountManager.handleCompletion failure error=\(error.localizedDescription)")
             signInState = .failed
             lastError = error.localizedDescription
         }
@@ -127,6 +129,7 @@ final class AppleAccountManager: NSObject, ObservableObject {
         signInState = .signedOut
         lastError = nil
 
+        AppSessionManager.shared.appleIdentityDidChange()
         NotificationManager.shared.appleIdentityDidChange()
     }
 
@@ -154,6 +157,7 @@ final class AppleAccountManager: NSObject, ObservableObject {
         self.signInState = .signedIn
         self.lastError = nil
 
+        AppSessionManager.shared.appleIdentityDidChange()
         NotificationManager.shared.appleIdentityDidChange()
     }
 

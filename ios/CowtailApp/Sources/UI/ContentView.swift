@@ -12,6 +12,8 @@ struct ContentView: View {
                         switch route {
                         case .alert(let alertID):
                             AlertDestinationView(alertID: alertID)
+                        case .digest(let digestRoute):
+                            DigestView(digestRoute: digestRoute)
                         }
                     }
             }

@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import {
   buildCliBinary,
   makeTempDir,
   removeTempDir,
+  runCliBinaryAsync,
   runCliBinary,
   writeTempConfig,
 } from "./helpers";
@@ -29,6 +32,7 @@ describe("built binary help and structure", () => {
     expect(result.stdout).toContain("Commands:");
     expect(result.stdout).toContain("alert");
     expect(result.stdout).toContain("config");
+    expect(result.stdout).toContain("digest");
     expect(result.stdout).toContain("health");
     expect(result.stdout).toContain("push");
     expect(result.stdout).toContain("users");
@@ -58,12 +62,16 @@ describe("built binary help and structure", () => {
 
   test("config and users help show newly added subcommands", () => {
     const configResult = runCliBinary(binaryPath, ["config", "-h"]);
+    const digestResult = runCliBinary(binaryPath, ["digest", "-h"]);
     const usersResult = runCliBinary(binaryPath, ["users", "-h"]);
     const pushResult = runCliBinary(binaryPath, ["push", "-h"]);
 
     expect(configResult.status).toBe(0);
     expect(configResult.stdout).toContain("validate");
     expect(configResult.stdout).toContain("doctor");
+
+    expect(digestResult.status).toBe(0);
+    expect(digestResult.stdout).toContain("test");
 
     expect(usersResult.status).toBe(0);
     expect(usersResult.stdout).toContain("devices");
@@ -158,6 +166,166 @@ describe("built binary config and version commands", () => {
     expect(payload.checks.health).toBeNull();
     expect(payload.checks.pushAuth).toBeNull();
     expect(payload.pushBearerToken).toBeUndefined();
+  });
+});
+
+describe("built binary digest commands", () => {
+  test("digest test validates required args", () => {
+    const result = runCliBinary(binaryPath, ["digest", "test", "--json"]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      ok: false,
+      error: "user ID is required",
+    });
+  });
+
+  test("digest test validates date-only input", () => {
+    const result = runCliBinary(binaryPath, [
+      "digest",
+      "test",
+      "--user-id",
+      "user-123",
+      "--from",
+      "2026-02-31",
+      "--json",
+    ]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      ok: false,
+      error: "from must be a valid calendar date",
+    });
+  });
+
+  test("digest test returns machine-readable success output", async () => {
+    const server = createServer((request, response) => {
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe("/actions/api/digest/test");
+      expect(request.headers.authorization).toBe("Bearer secret-token");
+
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        expect(JSON.parse(body)).toEqual({
+          userId: "user-123",
+          from: "2026-04-14",
+          to: "2026-04-14",
+        });
+
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            ok: true,
+            userId: "user-123",
+            digestFrom: "2026-04-14",
+            digestTo: "2026-04-14",
+            title: "Cowtail Daily Digest",
+            body: "Apr 14: No alerts fired. Quiet day.",
+            sent: 1,
+            failed: 0,
+            results: [],
+          }),
+        );
+      });
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(
+        binaryPath,
+        [
+          "digest",
+          "test",
+          "--user-id",
+          "user-123",
+          "--from",
+          "2026-04-14",
+          "--to",
+          "2026-04-14",
+          "--json",
+        ],
+        {
+          env: {
+            COWTAIL_CONFIG_PATH: configPath,
+          },
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout)).toEqual({
+        ok: true,
+        userId: "user-123",
+        digestFrom: "2026-04-14",
+        digestTo: "2026-04-14",
+        title: "Cowtail Daily Digest",
+        body: "Apr 14: No alerts fired. Quiet day.",
+        sent: 1,
+        failed: 0,
+        results: [],
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  test("digest test returns machine-readable error output", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: false, error: "Digest range is invalid" }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(
+        binaryPath,
+        ["digest", "test", "--user-id", "user-123", "--json"],
+        {
+          env: {
+            COWTAIL_CONFIG_PATH: configPath,
+          },
+        },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(JSON.parse(result.stderr)).toEqual({
+        ok: false,
+        error: "Request failed (400): Digest range is invalid",
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 });
 

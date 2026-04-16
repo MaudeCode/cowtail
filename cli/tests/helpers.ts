@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -60,6 +60,47 @@ export function runCliBinary(
     stdout: result.stdout,
     stderr: result.stderr,
   };
+}
+
+export async function runCliBinaryAsync(
+  binaryPath: string,
+  args: string[],
+  options: {
+    env?: Record<string, string | undefined>;
+  } = {},
+): Promise<CliRunResult> {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(binaryPath, args, {
+      cwd: cliDir,
+      env: {
+        ...process.env,
+        ...options.env,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      reject(error);
+    });
+    child.on("close", (status) => {
+      resolve({
+        status,
+        stdout,
+        stderr,
+      });
+    });
+  });
 }
 
 export function writeTempConfig(tempDir: string, value: Record<string, unknown>): string {

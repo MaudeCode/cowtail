@@ -6,8 +6,20 @@ import { api } from "../../convex/_generated/api";
 import AlertDetail from "../components/dashboard/AlertDetail";
 import FixesList from "../components/dashboard/FixesList";
 import { BuildVersion } from "../components/ui";
-import { toAlert } from "../lib/alerts";
+import { toAlert, type ConvexAlert } from "../lib/alerts";
 import { formatTs } from "../lib/format";
+import type { FixScope } from "../types";
+
+interface ConvexFix {
+  _id: string;
+  _creationTime: number;
+  timestamp: number;
+  alertIds: string[];
+  description: string;
+  rootCause: string;
+  commit?: string;
+  scope: FixScope;
+}
 
 const outcomeStyle = {
   fixed: "bg-outcome-fixed text-white",
@@ -39,7 +51,7 @@ export default function AlertDetailsPage() {
     enabled: Boolean(alertId),
   });
 
-  const alert = data ? toAlert(data) : null;
+  const alert = data ? toAlert(data as ConvexAlert) : null;
   const outcomeClass = alert ? outcomeStyle[alert.outcome] : "";
   const severityClass = alert ? severityStyle[alert.severity] : "";
 
@@ -131,7 +143,7 @@ export default function AlertDetailsPage() {
                   Loading fixes…
                 </div>
               ) : (
-                <FixesList fixes={fixes} />
+                <FixesList fixes={(fixes as ConvexFix[] | undefined) ?? []} />
               )}
             </section>
           </div>

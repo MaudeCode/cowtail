@@ -2,17 +2,23 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
 import {
+  authSessionCreateRequestSchema,
+  authSessionCreateResponseSchema,
   alertGetResponseSchema,
   alertListQuerySchema,
   alertListResponseSchema,
   alertRecordSchema,
   alertCreateRequestSchema,
   createResponseSchema,
+  digestTestRequestSchema,
+  digestTestResultSchema,
   fixGetResponseSchema,
   fixListQuerySchema,
   fixListResponseSchema,
   fixCreateRequestSchema,
   healthResponseSchema,
+  notificationPreferencesResponseSchema,
+  notificationPreferencesUpdateRequestSchema,
   okResponseSchema,
   pushRegisterRequestSchema,
   pushRegisterResponseSchema,
@@ -28,6 +34,9 @@ import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
+import { sendPushToUser } from "./pushDelivery";
+
+const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const app: HonoWithConvex<ActionCtx> = new Hono();
 
@@ -103,6 +112,48 @@ function requireServiceAuth(c: { req: { header(name: string): string | undefined
   }
 
   return null;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function createOpaqueToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function requireAppSession(c: {
+  env: ActionCtx;
+  req: { header(name: string): string | undefined };
+}) {
+  const authorization = c.req.header("authorization")?.trim();
+  if (!authorization?.startsWith("Bearer ")) {
+    return { error: jsonError("Unauthorized", 401) };
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+  if (!token) {
+    return { error: jsonError("Unauthorized", 401) };
+  }
+
+  const tokenHash = await sha256Hex(token);
+  const session = await c.env.runQuery(internal.authSessions.getSessionByTokenHash, { tokenHash });
+
+  if (!session || session.revokedAt || session.expiresAt <= Date.now()) {
+    return { error: jsonError("Unauthorized", 401) };
+  }
+
+  await c.env.runMutation(internal.authSessions.touchSession, {
+    id: session._id,
+  });
+
+  return {
+    session,
+    userId: session.userId,
+  };
 }
 
 function parseOptionalQueryTimestamp(value: string | undefined): number | undefined {
@@ -371,29 +422,29 @@ app.get("/api/alerts", async (c) => {
   const alerts = await c.env.runQuery(api.alerts.getAll, {});
   const filtered = alerts
     .filter(
-      (alert) => parsedQuery.data.from === undefined || alert.timestamp >= parsedQuery.data.from,
+      (alert: any) => parsedQuery.data.from === undefined || alert.timestamp >= parsedQuery.data.from,
     )
-    .filter((alert) => parsedQuery.data.to === undefined || alert.timestamp <= parsedQuery.data.to)
+    .filter((alert: any) => parsedQuery.data.to === undefined || alert.timestamp <= parsedQuery.data.to)
     .filter(
-      (alert) =>
+      (alert: any) =>
         parsedQuery.data.alertname === undefined || alert.alertname === parsedQuery.data.alertname,
     )
     .filter(
-      (alert) =>
+      (alert: any) =>
         parsedQuery.data.severity === undefined || alert.severity === parsedQuery.data.severity,
     )
     .filter(
-      (alert) =>
+      (alert: any) =>
         parsedQuery.data.namespace === undefined || alert.namespace === parsedQuery.data.namespace,
     )
     .filter(
-      (alert) => parsedQuery.data.status === undefined || alert.status === parsedQuery.data.status,
+      (alert: any) => parsedQuery.data.status === undefined || alert.status === parsedQuery.data.status,
     )
     .filter(
-      (alert) =>
+      (alert: any) =>
         parsedQuery.data.outcome === undefined || alert.outcome === parsedQuery.data.outcome,
     )
-    .map((alert) => mapAlertRecord(alert as any));
+    .map((alert: any) => mapAlertRecord(alert as any));
 
   return c.json(
     alertListResponseSchema.parse({
@@ -475,15 +526,15 @@ app.get("/api/fixes", async (c) => {
 
   const fixes = await c.env.runQuery(api.fixes.getAll, {});
   const filtered = fixes
-    .filter((fix) => parsedQuery.data.from === undefined || fix.timestamp >= parsedQuery.data.from)
-    .filter((fix) => parsedQuery.data.to === undefined || fix.timestamp <= parsedQuery.data.to)
-    .filter((fix) => parsedQuery.data.scope === undefined || fix.scope === parsedQuery.data.scope)
+    .filter((fix: any) => parsedQuery.data.from === undefined || fix.timestamp >= parsedQuery.data.from)
+    .filter((fix: any) => parsedQuery.data.to === undefined || fix.timestamp <= parsedQuery.data.to)
+    .filter((fix: any) => parsedQuery.data.scope === undefined || fix.scope === parsedQuery.data.scope)
     .filter(
-      (fix) =>
+      (fix: any) =>
         parsedQuery.data.alertId === undefined ||
         fix.alertIds.includes(parsedQuery.data.alertId as any),
     )
-    .map((fix) => mapFixRecord(fix as any));
+    .map((fix: any) => mapFixRecord(fix as any));
 
   return c.json(
     fixListResponseSchema.parse({
@@ -567,6 +618,53 @@ app.post("/api/alerts/webhook", async (c) => {
   return c.json({ ok: true, ids, count: ids.length });
 });
 
+// POST /api/auth/session — exchange a fresh Apple identity token for an app session
+app.post("/api/auth/session", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  const parsed = authSessionCreateRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
+  }
+
+  let userId: string;
+  try {
+    userId = await verifyAppleIdentityToken(parsed.data.identityToken);
+  } catch (error) {
+    if (error instanceof AppleIdentityVerificationError) {
+      return jsonError(error.message, error.statusCode);
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Apple identity token verification failed";
+    return jsonError(message, 500);
+  }
+
+  const token = createOpaqueToken();
+  const tokenHash = await sha256Hex(token);
+  const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
+
+  await c.env.runMutation(internal.authSessions.createSession, {
+    userId,
+    tokenHash,
+    expiresAt,
+  });
+
+  return c.json(
+    authSessionCreateResponseSchema.parse({
+      ok: true,
+      session: {
+        token,
+        userId,
+        expiresAt,
+      },
+    }),
+  );
+});
+
 // POST /api/push/register — register or refresh an iOS device token
 app.post("/api/push/register", async (c) => {
   const body = await c.req.json().catch(() => null);
@@ -637,70 +735,52 @@ app.post("/api/push/unregister", async (c) => {
   return c.json(pushUnregisterResponseSchema.parse(result));
 });
 
-async function sendPushToUser(
-  ctx: ActionCtx,
-  args: {
-    userId: string;
-    title: string;
-    body: string;
-    data?: Record<string, unknown>;
-  },
-) {
-  const devices = await ctx.runQuery(api.push.listEnabledDevicesForUser, { userId: args.userId });
+// GET /api/me/notification-preferences — account-scoped notification preferences
+app.get("/api/me/notification-preferences", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
 
-  if (devices.length === 0) {
-    return {
+  const preference = await c.env.runQuery(internal.notificationPreferences.getEffectiveForUser, {
+    userId: auth.userId,
+  });
+
+  return c.json(
+    notificationPreferencesResponseSchema.parse({
       ok: true,
-      userId: args.userId,
-      sent: 0,
-      failed: 0,
-      results: [] as Array<Record<string, unknown>>,
-    };
+      preferences: {
+        dailyDigestEnabled: preference.dailyDigestEnabled,
+      },
+    }),
+  );
+});
+
+// PUT /api/me/notification-preferences — update account-scoped notification preferences
+app.put("/api/me/notification-preferences", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
   }
 
-  const results: Array<Record<string, unknown>> = [];
-  let sent = 0;
-  let failed = 0;
-
-  for (const device of devices) {
-    const result = await ctx.runAction(internal.pushActions.sendApnsToDevice, {
-      deviceToken: device.deviceToken,
-      title: args.title,
-      body: args.body,
-      data: args.data,
-    });
-
-    if (result.ok) {
-      sent += 1;
-    } else {
-      failed += 1;
-      if (
-        result.reason &&
-        ["BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"].includes(String(result.reason))
-      ) {
-        await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
-          deviceToken: device.deviceToken,
-        });
-      }
-    }
-
-    results.push({
-      deviceToken:
-        device.deviceToken.length <= 12
-          ? device.deviceToken
-          : `${device.deviceToken.slice(0, 6)}…${device.deviceToken.slice(-6)}`,
-      ...result,
-    });
+  const parsed = notificationPreferencesUpdateRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
-  return {
-    ok: failed === 0,
-    userId: args.userId,
-    sent,
-    failed,
-    results,
-  };
-}
+  await c.env.runMutation(internal.notificationPreferences.upsertForUser, {
+    userId: auth.userId,
+    dailyDigestEnabled: parsed.data.dailyDigestEnabled,
+  });
+
+  return c.json(
+    notificationPreferencesResponseSchema.parse({
+      ok: true,
+      preferences: parsed.data,
+    }),
+  );
+});
 
 // POST /api/push/send — authenticated push send endpoint for Maude
 app.post("/api/push/send", async (c) => {
@@ -727,6 +807,38 @@ app.post("/api/push/send", async (c) => {
   });
 
   return c.json(pushResultSchema.parse(result));
+});
+
+// POST /api/digest/test — authenticated helper for manual digest sends
+app.post("/api/digest/test", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  const parsed = digestTestRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
+  }
+
+  if (parsed.data.from && parsed.data.to && parsed.data.from > parsed.data.to) {
+    return jsonError("from must be less than or equal to to", 400);
+  }
+
+  try {
+    const result = await c.env.runAction(internal.digestActions.sendTestDailyDigest, {
+      userId: parsed.data.userId,
+      digestFrom: parsed.data.from,
+      digestTo: parsed.data.to,
+    });
+
+    return c.json(digestTestResultSchema.parse(result));
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : String(error), 400);
+  }
 });
 
 // POST /api/push/test — authenticated helper for test sends
@@ -787,7 +899,7 @@ app.get("/api/users/:userId/devices", async (c) => {
       ok: true,
       userId,
       count: devices.length,
-      devices: devices.map((device) => mapUserDevice(device as any)),
+      devices: devices.map((device: any) => mapUserDevice(device as any)),
     }),
   );
 });
