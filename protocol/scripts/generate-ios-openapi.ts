@@ -6,7 +6,11 @@ import { OpenApiGeneratorV3, OpenAPIRegistry } from "@asteasolutions/zod-to-open
 import { z } from "zod";
 
 import {
+  authSessionCreateRequestSchema,
+  authSessionCreateResponseSchema,
   healthResponseSchema,
+  notificationPreferencesResponseSchema,
+  notificationPreferencesUpdateRequestSchema,
   pushRegisterRequestSchema,
   pushRegisterResponseSchema,
   pushUnregisterRequestSchema,
@@ -79,8 +83,24 @@ const fetchFixesRequestSchema = z
   })
   .meta({ id: "ConvexFetchFixesRequest" });
 
+const fetchFixesByTimeRangeRequestSchema = z
+  .object({
+    path: z.literal("fixes:getByTimeRange"),
+    args: z.object({
+      from: timestampSchema,
+      to: timestampSchema,
+    }),
+    format: convexFormatSchema,
+  })
+  .meta({ id: "ConvexFetchFixesByTimeRangeRequest" });
+
 const convexQueryRequestSchema = z
-  .union([fetchAlertsRequestSchema, fetchAlertRequestSchema, fetchFixesRequestSchema])
+  .union([
+    fetchAlertsRequestSchema,
+    fetchAlertRequestSchema,
+    fetchFixesRequestSchema,
+    fetchFixesByTimeRangeRequestSchema,
+  ])
   .meta({ id: "ConvexQueryRequest" });
 
 const fetchAlertsResponseSchema = z
@@ -112,6 +132,16 @@ const convexQueryResponseSchema = z
   .meta({ id: "ConvexQueryResponse" });
 
 const HealthResponse = healthResponseSchema.meta({ id: "HealthResponse" });
+const AuthSessionCreateRequest = authSessionCreateRequestSchema.meta({ id: "AuthSessionCreateRequest" });
+const AuthSessionCreateResponse = authSessionCreateResponseSchema.meta({
+  id: "AuthSessionCreateResponse",
+});
+const NotificationPreferencesResponse = notificationPreferencesResponseSchema.meta({
+  id: "NotificationPreferencesResponse",
+});
+const NotificationPreferencesUpdateRequest = notificationPreferencesUpdateRequestSchema.meta({
+  id: "NotificationPreferencesUpdateRequest",
+});
 const PushRegisterRequest = pushRegisterRequestSchema.meta({ id: "PushRegisterRequest" });
 const PushRegisterResponse = pushRegisterResponseSchema.meta({ id: "PushRegisterResponse" });
 const PushUnregisterRequest = pushUnregisterRequestSchema.meta({ id: "PushUnregisterRequest" });
@@ -162,6 +192,23 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
+  path: "/auth/session",
+  operationId: "createAuthSession",
+  tags: ["auth"],
+  summary: "Exchange a fresh Apple identity token for an app session",
+  request: {
+    body: {
+      required: true,
+      content: jsonContent(AuthSessionCreateRequest),
+    },
+  },
+  responses: {
+    200: jsonResponse("The app session payload.", AuthSessionCreateResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
   path: "/push/register",
   operationId: "registerPushDevice",
   tags: ["push"],
@@ -191,6 +238,34 @@ registry.registerPath({
   },
   responses: {
     200: jsonResponse("The device unregistration result.", PushUnregisterResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/me/notification-preferences",
+  operationId: "getNotificationPreferences",
+  tags: ["notifications"],
+  summary: "Fetch the current account-scoped notification preferences",
+  responses: {
+    200: jsonResponse("The account notification preferences.", NotificationPreferencesResponse),
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/me/notification-preferences",
+  operationId: "updateNotificationPreferences",
+  tags: ["notifications"],
+  summary: "Update the current account-scoped notification preferences",
+  request: {
+    body: {
+      required: true,
+      content: jsonContent(NotificationPreferencesUpdateRequest),
+    },
+  },
+  responses: {
+    200: jsonResponse("The updated account notification preferences.", NotificationPreferencesResponse),
   },
 });
 

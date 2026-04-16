@@ -33,6 +33,30 @@ export default defineSchema({
     .index("by_enabled", ["enabled"])
     .index("by_userId_enabled", ["userId", "enabled"]),
 
+  userNotificationPreferences: defineTable({
+    userId: v.string(),
+    dailyDigestEnabled: v.boolean(),
+    lastDigestKeySent: v.optional(v.string()),
+    inFlightDigestKey: v.optional(v.string()),
+    inFlightDigestClaimedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_dailyDigestEnabled", ["dailyDigestEnabled"]),
+
+  authSessions: defineTable({
+    userId: v.string(),
+    tokenHash: v.string(),
+    createdAt: v.number(),
+    lastUsedAt: v.number(),
+    expiresAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_userId", ["userId"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   fixes: defineTable({
     timestamp: v.number(),
     alertIds: v.array(v.id("alerts")),

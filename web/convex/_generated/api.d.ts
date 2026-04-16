@@ -10,10 +10,17 @@
 
 import type * as alerts from "../alerts.js";
 import type * as apns from "../apns.js";
+import type * as appleIdentity from "../appleIdentity.js";
+import type * as authSessions from "../authSessions.js";
+import type * as crons from "../crons.js";
+import type * as digest from "../digest.js";
+import type * as digestActions from "../digestActions.js";
 import type * as fixes from "../fixes.js";
 import type * as http from "../http.js";
+import type * as notificationPreferences from "../notificationPreferences.js";
 import type * as push from "../push.js";
 import type * as pushActions from "../pushActions.js";
+import type * as pushDelivery from "../pushDelivery.js";
 
 import type {
   ApiFromModules,
@@ -24,10 +31,17 @@ import type {
 declare const fullApi: ApiFromModules<{
   alerts: typeof alerts;
   apns: typeof apns;
+  appleIdentity: typeof appleIdentity;
+  authSessions: typeof authSessions;
+  crons: typeof crons;
+  digest: typeof digest;
+  digestActions: typeof digestActions;
   fixes: typeof fixes;
   http: typeof http;
+  notificationPreferences: typeof notificationPreferences;
   push: typeof push;
   pushActions: typeof pushActions;
+  pushDelivery: typeof pushDelivery;
 }>;
 
 /**
