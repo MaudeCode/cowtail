@@ -1,5 +1,6 @@
 import { alertCommandGroup } from "./alert";
 import { configCommandGroup } from "./config";
+import { digestCommandGroup } from "./digest";
 import { fixCommandGroup } from "./fix";
 import { healthCommandGroup } from "./health";
 import { pushCommandGroup } from "./push";
@@ -11,6 +12,7 @@ import type { CommandGroupDefinition } from "./types";
 export const commandGroups: CommandGroupDefinition[] = [
   alertCommandGroup,
   configCommandGroup,
+  digestCommandGroup,
   fixCommandGroup,
   healthCommandGroup,
   pushCommandGroup,
