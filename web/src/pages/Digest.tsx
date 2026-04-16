@@ -2,10 +2,11 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { convexQuery } from "@convex-dev/react-query";
 import { api } from "../../convex/_generated/api";
+import { resolveDigestWindow } from "../../convex/digest";
 import { formatTs } from "../lib/format";
-import { parseLocalDate, parseLocalDateEnd, formatDateLocal } from "../lib/dates";
+import { parseLocalDate, formatDateLocal } from "../lib/dates";
 import { BuildVersion } from "../components/ui";
-import type { Outcome } from "../types";
+import type { FixScope, Outcome } from "../types";
 
 interface ConvexAlert {
   _id: string;
@@ -22,6 +23,17 @@ interface ConvexAlert {
   rootCause?: string;
   messaged: boolean;
   resolvedAt?: number;
+}
+
+interface ConvexFix {
+  _id: string;
+  _creationTime: number;
+  timestamp: number;
+  alertIds: string[];
+  description: string;
+  rootCause: string;
+  commit?: string;
+  scope: FixScope;
 }
 
 const outcomeColors: Record<string, { bg: string; text: string; label: string }> = {
@@ -63,15 +75,24 @@ export default function Digest() {
   const defaults = getDefaultRange();
   const fromParam = searchParams.get("from") ?? defaults.from;
   const toParam = searchParams.get("to") ?? defaults.to;
-
-  const from = parseLocalDate(fromParam).getTime();
-  const to = parseLocalDateEnd(toParam).getTime();
+  const digestTimeZone = import.meta.env.VITE_DIGEST_TIMEZONE || "America/New_York";
+  const digestWindow = resolveDigestWindow(fromParam, toParam, digestTimeZone);
 
   const { data: convexAlerts, isPending } = useQuery(
-    convexQuery(api.alerts.getByTimeRange, { from, to }),
+    convexQuery(api.alerts.getByTimeRange, {
+      from: digestWindow.fromTimestamp,
+      to: digestWindow.toTimestamp,
+    }),
+  );
+  const { data: convexFixes, isPending: fixesPending } = useQuery(
+    convexQuery(api.fixes.getByTimeRange, {
+      from: digestWindow.fromTimestamp,
+      to: digestWindow.toTimestamp,
+    }),
   );
 
   const alerts = (convexAlerts as ConvexAlert[] | undefined) ?? [];
+  const fixes = (convexFixes as ConvexFix[] | undefined) ?? [];
 
   const stats = {
     total: alerts.length,
@@ -79,6 +100,7 @@ export default function Digest() {
     selfResolved: alerts.filter((a) => a.outcome === "self-resolved").length,
     noise: alerts.filter((a) => a.outcome === "noise").length,
     escalated: alerts.filter((a) => a.outcome === "escalated").length,
+    fixes: fixes.length,
   };
 
   // Group by outcome
@@ -114,18 +136,19 @@ export default function Digest() {
           </div>
         </div>
 
-        {isPending ? (
+        {isPending || fixesPending ? (
           <div className="text-gray-400 font-mono text-sm py-20 text-center">Loading...</div>
         ) : (
           <>
             {/* Summary stats */}
-            <div className="grid grid-cols-5 gap-px bg-gray-200 mb-8 max-lg:grid-cols-5">
+            <div className="grid grid-cols-6 gap-px bg-gray-200 mb-8 max-lg:grid-cols-3">
               {[
                 { label: "Total", value: stats.total, color: "" },
                 { label: "Fixed", value: stats.fixed, color: "text-outcome-fixed" },
                 { label: "S-Resolved", value: stats.selfResolved, color: "text-self-resolved" },
                 { label: "Noise", value: stats.noise, color: "text-noise" },
                 { label: "Escalated", value: stats.escalated, color: "text-escalated" },
+                { label: "Fixes", value: stats.fixes, color: "text-[#3b82f6]" },
               ].map((s) => (
                 <div
                   key={s.label}
@@ -210,9 +233,53 @@ export default function Digest() {
               );
             })}
 
-            {alerts.length === 0 && (
+            {fixes.length > 0 && (
+              <div className="mb-8">
+                <h2 className="font-mono text-[0.7rem] uppercase tracking-[0.15em] text-gray-400 border-b-2 border-gray-200 pb-2 mb-4">
+                  Fixes Applied <span className="text-[#3b82f6]">({fixes.length})</span>
+                </h2>
+
+                {fixes
+                  .sort((a, b) => a.timestamp - b.timestamp)
+                  .map((fix) => (
+                    <div
+                      key={fix._id}
+                      className="mb-4 border-l-[3px] border-l-gray-200 pl-4 pb-4 last:pb-0 hover:border-l-accent transition-colors duration-150"
+                    >
+                      <div className="flex items-center gap-3 mb-1 flex-wrap">
+                        <span className="inline-block font-mono text-[0.6rem] uppercase tracking-[0.08em] whitespace-nowrap px-2 py-[2px] font-medium text-white bg-[#3b82f6]">
+                          {fix.scope}
+                        </span>
+                        <span className="font-mono text-[0.65rem] text-gray-400">
+                          {formatTs(new Date(fix.timestamp).toISOString())}
+                        </span>
+                        {fix.commit && (
+                          <span className="font-mono text-[0.65rem] text-gray-400">
+                            {fix.commit.slice(0, 7)}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="font-semibold text-[0.9rem] tracking-[-0.01em] mb-1">
+                        {fix.description}
+                      </div>
+
+                      {fix.rootCause && (
+                        <div className="mt-1">
+                          <span className="font-mono text-[0.55rem] uppercase tracking-[0.15em] text-gray-400">
+                            Root cause:{" "}
+                          </span>
+                          <span className="text-[0.8rem] text-gray-600">{fix.rootCause}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {alerts.length === 0 && fixes.length === 0 && (
               <div className="text-center py-20 text-gray-400 font-mono text-sm uppercase tracking-wider">
-                No alerts in this period
+                No alerts or fixes in this period
               </div>
             )}
 
