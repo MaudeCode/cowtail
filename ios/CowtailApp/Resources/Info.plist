@@ -22,10 +22,16 @@
 	<string>1</string>
 	<key>CowtailAlertWriteURL</key>
 	<string>$(COWTAIL_ALERT_WRITE_URL)</string>
+	<key>CowtailAuthSessionURL</key>
+	<string>$(COWTAIL_AUTH_SESSION_URL)</string>
 	<key>CowtailConvexQueryURL</key>
 	<string>$(COWTAIL_CONVEX_QUERY_URL)</string>
+	<key>CowtailDigestTimeZone</key>
+	<string>$(COWTAIL_DIGEST_TIMEZONE)</string>
 	<key>CowtailHealthSummaryURL</key>
 	<string>$(COWTAIL_HEALTH_SUMMARY_URL)</string>
+	<key>CowtailNotificationPreferencesURL</key>
+	<string>$(COWTAIL_NOTIFICATION_PREFERENCES_URL)</string>
 	<key>CowtailPublicSiteURL</key>
 	<string>$(COWTAIL_PUBLIC_SITE_URL)</string>
 	<key>CowtailPushRegistrationURL</key>

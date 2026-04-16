@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -7,6 +8,11 @@ import UserNotifications
 final class NotificationManager: NSObject, ObservableObject {
     static let shared = NotificationManager()
     private let api = CowtailAPI()
+    private let appSessionManager = AppSessionManager.shared
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
+        category: "notifications"
+    )
     private let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
     private let defaults = UserDefaults.standard
 
@@ -69,6 +75,11 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published private(set) var registrationError: String?
     @Published private(set) var serverRegistrationMessage: String?
     @Published private(set) var lastNotificationResponse: String?
+    @Published private(set) var dailyDigestEnabled = false
+    @Published private(set) var isLoadingDailyDigestPreference = false
+    @Published private(set) var isSavingDailyDigestPreference = false
+    @Published private(set) var dailyDigestPreferenceError: String?
+    @Published private(set) var dailyDigestPreferenceRequiresSignIn = false
     private var lastSyncedRegistrationKey: String?
     private let deviceTokenKey = "notifications.deviceToken"
     private let syncedUserIDKey = "notifications.syncedUserID"
@@ -400,9 +411,93 @@ final class NotificationManager: NSObject, ObservableObject {
         lastSyncedRegistrationKey = nil
         if AppleAccountManager.shared.userID == nil {
             clearPersistedServerRegistration()
+            dailyDigestEnabled = false
+            dailyDigestPreferenceRequiresSignIn = true
+            dailyDigestPreferenceError = nil
         }
         Task {
             await syncDeviceRegistration()
+        }
+    }
+
+    func loadDailyDigestPreference() async {
+        print("[digest-debug] NotificationManager.loadDailyDigestPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil)")
+        logger.debug("loadDailyDigestPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil, privacy: .public)")
+        guard let _ = AppleAccountManager.shared.userID else {
+            dailyDigestEnabled = false
+            dailyDigestPreferenceRequiresSignIn = true
+            dailyDigestPreferenceError = nil
+            print("[digest-debug] NotificationManager.loadDailyDigestPreference no Apple account")
+            logger.debug("loadDailyDigestPreference no Apple account")
+            return
+        }
+
+        isLoadingDailyDigestPreference = true
+        dailyDigestPreferenceError = nil
+        defer {
+            isLoadingDailyDigestPreference = false
+        }
+
+        guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
+            dailyDigestPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
+            print("[digest-debug] NotificationManager.loadDailyDigestPreference no session state=\(appSessionManager.sessionState)")
+            logger.debug("loadDailyDigestPreference no session state=\(String(describing: self.appSessionManager.sessionState), privacy: .public)")
+            return
+        }
+
+        do {
+            let preferences = try await api.fetchNotificationPreferences(sessionToken: sessionToken)
+            dailyDigestEnabled = preferences.dailyDigestEnabled
+            dailyDigestPreferenceRequiresSignIn = false
+            print("[digest-debug] NotificationManager.loadDailyDigestPreference success enabled=\(preferences.dailyDigestEnabled)")
+            logger.debug("loadDailyDigestPreference success enabled=\(preferences.dailyDigestEnabled, privacy: .public)")
+        } catch {
+            print("[digest-debug] NotificationManager.loadDailyDigestPreference failed error=\(error.localizedDescription)")
+            logger.error("loadDailyDigestPreference failed: \(error.localizedDescription, privacy: .public)")
+            handleDailyDigestPreferenceError(error, restoring: dailyDigestEnabled)
+        }
+    }
+
+    func updateDailyDigestEnabled(_ enabled: Bool) async {
+        print("[digest-debug] NotificationManager.updateDailyDigestEnabled start enabled=\(enabled)")
+        logger.debug("updateDailyDigestEnabled start enabled=\(enabled, privacy: .public)")
+        let previousValue = dailyDigestEnabled
+        dailyDigestEnabled = enabled
+        isSavingDailyDigestPreference = true
+        dailyDigestPreferenceError = nil
+        defer {
+            isSavingDailyDigestPreference = false
+        }
+
+        guard let _ = AppleAccountManager.shared.userID else {
+            dailyDigestEnabled = previousValue
+            dailyDigestPreferenceRequiresSignIn = true
+            print("[digest-debug] NotificationManager.updateDailyDigestEnabled no Apple account")
+            logger.debug("updateDailyDigestEnabled no Apple account")
+            return
+        }
+
+        guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
+            dailyDigestEnabled = previousValue
+            dailyDigestPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
+            print("[digest-debug] NotificationManager.updateDailyDigestEnabled no session state=\(appSessionManager.sessionState)")
+            logger.debug("updateDailyDigestEnabled no session state=\(String(describing: self.appSessionManager.sessionState), privacy: .public)")
+            return
+        }
+
+        do {
+            let preferences = try await api.updateNotificationPreferences(
+                sessionToken: sessionToken,
+                dailyDigestEnabled: enabled
+            )
+            dailyDigestEnabled = preferences.dailyDigestEnabled
+            dailyDigestPreferenceRequiresSignIn = false
+            print("[digest-debug] NotificationManager.updateDailyDigestEnabled success enabled=\(preferences.dailyDigestEnabled)")
+            logger.debug("updateDailyDigestEnabled success enabled=\(preferences.dailyDigestEnabled, privacy: .public)")
+        } catch {
+            print("[digest-debug] NotificationManager.updateDailyDigestEnabled failed error=\(error.localizedDescription)")
+            logger.error("updateDailyDigestEnabled failed: \(error.localizedDescription, privacy: .public)")
+            handleDailyDigestPreferenceError(error, restoring: previousValue)
         }
     }
 
@@ -485,6 +580,20 @@ final class NotificationManager: NSObject, ObservableObject {
     private func removePersistedValue(for key: String) {
         keychain.remove(key)
         defaults.removeObject(forKey: key)
+    }
+
+    private func handleDailyDigestPreferenceError(_ error: Error, restoring previousValue: Bool) {
+        dailyDigestEnabled = previousValue
+
+        if error.localizedDescription.localizedCaseInsensitiveContains("Unauthorized") {
+            appSessionManager.invalidateSession()
+            dailyDigestPreferenceRequiresSignIn = true
+            dailyDigestPreferenceError = "Sign in with Apple again to update your digest settings."
+            return
+        }
+
+        dailyDigestPreferenceRequiresSignIn = false
+        dailyDigestPreferenceError = error.localizedDescription
     }
 }
 

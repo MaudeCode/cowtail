@@ -157,6 +157,48 @@ actor CowtailAPI {
         }
     }
 
+    func fetchFixes(from: Date, to: Date) async throws -> [AlertFix] {
+        let output = try await queryClient.query(
+            body: .json(
+                .init(
+                    value4: .init(
+                        path: .fixes_colon_getByTimeRange,
+                        args: .init(
+                            from: milliseconds(from),
+                            to: milliseconds(to)
+                        ),
+                        format: .convexEncodedJson
+                    )
+                )
+            )
+        )
+
+        switch output {
+        case let .ok(response):
+            let payload = try response.body.json
+            guard let envelope = payload.value3 else {
+                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for fixes.")
+            }
+
+            switch envelope.status {
+            case .success:
+                return (envelope.value ?? [])
+                    .map(makeAlertFix)
+                    .sorted { $0.timestamp > $1.timestamp }
+            case .error:
+                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
+            }
+        case let .undocumented(statusCode, payload):
+            await logUndocumentedResponse(
+                operation: "query.fetchFixesByTimeRange",
+                statusCode: statusCode,
+                payload: payload
+            )
+            let body = await bodyString(from: payload.body)
+            throw CowtailAPIError.requestFailed("Fix range request failed with status \(statusCode): \(body)")
+        }
+    }
+
     func fetchHealthSummary() async throws -> HealthSummary {
         let output = try await healthClient.fetchHealthSummary()
 
@@ -225,6 +267,44 @@ actor CowtailAPI {
         }
     }
 
+    func createAuthSession(identityToken: String) async throws -> AppAuthSession {
+        let response: AuthSessionCreateResponse = try await sendJSONRequest(
+            url: AppConfig.authSessionURL,
+            method: "POST",
+            body: AuthSessionCreateRequest(identityToken: identityToken)
+        )
+
+        return AppAuthSession(
+            token: response.session.token,
+            userID: response.session.userId,
+            expiresAt: Date(timeIntervalSince1970: TimeInterval(response.session.expiresAt) / 1000)
+        )
+    }
+
+    func fetchNotificationPreferences(sessionToken: String) async throws -> AppNotificationPreferences {
+        let response: NotificationPreferencesResponse = try await sendJSONRequest(
+            url: AppConfig.notificationPreferencesURL,
+            method: "GET",
+            bearerToken: sessionToken
+        )
+
+        return AppNotificationPreferences(dailyDigestEnabled: response.preferences.dailyDigestEnabled)
+    }
+
+    func updateNotificationPreferences(
+        sessionToken: String,
+        dailyDigestEnabled: Bool
+    ) async throws -> AppNotificationPreferences {
+        let response: NotificationPreferencesResponse = try await sendJSONRequest(
+            url: AppConfig.notificationPreferencesURL,
+            method: "PUT",
+            body: NotificationPreferencesUpdateRequest(dailyDigestEnabled: dailyDigestEnabled),
+            bearerToken: sessionToken
+        )
+
+        return AppNotificationPreferences(dailyDigestEnabled: response.preferences.dailyDigestEnabled)
+    }
+
     private func makeAlertItem(_ record: Components.Schemas.ConvexAlertRecord) -> AlertItem {
         AlertItem(
             id: record._id,
@@ -276,6 +356,57 @@ actor CowtailAPI {
         date.timeIntervalSince1970 * 1000
     }
 
+    private func sendJSONRequest<ResponseBody: Decodable>(
+        url: URL,
+        method: String,
+        bearerToken: String? = nil
+    ) async throws -> ResponseBody {
+        try await sendJSONRequest(url: url, method: method, body: Optional<String>.none, bearerToken: bearerToken)
+    }
+
+    private func sendJSONRequest<RequestBody: Encodable, ResponseBody: Decodable>(
+        url: URL,
+        method: String,
+        body: RequestBody?,
+        bearerToken: String? = nil
+    ) async throws -> ResponseBody {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if let bearerToken, !bearerToken.isEmpty {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        if let body {
+            request.httpBody = try JSONEncoder().encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CowtailAPIError.requestFailed("Request returned an invalid response.")
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let body = String(decoding: data, as: UTF8.self)
+            if let payload = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data) {
+                throw CowtailAPIError.requestFailed("Request failed with status \(httpResponse.statusCode): \(payload.error)")
+            }
+
+            throw CowtailAPIError.requestFailed(
+                "Request failed with status \(httpResponse.statusCode): \(body.isEmpty ? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode) : body)"
+            )
+        }
+
+        do {
+            return try JSONDecoder().decode(ResponseBody.self, from: data)
+        } catch {
+            throw CowtailAPIError.requestFailed("Request returned an invalid JSON payload.")
+        }
+    }
+
     private func logUndocumentedResponse(
         operation: String,
         statusCode: Int,
@@ -314,3 +445,22 @@ enum CowtailAPIError: LocalizedError {
 
 typealias PushRegistrationResponse = Components.Schemas.PushRegisterResponse
 typealias PushUnregistrationResponse = Components.Schemas.PushUnregisterResponse
+typealias AuthSessionCreateRequest = Components.Schemas.AuthSessionCreateRequest
+typealias AuthSessionCreateResponse = Components.Schemas.AuthSessionCreateResponse
+typealias NotificationPreferencesResponse = Components.Schemas.NotificationPreferencesResponse
+typealias NotificationPreferencesUpdateRequest = Components.Schemas.NotificationPreferencesUpdateRequest
+
+struct AppAuthSession: Sendable {
+    let token: String
+    let userID: String
+    let expiresAt: Date
+}
+
+struct AppNotificationPreferences: Sendable {
+    let dailyDigestEnabled: Bool
+}
+
+private struct APIErrorEnvelope: Decodable {
+    let ok: Bool
+    let error: String
+}

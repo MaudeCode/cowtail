@@ -5,8 +5,11 @@ enum AppConfig {
     static let convexQueryURL = requiredURL("CowtailConvexQueryURL")
     static let healthSummaryURL = requiredURL("CowtailHealthSummaryURL")
     static let alertWriteURL = requiredURL("CowtailAlertWriteURL")
+    static let authSessionURL = requiredURL("CowtailAuthSessionURL")
+    static let notificationPreferencesURL = requiredURL("CowtailNotificationPreferencesURL")
     static let pushRegistrationURL = requiredURL("CowtailPushRegistrationURL")
     static let pushUnregistrationURL = requiredURL("CowtailPushUnregistrationURL")
+    static let digestTimeZoneIdentifier = requiredString("CowtailDigestTimeZone")
     static let publicSiteHost = publicSiteURL.host?.lowercased() ?? ""
 
     static func alertDetailURL(for alertID: String) -> URL? {
@@ -51,5 +54,16 @@ enum AppConfig {
         }
 
         return url
+    }
+
+    private static func requiredString(_ key: String) -> String {
+        guard
+            let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+            !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            fatalError("Missing required app config value for \(key)")
+        }
+
+        return value
     }
 }
