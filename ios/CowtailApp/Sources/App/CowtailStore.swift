@@ -68,7 +68,7 @@ final class CowtailStore: ObservableObject {
             }
             didLoadAlerts = true
         } catch {
-            guard !isCancellation(error) else { return }
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
             logger.error("refresh alerts failed: \(String(describing: error), privacy: .public)")
             errorMessage = error.localizedDescription
         }
@@ -76,7 +76,7 @@ final class CowtailStore: ObservableObject {
         do {
             health = try await healthTask
         } catch {
-            guard !isCancellation(error) else { return }
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
             logger.error("refresh health failed: \(String(describing: error), privacy: .public)")
             healthErrorMessage = error.localizedDescription
         }
@@ -95,7 +95,7 @@ final class CowtailStore: ObservableObject {
         do {
             fixesByAlertID[alertID] = try await api.fetchFixes(alertIDs: [alertID])
         } catch {
-            guard !isCancellation(error) else { return }
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
             logger.error("loadFixes failed for \(alertID, privacy: .public): \(String(describing: error), privacy: .public)")
             errorMessage = error.localizedDescription
         }
@@ -132,18 +132,9 @@ final class CowtailStore: ObservableObject {
 
             alertCacheByID[alert.id] = alert
         } catch {
-            guard !isCancellation(error) else { return }
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
             logger.error("loadAlert failed for \(alertID, privacy: .public): \(String(describing: error), privacy: .public)")
             alertLoadErrors[alertID] = error.localizedDescription
         }
-    }
-
-    private func isCancellation(_ error: Error) -> Bool {
-        if error is CancellationError {
-            return true
-        }
-
-        let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 }
