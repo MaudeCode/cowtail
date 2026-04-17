@@ -8,7 +8,7 @@ struct CowtailMonoLabel: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .font(.cowtailMono(10, weight: .medium, relativeTo: .caption2))
             .tracking(1.2)
             .textCase(.uppercase)
             .foregroundStyle(tint ?? palette.mutedInk)

@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct DigestView: View {
-    @Environment(\.cowtailPalette) private var palette
-
     let digestRoute: DigestRoute
 
     @State private var alerts: [AlertItem] = []
@@ -27,9 +25,9 @@ struct DigestView: View {
     var body: some View {
         CowtailCanvas {
             ScrollView {
-                VStack(spacing: 20) {
-                    heroCard
-                    metricsCard
+                VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
+                    DigestHeroCard(dateRangeText: dateRangeText)
+                    DigestSummaryCard(stats: stats)
 
                     if let errorMessage {
                         errorCard(message: errorMessage)
@@ -41,171 +39,58 @@ struct DigestView: View {
                         alertSections
 
                         if !fixes.isEmpty {
-                            fixesCard
+                            DigestFixesCard(fixes: fixes)
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                .padding(.horizontal, 14)
+                .padding(.top, CowtailDesignGuide.pageTopPadding)
+                .padding(.bottom, 14)
             }
         }
-        .navigationTitle("Daily Digest")
-        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.hidden, for: .navigationBar)
         .task(id: digestRoute) {
             await loadDigest()
         }
-    }
-
-    private var heroCard: some View {
-        CowtailHeroCard(gradient: palette.heroGradient) {
-            Text("Cowtail Daily Digest")
-                .font(.system(.title2, design: .rounded, weight: .bold))
-                .foregroundStyle(.white)
-
-            Text(dateRangeText)
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.84))
-
-            Text(summaryText)
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.74))
-        }
-    }
-
-    private var metricsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Summary")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(palette.storm.opacity(0.75))
-                .textCase(.uppercase)
-
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12)
-                ],
-                spacing: 12
-            ) {
-                CowtailMetricTile(value: "\(stats.total)", title: "Alerts", tint: palette.accent)
-                CowtailMetricTile(value: "\(stats.fixed)", title: "Fixed", tint: .green)
-                CowtailMetricTile(value: "\(stats.selfResolved)", title: "Self-Res.", tint: .mint)
-                CowtailMetricTile(value: "\(stats.escalated)", title: "Escalated", tint: .orange)
-                CowtailMetricTile(value: "\(stats.noise)", title: "Noise", tint: palette.storm)
-                CowtailMetricTile(value: "\(stats.fixes)", title: "Fixes", tint: .blue)
-            }
-        }
-        .cowtailCard()
     }
 
     @ViewBuilder
     private var alertSections: some View {
         ForEach(DigestOutcomeSection.allCases) { section in
             if let items = groupedAlerts[section.outcome], !items.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        Text(section.title)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(palette.storm.opacity(0.75))
-                            .textCase(.uppercase)
-
-                        Spacer()
-
-                        Text("\(items.count)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(section.tint)
-                    }
-
-                    ForEach(items.sorted(by: { $0.timestamp < $1.timestamp })) { alert in
-                        NavigationLink {
-                            AlertDetailView(alert: alert)
-                        } label: {
-                            DigestAlertRow(alert: alert)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .cowtailCard()
+                DigestOutcomeSectionCard(section: section, alerts: items)
             }
         }
-    }
-
-    private var fixesCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Fixes Applied")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(palette.storm.opacity(0.75))
-                    .textCase(.uppercase)
-
-                Spacer()
-
-                Text("\(fixes.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.blue)
-            }
-
-            ForEach(Array(fixes.sorted(by: { $0.timestamp < $1.timestamp }).enumerated()), id: \.element.id) { index, fix in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        DigestScopeBadge(scope: fix.scope)
-
-                        Spacer()
-
-                        Text(fix.timestamp.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(fix.description)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(palette.ink)
-
-                    if !fix.rootCause.isEmpty {
-                        Text(fix.rootCause)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if index < fixes.count - 1 {
-                    Divider()
-                }
-            }
-        }
-        .cowtailCard()
     }
 
     private var loadingCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ProgressView("Loading digest...")
+        CowtailCard {
+            ProgressView(CowtailCopy.loadingRoundupTitle)
         }
-        .cowtailCard()
     }
 
     private var quietDayCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        CowtailCard {
+            CowtailSectionHeader(title: "Quiet Day")
             Text("Quiet day")
-                .font(.system(.title3, design: .rounded, weight: .bold))
+                .font(.cowtailSans(20, weight: .bold, relativeTo: .title3))
 
-            Text("No alerts fired and no fixes were recorded in this digest window.")
-                .font(.footnote)
+            Text(CowtailCopy.roundupEmptyBody)
+                .font(.cowtailSans(13, relativeTo: .footnote))
                 .foregroundStyle(.secondary)
         }
-        .cowtailCard()
     }
 
     private func errorCard(message: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Digest unavailable")
-                .font(.system(.title3, design: .rounded, weight: .bold))
+        CowtailCard {
+            CowtailSectionHeader(title: CowtailCopy.roundupUnavailableTitle)
+            Text(CowtailCopy.roundupUnavailableBody)
+                .font(.cowtailSans(20, weight: .bold, relativeTo: .title3))
 
             Text(message)
-                .font(.footnote)
+                .font(.cowtailSans(13, relativeTo: .footnote))
                 .foregroundStyle(.secondary)
         }
-        .cowtailCard()
     }
 
     private var dateRangeText: String {
@@ -224,27 +109,6 @@ struct DigestView: View {
         let fromText = formatter.string(from: fromDate)
         let toText = formatter.string(from: toDate)
         return fromText == toText ? fromText : "\(fromText) – \(toText)"
-    }
-
-    private var summaryText: String {
-        if stats.total == 0 {
-            return stats.fixes == 0
-                ? "No alerts fired. Quiet day."
-                : "No alerts fired, \(stats.fixes) fix\(stats.fixes == 1 ? "" : "es") shipped."
-        }
-
-        var segments = [
-            "\(stats.total) alert\(stats.total == 1 ? "" : "s")",
-            "\(stats.fixed) fixed",
-            "\(stats.selfResolved) self-resolved",
-            "\(stats.escalated) escalated"
-        ]
-
-        if stats.fixes > 0 {
-            segments.append("\(stats.fixes) fix\(stats.fixes == 1 ? "" : "es") shipped")
-        }
-
-        return segments.joined(separator: ", ")
     }
 
     private func loadDigest() async {
@@ -328,7 +192,7 @@ struct DigestView: View {
     }
 }
 
-private struct DigestStats {
+struct DigestStats {
     let total: Int
     let fixed: Int
     let selfResolved: Int
@@ -346,7 +210,7 @@ private struct DigestStats {
     }
 }
 
-private enum DigestOutcomeSection: CaseIterable, Identifiable {
+enum DigestOutcomeSection: CaseIterable, Identifiable {
     case escalated
     case fixed
     case selfResolved
@@ -373,58 +237,6 @@ private enum DigestOutcomeSection: CaseIterable, Identifiable {
 
     var tint: Color {
         outcome.tint
-    }
-}
-
-private struct DigestAlertRow: View {
-    @Environment(\.cowtailPalette) private var palette
-
-    let alert: AlertItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                AlertClassificationHeader(outcome: alert.outcome)
-
-                Spacer()
-
-                Text(alert.timestamp.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(palette.storm.opacity(0.72))
-            }
-
-            Text(alert.alertName)
-                .font(.system(.headline, design: .rounded, weight: .bold))
-                .foregroundStyle(palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(alert.summary)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !alert.sourceLine.isEmpty {
-                Text(alert.sourceLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct DigestScopeBadge: View {
-    let scope: FixScope
-
-    var body: some View {
-        Text(scope.label)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(scope.tint)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(scope.tint.opacity(0.14), in: Capsule())
     }
 }
 

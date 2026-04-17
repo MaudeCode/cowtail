@@ -98,7 +98,7 @@ enum AlertOutcome: String, Decodable, Identifiable {
         case .fixed:
             return "checkmark.circle.fill"
         case .selfResolved:
-            return "arrow.trianglehead.clockwise.circle.fill"
+            return "arrow.clockwise.circle.fill"
         case .noise:
             return "speaker.slash.fill"
         case .escalated:

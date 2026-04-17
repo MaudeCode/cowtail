@@ -20,15 +20,17 @@ struct AlertDestinationView: View {
 
     private var placeholder: some View {
         CowtailCanvas {
-            VStack(spacing: 18) {
+            VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
+                CowtailPageHeader(title: .title("Alert"))
+
                 if store.isLoadingAlert(alertID) {
                     ProgressView("Loading alert...")
                 } else {
                     Text("Alert unavailable")
-                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .font(.cowtailSans(20, weight: .bold, relativeTo: .title3))
 
                     Text(store.alertError(for: alertID) ?? "Cowtail could not load this alert.")
-                        .font(.footnote)
+                        .font(.cowtailSans(13, relativeTo: .footnote))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -36,7 +38,6 @@ struct AlertDestinationView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(24)
         }
-        .navigationTitle("Alert")
-        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }

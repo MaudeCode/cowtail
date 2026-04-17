@@ -2,6 +2,7 @@ import Foundation
 
 enum AppTab: Hashable {
     case inbox
+    case digest
     case settings
 }
 
@@ -21,8 +22,11 @@ final class UniversalLinkRouter: ObservableObject {
 
     @Published var selectedTab: AppTab = .inbox
     @Published var inboxPath: [InboxRoute] = []
+    @Published var digestRoute: DigestRoute
 
-    private init() {}
+    private init() {
+        self.digestRoute = Self.makeDefaultDigestRoute()
+    }
 
     @discardableResult
     func handle(_ url: URL) -> Bool {
@@ -102,9 +106,8 @@ final class UniversalLinkRouter: ObservableObject {
     }
 
     func openDigest(_ digestRoute: DigestRoute) {
-        selectedTab = .inbox
-        inboxPath.removeAll()
-        inboxPath = [.digest(digestRoute)]
+        selectedTab = .digest
+        self.digestRoute = digestRoute
     }
 
     private func stringValue(for keys: [String], in userInfo: [AnyHashable: Any]) -> String? {
@@ -140,6 +143,10 @@ final class UniversalLinkRouter: ObservableObject {
     }
 
     private func defaultDigestRoute() -> DigestRoute {
+        Self.makeDefaultDigestRoute()
+    }
+
+    private static func makeDefaultDigestRoute() -> DigestRoute {
         let timeZone = TimeZone(identifier: AppConfig.digestTimeZoneIdentifier) ?? .current
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone

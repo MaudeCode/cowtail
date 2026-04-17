@@ -21,12 +21,7 @@ struct CowtailMetricStrip: View {
     let items: [CowtailMetricStripItem]
 
     var body: some View {
-        let columns = Array(
-            repeating: GridItem(.flexible(), spacing: 0),
-            count: CowtailDesignGuide.primaryMetricColumns
-        )
-
-        LazyVGrid(columns: columns, spacing: 0) {
+        HStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 CowtailMetricTile(
                     value: item.value,
@@ -34,12 +29,11 @@ struct CowtailMetricStrip: View {
                     tint: tint(for: item.emphasis),
                     usesAccentBackground: item.emphasis == .accent
                 )
-                .overlay(alignment: .trailing) {
-                    if index.isMultiple(of: CowtailDesignGuide.primaryMetricColumns) == false {
-                        Rectangle()
-                            .fill(palette.border)
-                            .frame(width: 1)
-                    }
+
+                if index < items.count - 1 {
+                    Rectangle()
+                        .fill(palette.border.opacity(0.9))
+                        .frame(width: 1)
                 }
             }
         }

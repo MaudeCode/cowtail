@@ -23,15 +23,27 @@ struct ContentView: View {
             }
 
             NavigationStack {
+                DigestView(digestRoute: universalLinkRouter.digestRoute)
+            }
+            .tag(AppTab.digest)
+            .tabItem {
+                Label(CowtailCopy.roundupTitle, systemImage: "doc.text.image")
+            }
+
+            NavigationStack {
                 AppInfoView()
             }
             .tag(AppTab.settings)
             .tabItem {
-                Label("Settings", systemImage: "gearshape")
+                Label(CowtailCopy.farmhouseTitle, systemImage: "gearshape")
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(palette.accent)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(palette.surfaceRaised, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 }
 

@@ -1,0 +1,16 @@
+enum CowtailCopy {
+    static let farmhouseTitle = "Farmhouse"
+    static let farmhouseBrandLeading = "FARM"
+    static let farmhouseBrandTrailing = "HOUSE"
+    static let roundupTitle = "Roundup"
+    static let roundupBrandLeading = "ROUND"
+    static let roundupBrandTrailing = "UP"
+    static let dailyRoundupTitle = "Daily Roundup"
+    static let roundupUnavailableTitle = "Roundup Unavailable"
+    static let roundupUnavailableBody = "Roundup unavailable"
+    static let loadingRoundupTitle = "Loading roundup..."
+    static let roundupEmptyBody = "No alerts fired and no fixes were recorded in this roundup window."
+    static let dailyRoundupEnabled = "Daily roundup enabled"
+    static let dailyRoundupDisabled = "Daily roundup disabled"
+    static let dailyRoundupDescription = "A once-daily retrospective summary for your Cowtail account."
+}

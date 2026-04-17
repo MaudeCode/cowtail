@@ -48,6 +48,7 @@ struct CowtailCanvas<Content: View>: View {
 
             content()
         }
+        .font(.cowtailSans(15, relativeTo: .body))
         .foregroundStyle(palette.ink)
     }
 }

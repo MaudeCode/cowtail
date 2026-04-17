@@ -12,16 +12,17 @@ struct AppInfoView: View {
         CowtailCanvas {
             ScrollView {
                 VStack(spacing: 20) {
+                    CowtailPageHeader(title: .split(leading: CowtailCopy.farmhouseBrandLeading, trailing: CowtailCopy.farmhouseBrandTrailing))
                     notificationsCard
                     preferencesCard
                     endpointsCard
                 }
-                .padding(.horizontal)
-                .padding(.top, 12)
+                .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
+                .padding(.top, CowtailDesignGuide.pageTopPadding)
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Settings")
+        .toolbar(.hidden, for: .navigationBar)
         .task {
             await appleAccountManager.refreshCredentialState()
             await notificationManager.refreshAuthorizationStatus()
@@ -33,12 +34,8 @@ struct AppInfoView: View {
     }
 
     private var notificationsCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Notifications")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(palette.storm.opacity(0.75))
-                .textCase(.uppercase)
-
+        CowtailCard {
+            CowtailSectionHeader(title: "Notifications")
             NavigationLink {
                 NotificationSettingsPage()
             } label: {
@@ -54,11 +51,11 @@ struct AppInfoView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(notificationManager.friendlyStatusTitle)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.cowtailSans(15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(palette.ink)
 
-                        Text(notificationManager.dailyDigestEnabled ? "Daily digest enabled" : "Daily digest disabled")
-                            .font(.footnote)
+                        Text(notificationManager.dailyDigestEnabled ? CowtailCopy.dailyRoundupEnabled : CowtailCopy.dailyRoundupDisabled)
+                            .font(.cowtailSans(13, relativeTo: .footnote))
                             .foregroundStyle(.secondary)
                     }
 
@@ -71,19 +68,13 @@ struct AppInfoView: View {
             }
             .buttonStyle(.plain)
         }
-        .cowtailCard()
     }
 
     private var preferencesCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Preferences")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(palette.storm.opacity(0.75))
-                .textCase(.uppercase)
-
+        CowtailCard {
+            CowtailSectionHeader(title: "Preferences")
             VStack(alignment: .leading, spacing: 8) {
-                Text("Theme")
-                    .font(.subheadline.weight(.semibold))
+                CowtailMonoLabel(text: "Theme", tint: palette.ink)
 
                 Picker(
                     "Theme",
@@ -100,8 +91,7 @@ struct AppInfoView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Appearance")
-                    .font(.subheadline.weight(.semibold))
+                CowtailMonoLabel(text: "Appearance", tint: palette.ink)
 
                 Picker(
                     "Appearance",
@@ -122,22 +112,16 @@ struct AppInfoView: View {
             Toggle("Developer mode", isOn: $developerModeEnabled)
                 .toggleStyle(.switch)
         }
-        .cowtailCard()
     }
 
     private var endpointsCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Links")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(palette.storm.opacity(0.75))
-                .textCase(.uppercase)
-
+        CowtailCard {
+            CowtailSectionHeader(title: "Links")
             settingsLink("Public site", url: AppConfig.publicSiteURL, systemImage: "globe")
             settingsLink("Convex query endpoint", url: AppConfig.convexQueryURL, systemImage: "externaldrive.connected.to.line.below")
             settingsLink("Alert write endpoint", url: AppConfig.alertWriteURL, systemImage: "square.and.arrow.up")
             settingsLink("Push registration endpoint", url: AppConfig.pushRegistrationURL, systemImage: "bell.badge.fill")
         }
-        .cowtailCard()
     }
 
     private func settingsLink(_ title: String, url: URL, systemImage: String) -> some View {
@@ -148,7 +132,7 @@ struct AppInfoView: View {
                 Image(systemName: "arrow.up.right")
                     .font(.footnote.weight(.semibold))
             }
-            .font(.subheadline)
+            .font(.cowtailSans(15, relativeTo: .subheadline))
         }
     }
 }

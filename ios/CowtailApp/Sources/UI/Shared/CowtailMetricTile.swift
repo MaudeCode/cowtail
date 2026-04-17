@@ -9,15 +9,26 @@ struct CowtailMetricTile: View {
     var usesAccentBackground = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(value)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.cowtailSans(24, weight: .bold, relativeTo: .title2))
                 .foregroundStyle(tint)
 
             CowtailMonoLabel(text: title)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(usesAccentBackground ? palette.accentSoft : Color.white.opacity(0.015))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(tileBackground)
+    }
+
+    @ViewBuilder
+    private var tileBackground: some View {
+        if usesAccentBackground {
+            Rectangle()
+                .fill(palette.accentSoft.opacity(0.7))
+        } else {
+            Color.clear
+        }
     }
 }

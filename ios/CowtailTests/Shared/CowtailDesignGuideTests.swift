@@ -18,4 +18,8 @@ final class CowtailDesignGuideTests: XCTestCase {
     func testCardCornerRadiusMatchesApprovedShell() {
         XCTAssertEqual(CowtailDesignGuide.cardCornerRadius, 22)
     }
+
+    func testPageHeaderFontSizeMatchesApprovedShell() {
+        XCTAssertEqual(CowtailDesignGuide.pageHeaderFontSize, 30)
+    }
 }

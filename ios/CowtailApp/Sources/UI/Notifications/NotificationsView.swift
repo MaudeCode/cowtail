@@ -19,12 +19,8 @@ struct NotificationSettingsPanel: View {
     }
 
     private var statusCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Notifications")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(palette.storm.opacity(0.75))
-                .textCase(.uppercase)
-
+        CowtailCard {
+            CowtailSectionHeader(title: "Notifications")
             HStack(alignment: .center, spacing: 14) {
                 Image(systemName: summaryIconName)
                     .font(.system(size: 22, weight: .semibold))
@@ -34,12 +30,12 @@ struct NotificationSettingsPanel: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(summaryTitle)
-                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .font(.cowtailSans(20, weight: .bold, relativeTo: .title3))
                         .foregroundStyle(palette.ink)
 
                     if let summaryMessage {
                         Text(summaryMessage)
-                            .font(.subheadline)
+                            .font(.cowtailSans(15, relativeTo: .subheadline))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -90,7 +86,7 @@ struct NotificationSettingsPanel: View {
 
             if let error = appleAccountManager.lastError, appleAccountManager.signInState == .failed {
                 Text(error)
-                    .font(.footnote)
+                    .font(.cowtailSans(13, relativeTo: .footnote))
                     .foregroundStyle(.red)
             }
 
@@ -112,7 +108,6 @@ struct NotificationSettingsPanel: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .cowtailCard()
     }
 
     private var developerCard: some View {
@@ -188,12 +183,10 @@ struct NotificationSettingsPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Daily digest")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(palette.ink)
+                    CowtailMonoLabel(text: CowtailCopy.dailyRoundupTitle, tint: palette.ink)
 
-                    Text("A once-daily retrospective summary for your Cowtail account.")
-                        .font(.footnote)
+                    Text(CowtailCopy.dailyRoundupDescription)
+                        .font(.cowtailSans(13, relativeTo: .footnote))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -201,7 +194,7 @@ struct NotificationSettingsPanel: View {
                 Spacer(minLength: 12)
 
                 Toggle(
-                    "Daily digest",
+                    CowtailCopy.dailyRoundupTitle,
                     isOn: Binding(
                         get: { notificationManager.dailyDigestEnabled },
                         set: { newValue in
@@ -240,12 +233,10 @@ struct NotificationSettingsPanel: View {
                 .foregroundStyle(tint)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                CowtailMonoLabel(text: title)
 
                 Text(value)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.cowtailSans(15, weight: .semibold, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink)
             }
 
@@ -265,12 +256,10 @@ struct NotificationSettingsPanel: View {
                 .frame(width: 26)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                CowtailMonoLabel(text: title)
 
                 Text(value)
-                    .font(.subheadline.weight(.medium))
+                    .font(.cowtailSans(15, weight: .medium, relativeTo: .subheadline))
                     .foregroundStyle(palette.ink)
             }
 
@@ -283,12 +272,10 @@ struct NotificationSettingsPanel: View {
 
     private func diagnosticBlock(title: String, value: String, isError: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            CowtailMonoLabel(text: title, tint: isError ? .red : nil)
 
             Text(value)
-                .font(.footnote.monospaced())
+                .font(.cowtailMono(12, relativeTo: .footnote))
                 .textSelection(.enabled)
                 .foregroundStyle(isError ? .red : .primary)
         }
@@ -649,11 +636,17 @@ struct NotificationSettingsPage: View {
     var body: some View {
         CowtailCanvas {
             ScrollView {
-                NotificationSettingsPanel()
-                    .padding()
+                VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
+                    CowtailPageHeader(title: .title("Notifications"))
+
+                    NotificationSettingsPanel()
+                }
+                .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
+                .padding(.top, CowtailDesignGuide.pageTopPadding)
+                .padding(.bottom, CowtailDesignGuide.pageHorizontalPadding)
             }
         }
-        .navigationTitle("Notifications")
+        .toolbar(.hidden, for: .navigationBar)
         .task {
             await appleAccountManager.refreshCredentialState()
             await notificationManager.refreshAuthorizationStatus()

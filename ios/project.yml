@@ -47,6 +47,12 @@ targets:
         CowtailPushRegistrationURL: $(COWTAIL_PUSH_REGISTRATION_URL)
         CowtailPushUnregistrationURL: $(COWTAIL_PUSH_UNREGISTRATION_URL)
         CowtailDigestTimeZone: $(COWTAIL_DIGEST_TIMEZONE)
+        UIAppFonts:
+          - SpaceGrotesk-Regular.ttf
+          - SpaceGrotesk-Medium.ttf
+          - SpaceGrotesk-Bold.ttf
+          - DMMono-Regular.ttf
+          - DMMono-Medium.ttf
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
         UILaunchScreen: {}
