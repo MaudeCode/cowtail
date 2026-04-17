@@ -3,7 +3,7 @@ import Foundation
 enum AppTab: Hashable {
     case inbox
     case digest
-    case settings
+    case farmhouse
 }
 
 enum InboxRoute: Hashable {

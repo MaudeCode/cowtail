@@ -31,9 +31,9 @@ struct ContentView: View {
             }
 
             NavigationStack {
-                AppInfoView()
+                FarmhouseView()
             }
-            .tag(AppTab.settings)
+            .tag(AppTab.farmhouse)
             .tabItem {
                 Label(CowtailCopy.farmhouseTitle, systemImage: "gearshape")
             }
