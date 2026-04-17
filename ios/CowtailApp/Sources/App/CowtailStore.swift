@@ -14,7 +14,7 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var lastUpdated: Date?
     @Published var errorMessage: String?
 
-    private let api: CowtailAPI
+    private let api: any CowtailAPIClient
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "store"
@@ -22,7 +22,7 @@ final class CowtailStore: ObservableObject {
     private var hasLoaded = false
 
     init(
-        api: CowtailAPI = CowtailAPI(),
+        api: any CowtailAPIClient = CowtailAPI(),
         alerts: [AlertItem] = [],
         health: HealthSummary? = nil,
         fixesByAlertID: [String: [AlertFix]] = [:]
@@ -44,6 +44,11 @@ final class CowtailStore: ObservableObject {
     }
 
     func refresh() async {
+        enum RefreshResult {
+            case alerts(Result<[AlertItem], Error>)
+            case health(Result<HealthSummary, Error>)
+        }
+
         isLoading = true
         errorMessage = nil
         healthErrorMessage = nil
@@ -54,36 +59,50 @@ final class CowtailStore: ObservableObject {
         let now = Date()
         let start = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
 
-        async let alertsTask = api.fetchAlerts(from: start, to: now)
-        async let healthTask = api.fetchHealthSummary()
-
-        var didLoadAlerts = false
-
-        do {
-            let fetchedAlerts = try await alertsTask
-            alerts = fetchedAlerts
-            for alert in fetchedAlerts {
-                alertCacheByID[alert.id] = alert
-                alertLoadErrors.removeValue(forKey: alert.id)
+        await withTaskGroup(of: RefreshResult.self) { [api] group in
+            group.addTask {
+                do {
+                    return .alerts(.success(try await api.fetchAlerts(from: start, to: now)))
+                } catch {
+                    return .alerts(.failure(error))
+                }
             }
-            didLoadAlerts = true
-        } catch {
-            guard !NetworkErrorClassifier.isCancellation(error) else { return }
-            logger.error("refresh alerts failed: \(String(describing: error), privacy: .public)")
-            errorMessage = error.localizedDescription
-        }
 
-        do {
-            health = try await healthTask
-        } catch {
-            guard !NetworkErrorClassifier.isCancellation(error) else { return }
-            logger.error("refresh health failed: \(String(describing: error), privacy: .public)")
-            healthErrorMessage = error.localizedDescription
-        }
+            group.addTask {
+                do {
+                    return .health(.success(try await api.fetchHealthSummary()))
+                } catch {
+                    return .health(.failure(error))
+                }
+            }
 
-        if didLoadAlerts {
-            lastUpdated = Date()
-            hasLoaded = true
+            for await result in group {
+                switch result {
+                case .alerts(.success(let fetchedAlerts)):
+                    alerts = fetchedAlerts
+                    for alert in fetchedAlerts {
+                        alertCacheByID[alert.id] = alert
+                        alertLoadErrors.removeValue(forKey: alert.id)
+                    }
+                    lastUpdated = .now
+                    hasLoaded = true
+
+                case .alerts(.failure(let error)):
+                    guard !NetworkErrorClassifier.isCancellation(error) else { continue }
+                    logger.error("refresh alerts failed: \(String(describing: error), privacy: .public)")
+                    errorMessage = error.localizedDescription
+
+                case .health(.success(let fetchedHealth)):
+                    health = fetchedHealth
+                    lastUpdated = .now
+                    hasLoaded = true
+
+                case .health(.failure(let error)):
+                    guard !NetworkErrorClassifier.isCancellation(error) else { continue }
+                    logger.error("refresh health failed: \(String(describing: error), privacy: .public)")
+                    healthErrorMessage = error.localizedDescription
+                }
+            }
         }
     }
 

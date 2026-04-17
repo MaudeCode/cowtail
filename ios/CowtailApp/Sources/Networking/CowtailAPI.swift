@@ -3,12 +3,30 @@ import OpenAPIRuntime
 import OpenAPIURLSession
 import OSLog
 
-actor CowtailAPI {
+protocol CowtailAPIClient: Sendable {
+    func fetchAlerts(from: Date, to: Date) async throws -> [AlertItem]
+    func fetchAlert(id: String) async throws -> AlertItem?
+    func fetchFixes(alertIDs: [String]) async throws -> [AlertFix]
+    func fetchHealthSummary() async throws -> HealthSummary
+}
+
+actor CowtailAPI: CowtailAPIClient {
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "network"
     )
-    private let transport = URLSessionTransport()
+    private let transport = CowtailAPI.makeTransport()
+
+    private static func makeTransport() -> URLSessionTransport {
+        let configuration = URLSessionConfiguration.default
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 30
+        return URLSessionTransport(
+            configuration: .init(session: URLSession(configuration: configuration))
+        )
+    }
 
     private var queryClient: Client {
         Client(

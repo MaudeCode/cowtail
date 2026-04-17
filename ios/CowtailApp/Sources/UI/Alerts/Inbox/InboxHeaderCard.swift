@@ -5,10 +5,25 @@ struct InboxHeaderCard: View {
 
     var body: some View {
         CowtailBrandHeader {
-            CowtailMonoLabel(
-                text: "Updated \(lastUpdated?.formatted(date: .omitted, time: .shortened) ?? "--")"
-            )
+            CowtailMonoLabel(text: Self.updatedLabel(for: lastUpdated))
         }
+    }
+
+    static func updatedLabel(
+        for lastUpdated: Date?,
+        timeZone: TimeZone = .autoupdatingCurrent,
+        locale: Locale = .autoupdatingCurrent
+    ) -> String {
+        guard let lastUpdated else {
+            return "Updated --"
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.dateStyle = .none
+        formatter.timeStyle = .medium
+        return "Updated \(formatter.string(from: lastUpdated))"
     }
 }
 
