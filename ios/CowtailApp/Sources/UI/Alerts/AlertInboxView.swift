@@ -64,15 +64,18 @@ struct AlertInboxView: View {
                 .padding(.top, CowtailDesignGuide.pageTopPadding)
                 .padding(.bottom, 18)
             }
+            .scrollBounceBehavior(.always, axes: .vertical)
+            .refreshable {
+                await store.refresh()
+            }
         }
-        .navigationTitle("Cowtail")
-        .refreshable {
-            await store.refresh()
-        }
+        // Fully hiding the nav bar causes SwiftUI's native refresh control
+        // to render offscreen on this screen.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await store.loadIfNeeded()
         }
-        .toolbar(.hidden, for: .navigationBar)
     }
 
     private var alertList: some View {
