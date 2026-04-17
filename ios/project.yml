@@ -53,9 +53,6 @@ targets:
     sources:
       - path: CowtailApp/Sources
       - path: CowtailApp/Resources
-      - path: OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources
-        group: Generated/OpenAPI
-        optional: true
     dependencies:
       - package: SwiftOpenAPIRuntime
         product: OpenAPIRuntime
@@ -92,4 +89,18 @@ targets:
           COWTAIL_ASSOCIATED_DOMAIN: ${COWTAIL_ASSOCIATED_DOMAIN_RELEASE}
           CODE_SIGN_ENTITLEMENTS: CowtailApp/Resources/CowtailRelease.entitlements
     scheme:
-      testTargets: []
+      testTargets:
+        - CowtailTests
+  CowtailTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CowtailTests
+    dependencies:
+      - target: Cowtail
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ${COWTAIL_PRODUCT_BUNDLE_IDENTIFIER}.tests
+        SWIFT_VERSION: 6.0

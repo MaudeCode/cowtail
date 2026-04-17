@@ -52,4 +52,6 @@ cd "${SCRIPT_DIR}/.."
 bun run codegen:ios
 cd "${SCRIPT_DIR}"
 
+"${SCRIPT_DIR}/scripts/sync-openapi.sh"
+
 exec xcodegen generate

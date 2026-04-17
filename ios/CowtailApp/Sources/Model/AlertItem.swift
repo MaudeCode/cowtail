@@ -43,6 +43,10 @@ enum AlertSeverity: String, CaseIterable, Decodable, Identifiable {
             return "questionmark.circle.fill"
         }
     }
+
+    var prefersStrongBadge: Bool {
+        false
+    }
 }
 
 enum AlertOutcome: String, Decodable, Identifiable {
@@ -101,6 +105,15 @@ enum AlertOutcome: String, Decodable, Identifiable {
             return "arrow.up.circle.fill"
         case .unknown:
             return "questionmark.circle.fill"
+        }
+    }
+
+    var prefersStrongBadge: Bool {
+        switch self {
+        case .fixed, .escalated:
+            return true
+        case .selfResolved, .noise, .unknown:
+            return false
         }
     }
 }
