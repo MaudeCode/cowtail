@@ -8,6 +8,7 @@ enum CowtailCopy {
     static let dailyRoundupTitle = "Daily Roundup"
     static let roundupUnavailableTitle = "Roundup Unavailable"
     static let roundupUnavailableBody = "Roundup unavailable"
+    static let roundupInvalidRangeMessage = "This roundup range is invalid."
     static let loadingRoundupTitle = "Loading roundup..."
     static let roundupEmptyBody = "No alerts fired and no fixes were recorded in this roundup window."
     static let dailyRoundupEnabled = "Daily roundup enabled"

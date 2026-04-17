@@ -12,8 +12,8 @@ struct ContentView: View {
                         switch route {
                         case .alert(let alertID):
                             AlertDestinationView(alertID: alertID)
-                        case .digest(let digestRoute):
-                            DigestView(digestRoute: digestRoute)
+                        case .roundup(let roundupRoute):
+                            RoundupView(roundupRoute: roundupRoute)
                         }
                     }
             }
@@ -23,9 +23,9 @@ struct ContentView: View {
             }
 
             NavigationStack {
-                DigestView(digestRoute: universalLinkRouter.digestRoute)
+                RoundupView(roundupRoute: universalLinkRouter.roundupRoute)
             }
-            .tag(AppTab.digest)
+            .tag(AppTab.roundup)
             .tabItem {
                 Label(CowtailCopy.roundupTitle, systemImage: "doc.text.image")
             }

@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct DigestSummaryCard: View {
-    let stats: DigestStats
+struct RoundupSummaryCard: View {
+    let stats: RoundupStats
 
     var body: some View {
         CowtailMetricStrip(items: [

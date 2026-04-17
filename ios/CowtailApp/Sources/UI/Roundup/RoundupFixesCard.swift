@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct DigestScopeBadge: View {
+private struct RoundupScopeBadge: View {
     let scope: FixScope
 
     var body: some View {
@@ -13,7 +13,7 @@ private struct DigestScopeBadge: View {
     }
 }
 
-struct DigestFixesCard: View {
+struct RoundupFixesCard: View {
     @Environment(\.cowtailPalette) private var palette
     let fixes: [AlertFix]
 
@@ -24,7 +24,7 @@ struct DigestFixesCard: View {
             ForEach(Array(fixes.sorted(by: { $0.timestamp < $1.timestamp }).enumerated()), id: \.element.id) { index, fix in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        DigestScopeBadge(scope: fix.scope)
+                        RoundupScopeBadge(scope: fix.scope)
 
                         Spacer()
 

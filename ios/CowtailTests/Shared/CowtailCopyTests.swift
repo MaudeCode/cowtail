@@ -11,4 +11,8 @@ final class CowtailCopyTests: XCTestCase {
         XCTAssertEqual(CowtailCopy.roundupBrandTrailing, "UP")
         XCTAssertEqual(CowtailCopy.dailyRoundupTitle, "Daily Roundup")
     }
+
+    func testRoundupInvalidRangeMessageUsesRoundupTerminology() {
+        XCTAssertEqual(CowtailCopy.roundupInvalidRangeMessage, "This roundup range is invalid.")
+    }
 }

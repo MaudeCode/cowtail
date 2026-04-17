@@ -2,16 +2,16 @@ import Foundation
 
 enum AppTab: Hashable {
     case inbox
-    case digest
+    case roundup
     case farmhouse
 }
 
 enum InboxRoute: Hashable {
     case alert(String)
-    case digest(DigestRoute)
+    case roundup(RoundupRoute)
 }
 
-struct DigestRoute: Hashable {
+struct RoundupRoute: Hashable {
     let from: String
     let to: String
 }
@@ -22,10 +22,10 @@ final class UniversalLinkRouter: ObservableObject {
 
     @Published var selectedTab: AppTab = .inbox
     @Published var inboxPath: [InboxRoute] = []
-    @Published var digestRoute: DigestRoute
+    @Published var roundupRoute: RoundupRoute
 
     private init() {
-        self.digestRoute = Self.makeDefaultDigestRoute()
+        self.roundupRoute = Self.makeDefaultRoundupRoute()
     }
 
     @discardableResult
@@ -45,7 +45,7 @@ final class UniversalLinkRouter: ObservableObject {
         case []:
             openInbox()
         case ["digest"]:
-            openDigest(resolveDigestRoute(from: url))
+            openRoundup(resolveRoundupRoute(from: url))
         case ["fixes"]:
             openInbox()
         case let components where components.count == 2 && components[0] == "alerts":
@@ -105,9 +105,9 @@ final class UniversalLinkRouter: ObservableObject {
         inboxPath = [.alert(trimmedAlertID)]
     }
 
-    func openDigest(_ digestRoute: DigestRoute) {
-        selectedTab = .digest
-        self.digestRoute = digestRoute
+    func openRoundup(_ roundupRoute: RoundupRoute) {
+        selectedTab = .roundup
+        self.roundupRoute = roundupRoute
     }
 
     private func stringValue(for keys: [String], in userInfo: [AnyHashable: Any]) -> String? {
@@ -127,41 +127,41 @@ final class UniversalLinkRouter: ObservableObject {
         AppConfig.resolvePublicURL(from: string)
     }
 
-    private func resolveDigestRoute(from url: URL) -> DigestRoute {
+    private func resolveRoundupRoute(from url: URL) -> RoundupRoute {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return defaultDigestRoute()
+            return defaultRoundupRoute()
         }
 
-        let defaultRoute = defaultDigestRoute()
+        let defaultRoute = defaultRoundupRoute()
         let from = firstNonEmptyQueryValue(named: "from", in: components.queryItems)
         let to = firstNonEmptyQueryValue(named: "to", in: components.queryItems)
 
-        return DigestRoute(
+        return RoundupRoute(
             from: (from?.isEmpty == false ? from : nil) ?? to ?? defaultRoute.from,
             to: (to?.isEmpty == false ? to : nil) ?? from ?? defaultRoute.to
         )
     }
 
-    private func defaultDigestRoute() -> DigestRoute {
-        Self.makeDefaultDigestRoute()
+    private func defaultRoundupRoute() -> RoundupRoute {
+        Self.makeDefaultRoundupRoute()
     }
 
-    private static func makeDefaultDigestRoute() -> DigestRoute {
+    private static func makeDefaultRoundupRoute() -> RoundupRoute {
         let timeZone = TimeZone(identifier: AppConfig.digestTimeZoneIdentifier) ?? .current
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
 
         let now = Date()
         let todayStart = calendar.startOfDay(for: now)
-        let digestDate = calendar.date(byAdding: .day, value: -1, to: todayStart) ?? now
+        let roundupDate = calendar.date(byAdding: .day, value: -1, to: todayStart) ?? now
 
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.timeZone = timeZone
         formatter.dateFormat = "yyyy-MM-dd"
-        let dateString = formatter.string(from: digestDate)
+        let dateString = formatter.string(from: roundupDate)
 
-        return DigestRoute(from: dateString, to: dateString)
+        return RoundupRoute(from: dateString, to: dateString)
     }
 
     private func firstNonEmptyQueryValue(named name: String, in queryItems: [URLQueryItem]?) -> String? {

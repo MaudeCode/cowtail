@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DigestHeroCard: View {
+struct RoundupHeroCard: View {
     let dateRangeText: String
 
     var body: some View {

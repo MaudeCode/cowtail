@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct DigestView: View {
-    let digestRoute: DigestRoute
+struct RoundupView: View {
+    let roundupRoute: RoundupRoute
 
     @State private var alerts: [AlertItem] = []
     @State private var fixes: [AlertFix] = []
@@ -10,8 +10,8 @@ struct DigestView: View {
 
     private let api = CowtailAPI()
 
-    private var stats: DigestStats {
-        DigestStats(alerts: alerts, fixes: fixes)
+    private var stats: RoundupStats {
+        RoundupStats(alerts: alerts, fixes: fixes)
     }
 
     private var groupedAlerts: [AlertOutcome: [AlertItem]] {
@@ -26,8 +26,8 @@ struct DigestView: View {
         CowtailCanvas {
             ScrollView {
                 VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
-                    DigestHeroCard(dateRangeText: dateRangeText)
-                    DigestSummaryCard(stats: stats)
+                    RoundupHeroCard(dateRangeText: dateRangeText)
+                    RoundupSummaryCard(stats: stats)
 
                     if let errorMessage {
                         errorCard(message: errorMessage)
@@ -39,7 +39,7 @@ struct DigestView: View {
                         alertSections
 
                         if !fixes.isEmpty {
-                            DigestFixesCard(fixes: fixes)
+                            RoundupFixesCard(fixes: fixes)
                         }
                     }
                 }
@@ -49,16 +49,16 @@ struct DigestView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .task(id: digestRoute) {
-            await loadDigest()
+        .task(id: roundupRoute) {
+            await loadRoundup()
         }
     }
 
     @ViewBuilder
     private var alertSections: some View {
-        ForEach(DigestOutcomeSection.allCases) { section in
+        ForEach(RoundupOutcomeSection.allCases) { section in
             if let items = groupedAlerts[section.outcome], !items.isEmpty {
-                DigestOutcomeSectionCard(section: section, alerts: items)
+                RoundupOutcomeSectionCard(section: section, alerts: items)
             }
         }
     }
@@ -100,10 +100,10 @@ struct DigestView: View {
         formatter.timeStyle = .none
 
         guard
-            let fromDate = Self.date(from: digestRoute.from, in: timeZone),
-            let toDate = Self.date(from: digestRoute.to, in: timeZone)
+            let fromDate = Self.date(from: roundupRoute.from, in: timeZone),
+            let toDate = Self.date(from: roundupRoute.to, in: timeZone)
         else {
-            return "\(digestRoute.from) – \(digestRoute.to)"
+            return "\(roundupRoute.from) – \(roundupRoute.to)"
         }
 
         let fromText = formatter.string(from: fromDate)
@@ -111,7 +111,7 @@ struct DigestView: View {
         return fromText == toText ? fromText : "\(fromText) – \(toText)"
     }
 
-    private func loadDigest() async {
+    private func loadRoundup() async {
         isLoading = true
         errorMessage = nil
         defer {
@@ -119,15 +119,15 @@ struct DigestView: View {
         }
 
         guard
-            let fromDate = Self.startOfDay(for: digestRoute.from, in: timeZone),
-            let toDate = Self.endOfDay(for: digestRoute.to, in: timeZone)
+            let fromDate = Self.startOfDay(for: roundupRoute.from, in: timeZone),
+            let toDate = Self.endOfDay(for: roundupRoute.to, in: timeZone)
         else {
-            errorMessage = "This digest range is invalid."
+            errorMessage = CowtailCopy.roundupInvalidRangeMessage
             return
         }
 
         if fromDate > toDate {
-            errorMessage = "This digest range is invalid."
+            errorMessage = CowtailCopy.roundupInvalidRangeMessage
             return
         }
 
@@ -192,7 +192,7 @@ struct DigestView: View {
     }
 }
 
-struct DigestStats {
+struct RoundupStats {
     let total: Int
     let fixed: Int
     let selfResolved: Int
@@ -210,7 +210,7 @@ struct DigestStats {
     }
 }
 
-enum DigestOutcomeSection: CaseIterable, Identifiable {
+enum RoundupOutcomeSection: CaseIterable, Identifiable {
     case escalated
     case fixed
     case selfResolved
@@ -242,7 +242,7 @@ enum DigestOutcomeSection: CaseIterable, Identifiable {
 
 #Preview {
     NavigationStack {
-        DigestView(digestRoute: DigestRoute(from: "2026-04-14", to: "2026-04-14"))
+        RoundupView(roundupRoute: RoundupRoute(from: "2026-04-14", to: "2026-04-14"))
             .environmentObject(CowtailStore())
     }
 }

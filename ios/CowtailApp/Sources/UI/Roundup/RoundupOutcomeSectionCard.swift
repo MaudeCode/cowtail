@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct DigestOutcomeSectionCard: View {
-    let section: DigestOutcomeSection
+struct RoundupOutcomeSectionCard: View {
+    let section: RoundupOutcomeSection
     let alerts: [AlertItem]
 
     var body: some View {
