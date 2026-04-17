@@ -29,7 +29,7 @@ struct FarmhouseView: View {
             notificationManager.resumeNotificationSetupIfNeeded()
             await notificationManager.syncDeviceRegistration()
             _ = await appSessionManager.refreshSessionIfPossible()
-            await notificationManager.loadDailyDigestPreference()
+            await notificationManager.loadDailyRoundupPreference()
         }
     }
 
@@ -54,7 +54,7 @@ struct FarmhouseView: View {
                             .font(.cowtailSans(15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(palette.ink)
 
-                        Text(notificationManager.dailyDigestEnabled ? CowtailCopy.dailyRoundupEnabled : CowtailCopy.dailyRoundupDisabled)
+                        Text(notificationManager.dailyRoundupEnabled ? CowtailCopy.dailyRoundupEnabled : CowtailCopy.dailyRoundupDisabled)
                             .font(.cowtailSans(13, relativeTo: .footnote))
                             .foregroundStyle(.secondary)
                     }

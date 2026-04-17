@@ -23,7 +23,7 @@ Phase 1 is implemented:
 - `cowtail fix list`
 - `cowtail fix show`
 - `cowtail fix delete`
-- `cowtail digest test`
+- `cowtail roundup test`
 - `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
@@ -78,7 +78,7 @@ Example config:
 }
 ```
 
-`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, and `digest test`.
+`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, and `roundup test`.
 
 `cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
@@ -98,7 +98,7 @@ Tagged release builds embed the Git tag as the canonical CLI version. Local buil
 - `cowtail fix list`
 - `cowtail fix show`
 - `cowtail fix delete`
-- `cowtail digest test`
+- `cowtail roundup test`
 - `cowtail health show`
 - `cowtail push send`
 - `cowtail push test`
@@ -117,7 +117,7 @@ cowtail config validate
 
 cowtail config doctor
 
-cowtail digest test \
+cowtail roundup test \
   --user-id '001612.bb9a2ce6d90341d880c8e6065c232aae.2317' \
   --from 2026-04-14 \
   --to 2026-04-14

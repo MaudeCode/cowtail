@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { type HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
 import {
@@ -10,8 +11,6 @@ import {
   alertRecordSchema,
   alertCreateRequestSchema,
   createResponseSchema,
-  digestTestRequestSchema,
-  digestTestResultSchema,
   fixGetResponseSchema,
   fixListQuerySchema,
   fixListResponseSchema,
@@ -27,6 +26,8 @@ import {
   pushTestRequestSchema,
   pushUnregisterRequestSchema,
   pushUnregisterResponseSchema,
+  roundupTestRequestSchema,
+  roundupTestResultSchema,
   userDevicesResponseSchema,
   usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
@@ -39,6 +40,7 @@ import { sendPushToUser } from "./pushDelivery";
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const app: HonoWithConvex<ActionCtx> = new Hono();
+type RouteContext = Context;
 
 app.use("/api/*", cors());
 
@@ -422,9 +424,12 @@ app.get("/api/alerts", async (c) => {
   const alerts = await c.env.runQuery(api.alerts.getAll, {});
   const filtered = alerts
     .filter(
-      (alert: any) => parsedQuery.data.from === undefined || alert.timestamp >= parsedQuery.data.from,
+      (alert: any) =>
+        parsedQuery.data.from === undefined || alert.timestamp >= parsedQuery.data.from,
     )
-    .filter((alert: any) => parsedQuery.data.to === undefined || alert.timestamp <= parsedQuery.data.to)
+    .filter(
+      (alert: any) => parsedQuery.data.to === undefined || alert.timestamp <= parsedQuery.data.to,
+    )
     .filter(
       (alert: any) =>
         parsedQuery.data.alertname === undefined || alert.alertname === parsedQuery.data.alertname,
@@ -438,7 +443,8 @@ app.get("/api/alerts", async (c) => {
         parsedQuery.data.namespace === undefined || alert.namespace === parsedQuery.data.namespace,
     )
     .filter(
-      (alert: any) => parsedQuery.data.status === undefined || alert.status === parsedQuery.data.status,
+      (alert: any) =>
+        parsedQuery.data.status === undefined || alert.status === parsedQuery.data.status,
     )
     .filter(
       (alert: any) =>
@@ -526,9 +532,13 @@ app.get("/api/fixes", async (c) => {
 
   const fixes = await c.env.runQuery(api.fixes.getAll, {});
   const filtered = fixes
-    .filter((fix: any) => parsedQuery.data.from === undefined || fix.timestamp >= parsedQuery.data.from)
+    .filter(
+      (fix: any) => parsedQuery.data.from === undefined || fix.timestamp >= parsedQuery.data.from,
+    )
     .filter((fix: any) => parsedQuery.data.to === undefined || fix.timestamp <= parsedQuery.data.to)
-    .filter((fix: any) => parsedQuery.data.scope === undefined || fix.scope === parsedQuery.data.scope)
+    .filter(
+      (fix: any) => parsedQuery.data.scope === undefined || fix.scope === parsedQuery.data.scope,
+    )
     .filter(
       (fix: any) =>
         parsedQuery.data.alertId === undefined ||
@@ -748,7 +758,7 @@ app.get("/api/me/notification-preferences", async (c) => {
     notificationPreferencesResponseSchema.parse({
       ok: true,
       preferences: {
-        dailyDigestEnabled: preference.dailyDigestEnabled,
+        dailyRoundupEnabled: preference.dailyRoundupEnabled,
       },
     }),
   );
@@ -771,7 +781,7 @@ app.put("/api/me/notification-preferences", async (c) => {
 
   await c.env.runMutation(internal.notificationPreferences.upsertForUser, {
     userId: auth.userId,
-    dailyDigestEnabled: parsed.data.dailyDigestEnabled,
+    dailyRoundupEnabled: parsed.data.dailyRoundupEnabled,
   });
 
   return c.json(
@@ -809,8 +819,7 @@ app.post("/api/push/send", async (c) => {
   return c.json(pushResultSchema.parse(result));
 });
 
-// POST /api/digest/test — authenticated helper for manual digest sends
-app.post("/api/digest/test", async (c) => {
+async function handleRoundupTest(c: RouteContext) {
   const authError = requireServiceAuth(c);
   if (authError) return authError;
 
@@ -819,7 +828,7 @@ app.post("/api/digest/test", async (c) => {
     return jsonError("Invalid JSON body");
   }
 
-  const parsed = digestTestRequestSchema.safeParse(body);
+  const parsed = roundupTestRequestSchema.safeParse(body);
   if (!parsed.success) {
     return jsonError(formatIssues(parsed.error.issues), 400);
   }
@@ -829,17 +838,20 @@ app.post("/api/digest/test", async (c) => {
   }
 
   try {
-    const result = await c.env.runAction(internal.digestActions.sendTestDailyDigest, {
+    const result = await c.env.runAction(internal.roundupActions.sendTestDailyRoundup, {
       userId: parsed.data.userId,
-      digestFrom: parsed.data.from,
-      digestTo: parsed.data.to,
+      roundupFrom: parsed.data.from,
+      roundupTo: parsed.data.to,
     });
 
-    return c.json(digestTestResultSchema.parse(result));
+    return c.json(roundupTestResultSchema.parse(result));
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : String(error), 400);
   }
-});
+}
+
+// POST /api/roundup/test — authenticated helper for manual roundup sends
+app.post("/api/roundup/test", handleRoundupTest);
 
 // POST /api/push/test — authenticated helper for test sends
 app.post("/api/push/test", async (c) => {
@@ -914,8 +926,7 @@ app.get("/api/health", async (c) => {
   }
 });
 
-// GET /api/digest-html — pre-rendered email HTML for the digest
-app.get("/api/digest-html", async (c) => {
+async function handleRoundupHtml(c: RouteContext) {
   const ctx = c.env;
   const fromParam = c.req.query("from");
   const toParam = c.req.query("to");
@@ -949,7 +960,7 @@ app.get("/api/digest-html", async (c) => {
       : `${fmtDate(fromParam)}–${fmtDate(toParam)}, ${year}`;
 
   const siteOrigin = process.env.SITE_ORIGIN ?? "https://cowtail.example.com";
-  const digestUrl = `${siteOrigin}/digest?from=${fromParam}&to=${toParam}`;
+  const roundupUrl = `${siteOrigin}/roundup?from=${fromParam}&to=${toParam}`;
 
   // Stats
   const stats = {
@@ -1086,10 +1097,10 @@ app.get("/api/digest-html", async (c) => {
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
   <tr><td style="padding:0 0 8px;">
     <span style="font-size:28px;font-weight:700;text-transform:uppercase;letter-spacing:-0.03em;color:#E8E8EA;">Cow</span><span style="font-size:28px;font-weight:700;text-transform:uppercase;letter-spacing:-0.03em;color:#B8242C;">tail</span>
-    <span style="font-size:14px;color:#6E6E76;margin-left:10px;">Digest</span>
+    <span style="font-size:14px;color:#6E6E76;margin-left:10px;">Roundup</span>
   </td></tr>
   <tr><td style="font-family:'DM Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:#6E6E76;padding:0 0 20px;">${dateRange}</td></tr>
-  <tr><td style="padding:0 0 24px;"><a href="${digestUrl}" style="font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#B8242C;text-decoration:none;border:1px solid #3A3A3F;padding:6px 14px;display:inline-block;">View in browser →</a></td></tr>
+  <tr><td style="padding:0 0 24px;"><a href="${roundupUrl}" style="font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#B8242C;text-decoration:none;border:1px solid #3A3A3F;padding:6px 14px;display:inline-block;">View in browser →</a></td></tr>
   <tr><td style="padding:0 0 24px;">
     <table width="100%" cellpadding="0" cellspacing="1" style="background:#3A3A3F;">
       <tr>
@@ -1107,7 +1118,7 @@ app.get("/api/digest-html", async (c) => {
   <tr><td style="padding:24px 0 0;border-top:1px solid #3A3A3F;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="font-family:'DM Mono',monospace;font-size:10px;color:#6E6E76;text-transform:uppercase;letter-spacing:0.8px;">Maude 🐄</td>
-      <td style="text-align:right;"><a href="${digestUrl}" style="font-family:'DM Mono',monospace;font-size:10px;color:#B8242C;text-decoration:none;text-transform:uppercase;letter-spacing:0.8px;">View in browser →</a></td>
+      <td style="text-align:right;"><a href="${roundupUrl}" style="font-family:'DM Mono',monospace;font-size:10px;color:#B8242C;text-decoration:none;text-transform:uppercase;letter-spacing:0.8px;">View in browser →</a></td>
     </tr></table>
   </td></tr>
 </table>
@@ -1115,6 +1126,9 @@ app.get("/api/digest-html", async (c) => {
 </body></html>`;
 
   return c.html(html);
-});
+}
+
+// GET /api/roundup-html — pre-rendered email HTML for the roundup
+app.get("/api/roundup-html", handleRoundupHtml);
 
 export default new HttpRouterWithHono(app);

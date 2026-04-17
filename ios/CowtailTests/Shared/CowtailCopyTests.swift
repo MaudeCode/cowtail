@@ -2,7 +2,7 @@ import XCTest
 @testable import Cowtail
 
 final class CowtailCopyTests: XCTestCase {
-    func testRoundupLabelReplacesDigestInVisibleCopy() {
+    func testRoundupLabelUsesUpdatedVisibleCopy() {
         XCTAssertEqual(CowtailCopy.farmhouseTitle, "Farmhouse")
         XCTAssertEqual(CowtailCopy.farmhouseBrandLeading, "FARM")
         XCTAssertEqual(CowtailCopy.farmhouseBrandTrailing, "HOUSE")

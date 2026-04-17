@@ -8,8 +8,6 @@
           "/",
           "/alerts",
           "/alerts/*",
-          "/digest",
-          "/digest/*",
           "/fixes",
           "/fixes/*"
         ]

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { dateOnlyStringSchema, jsonObjectSchema, nonEmptyStringSchema } from "./shared.js";
 
 export const notificationPreferencesSchema = z.object({
-  dailyDigestEnabled: z.boolean(),
+  dailyRoundupEnabled: z.boolean(),
 });
 
 export const notificationPreferencesResponseSchema = z.object({
@@ -13,24 +13,24 @@ export const notificationPreferencesResponseSchema = z.object({
 
 export const notificationPreferencesUpdateRequestSchema = notificationPreferencesSchema;
 
-export const dailyDigestPushPayloadSchema = z.object({
-  type: z.literal("daily_digest"),
-  digestFrom: dateOnlyStringSchema,
-  digestTo: dateOnlyStringSchema,
+export const dailyRoundupPushPayloadSchema = z.object({
+  type: z.literal("daily_roundup"),
+  roundupFrom: dateOnlyStringSchema,
+  roundupTo: dateOnlyStringSchema,
   url: nonEmptyStringSchema,
 });
 
-export const digestTestRequestSchema = z.object({
+export const roundupTestRequestSchema = z.object({
   userId: nonEmptyStringSchema,
   from: dateOnlyStringSchema.optional(),
   to: dateOnlyStringSchema.optional(),
 });
 
-export const digestTestResultSchema = z.object({
+export const roundupTestResultSchema = z.object({
   ok: z.boolean(),
   userId: nonEmptyStringSchema,
-  digestFrom: dateOnlyStringSchema,
-  digestTo: dateOnlyStringSchema,
+  roundupFrom: dateOnlyStringSchema,
+  roundupTo: dateOnlyStringSchema,
   title: nonEmptyStringSchema,
   body: nonEmptyStringSchema,
   sent: z.number().int().nonnegative(),
@@ -43,6 +43,6 @@ export type NotificationPreferencesResponse = z.infer<typeof notificationPrefere
 export type NotificationPreferencesUpdateRequest = z.infer<
   typeof notificationPreferencesUpdateRequestSchema
 >;
-export type DailyDigestPushPayload = z.infer<typeof dailyDigestPushPayloadSchema>;
-export type DigestTestRequest = z.infer<typeof digestTestRequestSchema>;
-export type DigestTestResult = z.infer<typeof digestTestResultSchema>;
+export type DailyRoundupPushPayload = z.infer<typeof dailyRoundupPushPayloadSchema>;
+export type RoundupTestRequest = z.infer<typeof roundupTestRequestSchema>;
+export type RoundupTestResult = z.infer<typeof roundupTestResultSchema>;

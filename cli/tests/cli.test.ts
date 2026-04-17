@@ -32,7 +32,7 @@ describe("built binary help and structure", () => {
     expect(result.stdout).toContain("Commands:");
     expect(result.stdout).toContain("alert");
     expect(result.stdout).toContain("config");
-    expect(result.stdout).toContain("digest");
+    expect(result.stdout).toContain("roundup");
     expect(result.stdout).toContain("health");
     expect(result.stdout).toContain("push");
     expect(result.stdout).toContain("users");
@@ -62,7 +62,7 @@ describe("built binary help and structure", () => {
 
   test("config and users help show newly added subcommands", () => {
     const configResult = runCliBinary(binaryPath, ["config", "-h"]);
-    const digestResult = runCliBinary(binaryPath, ["digest", "-h"]);
+    const roundupResult = runCliBinary(binaryPath, ["roundup", "-h"]);
     const usersResult = runCliBinary(binaryPath, ["users", "-h"]);
     const pushResult = runCliBinary(binaryPath, ["push", "-h"]);
 
@@ -70,8 +70,8 @@ describe("built binary help and structure", () => {
     expect(configResult.stdout).toContain("validate");
     expect(configResult.stdout).toContain("doctor");
 
-    expect(digestResult.status).toBe(0);
-    expect(digestResult.stdout).toContain("test");
+    expect(roundupResult.status).toBe(0);
+    expect(roundupResult.stdout).toContain("test");
 
     expect(usersResult.status).toBe(0);
     expect(usersResult.stdout).toContain("devices");
@@ -169,9 +169,9 @@ describe("built binary config and version commands", () => {
   });
 });
 
-describe("built binary digest commands", () => {
-  test("digest test validates required args", () => {
-    const result = runCliBinary(binaryPath, ["digest", "test", "--json"]);
+describe("built binary roundup commands", () => {
+  test("roundup test validates required args", () => {
+    const result = runCliBinary(binaryPath, ["roundup", "test", "--json"]);
 
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
@@ -181,9 +181,9 @@ describe("built binary digest commands", () => {
     });
   });
 
-  test("digest test validates date-only input", () => {
+  test("roundup test validates date-only input", () => {
     const result = runCliBinary(binaryPath, [
-      "digest",
+      "roundup",
       "test",
       "--user-id",
       "user-123",
@@ -200,10 +200,10 @@ describe("built binary digest commands", () => {
     });
   });
 
-  test("digest test returns machine-readable success output", async () => {
+  test("roundup test returns machine-readable success output", async () => {
     const server = createServer((request, response) => {
       expect(request.method).toBe("POST");
-      expect(request.url).toBe("/actions/api/digest/test");
+      expect(request.url).toBe("/actions/api/roundup/test");
       expect(request.headers.authorization).toBe("Bearer secret-token");
 
       let body = "";
@@ -223,9 +223,9 @@ describe("built binary digest commands", () => {
           JSON.stringify({
             ok: true,
             userId: "user-123",
-            digestFrom: "2026-04-14",
-            digestTo: "2026-04-14",
-            title: "Cowtail Daily Digest",
+            roundupFrom: "2026-04-14",
+            roundupTo: "2026-04-14",
+            title: "Cowtail Daily Roundup",
             body: "Apr 14: No alerts fired. Quiet day.",
             sent: 1,
             failed: 0,
@@ -250,7 +250,7 @@ describe("built binary digest commands", () => {
       const result = await runCliBinaryAsync(
         binaryPath,
         [
-          "digest",
+          "roundup",
           "test",
           "--user-id",
           "user-123",
@@ -272,9 +272,9 @@ describe("built binary digest commands", () => {
       expect(JSON.parse(result.stdout)).toEqual({
         ok: true,
         userId: "user-123",
-        digestFrom: "2026-04-14",
-        digestTo: "2026-04-14",
-        title: "Cowtail Daily Digest",
+        roundupFrom: "2026-04-14",
+        roundupTo: "2026-04-14",
+        title: "Cowtail Daily Roundup",
         body: "Apr 14: No alerts fired. Quiet day.",
         sent: 1,
         failed: 0,
@@ -287,10 +287,10 @@ describe("built binary digest commands", () => {
     }
   });
 
-  test("digest test returns machine-readable error output", async () => {
+  test("roundup test returns machine-readable error output", async () => {
     const server = createServer((_request, response) => {
       response.writeHead(400, { "content-type": "application/json" });
-      response.end(JSON.stringify({ ok: false, error: "Digest range is invalid" }));
+      response.end(JSON.stringify({ ok: false, error: "Roundup range is invalid" }));
     });
 
     await new Promise<void>((resolve) => {
@@ -307,7 +307,7 @@ describe("built binary digest commands", () => {
 
       const result = await runCliBinaryAsync(
         binaryPath,
-        ["digest", "test", "--user-id", "user-123", "--json"],
+        ["roundup", "test", "--user-id", "user-123", "--json"],
         {
           env: {
             COWTAIL_CONFIG_PATH: configPath,
@@ -319,7 +319,7 @@ describe("built binary digest commands", () => {
       expect(result.stdout).toBe("");
       expect(JSON.parse(result.stderr)).toEqual({
         ok: false,
-        error: "Request failed (400): Digest range is invalid",
+        error: "Request failed (400): Roundup range is invalid",
       });
     } finally {
       await new Promise<void>((resolve, reject) => {

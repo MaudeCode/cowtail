@@ -5,9 +5,9 @@ import { internal } from "./_generated/api";
 const crons = cronJobs();
 
 crons.hourly(
-  "scheduled daily digest",
+  "scheduled daily roundup",
   { minuteUTC: 0 },
-  internal.digestActions.runScheduledDailyDigests,
+  internal.roundupActions.runScheduledDailyRoundups,
   {},
 );
 

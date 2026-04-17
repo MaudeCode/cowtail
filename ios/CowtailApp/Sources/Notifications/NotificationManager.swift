@@ -75,11 +75,11 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published private(set) var registrationError: String?
     @Published private(set) var serverRegistrationMessage: String?
     @Published private(set) var lastNotificationResponse: String?
-    @Published private(set) var dailyDigestEnabled = false
-    @Published private(set) var isLoadingDailyDigestPreference = false
-    @Published private(set) var isSavingDailyDigestPreference = false
-    @Published private(set) var dailyDigestPreferenceError: String?
-    @Published private(set) var dailyDigestPreferenceRequiresSignIn = false
+    @Published private(set) var dailyRoundupEnabled = false
+    @Published private(set) var isLoadingDailyRoundupPreference = false
+    @Published private(set) var isSavingDailyRoundupPreference = false
+    @Published private(set) var dailyRoundupPreferenceError: String?
+    @Published private(set) var dailyRoundupPreferenceRequiresSignIn = false
     private var lastSyncedRegistrationKey: String?
     private let deviceTokenKey = "notifications.deviceToken"
     private let syncedUserIDKey = "notifications.syncedUserID"
@@ -411,93 +411,93 @@ final class NotificationManager: NSObject, ObservableObject {
         lastSyncedRegistrationKey = nil
         if AppleAccountManager.shared.userID == nil {
             clearPersistedServerRegistration()
-            dailyDigestEnabled = false
-            dailyDigestPreferenceRequiresSignIn = true
-            dailyDigestPreferenceError = nil
+            dailyRoundupEnabled = false
+            dailyRoundupPreferenceRequiresSignIn = true
+            dailyRoundupPreferenceError = nil
         }
         Task {
             await syncDeviceRegistration()
         }
     }
 
-    func loadDailyDigestPreference() async {
-        print("[digest-debug] NotificationManager.loadDailyDigestPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil)")
-        logger.debug("loadDailyDigestPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil, privacy: .public)")
+    func loadDailyRoundupPreference() async {
+        print("[roundup-debug] NotificationManager.loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil)")
+        logger.debug("loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil, privacy: .public)")
         guard let _ = AppleAccountManager.shared.userID else {
-            dailyDigestEnabled = false
-            dailyDigestPreferenceRequiresSignIn = true
-            dailyDigestPreferenceError = nil
-            print("[digest-debug] NotificationManager.loadDailyDigestPreference no Apple account")
-            logger.debug("loadDailyDigestPreference no Apple account")
+            dailyRoundupEnabled = false
+            dailyRoundupPreferenceRequiresSignIn = true
+            dailyRoundupPreferenceError = nil
+            print("[roundup-debug] NotificationManager.loadDailyRoundupPreference no Apple account")
+            logger.debug("loadDailyRoundupPreference no Apple account")
             return
         }
 
-        isLoadingDailyDigestPreference = true
-        dailyDigestPreferenceError = nil
+        isLoadingDailyRoundupPreference = true
+        dailyRoundupPreferenceError = nil
         defer {
-            isLoadingDailyDigestPreference = false
+            isLoadingDailyRoundupPreference = false
         }
 
         guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
-            dailyDigestPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
-            print("[digest-debug] NotificationManager.loadDailyDigestPreference no session state=\(appSessionManager.sessionState)")
-            logger.debug("loadDailyDigestPreference no session state=\(String(describing: self.appSessionManager.sessionState), privacy: .public)")
+            dailyRoundupPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
+            print("[roundup-debug] NotificationManager.loadDailyRoundupPreference no session state=\(appSessionManager.sessionState)")
+            logger.debug("loadDailyRoundupPreference no session state=\(String(describing: self.appSessionManager.sessionState), privacy: .public)")
             return
         }
 
         do {
             let preferences = try await api.fetchNotificationPreferences(sessionToken: sessionToken)
-            dailyDigestEnabled = preferences.dailyDigestEnabled
-            dailyDigestPreferenceRequiresSignIn = false
-            print("[digest-debug] NotificationManager.loadDailyDigestPreference success enabled=\(preferences.dailyDigestEnabled)")
-            logger.debug("loadDailyDigestPreference success enabled=\(preferences.dailyDigestEnabled, privacy: .public)")
+            dailyRoundupEnabled = preferences.dailyRoundupEnabled
+            dailyRoundupPreferenceRequiresSignIn = false
+            print("[roundup-debug] NotificationManager.loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled)")
+            logger.debug("loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
-            print("[digest-debug] NotificationManager.loadDailyDigestPreference failed error=\(error.localizedDescription)")
-            logger.error("loadDailyDigestPreference failed: \(error.localizedDescription, privacy: .public)")
-            handleDailyDigestPreferenceError(error, restoring: dailyDigestEnabled)
+            print("[roundup-debug] NotificationManager.loadDailyRoundupPreference failed error=\(error.localizedDescription)")
+            logger.error("loadDailyRoundupPreference failed: \(error.localizedDescription, privacy: .public)")
+            handleDailyRoundupPreferenceError(error, restoring: dailyRoundupEnabled)
         }
     }
 
-    func updateDailyDigestEnabled(_ enabled: Bool) async {
-        print("[digest-debug] NotificationManager.updateDailyDigestEnabled start enabled=\(enabled)")
-        logger.debug("updateDailyDigestEnabled start enabled=\(enabled, privacy: .public)")
-        let previousValue = dailyDigestEnabled
-        dailyDigestEnabled = enabled
-        isSavingDailyDigestPreference = true
-        dailyDigestPreferenceError = nil
+    func updateDailyRoundupEnabled(_ enabled: Bool) async {
+        print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled start enabled=\(enabled)")
+        logger.debug("updateDailyRoundupEnabled start enabled=\(enabled, privacy: .public)")
+        let previousValue = dailyRoundupEnabled
+        dailyRoundupEnabled = enabled
+        isSavingDailyRoundupPreference = true
+        dailyRoundupPreferenceError = nil
         defer {
-            isSavingDailyDigestPreference = false
+            isSavingDailyRoundupPreference = false
         }
 
         guard let _ = AppleAccountManager.shared.userID else {
-            dailyDigestEnabled = previousValue
-            dailyDigestPreferenceRequiresSignIn = true
-            print("[digest-debug] NotificationManager.updateDailyDigestEnabled no Apple account")
-            logger.debug("updateDailyDigestEnabled no Apple account")
+            dailyRoundupEnabled = previousValue
+            dailyRoundupPreferenceRequiresSignIn = true
+            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled no Apple account")
+            logger.debug("updateDailyRoundupEnabled no Apple account")
             return
         }
 
         guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
-            dailyDigestEnabled = previousValue
-            dailyDigestPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
-            print("[digest-debug] NotificationManager.updateDailyDigestEnabled no session state=\(appSessionManager.sessionState)")
-            logger.debug("updateDailyDigestEnabled no session state=\(String(describing: self.appSessionManager.sessionState), privacy: .public)")
+            dailyRoundupEnabled = previousValue
+            dailyRoundupPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
+            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled no session state=\(appSessionManager.sessionState)")
+            logger.debug("updateDailyRoundupEnabled no session state=\(String(describing: self.appSessionManager.sessionState), privacy: .public)")
             return
         }
 
         do {
             let preferences = try await api.updateNotificationPreferences(
                 sessionToken: sessionToken,
-                dailyDigestEnabled: enabled
+                dailyRoundupEnabled: enabled
             )
-            dailyDigestEnabled = preferences.dailyDigestEnabled
-            dailyDigestPreferenceRequiresSignIn = false
-            print("[digest-debug] NotificationManager.updateDailyDigestEnabled success enabled=\(preferences.dailyDigestEnabled)")
-            logger.debug("updateDailyDigestEnabled success enabled=\(preferences.dailyDigestEnabled, privacy: .public)")
+            dailyRoundupEnabled = preferences.dailyRoundupEnabled
+            dailyRoundupPreferenceRequiresSignIn = false
+            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled)")
+            logger.debug("updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
-            print("[digest-debug] NotificationManager.updateDailyDigestEnabled failed error=\(error.localizedDescription)")
-            logger.error("updateDailyDigestEnabled failed: \(error.localizedDescription, privacy: .public)")
-            handleDailyDigestPreferenceError(error, restoring: previousValue)
+            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled failed error=\(error.localizedDescription)")
+            logger.error("updateDailyRoundupEnabled failed: \(error.localizedDescription, privacy: .public)")
+            handleDailyRoundupPreferenceError(error, restoring: previousValue)
         }
     }
 
@@ -582,18 +582,18 @@ final class NotificationManager: NSObject, ObservableObject {
         defaults.removeObject(forKey: key)
     }
 
-    private func handleDailyDigestPreferenceError(_ error: Error, restoring previousValue: Bool) {
-        dailyDigestEnabled = previousValue
+    private func handleDailyRoundupPreferenceError(_ error: Error, restoring previousValue: Bool) {
+        dailyRoundupEnabled = previousValue
 
         if error.localizedDescription.localizedCaseInsensitiveContains("Unauthorized") {
             appSessionManager.invalidateSession()
-            dailyDigestPreferenceRequiresSignIn = true
-            dailyDigestPreferenceError = "Sign in with Apple again to update your digest settings."
+            dailyRoundupPreferenceRequiresSignIn = true
+            dailyRoundupPreferenceError = "Sign in with Apple again to update your roundup settings."
             return
         }
 
-        dailyDigestPreferenceRequiresSignIn = false
-        dailyDigestPreferenceError = error.localizedDescription
+        dailyRoundupPreferenceRequiresSignIn = false
+        dailyRoundupPreferenceError = error.localizedDescription
     }
 }
 

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import { internalMutation, internalQuery } from "./_generated/server";
 
-const DIGEST_CLAIM_TTL_MS = 15 * 60 * 1000;
+const ROUNDUP_CLAIM_TTL_MS = 15 * 60 * 1000;
 
 export const getByUserId = internalQuery({
   args: {
@@ -28,30 +28,30 @@ export const getEffectiveForUser = internalQuery({
 
     return {
       userId: args.userId,
-      dailyDigestEnabled: existing?.dailyDigestEnabled ?? false,
-      lastDigestKeySent: existing?.lastDigestKeySent,
-      inFlightDigestKey: existing?.inFlightDigestKey,
-      inFlightDigestClaimedAt: existing?.inFlightDigestClaimedAt,
+      dailyRoundupEnabled: existing?.dailyRoundupEnabled ?? false,
+      lastRoundupKeySent: existing?.lastRoundupKeySent,
+      inFlightRoundupKey: existing?.inFlightRoundupKey,
+      inFlightRoundupClaimedAt: existing?.inFlightRoundupClaimedAt,
       createdAt: existing?.createdAt,
       updatedAt: existing?.updatedAt,
     };
   },
 });
 
-export const listUsersWithDailyDigestEnabled = internalQuery({
+export const listUsersWithDailyRoundupEnabled = internalQuery({
   args: {},
   handler: async (ctx) => {
     const preferences = await ctx.db
       .query("userNotificationPreferences")
-      .withIndex("by_dailyDigestEnabled", (q) => q.eq("dailyDigestEnabled", true))
+      .withIndex("by_dailyRoundupEnabled", (q) => q.eq("dailyRoundupEnabled", true))
       .collect();
 
     return preferences
       .map((preference) => ({
         userId: preference.userId,
-        lastDigestKeySent: preference.lastDigestKeySent,
-        inFlightDigestKey: preference.inFlightDigestKey,
-        inFlightDigestClaimedAt: preference.inFlightDigestClaimedAt,
+        lastRoundupKeySent: preference.lastRoundupKeySent,
+        inFlightRoundupKey: preference.inFlightRoundupKey,
+        inFlightRoundupClaimedAt: preference.inFlightRoundupClaimedAt,
       }))
       .sort((left, right) => left.userId.localeCompare(right.userId));
   },
@@ -60,7 +60,7 @@ export const listUsersWithDailyDigestEnabled = internalQuery({
 export const upsertForUser = internalMutation({
   args: {
     userId: v.string(),
-    dailyDigestEnabled: v.boolean(),
+    dailyRoundupEnabled: v.boolean(),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -71,7 +71,7 @@ export const upsertForUser = internalMutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
-        dailyDigestEnabled: args.dailyDigestEnabled,
+        dailyRoundupEnabled: args.dailyRoundupEnabled,
         updatedAt: now,
       });
 
@@ -83,7 +83,7 @@ export const upsertForUser = internalMutation({
 
     const id = await ctx.db.insert("userNotificationPreferences", {
       userId: args.userId,
-      dailyDigestEnabled: args.dailyDigestEnabled,
+      dailyRoundupEnabled: args.dailyRoundupEnabled,
       createdAt: now,
       updatedAt: now,
     });
@@ -95,10 +95,10 @@ export const upsertForUser = internalMutation({
   },
 });
 
-export const markLastDigestKeySent = internalMutation({
+export const markLastRoundupKeySent = internalMutation({
   args: {
     userId: v.string(),
-    lastDigestKeySent: v.string(),
+    lastRoundupKeySent: v.string(),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -109,9 +109,9 @@ export const markLastDigestKeySent = internalMutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
-        lastDigestKeySent: args.lastDigestKeySent,
-        inFlightDigestKey: undefined,
-        inFlightDigestClaimedAt: undefined,
+        lastRoundupKeySent: args.lastRoundupKeySent,
+        inFlightRoundupKey: undefined,
+        inFlightRoundupClaimedAt: undefined,
         updatedAt: now,
       });
       return;
@@ -119,20 +119,20 @@ export const markLastDigestKeySent = internalMutation({
 
     await ctx.db.insert("userNotificationPreferences", {
       userId: args.userId,
-      dailyDigestEnabled: false,
-      lastDigestKeySent: args.lastDigestKeySent,
-      inFlightDigestKey: undefined,
-      inFlightDigestClaimedAt: undefined,
+      dailyRoundupEnabled: false,
+      lastRoundupKeySent: args.lastRoundupKeySent,
+      inFlightRoundupKey: undefined,
+      inFlightRoundupClaimedAt: undefined,
       createdAt: now,
       updatedAt: now,
     });
   },
 });
 
-export const claimDigestKey = internalMutation({
+export const claimRoundupKey = internalMutation({
   args: {
     userId: v.string(),
-    digestKey: v.string(),
+    roundupKey: v.string(),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -141,34 +141,34 @@ export const claimDigestKey = internalMutation({
       .unique();
     const now = Date.now();
 
-    if (!existing || !existing.dailyDigestEnabled) {
+    if (!existing || !existing.dailyRoundupEnabled) {
       return { claimed: false };
     }
 
-    if (existing.lastDigestKeySent === args.digestKey) {
+    if (existing.lastRoundupKeySent === args.roundupKey) {
       return { claimed: false };
     }
 
     if (
-      existing.inFlightDigestKey &&
-      existing.inFlightDigestKey !== args.digestKey &&
-      existing.inFlightDigestClaimedAt &&
-      now - existing.inFlightDigestClaimedAt < DIGEST_CLAIM_TTL_MS
+      existing.inFlightRoundupKey &&
+      existing.inFlightRoundupKey !== args.roundupKey &&
+      existing.inFlightRoundupClaimedAt &&
+      now - existing.inFlightRoundupClaimedAt < ROUNDUP_CLAIM_TTL_MS
     ) {
       return { claimed: false };
     }
 
     if (
-      existing.inFlightDigestKey === args.digestKey &&
-      existing.inFlightDigestClaimedAt &&
-      now - existing.inFlightDigestClaimedAt < DIGEST_CLAIM_TTL_MS
+      existing.inFlightRoundupKey === args.roundupKey &&
+      existing.inFlightRoundupClaimedAt &&
+      now - existing.inFlightRoundupClaimedAt < ROUNDUP_CLAIM_TTL_MS
     ) {
       return { claimed: false };
     }
 
     await ctx.db.patch(existing._id, {
-      inFlightDigestKey: args.digestKey,
-      inFlightDigestClaimedAt: now,
+      inFlightRoundupKey: args.roundupKey,
+      inFlightRoundupClaimedAt: now,
       updatedAt: now,
     });
 
@@ -176,10 +176,10 @@ export const claimDigestKey = internalMutation({
   },
 });
 
-export const releaseDigestKeyClaim = internalMutation({
+export const releaseRoundupKeyClaim = internalMutation({
   args: {
     userId: v.string(),
-    digestKey: v.string(),
+    roundupKey: v.string(),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -187,13 +187,13 @@ export const releaseDigestKeyClaim = internalMutation({
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
 
-    if (!existing || existing.inFlightDigestKey !== args.digestKey) {
+    if (!existing || existing.inFlightRoundupKey !== args.roundupKey) {
       return;
     }
 
     await ctx.db.patch(existing._id, {
-      inFlightDigestKey: undefined,
-      inFlightDigestClaimedAt: undefined,
+      inFlightRoundupKey: undefined,
+      inFlightRoundupClaimedAt: undefined,
       updatedAt: Date.now(),
     });
   },

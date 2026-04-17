@@ -35,15 +35,15 @@ export default defineSchema({
 
   userNotificationPreferences: defineTable({
     userId: v.string(),
-    dailyDigestEnabled: v.boolean(),
-    lastDigestKeySent: v.optional(v.string()),
-    inFlightDigestKey: v.optional(v.string()),
-    inFlightDigestClaimedAt: v.optional(v.number()),
+    dailyRoundupEnabled: v.boolean(),
+    lastRoundupKeySent: v.optional(v.string()),
+    inFlightRoundupKey: v.optional(v.string()),
+    inFlightRoundupClaimedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_userId", ["userId"])
-    .index("by_dailyDigestEnabled", ["dailyDigestEnabled"]),
+    .index("by_dailyRoundupEnabled", ["dailyRoundupEnabled"]),
 
   authSessions: defineTable({
     userId: v.string(),

@@ -82,7 +82,7 @@ struct NotificationSettingsPanel: View {
                 }
             }
 
-            dailyDigestRow
+            dailyRoundupRow
 
             if let error = appleAccountManager.lastError, appleAccountManager.signInState == .failed {
                 Text(error)
@@ -152,7 +152,7 @@ struct NotificationSettingsPanel: View {
                         await notificationManager.refreshAuthorizationStatus()
                         notificationManager.resumeNotificationSetupIfNeeded()
                         await notificationManager.syncDeviceRegistration()
-                        await notificationManager.loadDailyDigestPreference()
+                        await notificationManager.loadDailyRoundupPreference()
                     }
                 }
 
@@ -179,7 +179,7 @@ struct NotificationSettingsPanel: View {
         .groupBoxStyle(CowtailCardStyle())
     }
 
-    private var dailyDigestRow: some View {
+    private var dailyRoundupRow: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -196,18 +196,18 @@ struct NotificationSettingsPanel: View {
                 Toggle(
                     CowtailCopy.dailyRoundupTitle,
                     isOn: Binding(
-                        get: { notificationManager.dailyDigestEnabled },
+                        get: { notificationManager.dailyRoundupEnabled },
                         set: { newValue in
                             Task {
-                                await notificationManager.updateDailyDigestEnabled(newValue)
+                                await notificationManager.updateDailyRoundupEnabled(newValue)
                             }
                         }
                     )
                 )
                 .labelsHidden()
-                .disabled(dailyDigestToggleDisabled)
+                .disabled(dailyRoundupToggleDisabled)
                 .overlay(alignment: .center) {
-                    if notificationManager.isLoadingDailyDigestPreference || notificationManager.isSavingDailyDigestPreference {
+                    if notificationManager.isLoadingDailyRoundupPreference || notificationManager.isSavingDailyRoundupPreference {
                         ProgressView()
                             .controlSize(.small)
                             .tint(palette.ink)
@@ -217,7 +217,7 @@ struct NotificationSettingsPanel: View {
                 }
             }
 
-            if showsDigestReauthenticationButton {
+            if showsRoundupReauthenticationButton {
                 appleSignInButton(height: 44)
             }
         }
@@ -291,18 +291,18 @@ struct NotificationSettingsPanel: View {
         notificationManager.registrationState == .failed || notificationManager.serverRegistrationState == .failed
     }
 
-    private var dailyDigestToggleDisabled: Bool {
+    private var dailyRoundupToggleDisabled: Bool {
         needsAppleAccountConnection
-            || notificationManager.dailyDigestPreferenceRequiresSignIn
-            || notificationManager.isLoadingDailyDigestPreference
-            || notificationManager.isSavingDailyDigestPreference
+            || notificationManager.dailyRoundupPreferenceRequiresSignIn
+            || notificationManager.isLoadingDailyRoundupPreference
+            || notificationManager.isSavingDailyRoundupPreference
     }
 
-    private var showsDigestReauthenticationButton: Bool {
+    private var showsRoundupReauthenticationButton: Bool {
         appleAccountManager.userID != nil
-            && notificationManager.dailyDigestPreferenceRequiresSignIn
-            && !notificationManager.isLoadingDailyDigestPreference
-            && !notificationManager.isSavingDailyDigestPreference
+            && notificationManager.dailyRoundupPreferenceRequiresSignIn
+            && !notificationManager.isLoadingDailyRoundupPreference
+            && !notificationManager.isSavingDailyRoundupPreference
     }
 
     private var isSyncing: Bool {
@@ -624,7 +624,7 @@ struct NotificationSettingsPanel: View {
         await notificationManager.refreshAuthorizationStatus()
         notificationManager.resumeNotificationSetupIfNeeded()
         await notificationManager.syncDeviceRegistration()
-        await notificationManager.loadDailyDigestPreference()
+        await notificationManager.loadDailyRoundupPreference()
     }
 }
 
@@ -653,7 +653,7 @@ struct NotificationSettingsPage: View {
             notificationManager.resumeNotificationSetupIfNeeded()
             await notificationManager.syncDeviceRegistration()
             _ = await appSessionManager.refreshSessionIfPossible()
-            await notificationManager.loadDailyDigestPreference()
+            await notificationManager.loadDailyRoundupPreference()
         }
     }
 }

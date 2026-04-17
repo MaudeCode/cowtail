@@ -288,21 +288,21 @@ actor CowtailAPI {
             bearerToken: sessionToken
         )
 
-        return AppNotificationPreferences(dailyDigestEnabled: response.preferences.dailyDigestEnabled)
+        return AppNotificationPreferences(dailyRoundupEnabled: response.preferences.dailyRoundupEnabled)
     }
 
     func updateNotificationPreferences(
         sessionToken: String,
-        dailyDigestEnabled: Bool
+        dailyRoundupEnabled: Bool
     ) async throws -> AppNotificationPreferences {
         let response: NotificationPreferencesResponse = try await sendJSONRequest(
             url: AppConfig.notificationPreferencesURL,
             method: "PUT",
-            body: NotificationPreferencesUpdateRequest(dailyDigestEnabled: dailyDigestEnabled),
+            body: NotificationPreferencesUpdateRequest(dailyRoundupEnabled: dailyRoundupEnabled),
             bearerToken: sessionToken
         )
 
-        return AppNotificationPreferences(dailyDigestEnabled: response.preferences.dailyDigestEnabled)
+        return AppNotificationPreferences(dailyRoundupEnabled: response.preferences.dailyRoundupEnabled)
     }
 
     private func makeAlertItem(_ record: Components.Schemas.ConvexAlertRecord) -> AlertItem {
@@ -457,7 +457,7 @@ struct AppAuthSession: Sendable {
 }
 
 struct AppNotificationPreferences: Sendable {
-    let dailyDigestEnabled: Bool
+    let dailyRoundupEnabled: Bool
 }
 
 private struct APIErrorEnvelope: Decodable {

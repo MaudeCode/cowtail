@@ -44,7 +44,7 @@ final class UniversalLinkRouter: ObservableObject {
         switch pathComponents {
         case []:
             openInbox()
-        case ["digest"]:
+        case ["roundup"]:
             openRoundup(resolveRoundupRoute(from: url))
         case ["fixes"]:
             openInbox()
@@ -147,7 +147,7 @@ final class UniversalLinkRouter: ObservableObject {
     }
 
     private static func makeDefaultRoundupRoute() -> RoundupRoute {
-        let timeZone = TimeZone(identifier: AppConfig.digestTimeZoneIdentifier) ?? .current
+        let timeZone = TimeZone(identifier: AppConfig.roundupTimeZoneIdentifier) ?? .current
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
 

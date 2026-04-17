@@ -2,7 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { convexQuery } from "@convex-dev/react-query";
 import { api } from "../../convex/_generated/api";
-import { resolveDigestWindow } from "../../convex/digest";
+import { resolveRoundupWindow } from "../../convex/roundup";
 import { formatTs } from "../lib/format";
 import { parseLocalDate, formatDateLocal } from "../lib/dates";
 import { BuildVersion } from "../components/ui";
@@ -70,24 +70,24 @@ function getDefaultRange() {
   };
 }
 
-export default function Digest() {
+export default function Roundup() {
   const [searchParams] = useSearchParams();
   const defaults = getDefaultRange();
   const fromParam = searchParams.get("from") ?? defaults.from;
   const toParam = searchParams.get("to") ?? defaults.to;
-  const digestTimeZone = import.meta.env.VITE_DIGEST_TIMEZONE || "America/New_York";
-  const digestWindow = resolveDigestWindow(fromParam, toParam, digestTimeZone);
+  const roundupTimeZone = import.meta.env.VITE_ROUNDUP_TIMEZONE || "America/New_York";
+  const roundupWindow = resolveRoundupWindow(fromParam, toParam, roundupTimeZone);
 
   const { data: convexAlerts, isPending } = useQuery(
     convexQuery(api.alerts.getByTimeRange, {
-      from: digestWindow.fromTimestamp,
-      to: digestWindow.toTimestamp,
+      from: roundupWindow.fromTimestamp,
+      to: roundupWindow.toTimestamp,
     }),
   );
   const { data: convexFixes, isPending: fixesPending } = useQuery(
     convexQuery(api.fixes.getByTimeRange, {
-      from: digestWindow.fromTimestamp,
-      to: digestWindow.toTimestamp,
+      from: roundupWindow.fromTimestamp,
+      to: roundupWindow.toTimestamp,
     }),
   );
 
@@ -120,7 +120,7 @@ export default function Digest() {
             <h1 className="text-4xl font-bold tracking-[-0.03em] uppercase max-lg:text-2xl">
               Cow<span className="text-accent title-glow">tail</span>
               <span className="text-gray-400 font-normal text-lg ml-3 max-lg:text-sm max-lg:ml-2">
-                Digest
+                Roundup
               </span>
             </h1>
             <a

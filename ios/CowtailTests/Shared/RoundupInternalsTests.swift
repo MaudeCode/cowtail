@@ -22,8 +22,8 @@ final class RoundupInternalsTests: XCTestCase {
         _ = RoundupOutcomeSection.self
     }
 
-    func testDigestURLRoutesIntoRoundupTabAndParsesDateRange() throws {
-        let handled = try XCTUnwrap(URL(string: "\(AppConfig.publicSiteURL.absoluteString)/digest?from=2026-04-10&to=2026-04-11"))
+    func testRoundupURLRoutesIntoRoundupTabAndParsesDateRange() throws {
+        let handled = try XCTUnwrap(URL(string: "\(AppConfig.publicSiteURL.absoluteString)/roundup?from=2026-04-10&to=2026-04-11"))
         let router = UniversalLinkRouter.shared
 
         XCTAssertTrue(router.handle(handled))
@@ -31,8 +31,8 @@ final class RoundupInternalsTests: XCTestCase {
         XCTAssertEqual(router.roundupRoute, RoundupRoute(from: "2026-04-10", to: "2026-04-11"))
     }
 
-    func testDigestURLFallsBackMissingToDateFromFromDate() throws {
-        let handled = try XCTUnwrap(URL(string: "\(AppConfig.publicSiteURL.absoluteString)/digest?from=2026-04-12"))
+    func testRoundupURLFallsBackMissingToDateFromFromDate() throws {
+        let handled = try XCTUnwrap(URL(string: "\(AppConfig.publicSiteURL.absoluteString)/roundup?from=2026-04-12"))
         let router = UniversalLinkRouter.shared
 
         XCTAssertTrue(router.handle(handled))

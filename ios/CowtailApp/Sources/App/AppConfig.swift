@@ -9,7 +9,7 @@ enum AppConfig {
     static let notificationPreferencesURL = requiredURL("CowtailNotificationPreferencesURL")
     static let pushRegistrationURL = requiredURL("CowtailPushRegistrationURL")
     static let pushUnregistrationURL = requiredURL("CowtailPushUnregistrationURL")
-    static let digestTimeZoneIdentifier = requiredString("CowtailDigestTimeZone")
+    static let roundupTimeZoneIdentifier = requiredString("CowtailRoundupTimeZone")
     static let publicSiteHost = publicSiteURL.host?.lowercased() ?? ""
 
     static func alertDetailURL(for alertID: String) -> URL? {

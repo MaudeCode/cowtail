@@ -24,8 +24,8 @@ This repo contains four projects:
 - **Grouped alerts** — repeated alerts grouped by name with expand/collapse
 - **Date range picker** — presets (24h, 7d, 30d) or custom range with URL params
 - **Cluster health** — live node CPU/memory, readiness status, Ceph storage from Prometheus
-- **Digest page** — shareable summary view at `/digest?from=...&to=...`
-- **Email digest** — pre-rendered HTML endpoint for automated email reports
+- **Roundup page** — shareable summary view at `/roundup?from=...&to=...`
+- **Email roundup** — pre-rendered HTML endpoint for automated email reports
 - **Mobile layout** — responsive with bottom-sheet cluster health panel
 - **PWA** — installable with custom icon
 
@@ -83,7 +83,7 @@ For iOS development, work from `ios/`, run `xcodegen generate`, and open `ios/Co
 
 3. **Set environment variables** for the Convex HTTP actions:
    - `COWTAIL_WEB_ORIGIN` — your Cowtail URL (used in alert deep links)
-   - `SITE_ORIGIN` — your Cowtail URL (used in digest email links)
+   - `SITE_ORIGIN` — your Cowtail URL (used in roundup email links)
    - `PROMETHEUS_BASE_URL` — optional explicit Prometheus endpoint if it does not live behind `/prometheus`
    - `APNS_TOPIC` — the native app bundle identifier used for APNs
    - `APPLE_AUTH_AUDIENCE` — optional explicit Sign in with Apple audience override; defaults to `APNS_TOPIC`

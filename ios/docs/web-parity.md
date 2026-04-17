@@ -8,7 +8,7 @@ This is based on the current web routes and dashboard behavior in:
 - `../../web/src/App.tsx`
 - `../../web/src/pages/Dashboard.tsx`
 - `../../web/src/pages/Fixes.tsx`
-- `../../web/src/pages/Digest.tsx`
+- `../../web/src/pages/Roundup.tsx`
 - `../../web/src/hooks/useDashboard.ts`
 - `../../web/src/hooks/useClusterHealth.ts`
 
@@ -26,16 +26,16 @@ This is based on the current web routes and dashboard behavior in:
 - Richer cluster health presentation
   The web shows per-node CPU and memory bars and a denser health panel. iOS currently uses a simplified cluster card.
 
-- Simple web handoff for digest and fixes
-  The web has dedicated `/digest` and `/fixes` routes. iOS currently has no native digest or fixes screen and no obvious shortcut to those pages.
+- Simple web handoff for roundup and fixes
+  The web has dedicated `/roundup` and `/fixes` routes. iOS currently has no native roundup or fixes screen and no obvious shortcut to those pages.
 
 ## Medium
 
 - Native fixes screen
   The web has a full fixes page with scope filters (`all`, `reactive`, `weekly`, `monthly`), linked alert counts, timestamps, and optional commit display. iOS only shows fixes inside an alert detail page.
 
-- Native digest screen
-  The web has a digest page for a selected date range with grouped outcomes and summary counts. iOS does not have a native digest view.
+- Native roundup screen
+  The web has a roundup page for a selected date range with grouped outcomes and summary counts. iOS does not have a native roundup view.
 
 - Group repeated alerts by alert name
   The web groups repeated alerts by `alertName`, shows counts like `x3`, and lets the user expand a group. iOS currently shows flat lists.

@@ -64,10 +64,10 @@ export default function Dashboard() {
             Fixes
           </a>
           <a
-            href="/digest"
+            href="/roundup"
             className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors"
           >
-            Digest
+            Roundup
           </a>
         </nav>
       </header>

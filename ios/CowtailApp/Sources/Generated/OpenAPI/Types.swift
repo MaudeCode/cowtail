@@ -1067,17 +1067,17 @@ internal enum Components {
             internal var ok: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/NotificationPreferencesResponse/preferences`.
             internal struct PreferencesPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/NotificationPreferencesResponse/preferences/dailyDigestEnabled`.
-                internal var dailyDigestEnabled: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/NotificationPreferencesResponse/preferences/dailyRoundupEnabled`.
+                internal var dailyRoundupEnabled: Swift.Bool
                 /// Creates a new `PreferencesPayload`.
                 ///
                 /// - Parameters:
-                ///   - dailyDigestEnabled:
-                internal init(dailyDigestEnabled: Swift.Bool) {
-                    self.dailyDigestEnabled = dailyDigestEnabled
+                ///   - dailyRoundupEnabled:
+                internal init(dailyRoundupEnabled: Swift.Bool) {
+                    self.dailyRoundupEnabled = dailyRoundupEnabled
                 }
                 internal enum CodingKeys: String, CodingKey {
-                    case dailyDigestEnabled
+                    case dailyRoundupEnabled
                 }
             }
             /// - Remark: Generated from `#/components/schemas/NotificationPreferencesResponse/preferences`.
@@ -1101,17 +1101,17 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/NotificationPreferencesUpdateRequest`.
         internal struct NotificationPreferencesUpdateRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesUpdateRequest/dailyDigestEnabled`.
-            internal var dailyDigestEnabled: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesUpdateRequest/dailyRoundupEnabled`.
+            internal var dailyRoundupEnabled: Swift.Bool
             /// Creates a new `NotificationPreferencesUpdateRequest`.
             ///
             /// - Parameters:
-            ///   - dailyDigestEnabled:
-            internal init(dailyDigestEnabled: Swift.Bool) {
-                self.dailyDigestEnabled = dailyDigestEnabled
+            ///   - dailyRoundupEnabled:
+            internal init(dailyRoundupEnabled: Swift.Bool) {
+                self.dailyRoundupEnabled = dailyRoundupEnabled
             }
             internal enum CodingKeys: String, CodingKey {
-                case dailyDigestEnabled
+                case dailyRoundupEnabled
             }
         }
     }

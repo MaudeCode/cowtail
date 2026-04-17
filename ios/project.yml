@@ -16,7 +16,7 @@ settings:
     COWTAIL_NOTIFICATION_PREFERENCES_URL: ${COWTAIL_NOTIFICATION_PREFERENCES_URL}
     COWTAIL_PUSH_REGISTRATION_URL: ${COWTAIL_PUSH_REGISTRATION_URL}
     COWTAIL_PUSH_UNREGISTRATION_URL: ${COWTAIL_PUSH_UNREGISTRATION_URL}
-    COWTAIL_DIGEST_TIMEZONE: ${COWTAIL_DIGEST_TIMEZONE}
+    COWTAIL_ROUNDUP_TIMEZONE: ${COWTAIL_ROUNDUP_TIMEZONE}
 configs:
   Debug: debug
   Release: release
@@ -46,7 +46,7 @@ targets:
         CowtailNotificationPreferencesURL: $(COWTAIL_NOTIFICATION_PREFERENCES_URL)
         CowtailPushRegistrationURL: $(COWTAIL_PUSH_REGISTRATION_URL)
         CowtailPushUnregistrationURL: $(COWTAIL_PUSH_UNREGISTRATION_URL)
-        CowtailDigestTimeZone: $(COWTAIL_DIGEST_TIMEZONE)
+        CowtailRoundupTimeZone: $(COWTAIL_ROUNDUP_TIMEZONE)
         UIAppFonts:
           - SpaceGrotesk-Regular.ttf
           - SpaceGrotesk-Medium.ttf

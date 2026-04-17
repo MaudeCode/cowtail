@@ -1,6 +1,6 @@
-import type { DailyDigestPushPayload } from "@maudecode/cowtail-protocol";
+import type { DailyRoundupPushPayload } from "@maudecode/cowtail-protocol";
 
-export type DigestCounts = {
+export type RoundupCounts = {
   total: number;
   fixed: number;
   selfResolved: number;
@@ -9,18 +9,15 @@ export type DigestCounts = {
   fixes: number;
 };
 
-export type DigestWindow = {
-  digestFrom: string;
-  digestTo: string;
-  digestKey: string;
+export type RoundupWindow = {
+  roundupFrom: string;
+  roundupTo: string;
+  roundupKey: string;
   fromTimestamp: number;
   toTimestamp: number;
 };
 
-function getFormatter(
-  timeZone: string,
-  options: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormat {
+function getFormatter(timeZone: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat("en-US", {
     hourCycle: "h23",
     ...options,
@@ -119,19 +116,19 @@ export function dateOnlyForInstant(instant: Date, timeZone: string): string {
   return formatDateOnlyParts(parts.year, parts.month, parts.day);
 }
 
-export function resolvePreviousDigestWindow(now: Date, timeZone: string): DigestWindow {
+export function resolvePreviousRoundupWindow(now: Date, timeZone: string): RoundupWindow {
   const today = dateOnlyForInstant(now, timeZone);
-  const digestFrom = addDaysToDateOnly(today, -1);
-  return resolveDigestWindow(digestFrom, digestFrom, timeZone);
+  const roundupFrom = addDaysToDateOnly(today, -1);
+  return resolveRoundupWindow(roundupFrom, roundupFrom, timeZone);
 }
 
-export function resolveDigestWindow(
-  digestFrom: string,
-  digestTo: string,
+export function resolveRoundupWindow(
+  roundupFrom: string,
+  roundupTo: string,
   timeZone: string,
-): DigestWindow {
-  const [fromYear, fromMonth, fromDay] = digestFrom.split("-").map(Number);
-  const nextDateOnly = addDaysToDateOnly(digestTo, 1);
+): RoundupWindow {
+  const [fromYear, fromMonth, fromDay] = roundupFrom.split("-").map(Number);
+  const nextDateOnly = addDaysToDateOnly(roundupTo, 1);
   const [nextYear, nextMonth, nextDay] = nextDateOnly.split("-").map(Number);
 
   const fromTimestamp = zonedDateTimeToUtcTimestamp(
@@ -154,23 +151,23 @@ export function resolveDigestWindow(
   );
 
   return {
-    digestFrom,
-    digestTo,
-    digestKey: `${digestFrom}:${digestTo}`,
+    roundupFrom,
+    roundupTo,
+    roundupKey: `${roundupFrom}:${roundupTo}`,
     fromTimestamp,
     toTimestamp: nextTimestamp - 1,
   };
 }
 
-export function shouldRunDailyDigestAt(now: Date, timeZone: string, localHour: number): boolean {
+export function shouldRunDailyRoundupAt(now: Date, timeZone: string, localHour: number): boolean {
   const parts = datePartsForInstant(now, timeZone);
   return parts.hour === localHour && parts.minute === 0;
 }
 
-export function buildDigestCounts(
+export function buildRoundupCounts(
   alerts: Array<{ outcome: string }>,
   fixes: Array<unknown>,
-): DigestCounts {
+): RoundupCounts {
   return {
     total: alerts.length,
     fixed: alerts.filter((alert) => alert.outcome === "fixed").length,
@@ -181,17 +178,17 @@ export function buildDigestCounts(
   };
 }
 
-export function formatDigestLabel(digestFrom: string, digestTo: string): string {
-  const fromDate = new Date(`${digestFrom}T12:00:00Z`);
-  const toDate = new Date(`${digestTo}T12:00:00Z`);
+export function formatRoundupLabel(roundupFrom: string, roundupTo: string): string {
+  const fromDate = new Date(`${roundupFrom}T12:00:00Z`);
+  const toDate = new Date(`${roundupTo}T12:00:00Z`);
   const fromLabel = fromDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const toLabel = toDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return fromLabel === toLabel ? fromLabel : `${fromLabel}–${toLabel}`;
 }
 
-export function buildDailyDigestBody(window: DigestWindow, counts: DigestCounts): string {
-  const label = formatDigestLabel(window.digestFrom, window.digestTo);
+export function buildDailyRoundupBody(window: RoundupWindow, counts: RoundupCounts): string {
+  const label = formatRoundupLabel(window.roundupFrom, window.roundupTo);
 
   if (counts.total === 0) {
     if (counts.fixes > 0) {
@@ -215,15 +212,15 @@ export function buildDailyDigestBody(window: DigestWindow, counts: DigestCounts)
   return `${label}: ${segments.join(", ")}.`;
 }
 
-export function buildDailyDigestPayload(
-  window: DigestWindow,
+export function buildDailyRoundupPayload(
+  window: RoundupWindow,
   siteOrigin: string,
-): DailyDigestPushPayload {
+): DailyRoundupPushPayload {
   const normalizedOrigin = siteOrigin.replace(/\/+$/, "");
   return {
-    type: "daily_digest",
-    digestFrom: window.digestFrom,
-    digestTo: window.digestTo,
-    url: `${normalizedOrigin}/digest?from=${window.digestFrom}&to=${window.digestTo}`,
+    type: "daily_roundup",
+    roundupFrom: window.roundupFrom,
+    roundupTo: window.roundupTo,
+    url: `${normalizedOrigin}/roundup?from=${window.roundupFrom}&to=${window.roundupTo}`,
   };
 }

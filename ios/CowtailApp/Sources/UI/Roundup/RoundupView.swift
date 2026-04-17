@@ -19,7 +19,7 @@ struct RoundupView: View {
     }
 
     private var timeZone: TimeZone {
-        TimeZone(identifier: AppConfig.digestTimeZoneIdentifier) ?? .current
+        TimeZone(identifier: AppConfig.roundupTimeZoneIdentifier) ?? .current
     }
 
     var body: some View {

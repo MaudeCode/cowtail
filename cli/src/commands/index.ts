@@ -1,9 +1,9 @@
 import { alertCommandGroup } from "./alert";
 import { configCommandGroup } from "./config";
-import { digestCommandGroup } from "./digest";
 import { fixCommandGroup } from "./fix";
 import { healthCommandGroup } from "./health";
 import { pushCommandGroup } from "./push";
+import { roundupCommandGroup } from "./roundup";
 import { usersCommandGroup } from "./users";
 import { UpdateCommand, UPDATE_DESCRIPTION } from "./update";
 import { VersionCommand, VERSION_DESCRIPTION } from "./version";
@@ -12,7 +12,7 @@ import type { CommandGroupDefinition } from "./types";
 export const commandGroups: CommandGroupDefinition[] = [
   alertCommandGroup,
   configCommandGroup,
-  digestCommandGroup,
+  roundupCommandGroup,
   fixCommandGroup,
   healthCommandGroup,
   pushCommandGroup,

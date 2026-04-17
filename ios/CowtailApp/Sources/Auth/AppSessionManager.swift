@@ -83,19 +83,19 @@ final class AppSessionManager: ObservableObject {
 
     func refreshSessionIfPossible() async -> String? {
         if let token = validSessionToken() {
-            print("[digest-debug] AppSessionManager.refreshSessionIfPossible using cached session")
+            print("[roundup-debug] AppSessionManager.refreshSessionIfPossible using cached session")
             logger.debug("refreshSessionIfPossible using cached session")
             return token
         }
 
         if let refreshTask {
-            print("[digest-debug] AppSessionManager.refreshSessionIfPossible awaiting in-flight refresh")
+            print("[roundup-debug] AppSessionManager.refreshSessionIfPossible awaiting in-flight refresh")
             logger.debug("refreshSessionIfPossible awaiting in-flight refresh")
             return await refreshTask.value
         }
 
         guard let appleUserID = AppleAccountManager.shared.userID, !appleUserID.isEmpty else {
-            print("[digest-debug] AppSessionManager.refreshSessionIfPossible no Apple user ID")
+            print("[roundup-debug] AppSessionManager.refreshSessionIfPossible no Apple user ID")
             logger.debug("refreshSessionIfPossible no Apple user ID")
             sessionState = .idle
             lastError = nil
@@ -103,14 +103,14 @@ final class AppSessionManager: ObservableObject {
         }
 
         guard let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty else {
-            print("[digest-debug] AppSessionManager.refreshSessionIfPossible missing Apple identity token")
+            print("[roundup-debug] AppSessionManager.refreshSessionIfPossible missing Apple identity token")
             logger.debug("refreshSessionIfPossible missing Apple identity token")
             sessionState = .idle
             lastError = nil
             return nil
         }
 
-        print("[digest-debug] AppSessionManager.refreshSessionIfPossible creating backend session")
+        print("[roundup-debug] AppSessionManager.refreshSessionIfPossible creating backend session")
         logger.debug("refreshSessionIfPossible creating backend session")
         sessionState = .refreshing
         lastError = nil
@@ -120,7 +120,7 @@ final class AppSessionManager: ObservableObject {
             do {
                 let session = try await api.createAuthSession(identityToken: identityToken)
                 await MainActor.run {
-                    print("[digest-debug] AppSessionManager.refreshSessionIfPossible session created userID=\(session.userID)")
+                    print("[roundup-debug] AppSessionManager.refreshSessionIfPossible session created userID=\(session.userID)")
                     self.logger.debug("refreshSessionIfPossible session created for user \(session.userID, privacy: .public)")
                     self.store(session)
                     self.sessionState = .ready
@@ -129,7 +129,7 @@ final class AppSessionManager: ObservableObject {
                 return session.token
             } catch {
                 await MainActor.run {
-                    print("[digest-debug] AppSessionManager.refreshSessionIfPossible failed error=\(error.localizedDescription)")
+                    print("[roundup-debug] AppSessionManager.refreshSessionIfPossible failed error=\(error.localizedDescription)")
                     self.logger.error("refreshSessionIfPossible failed: \(error.localizedDescription, privacy: .public)")
                     self.clearSession()
                     self.userID = appleUserID
@@ -164,7 +164,7 @@ final class AppSessionManager: ObservableObject {
     }
 
     func invalidateSession() {
-        print("[digest-debug] AppSessionManager.invalidateSession")
+        print("[roundup-debug] AppSessionManager.invalidateSession")
         logger.debug("invalidateSession")
         refreshTask?.cancel()
         refreshTask = nil
