@@ -97,6 +97,7 @@ targets:
     scheme:
       testTargets:
         - CowtailTests
+        - CowtailUITests
   CowtailTests:
     type: bundle.unit-test
     platform: iOS
@@ -109,4 +110,17 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: ${COWTAIL_PRODUCT_BUNDLE_IDENTIFIER}.tests
+        SWIFT_VERSION: 6.0
+  CowtailUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CowtailUITests
+    dependencies:
+      - target: Cowtail
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ${COWTAIL_PRODUCT_BUNDLE_IDENTIFIER}.uitests
         SWIFT_VERSION: 6.0
