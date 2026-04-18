@@ -3,6 +3,7 @@ import SwiftUI
 
 struct NotificationSettingsPanel: View {
     @AppStorage("developerModeEnabled") private var developerModeEnabled = false
+    @State private var uiTestDailyRoundupOverride: Bool?
     @Environment(\.cowtailPalette) private var palette
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
@@ -32,11 +33,13 @@ struct NotificationSettingsPanel: View {
                     Text(summaryTitle)
                         .font(.cowtailSans(20, weight: .bold, relativeTo: .title3))
                         .foregroundStyle(palette.ink)
+                        .accessibilityIdentifier("text.notifications.summary-title")
 
                     if let summaryMessage {
                         Text(summaryMessage)
                             .font(.cowtailSans(15, relativeTo: .subheadline))
                             .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("text.notifications.summary-message")
                     }
                 }
             }
@@ -99,6 +102,7 @@ struct NotificationSettingsPanel: View {
                     openSystemSettings()
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("button.notifications.open-settings")
             } else if requiresAppleConfirmationForPushSetup {
                 appleSignInButton(height: 44)
             } else if showsSetupAction {
@@ -106,6 +110,7 @@ struct NotificationSettingsPanel: View {
                     runPrimarySetupAction()
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("button.notifications.primary-action")
             }
         }
     }
@@ -196,8 +201,12 @@ struct NotificationSettingsPanel: View {
                 Toggle(
                     CowtailCopy.dailyRoundupTitle,
                     isOn: Binding(
-                        get: { notificationManager.dailyRoundupEnabled },
+                        get: { uiTestDailyRoundupOverride ?? notificationManager.dailyRoundupEnabled },
                         set: { newValue in
+                            if isUITesting {
+                                uiTestDailyRoundupOverride = newValue
+                            }
+
                             Task {
                                 await notificationManager.updateDailyRoundupEnabled(newValue)
                             }
@@ -206,6 +215,7 @@ struct NotificationSettingsPanel: View {
                 )
                 .labelsHidden()
                 .disabled(dailyRoundupToggleDisabled)
+                .accessibilityIdentifier("toggle.notifications.daily-roundup")
                 .overlay(alignment: .center) {
                     if notificationManager.isLoadingDailyRoundupPreference || notificationManager.isSavingDailyRoundupPreference {
                         ProgressView()
@@ -588,7 +598,15 @@ struct NotificationSettingsPanel: View {
         return "Finish Sync"
     }
 
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.environment["UI_TESTING"] == "1"
+    }
+
     private func openSystemSettings() {
+        if isUITesting {
+            return
+        }
+
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
     }
@@ -646,6 +664,7 @@ struct NotificationSettingsPage: View {
                 .padding(.bottom, CowtailDesignGuide.pageHorizontalPadding)
             }
         }
+        .accessibilityIdentifier("screen.notifications")
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await appleAccountManager.refreshCredentialState()

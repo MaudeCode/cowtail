@@ -22,6 +22,7 @@ struct FarmhouseView: View {
                 .padding(.bottom, 28)
             }
         }
+        .accessibilityIdentifier("screen.farmhouse")
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await appleAccountManager.refreshCredentialState()
@@ -67,6 +68,7 @@ struct FarmhouseView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("card.farmhouse.notifications")
         }
     }
 
@@ -111,6 +113,7 @@ struct FarmhouseView: View {
 
             Toggle("Developer mode", isOn: $developerModeEnabled)
                 .toggleStyle(.switch)
+                .accessibilityIdentifier("toggle.farmhouse.developer-mode")
         }
     }
 
