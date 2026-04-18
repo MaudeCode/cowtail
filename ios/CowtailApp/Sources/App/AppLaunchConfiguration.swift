@@ -15,9 +15,7 @@ struct AppLaunchConfiguration: Equatable {
         make(environment: processInfo.environment, arguments: processInfo.arguments)
     }
 
-    static func make(environment: [String: String], arguments: [String]) -> AppLaunchConfiguration {
-        _ = arguments
-
+    static func make(environment: [String: String], arguments _: [String]) -> AppLaunchConfiguration {
         guard environment["UI_TESTING"] == "1" else {
             return AppLaunchConfiguration(
                 mode: .normal,
