@@ -39,32 +39,52 @@ struct AlertInboxView: View {
 
     var body: some View {
         CowtailCanvas {
-            ScrollView(.vertical) {
-                VStack(spacing: 10) {
-                    InboxHeaderCard(lastUpdated: store.lastUpdated)
-
-                    if let errorMessage = store.errorMessage {
-                        errorCard(message: errorMessage)
-                    }
-
-                    InboxMetricsCard(
-                        openCount: openCount,
-                        criticalCount: criticalCount
+            List {
+                InboxHeaderCard(lastUpdated: store.lastUpdated)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: CowtailDesignGuide.pageTopPadding,
+                            leading: 14,
+                            bottom: 5,
+                            trailing: 14
+                        )
                     )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
 
-                    InboxClusterHealthCard(
-                        health: store.health,
-                        healthErrorMessage: store.healthErrorMessage,
-                        isLoading: store.isLoading
-                    )
-
-                    alertList
+                if let errorMessage = store.errorMessage {
+                    errorCard(message: errorMessage)
+                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, CowtailDesignGuide.pageTopPadding)
-                .padding(.bottom, 18)
+
+                InboxMetricsCard(
+                    openCount: openCount,
+                    criticalCount: criticalCount
+                )
+                .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+                InboxClusterHealthCard(
+                    health: store.health,
+                    healthErrorMessage: store.healthErrorMessage,
+                    isLoading: store.isLoading
+                )
+                .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+                alertList
+                    .padding(.bottom, 18)
+                    .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 0, trailing: 14))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
-            .scrollBounceBehavior(.always, axes: .vertical)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
             .refreshable {
                 await store.refresh()
             }
@@ -114,12 +134,9 @@ struct AlertInboxView: View {
                 .cowtailCard()
             } else {
                 ForEach(visibleActionableAlerts) { alert in
-                    NavigationLink {
-                        AlertDetailView(alert: alert)
-                    } label: {
+                    InboxAlertNavigationRow(destination: AlertDetailView(alert: alert)) {
                         PrimaryAlertCard(alert: alert)
                     }
-                    .buttonStyle(.plain)
                 }
 
                 if actionableAlerts.count > 3 {
@@ -149,12 +166,9 @@ struct AlertInboxView: View {
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(visibleRecentActivityAlerts.enumerated()), id: \.element.id) { index, alert in
-                        NavigationLink {
-                            AlertDetailView(alert: alert)
-                        } label: {
+                        InboxAlertNavigationRow(destination: AlertDetailView(alert: alert)) {
                             CompactActivityRow(alert: alert)
                         }
-                        .buttonStyle(.plain)
 
                         if index < visibleRecentActivityAlerts.count - 1 {
                             Divider()
@@ -187,6 +201,38 @@ struct AlertInboxView: View {
             Text(message)
                 .font(.cowtailSans(13, relativeTo: .footnote))
                 .foregroundStyle(.red)
+        }
+    }
+}
+
+private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
+    @State private var isActive = false
+
+    let destination: Destination
+    let content: () -> Content
+
+    init(
+        destination: Destination,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.destination = destination
+        self.content = content
+    }
+
+    var body: some View {
+        Button {
+            isActive = true
+        } label: {
+            content()
+        }
+        .buttonStyle(.plain)
+        .background {
+            NavigationLink(isActive: $isActive) {
+                destination
+            } label: {
+                EmptyView()
+            }
+            .hidden()
         }
     }
 }

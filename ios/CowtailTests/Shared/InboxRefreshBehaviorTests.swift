@@ -56,6 +56,41 @@ final class InboxRefreshBehaviorTests: XCTestCase {
 
         XCTAssertNotNil(store.lastUpdated)
     }
+
+    func testRefreshRetriesHealthAfterTransientFailure() async {
+        let expectedHealth = HealthSummary(
+            nodes: [HealthNode(id: "n1", name: "node-1", isReady: true, cpu: 20, memory: 40)],
+            cephStatus: "HEALTH_OK",
+            cephMessage: "All clear",
+            storageTotal: 10,
+            storageUsed: 2,
+            storageUnit: "TiB"
+        )
+        let api = RetryingHealthCowtailAPI(health: expectedHealth)
+        let store = CowtailStore(api: api)
+
+        await store.refresh()
+
+        let healthRequestCount = await api.healthRequestCount()
+        XCTAssertEqual(store.health, expectedHealth)
+        XCTAssertNil(store.healthErrorMessage)
+        XCTAssertEqual(healthRequestCount, 2)
+    }
+
+    func testRepeatedRefreshAdvancesLastUpdated() async throws {
+        let api = InstantCowtailAPI()
+        let store = CowtailStore(api: api)
+
+        await store.refresh()
+        let firstUpdated = try XCTUnwrap(store.lastUpdated)
+
+        try? await Task.sleep(for: .milliseconds(20))
+
+        await store.refresh()
+        let secondUpdated = try XCTUnwrap(store.lastUpdated)
+
+        XCTAssertGreaterThan(secondUpdated, firstUpdated)
+    }
 }
 
 private actor ControlledCowtailAPI: CowtailAPIClient {
@@ -106,5 +141,64 @@ private actor ControlledCowtailAPI: CowtailAPIClient {
     func failHealth(with error: Error) {
         healthContinuation?.resume(throwing: error)
         healthContinuation = nil
+    }
+}
+
+private actor RetryingHealthCowtailAPI: CowtailAPIClient {
+    private let health: HealthSummary
+    private var requestCount = 0
+
+    init(health: HealthSummary) {
+        self.health = health
+    }
+
+    func fetchAlerts(from: Date, to: Date) async throws -> [AlertItem] {
+        []
+    }
+
+    func fetchHealthSummary() async throws -> HealthSummary {
+        requestCount += 1
+        if requestCount == 1 {
+            throw URLError(.networkConnectionLost)
+        }
+
+        return health
+    }
+
+    func fetchAlert(id: String) async throws -> AlertItem? {
+        nil
+    }
+
+    func fetchFixes(alertIDs: [String]) async throws -> [AlertFix] {
+        []
+    }
+
+    func healthRequestCount() -> Int {
+        requestCount
+    }
+}
+
+private actor InstantCowtailAPI: CowtailAPIClient {
+    func fetchAlerts(from: Date, to: Date) async throws -> [AlertItem] {
+        []
+    }
+
+    func fetchHealthSummary() async throws -> HealthSummary {
+        HealthSummary(
+            nodes: [],
+            cephStatus: "HEALTH_OK",
+            cephMessage: "All clear",
+            storageTotal: 10,
+            storageUsed: 2,
+            storageUnit: "TiB"
+        )
+    }
+
+    func fetchAlert(id: String) async throws -> AlertItem? {
+        nil
+    }
+
+    func fetchFixes(alertIDs: [String]) async throws -> [AlertFix] {
+        []
     }
 }

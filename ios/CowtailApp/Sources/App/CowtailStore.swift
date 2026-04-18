@@ -1,6 +1,41 @@
 import Foundation
 import OSLog
 
+private let healthRefreshRetryDelays: [Duration] = [
+    .milliseconds(500),
+    .milliseconds(1_000),
+]
+
+private func fetchHealthSummaryWithRetry(
+    from api: any CowtailAPIClient
+) async throws -> HealthSummary {
+    do {
+        return try await api.fetchHealthSummary()
+    } catch {
+        guard !NetworkErrorClassifier.isCancellation(error) else {
+            throw error
+        }
+
+        var lastError = error
+
+        for delay in healthRefreshRetryDelays {
+            try await Task.sleep(for: delay)
+
+            do {
+                return try await api.fetchHealthSummary()
+            } catch {
+                guard !NetworkErrorClassifier.isCancellation(error) else {
+                    throw error
+                }
+
+                lastError = error
+            }
+        }
+
+        throw lastError
+    }
+}
+
 @MainActor
 final class CowtailStore: ObservableObject {
     @Published private(set) var alerts: [AlertItem]
@@ -70,7 +105,7 @@ final class CowtailStore: ObservableObject {
 
             group.addTask {
                 do {
-                    return .health(.success(try await api.fetchHealthSummary()))
+                    return .health(.success(try await fetchHealthSummaryWithRetry(from: api)))
                 } catch {
                     return .health(.failure(error))
                 }
