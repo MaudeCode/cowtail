@@ -46,13 +46,13 @@ struct UITestScenario {
             if let alertErrorMessage {
                 return .alertListFailure(
                     message: alertErrorMessage,
-                    health: health ?? UITestScenario.seededHealth
+                    health: health ?? FixtureCatalog.health
                 )
             }
 
             return .success(
                 alerts: alerts,
-                health: health ?? UITestScenario.seededHealth,
+                health: health ?? FixtureCatalog.health,
                 fixesByAlertID: fixesByAlertID,
                 roundupAlerts: roundupAlerts,
                 roundupFixes: roundupFixes
@@ -92,23 +92,22 @@ struct UITestScenario {
     let name: Name
     let seed: Seed
 
-    init?(named name: Name) {
+    init(named name: Name) {
         self.name = name
-        self.seed = Self.makeSeed(for: name)
+        self.seed = SeedFactory.makeSeed(for: name)
     }
+}
 
-    private static let seededHealth = CowtailPreviewFixtures.health
-
-    private static let seededInboxAlerts = [
+private enum FixtureCatalog {
+    static let health = CowtailPreviewFixtures.health
+    static let inboxAlerts = [
         CowtailPreviewFixtures.alert,
         CowtailPreviewFixtures.secondaryAlert,
     ]
-
-    private static let seededInboxFixesByAlertID: [String: [AlertFix]] = [
+    static let inboxFixesByAlertID: [String: [AlertFix]] = [
         CowtailPreviewFixtures.alert.id: CowtailPreviewFixtures.fixes,
     ]
-
-    private static let seededRoundupAlerts = [
+    static let roundupAlerts = [
         AlertItem(
             id: "roundup-alert-1",
             timestamp: .now.addingTimeInterval(-2 * 60 * 60),
@@ -140,8 +139,7 @@ struct UITestScenario {
             messaged: true
         ),
     ]
-
-    private static let seededRoundupFixes = [
+    static let roundupFixes = [
         AlertFix(
             id: "roundup-fix-1",
             description: "Expired verbose kubelet logs to recover disk space.",
@@ -150,8 +148,10 @@ struct UITestScenario {
             timestamp: .now.addingTimeInterval(-100 * 60)
         ),
     ]
+}
 
-    private static let signedInAppleSeed = AppleSeed(
+private enum SeedFactory {
+    private static let signedInApple = UITestScenario.AppleSeed(
         signInState: .signedIn,
         userID: "ui-test-apple-user",
         identityToken: "ui-test-identity-token",
@@ -160,7 +160,16 @@ struct UITestScenario {
         lastError: nil
     )
 
-    private static let readySessionSeed = SessionSeed(
+    private static let signedOutApple = UITestScenario.AppleSeed(
+        signInState: .signedOut,
+        userID: nil,
+        identityToken: nil,
+        displayName: nil,
+        email: nil,
+        lastError: nil
+    )
+
+    private static let readySession = UITestScenario.SessionSeed(
         sessionState: .ready,
         token: "ui-test-session-token",
         userID: "ui-test-apple-user",
@@ -168,7 +177,7 @@ struct UITestScenario {
         lastError: nil
     )
 
-    private static let idleSessionSeed = SessionSeed(
+    private static let idleSession = UITestScenario.SessionSeed(
         sessionState: .idle,
         token: nil,
         userID: nil,
@@ -176,203 +185,67 @@ struct UITestScenario {
         lastError: nil
     )
 
-    private static func makeSeed(for name: Name) -> Seed {
+    private static let connectedNotification = UITestScenario.NotificationSeed(
+        authorizationStatus: .authorized,
+        registrationState: .registered,
+        serverRegistrationState: .registered,
+        deviceToken: "ui-test-device-token",
+        registrationError: nil,
+        serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
+        dailyRoundupEnabled: true,
+        dailyRoundupPreferenceRequiresSignIn: false,
+        dailyRoundupPreferenceError: nil
+    )
+
+    private static let scenarioDefaults = UITestScenario.Seed(
+        store: UITestScenario.StoreSeed(
+            alerts: FixtureCatalog.inboxAlerts,
+            health: FixtureCatalog.health,
+            fixesByAlertID: FixtureCatalog.inboxFixesByAlertID,
+            alertErrorMessage: nil
+        ),
+        roundupAlerts: FixtureCatalog.roundupAlerts,
+        roundupFixes: FixtureCatalog.roundupFixes,
+        apple: signedInApple,
+        session: readySession,
+        notification: connectedNotification
+    )
+
+    static func makeSeed(for name: UITestScenario.Name) -> UITestScenario.Seed {
         switch name {
         case .inboxPopulated:
-            return Seed(
-                store: StoreSeed(
-                    alerts: seededInboxAlerts,
-                    health: seededHealth,
-                    fixesByAlertID: seededInboxFixesByAlertID,
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
-                    authorizationStatus: .authorized,
-                    registrationState: .registered,
-                    serverRegistrationState: .registered,
-                    deviceToken: "ui-test-device-token",
-                    registrationError: nil,
-                    serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-                    dailyRoundupEnabled: true,
-                    dailyRoundupPreferenceRequiresSignIn: false,
-                    dailyRoundupPreferenceError: nil
-                )
-            )
+            return scenarioDefaults
 
         case .inboxEmpty:
-            return Seed(
-                store: StoreSeed(
-                    alerts: [],
-                    health: seededHealth,
-                    fixesByAlertID: [:],
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: [],
-                roundupFixes: [],
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
-                    authorizationStatus: .authorized,
-                    registrationState: .registered,
-                    serverRegistrationState: .registered,
-                    deviceToken: "ui-test-device-token",
-                    registrationError: nil,
-                    serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-                    dailyRoundupEnabled: true,
-                    dailyRoundupPreferenceRequiresSignIn: false,
-                    dailyRoundupPreferenceError: nil
-                )
+            return seed(
+                store: emptyStore()
             )
 
         case .inboxError:
-            return Seed(
-                store: StoreSeed(
-                    alerts: [],
-                    health: seededHealth,
-                    fixesByAlertID: [:],
-                    alertErrorMessage: "Unable to load alerts from the seeded API."
-                ),
-                roundupAlerts: [],
-                roundupFixes: [],
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
-                    authorizationStatus: .authorized,
-                    registrationState: .registered,
-                    serverRegistrationState: .registered,
-                    deviceToken: "ui-test-device-token",
-                    registrationError: nil,
-                    serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-                    dailyRoundupEnabled: true,
-                    dailyRoundupPreferenceRequiresSignIn: false,
-                    dailyRoundupPreferenceError: nil
-                )
+            return seed(
+                store: emptyStore(errorMessage: "Unable to load alerts from the seeded API.")
             )
 
         case .roundupPopulated:
-            return Seed(
-                store: StoreSeed(
-                    alerts: [],
-                    health: seededHealth,
-                    fixesByAlertID: [:],
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
-                    authorizationStatus: .authorized,
-                    registrationState: .registered,
-                    serverRegistrationState: .registered,
-                    deviceToken: "ui-test-device-token",
-                    registrationError: nil,
-                    serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-                    dailyRoundupEnabled: true,
-                    dailyRoundupPreferenceRequiresSignIn: false,
-                    dailyRoundupPreferenceError: nil
-                )
+            return seed(
+                store: emptyStore()
             )
 
         case .roundupEmpty:
-            return Seed(
-                store: StoreSeed(
-                    alerts: [],
-                    health: seededHealth,
-                    fixesByAlertID: [:],
-                    alertErrorMessage: nil
-                ),
+            return seed(
+                store: emptyStore(),
                 roundupAlerts: [],
-                roundupFixes: [],
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
-                    authorizationStatus: .authorized,
-                    registrationState: .registered,
-                    serverRegistrationState: .registered,
-                    deviceToken: "ui-test-device-token",
-                    registrationError: nil,
-                    serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-                    dailyRoundupEnabled: true,
-                    dailyRoundupPreferenceRequiresSignIn: false,
-                    dailyRoundupPreferenceError: nil
-                )
+                roundupFixes: []
             )
 
-        case .alertDeepLinkKnown:
-            return Seed(
-                store: StoreSeed(
-                    alerts: seededInboxAlerts,
-                    health: seededHealth,
-                    fixesByAlertID: seededInboxFixesByAlertID,
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
-                    authorizationStatus: .authorized,
-                    registrationState: .registered,
-                    serverRegistrationState: .registered,
-                    deviceToken: "ui-test-device-token",
-                    registrationError: nil,
-                    serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-                    dailyRoundupEnabled: true,
-                    dailyRoundupPreferenceRequiresSignIn: false,
-                    dailyRoundupPreferenceError: nil
-                )
-            )
-
-        case .alertDeepLinkMissing:
-            return Seed(
-                store: StoreSeed(
-                    alerts: seededInboxAlerts,
-                    health: seededHealth,
-                    fixesByAlertID: seededInboxFixesByAlertID,
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
-                    authorizationStatus: .authorized,
-                    registrationState: .registered,
-                    serverRegistrationState: .registered,
-                    deviceToken: "ui-test-device-token",
-                    registrationError: nil,
-                    serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-                    dailyRoundupEnabled: true,
-                    dailyRoundupPreferenceRequiresSignIn: false,
-                    dailyRoundupPreferenceError: nil
-                )
-            )
+        case .alertDeepLinkKnown, .alertDeepLinkMissing:
+            return scenarioDefaults
 
         case .notificationsNeedsApple:
-            return Seed(
-                store: StoreSeed(
-                    alerts: seededInboxAlerts,
-                    health: seededHealth,
-                    fixesByAlertID: seededInboxFixesByAlertID,
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: AppleSeed(
-                    signInState: .signedOut,
-                    userID: nil,
-                    identityToken: nil,
-                    displayName: nil,
-                    email: nil,
-                    lastError: nil
-                ),
-                session: idleSessionSeed,
-                notification: NotificationSeed(
+            return seed(
+                apple: signedOutApple,
+                session: idleSession,
+                notification: UITestScenario.NotificationSeed(
                     authorizationStatus: .notDetermined,
                     registrationState: .idle,
                     serverRegistrationState: .waitingForIdentity,
@@ -386,18 +259,9 @@ struct UITestScenario {
             )
 
         case .notificationsPermissionDenied:
-            return Seed(
-                store: StoreSeed(
-                    alerts: seededInboxAlerts,
-                    health: seededHealth,
-                    fixesByAlertID: seededInboxFixesByAlertID,
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: signedInAppleSeed,
-                session: idleSessionSeed,
-                notification: NotificationSeed(
+            return seed(
+                session: idleSession,
+                notification: UITestScenario.NotificationSeed(
                     authorizationStatus: .denied,
                     registrationState: .idle,
                     serverRegistrationState: .idle,
@@ -411,18 +275,8 @@ struct UITestScenario {
             )
 
         case .notificationsReady:
-            return Seed(
-                store: StoreSeed(
-                    alerts: seededInboxAlerts,
-                    health: seededHealth,
-                    fixesByAlertID: seededInboxFixesByAlertID,
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
+            return seed(
+                notification: UITestScenario.NotificationSeed(
                     authorizationStatus: .authorized,
                     registrationState: .registered,
                     serverRegistrationState: .registered,
@@ -436,18 +290,8 @@ struct UITestScenario {
             )
 
         case .notificationsSyncError:
-            return Seed(
-                store: StoreSeed(
-                    alerts: seededInboxAlerts,
-                    health: seededHealth,
-                    fixesByAlertID: seededInboxFixesByAlertID,
-                    alertErrorMessage: nil
-                ),
-                roundupAlerts: seededRoundupAlerts,
-                roundupFixes: seededRoundupFixes,
-                apple: signedInAppleSeed,
-                session: readySessionSeed,
-                notification: NotificationSeed(
+            return seed(
+                notification: UITestScenario.NotificationSeed(
                     authorizationStatus: .authorized,
                     registrationState: .registered,
                     serverRegistrationState: .failed,
@@ -460,5 +304,32 @@ struct UITestScenario {
                 )
             )
         }
+    }
+
+    private static func emptyStore(errorMessage: String? = nil) -> UITestScenario.StoreSeed {
+        UITestScenario.StoreSeed(
+            alerts: [],
+            health: FixtureCatalog.health,
+            fixesByAlertID: [:],
+            alertErrorMessage: errorMessage
+        )
+    }
+
+    private static func seed(
+        store: UITestScenario.StoreSeed? = nil,
+        roundupAlerts: [AlertItem]? = nil,
+        roundupFixes: [AlertFix]? = nil,
+        apple: UITestScenario.AppleSeed? = nil,
+        session: UITestScenario.SessionSeed? = nil,
+        notification: UITestScenario.NotificationSeed? = nil
+    ) -> UITestScenario.Seed {
+        UITestScenario.Seed(
+            store: store ?? scenarioDefaults.store,
+            roundupAlerts: roundupAlerts ?? scenarioDefaults.roundupAlerts,
+            roundupFixes: roundupFixes ?? scenarioDefaults.roundupFixes,
+            apple: apple ?? scenarioDefaults.apple,
+            session: session ?? scenarioDefaults.session,
+            notification: notification ?? scenarioDefaults.notification
+        )
     }
 }
