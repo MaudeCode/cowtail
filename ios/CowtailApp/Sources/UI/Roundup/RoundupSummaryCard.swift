@@ -10,5 +10,6 @@ struct RoundupSummaryCard: View {
             CowtailMetricStripItem(value: "\(stats.escalated)", label: "Escalated", emphasis: .warning),
             CowtailMetricStripItem(value: "\(stats.fixes)", label: "Fixes", emphasis: .info)
         ])
+        .accessibilityIdentifier("card.roundup.summary")
     }
 }

@@ -47,6 +47,8 @@ struct RoundupView: View {
                 .padding(.bottom, 14)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.roundup")
         .toolbar(.hidden, for: .navigationBar)
         .task(id: roundupRoute) {
             await loadRoundup()

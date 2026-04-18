@@ -47,5 +47,6 @@ struct RoundupFixesCard: View {
                 }
             }
         }
+        .accessibilityIdentifier("card.roundup.fixes")
     }
 }
