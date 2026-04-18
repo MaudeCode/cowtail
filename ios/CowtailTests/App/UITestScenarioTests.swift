@@ -120,7 +120,10 @@ final class UITestScenarioTests: XCTestCase {
         let scenario = UITestScenario(named: .inboxPopulated)
         let seed = scenario.seed
 
-        XCTAssertEqual(ids(seed.store.alerts), ["preview-alert", "preview-alert-2"])
+        XCTAssertEqual(
+            ids(seed.store.alerts),
+            ["preview-alert", "preview-alert-3", "preview-alert-4", "preview-alert-5", "preview-alert-2"]
+        )
         XCTAssertEqual(seed.store.health?.cephStatus, "HEALTH_WARN")
         XCTAssertEqual(seed.notification.authorizationStatus, .authorized)
     }

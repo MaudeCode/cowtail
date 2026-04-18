@@ -63,6 +63,7 @@ struct AlertInboxView: View {
                     openCount: openCount,
                     criticalCount: criticalCount
                 )
+                .accessibilityIdentifier("card.inbox.metrics")
                 .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -72,6 +73,7 @@ struct AlertInboxView: View {
                     healthErrorMessage: store.healthErrorMessage,
                     isLoading: store.isLoading
                 )
+                .accessibilityIdentifier("card.inbox.cluster-health")
                 .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -89,6 +91,8 @@ struct AlertInboxView: View {
                 await store.refresh()
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.inbox")
         // Fully hiding the nav bar causes SwiftUI's native refresh control
         // to render offscreen on this screen.
         .navigationTitle("")
@@ -134,7 +138,10 @@ struct AlertInboxView: View {
                 .cowtailCard()
             } else {
                 ForEach(visibleActionableAlerts) { alert in
-                    InboxAlertNavigationRow(destination: AlertDetailView(alert: alert)) {
+                    InboxAlertNavigationRow(
+                        destination: AlertDetailView(alert: alert),
+                        accessibilityIdentifier: "row.alert.\(alert.id)"
+                    ) {
                         PrimaryAlertCard(alert: alert)
                     }
                 }
@@ -147,6 +154,7 @@ struct AlertInboxView: View {
                     ) {
                         showsAllActionableAlerts.toggle()
                     }
+                    .accessibilityIdentifier("button.inbox.show-more.active-alerts")
                 }
             }
         }
@@ -166,7 +174,10 @@ struct AlertInboxView: View {
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(visibleRecentActivityAlerts.enumerated()), id: \.element.id) { index, alert in
-                        InboxAlertNavigationRow(destination: AlertDetailView(alert: alert)) {
+                        InboxAlertNavigationRow(
+                            destination: AlertDetailView(alert: alert),
+                            accessibilityIdentifier: "row.alert.\(alert.id)"
+                        ) {
                             CompactActivityRow(alert: alert)
                         }
 
@@ -187,6 +198,7 @@ struct AlertInboxView: View {
                         ) {
                             showsAllRecentActivity.toggle()
                         }
+                        .accessibilityIdentifier("button.inbox.show-more.recent-activity")
                         .padding(.top, 14)
                     }
                 }
@@ -209,13 +221,16 @@ private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
     @State private var isActive = false
 
     let destination: Destination
+    let accessibilityIdentifier: String?
     let content: () -> Content
 
     init(
         destination: Destination,
+        accessibilityIdentifier: String? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.destination = destination
+        self.accessibilityIdentifier = accessibilityIdentifier
         self.content = content
     }
 
@@ -226,6 +241,7 @@ private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
             content()
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "")
         .background {
             NavigationLink(isActive: $isActive) {
                 destination

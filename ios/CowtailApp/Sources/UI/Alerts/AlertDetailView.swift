@@ -30,6 +30,8 @@ struct AlertDetailView: View {
                 .padding(14)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.alert-detail")
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)

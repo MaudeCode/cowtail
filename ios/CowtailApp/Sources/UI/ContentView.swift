@@ -21,6 +21,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Inbox", systemImage: "bell.badge")
             }
+            .accessibilityIdentifier("tab.inbox")
 
             NavigationStack {
                 RoundupView(roundupRoute: universalLinkRouter.roundupRoute)
@@ -29,6 +30,7 @@ struct ContentView: View {
             .tabItem {
                 Label(CowtailCopy.roundupTitle, systemImage: "doc.text.image")
             }
+            .accessibilityIdentifier("tab.roundup")
 
             NavigationStack {
                 FarmhouseView()
@@ -37,6 +39,7 @@ struct ContentView: View {
             .tabItem {
                 Label(CowtailCopy.farmhouseTitle, systemImage: "gearshape")
             }
+            .accessibilityIdentifier("tab.farmhouse")
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(palette.accent)

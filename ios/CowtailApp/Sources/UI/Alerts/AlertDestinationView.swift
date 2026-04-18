@@ -38,6 +38,8 @@ struct AlertDestinationView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(24)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.alert-detail.unavailable")
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)

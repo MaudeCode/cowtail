@@ -102,6 +102,51 @@ private enum FixtureCatalog {
     static let health = CowtailPreviewFixtures.health
     static let inboxAlerts = [
         CowtailPreviewFixtures.alert,
+        AlertItem(
+            id: "preview-alert-3",
+            timestamp: .now.addingTimeInterval(-6 * 60),
+            alertName: "NodePressureSustained",
+            severity: .warning,
+            namespace: "kube-system",
+            node: "node-b",
+            outcome: .escalated,
+            summary: "Memory pressure remains elevated on node-b.",
+            rootCause: "A bursty workload has not scaled back down yet.",
+            actionTaken: "Paged the on-call and started a workload audit.",
+            status: .firing,
+            resolvedAt: nil,
+            messaged: true
+        ),
+        AlertItem(
+            id: "preview-alert-4",
+            timestamp: .now.addingTimeInterval(-12 * 60),
+            alertName: "CephPlacementGroupsDegraded",
+            severity: .critical,
+            namespace: "rook-ceph",
+            node: "node-c",
+            outcome: .escalated,
+            summary: "Placement groups are degraded and need intervention.",
+            rootCause: "Recovery lag has left several placement groups undersized.",
+            actionTaken: "Started recovery checks and escalated the storage incident.",
+            status: .firing,
+            resolvedAt: nil,
+            messaged: true
+        ),
+        AlertItem(
+            id: "preview-alert-5",
+            timestamp: .now.addingTimeInterval(-18 * 60),
+            alertName: "IngressErrorRateHigh",
+            severity: .warning,
+            namespace: "ingress-nginx",
+            node: "node-a",
+            outcome: .escalated,
+            summary: "Ingress error rate is above the paging threshold.",
+            rootCause: "Backend timeouts increased after a rollout.",
+            actionTaken: "Rolled back the ingress config and opened an incident.",
+            status: .firing,
+            resolvedAt: nil,
+            messaged: true
+        ),
         CowtailPreviewFixtures.secondaryAlert,
     ]
     static let inboxFixesByAlertID: [String: [AlertFix]] = [
