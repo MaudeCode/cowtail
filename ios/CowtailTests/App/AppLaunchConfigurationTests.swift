@@ -20,7 +20,7 @@ final class AppLaunchConfigurationTests: XCTestCase {
     func testMakeParsesUITestingScenarioResetFlagDeepLinkAndStartTab() throws {
         let environment: [String: String] = [
             "UI_TESTING": "1",
-            "UI_TEST_SCENARIO": "inboxPopulated",
+            "UI_TEST_SCENARIO": "inbox_populated",
             "UI_TEST_RESET_STATE": "1",
             "UI_TEST_DEEP_LINK_URL": "https://example.com/roundup?from=2026-04-10&to=2026-04-11",
             "UI_TEST_START_TAB": "farmhouse"
@@ -37,5 +37,26 @@ final class AppLaunchConfigurationTests: XCTestCase {
                 selectedTab: .farmhouse
             )
         )
+    }
+
+    func testMakeFallsBackToInboxPopulatedForUnknownOrEmptyScenarioWhileUITesting() {
+        let unknownScenario = AppLaunchConfiguration.make(
+            environment: [
+                "UI_TESTING": "1",
+                "UI_TEST_SCENARIO": "something_else"
+            ],
+            arguments: []
+        )
+
+        let emptyScenario = AppLaunchConfiguration.make(
+            environment: [
+                "UI_TESTING": "1",
+                "UI_TEST_SCENARIO": ""
+            ],
+            arguments: []
+        )
+
+        XCTAssertEqual(unknownScenario.mode, .uiTesting(.inboxPopulated))
+        XCTAssertEqual(emptyScenario.mode, .uiTesting(.inboxPopulated))
     }
 }

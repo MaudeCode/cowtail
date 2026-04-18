@@ -68,6 +68,6 @@ struct AppLaunchConfiguration: Equatable {
 
 enum UITestScenario {
     enum Name: String, Equatable {
-        case inboxPopulated
+        case inboxPopulated = "inbox_populated"
     }
 }
