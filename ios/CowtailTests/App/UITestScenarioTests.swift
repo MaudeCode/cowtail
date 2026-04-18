@@ -89,6 +89,33 @@ final class UITestScenarioTests: XCTestCase {
         XCTAssertFalse(runtime.cowtailStore.isLoading)
     }
 
+    @MainActor
+    func testUITestRuntimeManagerRefreshMethodsPreserveSeededState() async {
+        let runtime = AppRuntime.make(
+            configuration: .init(
+                mode: .uiTesting(.notificationsReady),
+                resetPersistentState: true,
+                deepLinkURL: nil,
+                selectedTab: .farmhouse
+            )
+        )
+
+        let initialAppleState = AppleManagerSnapshot(manager: runtime.appleAccountManager)
+        let initialSessionState = SessionManagerSnapshot(manager: runtime.appSessionManager)
+        let initialNotificationState = NotificationManagerSnapshot(manager: runtime.notificationManager)
+
+        await runtime.appleAccountManager.refreshCredentialState()
+        _ = await runtime.appSessionManager.refreshSessionIfPossible()
+        await runtime.notificationManager.refreshAuthorizationStatus()
+        runtime.notificationManager.resumeNotificationSetupIfNeeded()
+        await runtime.notificationManager.syncDeviceRegistration()
+        await runtime.notificationManager.loadDailyRoundupPreference()
+
+        XCTAssertEqual(AppleManagerSnapshot(manager: runtime.appleAccountManager), initialAppleState)
+        XCTAssertEqual(SessionManagerSnapshot(manager: runtime.appSessionManager), initialSessionState)
+        XCTAssertEqual(NotificationManagerSnapshot(manager: runtime.notificationManager), initialNotificationState)
+    }
+
     func testInboxPopulatedSeedIncludesAlertsHealthAndAuthorizedNotifications() {
         let scenario = UITestScenario(named: .inboxPopulated)
         let seed = scenario.seed
@@ -163,6 +190,67 @@ private func ids(_ alerts: [AlertItem]) -> [String] {
 
 private func ids(_ fixes: [AlertFix]) -> [String] {
     fixes.map { $0.id }
+}
+
+private struct AppleManagerSnapshot: Equatable {
+    let signInState: AppleAccountManager.SignInState
+    let userID: String?
+    let identityToken: String?
+    let displayName: String?
+    let email: String?
+    let lastError: String?
+
+    @MainActor
+    init(manager: AppleAccountManager) {
+        signInState = manager.signInState
+        userID = manager.userID
+        identityToken = manager.identityToken
+        displayName = manager.displayName
+        email = manager.email
+        lastError = manager.lastError
+    }
+}
+
+private struct SessionManagerSnapshot: Equatable {
+    let sessionState: AppSessionManager.SessionState
+    let token: String?
+    let userID: String?
+    let expiresAt: Date?
+    let lastError: String?
+
+    @MainActor
+    init(manager: AppSessionManager) {
+        sessionState = manager.sessionState
+        token = manager.validSessionToken()
+        userID = manager.userID
+        expiresAt = manager.expiresAt
+        lastError = manager.lastError
+    }
+}
+
+private struct NotificationManagerSnapshot: Equatable {
+    let authorizationStatus: UNAuthorizationStatus
+    let registrationState: NotificationManager.RegistrationState
+    let serverRegistrationState: NotificationManager.ServerRegistrationState
+    let deviceToken: String?
+    let registrationError: String?
+    let serverRegistrationMessage: String?
+    let dailyRoundupEnabled: Bool
+    let dailyRoundupPreferenceRequiresSignIn: Bool
+    let dailyRoundupPreferenceError: String?
+
+    @MainActor
+    init(manager: NotificationManager) {
+        authorizationStatus = manager.authorizationStatus
+        registrationState = manager.registrationState
+        serverRegistrationState = manager.serverRegistrationState
+        deviceToken = manager.deviceToken
+        registrationError = manager.registrationError
+        serverRegistrationMessage = manager.serverRegistrationMessage
+        dailyRoundupEnabled = manager.dailyRoundupEnabled
+        dailyRoundupPreferenceRequiresSignIn = manager.dailyRoundupPreferenceRequiresSignIn
+        dailyRoundupPreferenceError = manager.dailyRoundupPreferenceError
+    }
 }
 
 private func XCTAssertThrowsCowtailAPIError<T>(

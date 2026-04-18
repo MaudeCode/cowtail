@@ -38,12 +38,14 @@ final class AppleAccountManager: NSObject, ObservableObject {
     private let userIDKey = "appleAccount.userID"
     private let displayNameKey = "appleAccount.displayName"
     private let emailKey = "appleAccount.email"
+    private var isUITesting = false
 
     private override init() {
         super.init()
     }
 
     func configure() {
+        isUITesting = false
         userID = keychain.string(for: userIDKey)
         displayName = keychain.string(for: displayNameKey) ?? userDefaults.string(forKey: displayNameKey)
         email = keychain.string(for: emailKey) ?? userDefaults.string(forKey: emailKey)
@@ -88,6 +90,10 @@ final class AppleAccountManager: NSObject, ObservableObject {
     }
 
     func refreshCredentialState() async {
+        guard !isUITesting else {
+            return
+        }
+
         guard let userID else {
             signInState = .signedOut
             return
@@ -130,6 +136,7 @@ final class AppleAccountManager: NSObject, ObservableObject {
     }
 
     func resetForUITesting() {
+        isUITesting = true
         clearStoredIdentity()
         applyUITestState(
             signInState: .signedOut,
@@ -149,6 +156,7 @@ final class AppleAccountManager: NSObject, ObservableObject {
         email: String?,
         lastError: String?
     ) {
+        isUITesting = true
         applyUITestState(
             signInState: signInState,
             userID: userID,

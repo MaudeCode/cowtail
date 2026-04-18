@@ -85,12 +85,14 @@ final class NotificationManager: NSObject, ObservableObject {
     private let syncedUserIDKey = "notifications.syncedUserID"
     private let syncedDeviceTokenKey = "notifications.syncedDeviceToken"
     private let syncedEnvironmentKey = "notifications.syncedEnvironment"
+    private var isUITesting = false
 
     private override init() {
         super.init()
     }
 
     func configure() {
+        isUITesting = false
         UNUserNotificationCenter.current().delegate = self
         deviceToken = persistedString(for: deviceTokenKey)
         if deviceToken != nil {
@@ -105,6 +107,10 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     func refreshAuthorizationStatus() async {
+        guard !isUITesting else {
+            return
+        }
+
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         authorizationStatus = settings.authorizationStatus
     }
@@ -131,6 +137,10 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     func resumeNotificationSetupIfNeeded() {
+        guard !isUITesting else {
+            return
+        }
+
         guard canRegisterWithAPNs else { return }
         guard deviceToken == nil else { return }
         guard registrationState != .registering else { return }
@@ -182,6 +192,7 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     func resetForUITesting() {
+        isUITesting = true
         clearPersistedNotificationState()
         applyUITestState(
             authorizationStatus: .notDetermined,
@@ -207,6 +218,7 @@ final class NotificationManager: NSObject, ObservableObject {
         dailyRoundupPreferenceRequiresSignIn: Bool,
         dailyRoundupPreferenceError: String?
     ) {
+        isUITesting = true
         applyUITestState(
             authorizationStatus: authorizationStatus,
             registrationState: registrationState,
@@ -370,6 +382,10 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     func syncDeviceRegistration() async {
+        guard !isUITesting else {
+            return
+        }
+
         guard let deviceToken else {
             serverRegistrationState = .idle
             serverRegistrationMessage = nil
@@ -460,6 +476,10 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     func loadDailyRoundupPreference() async {
+        guard !isUITesting else {
+            return
+        }
+
         print("[roundup-debug] NotificationManager.loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil)")
         logger.debug("loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil, privacy: .public)")
         guard let _ = AppleAccountManager.shared.userID else {

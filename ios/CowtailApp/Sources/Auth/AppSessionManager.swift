@@ -27,6 +27,7 @@ final class AppSessionManager: ObservableObject {
     private let tokenKey = "appSession.token"
     private let userIDKey = "appSession.userID"
     private let expiresAtKey = "appSession.expiresAt"
+    private var isUITesting = false
     private var sessionToken: String?
     private var refreshTask: Task<String?, Never>?
     private var refreshToken: UUID?
@@ -34,6 +35,7 @@ final class AppSessionManager: ObservableObject {
     private init() {}
 
     func configure() {
+        isUITesting = false
         sessionToken = keychain.string(for: tokenKey)
         userID = keychain.string(for: userIDKey) ?? defaults.string(forKey: userIDKey)
 
@@ -82,6 +84,10 @@ final class AppSessionManager: ObservableObject {
     }
 
     func refreshSessionIfPossible() async -> String? {
+        if isUITesting {
+            return sessionToken
+        }
+
         if let token = validSessionToken() {
             print("[roundup-debug] AppSessionManager.refreshSessionIfPossible using cached session")
             logger.debug("refreshSessionIfPossible using cached session")
@@ -199,6 +205,7 @@ final class AppSessionManager: ObservableObject {
     }
 
     func resetForUITesting() {
+        isUITesting = true
         refreshTask?.cancel()
         refreshTask = nil
         refreshToken = nil
@@ -219,6 +226,7 @@ final class AppSessionManager: ObservableObject {
         expiresAt: Date?,
         lastError: String?
     ) {
+        isUITesting = true
         refreshTask?.cancel()
         refreshTask = nil
         refreshToken = nil
