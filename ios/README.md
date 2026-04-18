@@ -41,16 +41,10 @@ cd ios
 ./generate.sh
 ```
 
-In this workspace, run the full UI suite after loading `Config/project.env` and the same derived defaults used by `./generate.sh`:
+Then run the full UI suite on the preferred simulator:
 
 ```bash
 cd ios
-set -a
-. Config/project.env
-set +a
-export COWTAIL_AUTH_SESSION_URL="${COWTAIL_AUTH_SESSION_URL:-${COWTAIL_ALERT_WRITE_URL%/alerts}/auth/session}"
-export COWTAIL_NOTIFICATION_PREFERENCES_URL="${COWTAIL_NOTIFICATION_PREFERENCES_URL:-${COWTAIL_ALERT_WRITE_URL%/alerts}/me/notification-preferences}"
-export COWTAIL_ROUNDUP_TIMEZONE="${COWTAIL_ROUNDUP_TIMEZONE:-America/New_York}"
 xcodebuild test \
   -project Cowtail.xcodeproj \
   -scheme Cowtail \
