@@ -1,0 +1,7 @@
+version = 1
+name = "cowtail"
+
+[setup]
+script = """
+./script/codex/setup-worktree-local-config.sh
+"""
