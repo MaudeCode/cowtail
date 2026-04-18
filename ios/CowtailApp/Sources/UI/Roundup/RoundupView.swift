@@ -217,7 +217,20 @@ enum RoundupOutcomeSection: CaseIterable, Identifiable {
     case selfResolved
     case noise
 
-    var id: String { title }
+    var id: String { accessibilityKey }
+
+    var accessibilityKey: String {
+        switch self {
+        case .escalated:
+            return "escalated"
+        case .fixed:
+            return "fixed"
+        case .selfResolved:
+            return "self-resolved"
+        case .noise:
+            return "noise"
+        }
+    }
 
     var outcome: AlertOutcome {
         switch self {

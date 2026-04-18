@@ -5,10 +5,7 @@ struct RoundupOutcomeSectionCard: View {
     let alerts: [AlertItem]
 
     private var accessibilityIdentifier: String {
-        let stableKey = section.title
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-        return "section.roundup.\(stableKey)"
+        "section.roundup.\(section.accessibilityKey)"
     }
 
     var body: some View {
