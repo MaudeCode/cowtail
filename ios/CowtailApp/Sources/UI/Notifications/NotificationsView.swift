@@ -621,6 +621,7 @@ struct NotificationSettingsPanel: View {
         }
         .signInWithAppleButtonStyle(.black)
         .frame(height: height)
+        .accessibilityIdentifier("button.notifications.apple-sign-in")
     }
 
     private func refreshAfterAppleSignIn() async {

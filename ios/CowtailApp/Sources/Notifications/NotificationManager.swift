@@ -445,6 +445,14 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
+        if isUITesting {
+            lastSyncedRegistrationKey = nil
+            clearPersistedServerRegistration()
+            serverRegistrationState = .idle
+            serverRegistrationMessage = "Disabled the Cowtail device registration."
+            return
+        }
+
         serverRegistrationState = .syncing
         serverRegistrationMessage = nil
 

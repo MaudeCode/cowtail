@@ -92,6 +92,54 @@ final class SettingsFlowTests: XCTestCase {
         )
     }
 
+    func testNotificationsNeedsAppleShowsAppleSignInAction() {
+        let app = AppLaunching.configuredApp(
+            scenario: "notifications_needs_apple",
+            startTab: "farmhouse"
+        )
+
+        app.launch()
+
+        openNotifications(from: app)
+
+        XCTAssertTrue(
+            element(in: app, identifier: "text.notifications.summary-title").waitForExistence(timeout: 5),
+            "The needs-apple scenario should expose the notifications summary title."
+        )
+        XCTAssertTrue(
+            app.buttons["button.notifications.apple-sign-in"].waitForExistence(timeout: 5),
+            "The needs-apple scenario should expose the Apple sign-in action."
+        )
+        XCTAssertFalse(
+            app.buttons["button.notifications.primary-action"].exists,
+            "The needs-apple scenario should not show the primary setup action."
+        )
+    }
+
+    func testNotificationsSyncErrorShowsRetrySetupAction() {
+        let app = AppLaunching.configuredApp(
+            scenario: "notifications_sync_error",
+            startTab: "farmhouse"
+        )
+
+        app.launch()
+
+        openNotifications(from: app)
+
+        XCTAssertTrue(
+            element(in: app, identifier: "text.notifications.summary-title").waitForExistence(timeout: 5),
+            "The sync-error scenario should expose the notifications summary title."
+        )
+        XCTAssertTrue(
+            app.buttons["button.notifications.primary-action"].waitForExistence(timeout: 5),
+            "The sync-error scenario should expose the retry/setup primary action."
+        )
+        XCTAssertFalse(
+            app.buttons["button.notifications.open-settings"].exists,
+            "The sync-error scenario should not show the open-settings action."
+        )
+    }
+
     private func openNotifications(from app: XCUIApplication) {
         let notificationsCard = app.buttons["card.farmhouse.notifications"]
         XCTAssertTrue(

@@ -72,6 +72,49 @@ final class InboxFlowTests: XCTestCase {
         )
     }
 
+    func testKnownAlertDeepLinkShowsAlertDetail() {
+        let app = AppLaunching.configuredApp(
+            scenario: "alert_deep_link_known",
+            deepLinkURL: "https://cowtail.thezoo.house/alerts/preview-alert"
+        )
+
+        app.launch()
+
+        XCTAssertTrue(
+            element(in: app, identifier: "screen.alert-detail").waitForExistence(timeout: 5),
+            "Known alert deep links should land on the alert detail screen."
+        )
+    }
+
+    func testInboxEmptyShowsEmptyStateCard() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_empty")
+
+        app.launch()
+
+        XCTAssertTrue(
+            element(in: app, identifier: "card.inbox.empty").waitForExistence(timeout: 5),
+            "The empty inbox scenario should render the empty-state card."
+        )
+    }
+
+    func testInboxErrorShowsOnlyErrorStateCard() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_error")
+
+        app.launch()
+
+        let errorCard = element(in: app, identifier: "card.inbox.error")
+        let emptyCard = element(in: app, identifier: "card.inbox.empty")
+
+        XCTAssertTrue(
+            errorCard.waitForExistence(timeout: 5),
+            "The error inbox scenario should render the error card."
+        )
+        XCTAssertFalse(
+            emptyCard.exists,
+            "The error inbox scenario should not also render the empty-state card."
+        )
+    }
+
     private func element(in app: XCUIApplication, identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

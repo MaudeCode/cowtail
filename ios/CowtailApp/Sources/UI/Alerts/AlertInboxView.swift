@@ -109,7 +109,7 @@ struct AlertInboxView: View {
                     ProgressView("Loading alerts...")
                 }
                 .cowtailCard()
-            } else if store.alerts.isEmpty {
+            } else if store.alerts.isEmpty, store.errorMessage == nil {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("No alerts returned")
                         .font(.cowtailSans(17, weight: .semibold, relativeTo: .headline))
@@ -117,6 +117,7 @@ struct AlertInboxView: View {
                         .font(.cowtailSans(13, relativeTo: .footnote))
                     .foregroundStyle(.secondary)
                 }
+                .accessibilityIdentifier("card.inbox.empty")
                 .cowtailCard()
             } else {
                 attentionSection
@@ -214,6 +215,7 @@ struct AlertInboxView: View {
                 .font(.cowtailSans(13, relativeTo: .footnote))
                 .foregroundStyle(.red)
         }
+        .accessibilityIdentifier("card.inbox.error")
     }
 }
 
