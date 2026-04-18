@@ -220,8 +220,6 @@ struct AlertInboxView: View {
 }
 
 private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
-    @State private var isActive = false
-
     let destination: Destination
     let accessibilityIdentifier: String?
     let content: () -> Content
@@ -237,21 +235,13 @@ private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
     }
 
     var body: some View {
-        Button {
-            isActive = true
+        NavigationLink {
+            destination
         } label: {
             content()
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
-        .background {
-            NavigationLink(isActive: $isActive) {
-                destination
-            } label: {
-                EmptyView()
-            }
-            .hidden()
-        }
     }
 }
 

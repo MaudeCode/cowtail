@@ -12,6 +12,7 @@
     "dev:web": "cd web && bun run dev",
     "check:cli": "cd cli && bun run check",
     "build:web": "cd web && bun run build",
+    "test:ios:ui": "cd ios && ./generate.sh && xcodebuild test -project Cowtail.xcodeproj -scheme Cowtail -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.4.1' -only-testing:CowtailUITests",
     "check:protocol": "cd protocol && bun run check",
     "lint:ts": "oxlint web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src",
     "lint:ts:fix": "oxlint --fix web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src",
