@@ -30,7 +30,9 @@ struct AlertDetailView: View {
                 .padding(14)
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             await store.loadFixes(for: alert.id)
         }

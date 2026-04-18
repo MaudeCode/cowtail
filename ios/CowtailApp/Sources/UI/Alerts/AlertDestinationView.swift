@@ -38,6 +38,8 @@ struct AlertDestinationView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(24)
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 }
