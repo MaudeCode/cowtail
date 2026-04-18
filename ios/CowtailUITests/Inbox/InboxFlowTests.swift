@@ -6,6 +6,9 @@ final class InboxFlowTests: XCTestCase {
 
         app.launch()
 
-        XCTAssertTrue(app.otherElements["screen.inbox"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.otherElements["screen.inbox"].waitForExistence(timeout: 5),
+            "screen.inbox is expected once Task 6 adds accessibility identifiers."
+        )
     }
 }
