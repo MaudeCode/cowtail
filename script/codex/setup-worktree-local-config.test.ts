@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const scriptPath = resolve(import.meta.dir, "setup-worktree-local-config.sh");
+const hookPath = resolve(import.meta.dir, "..", "..", ".githooks", "post-checkout");
 const tempRoots: string[] = [];
 
 function makeTempDir(name: string) {
@@ -69,6 +70,40 @@ describe("setup-worktree-local-config.sh", () => {
     expect(result.status).toBe(0);
     expect(readFileSync(join(worktreeRoot, "web/.env"), "utf8")).toBe(
       "VITE_CONVEX_URL=https://worktree.test\n",
+    );
+  });
+
+  test("git worktree creation runs the post-checkout hook and copies local config", () => {
+    const sandboxRoot = makeTempDir("cowtail-hook");
+    const repoRoot = join(sandboxRoot, "repo");
+    const worktreeRoot = join(sandboxRoot, "wt");
+
+    mkdirSync(repoRoot, { recursive: true });
+
+    const run = (command: string, cwd = repoRoot) =>
+      spawnSync("bash", ["-lc", command], {
+        cwd,
+        encoding: "utf8",
+      });
+
+    expect(run("git init -q").status).toBe(0);
+    expect(run("git config user.email test@example.com").status).toBe(0);
+    expect(run("git config user.name test").status).toBe(0);
+
+    writeFile(join(repoRoot, "README.md"), "test\n");
+    writeFile(join(repoRoot, "web/.env"), "VITE_CONVEX_URL=https://source.test\n");
+    writeFile(join(repoRoot, "script/codex/setup-worktree-local-config.sh"), readFileSync(scriptPath, "utf8"));
+    writeFile(join(repoRoot, ".githooks/post-checkout"), readFileSync(hookPath, "utf8"));
+
+    expect(run("chmod +x script/codex/setup-worktree-local-config.sh .githooks/post-checkout").status).toBe(0);
+    expect(run("git config core.hooksPath .githooks").status).toBe(0);
+    expect(run("git add README.md web/.env script/codex/setup-worktree-local-config.sh .githooks/post-checkout").status).toBe(0);
+    expect(run("git commit -q -m init").status).toBe(0);
+
+    const addWorktree = run(`git worktree add "${worktreeRoot}" -b hook-test`);
+    expect(addWorktree.status).toBe(0);
+    expect(readFileSync(join(worktreeRoot, "web/.env"), "utf8")).toBe(
+      "VITE_CONVEX_URL=https://source.test\n",
     );
   });
 });
