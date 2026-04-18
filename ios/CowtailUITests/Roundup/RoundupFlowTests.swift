@@ -45,8 +45,8 @@ final class RoundupFlowTests: XCTestCase {
             "The roundup screen should expose screen.roundup in the empty state too."
         )
         XCTAssertTrue(
-            app.staticTexts["Quiet day"].waitForExistence(timeout: 5),
-            "The empty roundup scenario should render the quiet day state."
+            element(in: app, identifier: "card.roundup.quiet-day").waitForExistence(timeout: 5),
+            "The empty roundup scenario should expose a stable quiet day card identifier."
         )
         XCTAssertTrue(
             element(in: app, identifier: "card.roundup.summary").waitForExistence(timeout: 5),

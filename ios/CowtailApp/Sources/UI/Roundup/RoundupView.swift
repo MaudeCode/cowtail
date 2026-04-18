@@ -80,6 +80,7 @@ struct RoundupView: View {
                 .font(.cowtailSans(13, relativeTo: .footnote))
                 .foregroundStyle(.secondary)
         }
+        .accessibilityIdentifier("card.roundup.quiet-day")
     }
 
     private func errorCard(message: String) -> some View {
