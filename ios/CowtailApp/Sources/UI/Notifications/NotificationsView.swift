@@ -3,7 +3,6 @@ import SwiftUI
 
 struct NotificationSettingsPanel: View {
     @AppStorage("developerModeEnabled") private var developerModeEnabled = false
-    @State private var uiTestDailyRoundupOverride: Bool?
     @Environment(\.cowtailPalette) private var palette
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
@@ -201,12 +200,8 @@ struct NotificationSettingsPanel: View {
                 Toggle(
                     CowtailCopy.dailyRoundupTitle,
                     isOn: Binding(
-                        get: { uiTestDailyRoundupOverride ?? notificationManager.dailyRoundupEnabled },
+                        get: { notificationManager.dailyRoundupEnabled },
                         set: { newValue in
-                            if isUITesting {
-                                uiTestDailyRoundupOverride = newValue
-                            }
-
                             Task {
                                 await notificationManager.updateDailyRoundupEnabled(newValue)
                             }
@@ -598,15 +593,7 @@ struct NotificationSettingsPanel: View {
         return "Finish Sync"
     }
 
-    private var isUITesting: Bool {
-        ProcessInfo.processInfo.environment["UI_TESTING"] == "1"
-    }
-
     private func openSystemSettings() {
-        if isUITesting {
-            return
-        }
-
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
     }
