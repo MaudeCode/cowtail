@@ -44,6 +44,9 @@ final class RoundupInternalsTests: XCTestCase {
 
     func testRoundupViewUsesInjectedRoundupDataClientAndSeededRoundupData() async throws {
         let seed = UITestScenario(named: .inboxPopulated).seed
+        let view = RoundupView(roundupRoute: RoundupRoute(from: "2026-04-14", to: "2026-04-14"))
+        XCTAssertFalse(Mirror(reflecting: view).children.compactMap(\.label).contains("api"))
+
         let client = RoundupDataClientSpy(
             alerts: seed.roundupAlerts,
             fixes: seed.roundupFixes
