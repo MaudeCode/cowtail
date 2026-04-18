@@ -528,6 +528,11 @@ final class NotificationManager: NSObject, ObservableObject {
             isSavingDailyRoundupPreference = false
         }
 
+        if isUITesting {
+            dailyRoundupPreferenceRequiresSignIn = false
+            return
+        }
+
         guard let _ = AppleAccountManager.shared.userID else {
             dailyRoundupEnabled = previousValue
             dailyRoundupPreferenceRequiresSignIn = true

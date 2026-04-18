@@ -73,16 +73,22 @@ final class SettingsFlowTests: XCTestCase {
             dailyRoundupToggle.waitForExistence(timeout: 5),
             "The notifications settings screen should expose the daily roundup toggle identifier."
         )
+        let initialValue = switchValue(for: dailyRoundupToggle)
         XCTAssertEqual(
-            dailyRoundupToggle.value as? String,
+            initialValue,
             "1",
             "The ready notifications fixture should start with daily roundup enabled."
         )
 
         dailyRoundupToggle.tap()
-        XCTAssertTrue(
-            dailyRoundupToggle.exists && dailyRoundupToggle.isHittable,
-            "The daily roundup toggle should remain interactive after tapping it."
+        let valueChangedPredicate = NSPredicate(format: "value != %@", initialValue)
+        expectation(for: valueChangedPredicate, evaluatedWith: dailyRoundupToggle)
+        waitForExpectations(timeout: 2)
+
+        XCTAssertNotEqual(
+            switchValue(for: dailyRoundupToggle),
+            initialValue,
+            "Tapping the daily roundup toggle should change its switch value from the initial state."
         )
     }
 
@@ -103,5 +109,9 @@ final class SettingsFlowTests: XCTestCase {
 
     private func element(in app: XCUIApplication, identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    private func switchValue(for element: XCUIElement) -> String {
+        String(describing: element.value ?? "")
     }
 }
