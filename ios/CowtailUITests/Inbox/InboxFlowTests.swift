@@ -19,17 +19,42 @@ final class InboxFlowTests: XCTestCase {
         app.launch()
 
         let showMoreButton = app.buttons["button.inbox.show-more.active-alerts"]
+        let fourthAlertRow = app.buttons["row.alert.preview-alert-5"]
 
         XCTAssertTrue(
             showMoreButton.waitForExistence(timeout: 5),
             "The active alerts show-more button should appear once the seeded inbox includes more than three actionable alerts."
         )
 
+        XCTAssertFalse(
+            fourthAlertRow.exists,
+            "The fourth actionable alert should stay hidden before expanding the section."
+        )
+
         showMoreButton.tap()
 
         XCTAssertTrue(
-            app.buttons["row.alert.preview-alert-5"].waitForExistence(timeout: 5),
+            fourthAlertRow.waitForExistence(timeout: 5),
             "Expanding active alerts should reveal the fourth actionable alert row."
+        )
+    }
+
+    func testInboxPopulatedCanOpenAlertDetail() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+
+        app.launch()
+
+        let alertRow = app.buttons["row.alert.preview-alert"]
+        XCTAssertTrue(
+            alertRow.waitForExistence(timeout: 5),
+            "A seeded inbox alert row should be tappable from the populated inbox scenario."
+        )
+
+        alertRow.tap()
+
+        XCTAssertTrue(
+            element(in: app, identifier: "screen.alert-detail").waitForExistence(timeout: 5),
+            "Tapping a seeded inbox row should navigate to the alert detail screen."
         )
     }
 
