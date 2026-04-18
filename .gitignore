@@ -16,6 +16,8 @@ dist-ssr
 .env.*
 !.env.example
 !.env.*.example
+web/public/apple-app-site-association
+web/public/.well-known/apple-app-site-association
 
 # Editor directories and files
 .vscode/*
