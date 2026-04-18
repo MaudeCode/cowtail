@@ -2,13 +2,12 @@ import SwiftUI
 
 struct RoundupView: View {
     let roundupRoute: RoundupRoute
+    @Environment(\.roundupDataClient) private var roundupDataClient
 
     @State private var alerts: [AlertItem] = []
     @State private var fixes: [AlertFix] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
-
-    private let api = CowtailAPI()
 
     private var stats: RoundupStats {
         RoundupStats(alerts: alerts, fixes: fixes)
@@ -132,8 +131,8 @@ struct RoundupView: View {
         }
 
         do {
-            async let alertsTask = api.fetchAlerts(from: fromDate, to: toDate)
-            async let fixesTask = api.fetchFixes(from: fromDate, to: toDate)
+            async let alertsTask = roundupDataClient.fetchRoundupAlerts(from: fromDate, to: toDate)
+            async let fixesTask = roundupDataClient.fetchRoundupFixes(from: fromDate, to: toDate)
             alerts = try await alertsTask
             fixes = try await fixesTask
         } catch {
