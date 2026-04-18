@@ -3,6 +3,92 @@ import XCTest
 @testable import Cowtail
 
 final class UITestScenarioTests: XCTestCase {
+    @MainActor
+    func testAppRuntimeSeedsManagersAndStartupTabForUITesting() {
+        AppleAccountManager.shared.seedForUITesting(
+            signInState: .signedOut,
+            userID: "stale-user",
+            identityToken: "stale-token",
+            displayName: "Stale User",
+            email: "stale@example.com",
+            lastError: "stale-apple-error"
+        )
+        AppSessionManager.shared.seedForUITesting(
+            sessionState: .failed,
+            token: "stale-session-token",
+            userID: "stale-user",
+            expiresAt: Date.distantPast,
+            lastError: "stale-session-error"
+        )
+        NotificationManager.shared.seedForUITesting(
+            authorizationStatus: .denied,
+            registrationState: .failed,
+            serverRegistrationState: .failed,
+            deviceToken: "stale-device-token",
+            registrationError: "stale-registration-error",
+            serverRegistrationMessage: "stale-server-message",
+            dailyRoundupEnabled: false,
+            dailyRoundupPreferenceRequiresSignIn: true,
+            dailyRoundupPreferenceError: "stale-preference-error"
+        )
+        UniversalLinkRouter.shared.applyUITestStartupSelection(
+            selectedTab: .roundup,
+            deepLinkURL: URL(string: "https://example.com/alerts/stale-alert")
+        )
+
+        let runtime = AppRuntime.make(
+            configuration: .init(
+                mode: .uiTesting(.notificationsReady),
+                resetPersistentState: true,
+                deepLinkURL: nil,
+                selectedTab: .farmhouse
+            )
+        )
+
+        XCTAssertTrue(runtime.appleAccountManager === AppleAccountManager.shared)
+        XCTAssertTrue(runtime.appSessionManager === AppSessionManager.shared)
+        XCTAssertTrue(runtime.notificationManager === NotificationManager.shared)
+        XCTAssertTrue(runtime.universalLinkRouter === UniversalLinkRouter.shared)
+        XCTAssertEqual(runtime.appleAccountManager.signInState, .signedIn)
+        XCTAssertEqual(runtime.appleAccountManager.userID, "ui-test-apple-user")
+        XCTAssertEqual(runtime.appleAccountManager.identityToken, "ui-test-identity-token")
+        XCTAssertEqual(runtime.appSessionManager.sessionState, .ready)
+        XCTAssertEqual(runtime.appSessionManager.validSessionToken(), "ui-test-session-token")
+        XCTAssertEqual(runtime.notificationManager.authorizationStatus, .authorized)
+        XCTAssertEqual(runtime.notificationManager.registrationState, .registered)
+        XCTAssertEqual(runtime.notificationManager.serverRegistrationState, .registered)
+        XCTAssertEqual(runtime.notificationManager.deviceToken, "ui-test-device-token")
+        XCTAssertTrue(runtime.notificationManager.dailyRoundupEnabled)
+        XCTAssertEqual(runtime.universalLinkRouter.selectedTab, .farmhouse)
+        XCTAssertTrue(runtime.universalLinkRouter.inboxPath.isEmpty)
+    }
+
+    @MainActor
+    func testAppRuntimePreloadsSeededStoreWithoutImmediateRefresh() async {
+        let runtime = AppRuntime.make(
+            configuration: .init(
+                mode: .uiTesting(.inboxPopulated),
+                resetPersistentState: true,
+                deepLinkURL: nil,
+                selectedTab: nil
+            )
+        )
+        let seed = UITestScenario(named: .inboxPopulated).seed
+
+        XCTAssertEqual(ids(runtime.cowtailStore.alerts), ids(seed.store.alerts))
+        XCTAssertEqual(runtime.cowtailStore.health?.cephStatus, "HEALTH_WARN")
+        XCTAssertEqual(runtime.cowtailStore.fixesByAlertID[CowtailPreviewFixtures.alert.id], CowtailPreviewFixtures.fixes)
+        XCTAssertNil(runtime.cowtailStore.lastUpdated)
+        XCTAssertFalse(runtime.cowtailStore.isLoading)
+
+        await runtime.cowtailStore.loadIfNeeded()
+
+        XCTAssertEqual(ids(runtime.cowtailStore.alerts), ids(seed.store.alerts))
+        XCTAssertEqual(runtime.cowtailStore.health?.cephStatus, "HEALTH_WARN")
+        XCTAssertNil(runtime.cowtailStore.lastUpdated)
+        XCTAssertFalse(runtime.cowtailStore.isLoading)
+    }
+
     func testInboxPopulatedSeedIncludesAlertsHealthAndAuthorizedNotifications() {
         let scenario = UITestScenario(named: .inboxPopulated)
         let seed = scenario.seed

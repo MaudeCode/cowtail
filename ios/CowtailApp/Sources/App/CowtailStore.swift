@@ -60,7 +60,9 @@ final class CowtailStore: ObservableObject {
         api: any CowtailAPIClient = CowtailAPI(),
         alerts: [AlertItem] = [],
         health: HealthSummary? = nil,
-        fixesByAlertID: [String: [AlertFix]] = [:]
+        fixesByAlertID: [String: [AlertFix]] = [:],
+        errorMessage: String? = nil,
+        hasLoaded: Bool = false
     ) {
         self.api = api
         self.alerts = alerts
@@ -71,6 +73,8 @@ final class CowtailStore: ObservableObject {
         self.healthErrorMessage = nil
         self.fixesByAlertID = fixesByAlertID
         self.isLoading = false
+        self.errorMessage = errorMessage
+        self.hasLoaded = hasLoaded
     }
 
     func loadIfNeeded() async {

@@ -181,6 +181,45 @@ final class NotificationManager: NSObject, ObservableObject {
         registrationError = error.localizedDescription
     }
 
+    func resetForUITesting() {
+        clearPersistedNotificationState()
+        applyUITestState(
+            authorizationStatus: .notDetermined,
+            registrationState: .idle,
+            serverRegistrationState: .idle,
+            deviceToken: nil,
+            registrationError: nil,
+            serverRegistrationMessage: nil,
+            dailyRoundupEnabled: false,
+            dailyRoundupPreferenceRequiresSignIn: false,
+            dailyRoundupPreferenceError: nil
+        )
+    }
+
+    func seedForUITesting(
+        authorizationStatus: UNAuthorizationStatus,
+        registrationState: RegistrationState,
+        serverRegistrationState: ServerRegistrationState,
+        deviceToken: String?,
+        registrationError: String?,
+        serverRegistrationMessage: String?,
+        dailyRoundupEnabled: Bool,
+        dailyRoundupPreferenceRequiresSignIn: Bool,
+        dailyRoundupPreferenceError: String?
+    ) {
+        applyUITestState(
+            authorizationStatus: authorizationStatus,
+            registrationState: registrationState,
+            serverRegistrationState: serverRegistrationState,
+            deviceToken: deviceToken,
+            registrationError: registrationError,
+            serverRegistrationMessage: serverRegistrationMessage,
+            dailyRoundupEnabled: dailyRoundupEnabled,
+            dailyRoundupPreferenceRequiresSignIn: dailyRoundupPreferenceRequiresSignIn,
+            dailyRoundupPreferenceError: dailyRoundupPreferenceError
+        )
+    }
+
     private func didOpenNotification(_ payload: NotificationOpenPayload) {
         lastNotificationResponse = payload.title
         _ = UniversalLinkRouter.shared.handleNotification(
@@ -594,6 +633,38 @@ final class NotificationManager: NSObject, ObservableObject {
 
         dailyRoundupPreferenceRequiresSignIn = false
         dailyRoundupPreferenceError = error.localizedDescription
+    }
+
+    private func clearPersistedNotificationState() {
+        lastSyncedRegistrationKey = nil
+        removePersistedValue(for: deviceTokenKey)
+        clearPersistedServerRegistration()
+    }
+
+    private func applyUITestState(
+        authorizationStatus: UNAuthorizationStatus,
+        registrationState: RegistrationState,
+        serverRegistrationState: ServerRegistrationState,
+        deviceToken: String?,
+        registrationError: String?,
+        serverRegistrationMessage: String?,
+        dailyRoundupEnabled: Bool,
+        dailyRoundupPreferenceRequiresSignIn: Bool,
+        dailyRoundupPreferenceError: String?
+    ) {
+        lastSyncedRegistrationKey = nil
+        self.authorizationStatus = authorizationStatus
+        self.registrationState = registrationState
+        self.serverRegistrationState = serverRegistrationState
+        self.deviceToken = deviceToken
+        self.registrationError = registrationError
+        self.serverRegistrationMessage = serverRegistrationMessage
+        self.lastNotificationResponse = nil
+        self.dailyRoundupEnabled = dailyRoundupEnabled
+        self.isLoadingDailyRoundupPreference = false
+        self.isSavingDailyRoundupPreference = false
+        self.dailyRoundupPreferenceError = dailyRoundupPreferenceError
+        self.dailyRoundupPreferenceRequiresSignIn = dailyRoundupPreferenceRequiresSignIn
     }
 }
 

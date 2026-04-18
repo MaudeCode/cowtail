@@ -5,7 +5,7 @@ import Foundation
 final class AppleAccountManager: NSObject, ObservableObject {
     static let shared = AppleAccountManager()
 
-    enum SignInState {
+    enum SignInState: Equatable {
         case signedOut
         case restoring
         case signedIn
@@ -115,22 +115,48 @@ final class AppleAccountManager: NSObject, ObservableObject {
     }
 
     func clearIdentity() {
-        keychain.remove(userIDKey)
-        keychain.remove(displayNameKey)
-        keychain.remove(emailKey)
-
-        userDefaults.removeObject(forKey: displayNameKey)
-        userDefaults.removeObject(forKey: emailKey)
-
-        userID = nil
-        identityToken = nil
-        displayName = nil
-        email = nil
-        signInState = .signedOut
-        lastError = nil
+        clearStoredIdentity()
+        applyUITestState(
+            signInState: .signedOut,
+            userID: nil,
+            identityToken: nil,
+            displayName: nil,
+            email: nil,
+            lastError: nil
+        )
 
         AppSessionManager.shared.appleIdentityDidChange()
         NotificationManager.shared.appleIdentityDidChange()
+    }
+
+    func resetForUITesting() {
+        clearStoredIdentity()
+        applyUITestState(
+            signInState: .signedOut,
+            userID: nil,
+            identityToken: nil,
+            displayName: nil,
+            email: nil,
+            lastError: nil
+        )
+    }
+
+    func seedForUITesting(
+        signInState: SignInState,
+        userID: String?,
+        identityToken: String?,
+        displayName: String?,
+        email: String?,
+        lastError: String?
+    ) {
+        applyUITestState(
+            signInState: signInState,
+            userID: userID,
+            identityToken: identityToken,
+            displayName: displayName,
+            email: email,
+            lastError: lastError
+        )
     }
 
     func needsFreshIdentityToken() -> Bool {
@@ -159,6 +185,30 @@ final class AppleAccountManager: NSObject, ObservableObject {
 
         AppSessionManager.shared.appleIdentityDidChange()
         NotificationManager.shared.appleIdentityDidChange()
+    }
+
+    private func clearStoredIdentity() {
+        keychain.remove(userIDKey)
+        keychain.remove(displayNameKey)
+        keychain.remove(emailKey)
+        userDefaults.removeObject(forKey: displayNameKey)
+        userDefaults.removeObject(forKey: emailKey)
+    }
+
+    private func applyUITestState(
+        signInState: SignInState,
+        userID: String?,
+        identityToken: String?,
+        displayName: String?,
+        email: String?,
+        lastError: String?
+    ) {
+        self.userID = userID
+        self.identityToken = identityToken
+        self.displayName = displayName
+        self.email = email
+        self.signInState = signInState
+        self.lastError = lastError
     }
 
     private func credentialState(for userID: String) async throws -> ASAuthorizationAppleIDProvider.CredentialState {

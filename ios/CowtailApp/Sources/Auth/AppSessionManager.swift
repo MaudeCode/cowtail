@@ -9,7 +9,7 @@ final class AppSessionManager: ObservableObject {
         category: "appSession"
     )
 
-    enum SessionState {
+    enum SessionState: Equatable {
         case idle
         case refreshing
         case ready
@@ -151,16 +151,14 @@ final class AppSessionManager: ObservableObject {
     }
 
     func clearSession() {
-        sessionToken = nil
-        userID = nil
-        expiresAt = nil
-        sessionState = .idle
-        lastError = nil
-
-        keychain.remove(tokenKey)
-        keychain.remove(userIDKey)
-        defaults.removeObject(forKey: userIDKey)
-        defaults.removeObject(forKey: expiresAtKey)
+        clearStoredSession()
+        applyUITestState(
+            sessionState: .idle,
+            token: nil,
+            userID: nil,
+            expiresAt: nil,
+            lastError: nil
+        )
     }
 
     func invalidateSession() {
@@ -198,5 +196,59 @@ final class AppSessionManager: ObservableObject {
         keychain.set(session.userID, for: userIDKey)
         defaults.set(session.userID, forKey: userIDKey)
         defaults.set(session.expiresAt.timeIntervalSince1970, forKey: expiresAtKey)
+    }
+
+    func resetForUITesting() {
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshToken = nil
+        clearStoredSession()
+        applyUITestState(
+            sessionState: .idle,
+            token: nil,
+            userID: nil,
+            expiresAt: nil,
+            lastError: nil
+        )
+    }
+
+    func seedForUITesting(
+        sessionState: SessionState,
+        token: String?,
+        userID: String?,
+        expiresAt: Date?,
+        lastError: String?
+    ) {
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshToken = nil
+        applyUITestState(
+            sessionState: sessionState,
+            token: token,
+            userID: userID,
+            expiresAt: expiresAt,
+            lastError: lastError
+        )
+    }
+
+    private func clearStoredSession() {
+        keychain.remove(tokenKey)
+        keychain.remove(userIDKey)
+        defaults.removeObject(forKey: userIDKey)
+        defaults.removeObject(forKey: expiresAtKey)
+    }
+
+    private func applyUITestState(
+        sessionState: SessionState,
+        token: String?,
+        userID: String?,
+        expiresAt: Date?,
+        lastError: String?
+    ) {
+        self.sessionToken = token
+        self.userID = userID
+        self.expiresAt = expiresAt
+        self.sessionState = sessionState
+        self.lastError = lastError
     }
 }

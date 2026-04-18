@@ -110,6 +110,31 @@ final class UniversalLinkRouter: ObservableObject {
         self.roundupRoute = roundupRoute
     }
 
+    func applyUITestStartupSelection(selectedTab: AppTab?, deepLinkURL: URL?) {
+        resetForUITesting()
+
+        if let deepLinkURL, handle(deepLinkURL) {
+            return
+        }
+
+        switch selectedTab {
+        case .inbox:
+            openInbox()
+        case .roundup:
+            openRoundup(roundupRoute)
+        case .farmhouse:
+            self.selectedTab = .farmhouse
+        case nil:
+            break
+        }
+    }
+
+    private func resetForUITesting() {
+        selectedTab = .inbox
+        inboxPath.removeAll()
+        roundupRoute = Self.makeDefaultRoundupRoute()
+    }
+
     private func stringValue(for keys: [String], in userInfo: [AnyHashable: Any]) -> String? {
         for key in keys {
             if let string = userInfo[key] as? String {
