@@ -24,3 +24,4 @@ These values are intentionally product-specific and are currently injected from 
 - Generate the project with `cd ios && ./generate.sh`.
 - Build from `ios/` so path assumptions match the monorepo.
 - When changing notifications or universal links, verify both the app path and the linked backend path instead of assuming the simulator proves the full flow.
+- The seeded iOS UI-test harness is deterministic for in-app flows, but it still exposes system-owned notification controls such as `Open System Settings` and `Sign in with Apple`. Do not add UI tests that tap those controls unless you first isolate them behind a test-safe boundary.
