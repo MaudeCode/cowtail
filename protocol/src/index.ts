@@ -1,6 +1,7 @@
 export * from "./auth.js";
 export * from "./alerts.js";
 export * from "./notifications.js";
+export * from "./openclaw.js";
 export * from "./fixes.js";
 export * from "./health.js";
 export * from "./push.js";
