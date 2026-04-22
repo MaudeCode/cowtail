@@ -56,7 +56,10 @@ async function allocateOpenClawEventSequence(ctx: MutationCtx): Promise<number> 
   return 1;
 }
 
-async function insertOpenClawEvent(ctx: MutationCtx, args: OpenClawEventInsertArgs): Promise<number> {
+async function insertOpenClawEvent(
+  ctx: MutationCtx,
+  args: OpenClawEventInsertArgs,
+): Promise<number> {
   const sequence = await allocateOpenClawEventSequence(ctx);
   const now = Date.now();
 
@@ -405,11 +408,7 @@ export const replayEvents = query({
     const afterSequence = validateOpenClawAfterSequence(args.afterSequence);
 
     if (afterSequence === undefined) {
-      return await ctx.db
-        .query("openclawEvents")
-        .withIndex("by_sequence")
-        .order("asc")
-        .take(limit);
+      return await ctx.db.query("openclawEvents").withIndex("by_sequence").order("asc").take(limit);
     }
 
     return await ctx.db

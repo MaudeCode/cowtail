@@ -54,9 +54,10 @@ export function validateOpenClawLimit(value: number | undefined): number {
   return value;
 }
 
-export function sortOpenClawMessagesAscending<IdValue extends string, T extends MessageLike<IdValue>>(
-  messages: T[],
-): T[] {
+export function sortOpenClawMessagesAscending<
+  IdValue extends string,
+  T extends MessageLike<IdValue>,
+>(messages: T[]): T[] {
   return [...messages].sort((left, right) => {
     if (left.createdAt !== right.createdAt) {
       return left.createdAt - right.createdAt;

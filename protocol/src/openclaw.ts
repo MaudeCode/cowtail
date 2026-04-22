@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-import {
-  jsonObjectSchema,
-  nonEmptyStringSchema,
-  timestampSchema,
-} from "./shared.js";
+import { jsonObjectSchema, nonEmptyStringSchema, timestampSchema } from "./shared.js";
 
 export const openclawEventTypes = [
   "hello_acknowledged",
