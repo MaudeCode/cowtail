@@ -6,14 +6,7 @@ import {
   timestampSchema,
 } from "./shared.js";
 
-export const openclawProtocolVersionSchema = z.literal(1);
-export const openclawClientKindSchema = z.enum(["openclaw_plugin", "ios"]);
-export const openclawThreadStatusSchema = z.enum(["pending", "active", "archived"]);
-export const openclawTargetAgentSchema = z.literal("default");
-export const openclawMessageDirectionSchema = z.enum(["openclaw_to_user", "user_to_openclaw"]);
-export const openclawDeliveryStateSchema = z.enum(["pending", "sent", "failed"]);
-export const openclawActionStateSchema = z.enum(["pending", "submitted", "failed", "expired"]);
-export const openclawEventTypeSchema = z.enum([
+export const openclawEventTypes = [
   "hello_acknowledged",
   "thread_created",
   "thread_updated",
@@ -24,7 +17,16 @@ export const openclawEventTypeSchema = z.enum([
   "action_result",
   "session_bound",
   "error",
-]);
+] as const;
+
+export const openclawProtocolVersionSchema = z.literal(1);
+export const openclawClientKindSchema = z.enum(["openclaw_plugin", "ios"]);
+export const openclawThreadStatusSchema = z.enum(["pending", "active", "archived"]);
+export const openclawTargetAgentSchema = z.literal("default");
+export const openclawMessageDirectionSchema = z.enum(["openclaw_to_user", "user_to_openclaw"]);
+export const openclawDeliveryStateSchema = z.enum(["pending", "sent", "failed"]);
+export const openclawActionStateSchema = z.enum(["pending", "submitted", "failed", "expired"]);
+export const openclawEventTypeSchema = z.enum(openclawEventTypes);
 export const openclawSequenceSchema = z.number().int().nonnegative();
 
 export const openclawLinkSchema = z.object({

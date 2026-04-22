@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { openclawEventTypes } from "@maudecode/cowtail-protocol";
 
 export default defineSchema({
   alerts: defineTable({
@@ -77,6 +78,7 @@ export default defineSchema({
     lastMessageAt: v.optional(v.number()),
   })
     .index("by_sessionKey", ["sessionKey"])
+    .index("by_updatedAt", ["updatedAt"])
     .index("by_status_updatedAt", ["status", "updatedAt"]),
 
   openclawMessages: defineTable({
@@ -113,18 +115,7 @@ export default defineSchema({
 
   openclawEvents: defineTable({
     sequence: v.number(),
-    type: v.union(
-      v.literal("hello_acknowledged"),
-      v.literal("thread_created"),
-      v.literal("thread_updated"),
-      v.literal("message_created"),
-      v.literal("message_acknowledged"),
-      v.literal("reply_created"),
-      v.literal("action_submitted"),
-      v.literal("action_result"),
-      v.literal("session_bound"),
-      v.literal("error"),
-    ),
+    type: v.union(...openclawEventTypes.map((type) => v.literal(type))),
     threadId: v.optional(v.id("openclawThreads")),
     messageId: v.optional(v.id("openclawMessages")),
     actionId: v.optional(v.id("openclawActions")),
