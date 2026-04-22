@@ -16,6 +16,8 @@ import type * as crons from "../crons.js";
 import type * as fixes from "../fixes.js";
 import type * as http from "../http.js";
 import type * as notificationPreferences from "../notificationPreferences.js";
+import type * as openclaw from "../openclaw.js";
+import type * as openclawModel from "../openclawModel.js";
 import type * as push from "../push.js";
 import type * as pushActions from "../pushActions.js";
 import type * as pushDelivery from "../pushDelivery.js";
@@ -37,6 +39,8 @@ declare const fullApi: ApiFromModules<{
   fixes: typeof fixes;
   http: typeof http;
   notificationPreferences: typeof notificationPreferences;
+  openclaw: typeof openclaw;
+  openclawModel: typeof openclawModel;
   push: typeof push;
   pushActions: typeof pushActions;
   pushDelivery: typeof pushDelivery;
