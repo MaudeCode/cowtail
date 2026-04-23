@@ -286,6 +286,55 @@ describe("CowtailRealtimeClient", () => {
     });
   });
 
+  test("waits for the handshake when sending immediately after start", async () => {
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      requestIdFactory: () => "request-before-open",
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    const pending = client.sendOpenClawMessage({
+      type: "openclaw_message",
+      sessionKey: "session-before-open",
+      text: "hello before open",
+    });
+
+    socket.open();
+    await flushMicrotasks();
+
+    expect(JSON.parse(socket.sent[0]!)).toEqual({
+      protocolVersion: 1,
+      clientKind: "openclaw_plugin",
+      token: "bridge-token",
+    });
+    expect(JSON.parse(socket.sent[1]!)).toEqual({
+      type: "openclaw_message",
+      requestId: "request-before-open",
+      sessionKey: "session-before-open",
+      text: "hello before open",
+      links: [],
+      actions: [],
+    });
+
+    socket.message({
+      type: "ack",
+      requestId: "request-before-open",
+      sequence: 55,
+    });
+
+    await expect(pending).resolves.toEqual({
+      requestId: "request-before-open",
+      sequence: 55,
+    });
+  });
+
   test("resolves command promises when matching ack arrives", async () => {
     const sockets: FakeWebSocket[] = [];
     const client = new CowtailRealtimeClient({

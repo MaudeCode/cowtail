@@ -242,7 +242,23 @@ export function createCowtailChannelPlugin(
       },
     },
     messaging: {
+      inferTargetChatType: () => "direct",
       normalizeTarget: (raw) => normalizeCowtailTarget(raw) || undefined,
+      targetResolver: {
+        hint: "Use a Cowtail thread id",
+        resolveTarget: async (params) => {
+          resolveAccountId(params.accountId);
+          const target = normalizeCowtailTarget(params.normalized);
+          if (!target) {
+            return null;
+          }
+          return {
+            to: buildCowtailTarget(target),
+            kind: "user",
+            source: "normalized",
+          };
+        },
+      },
       resolveOutboundSessionRoute: (params) => {
         if (!isSupportedCowtailAgent(params.agentId)) {
           throw new Error('Cowtail channel only supports agentId "main"');
@@ -280,17 +296,36 @@ export function createCowtailChannelPlugin(
           throw new Error("Cowtail account is not configured");
         }
 
-        const client = activeClients.get(accountId);
-        if (!client) {
-          throw new Error(`Cowtail account ${accountId} is not running`);
+        const activeClient = activeClients.get(accountId);
+        if (activeClient) {
+          return deps.sendText({
+            account,
+            client: activeClient,
+            to: ctx.to,
+            text: ctx.text,
+          });
         }
 
-        return deps.sendText({
+        const runtime = deps.resolveRuntime();
+        const stateDir = runtime.state.resolveStateDir(process.env);
+        const stateStore = deps.createStateStore(stateDir, accountId);
+        const client = deps.createClient({
           account,
-          client,
-          to: ctx.to,
-          text: ctx.text,
+          stateStore,
+          onEvent: async () => undefined,
         });
+
+        client.start();
+        try {
+          return await deps.sendText({
+            account,
+            client,
+            to: ctx.to,
+            text: ctx.text,
+          });
+        } finally {
+          client.stop();
+        }
       },
     },
   },

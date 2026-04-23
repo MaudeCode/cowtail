@@ -349,20 +349,26 @@ export class CowtailRealtimeClient {
   ): Promise<CowtailCommandResult> {
     const socket = this.#socket;
     const handshake = this.#handshake;
-    if (!socket || !handshake || !this.#isSocketOpen(socket)) {
+    if (!socket || !handshake) {
       throw new Error("Cowtail websocket is disconnected");
     }
 
     await handshake.promise;
 
-    if (socket !== this.#socket || handshake !== this.#handshake || !this.#isSocketOpen(socket)) {
+    const currentSocket = this.#socket;
+    if (
+      !currentSocket ||
+      socket !== currentSocket ||
+      handshake !== this.#handshake ||
+      !this.#isSocketOpen(currentSocket)
+    ) {
       throw new Error("Cowtail websocket is disconnected");
     }
 
     return new Promise<CowtailCommandResult>((resolve, reject) => {
       this.#pendingRequests.set(command.requestId, { resolve, reject });
       try {
-        socket.send(JSON.stringify(command));
+        currentSocket.send(JSON.stringify(command));
       } catch (error) {
         this.#pendingRequests.delete(command.requestId);
         reject(error instanceof Error ? error : new Error("Cowtail websocket send failed"));

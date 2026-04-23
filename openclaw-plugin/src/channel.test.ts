@@ -352,6 +352,40 @@ describe("cowtailChannelPlugin", () => {
     await running;
   });
 
+  test("outbound.sendText creates a transient client when no active client exists", async () => {
+    const cowtailChannelPlugin = createPlugin();
+    const cfg = createConfig();
+
+    const result = await cowtailChannelPlugin.outbound!.sendText?.({
+      cfg,
+      accountId: DEFAULT_ACCOUNT_ID,
+      to: "thread_fresh",
+      text: "Hello from a fresh process",
+    } as never);
+
+    expect(stateStoreCreations).toEqual([
+      {
+        stateDir: "/tmp/openclaw-state",
+        accountId: DEFAULT_ACCOUNT_ID,
+      },
+    ]);
+    expect(clientInstances).toHaveLength(1);
+    expect(clientInstances[0]?.started).toBe(true);
+    expect(clientInstances[0]?.stopped).toBe(true);
+    expect(sendCowtailTextMock).toHaveBeenCalledTimes(1);
+    expect(sendCowtailTextMock.mock.calls[0]?.[0]).toMatchObject({
+      account: resolveCowtailAccount(cfg),
+      client: clientInstances[0],
+      to: "thread_fresh",
+      text: "Hello from a fresh process",
+    });
+    expect(result as Record<string, unknown>).toMatchObject({
+      channel: "cowtail",
+      messageId: "sent-1",
+      to: "cowtail:thread_123",
+    });
+  });
+
   test("replacement lifecycle abort does not let the old run clobber current status", async () => {
     const cowtailChannelPlugin = createPlugin();
     const { first, second, getCurrentStatus } = createSharedGatewayContexts();
@@ -421,5 +455,23 @@ describe("cowtailChannelPlugin", () => {
         target: "thread_123",
       }),
     ).toThrow(/main/);
+  });
+
+  test("messaging.targetResolver resolves direct Cowtail thread targets after directory fallback", async () => {
+    const cowtailChannelPlugin = createPlugin();
+
+    await expect(
+      cowtailChannelPlugin.messaging!.targetResolver?.resolveTarget?.({
+        cfg: createConfig(),
+        accountId: DEFAULT_ACCOUNT_ID,
+        input: "smoke",
+        normalized: "smoke",
+        preferredKind: "group",
+      }),
+    ).resolves.toEqual({
+      to: "cowtail:smoke",
+      kind: "user",
+      source: "normalized",
+    });
   });
 });
