@@ -101,6 +101,40 @@ function createGatewayContext(cfg = createConfig()) {
   };
 }
 
+function createSharedGatewayContexts(cfg = createConfig()) {
+  const statusHistory: Array<Record<string, unknown>> = [];
+  let currentStatus: Record<string, unknown> = {
+    accountId: DEFAULT_ACCOUNT_ID,
+  };
+
+  function makeCtx() {
+    return {
+      cfg,
+      accountId: DEFAULT_ACCOUNT_ID,
+      account: resolveCowtailAccount(cfg),
+      runtime: createRuntime(),
+      abortSignal: new AbortController().signal,
+      getStatus: () => currentStatus,
+      setStatus: (next: Record<string, unknown>) => {
+        currentStatus = next;
+        statusHistory.push(next);
+      },
+      log: {
+        info: (_message: string) => undefined,
+        warn: (_message: string) => undefined,
+        error: (_message: string) => undefined,
+      },
+    };
+  }
+
+  return {
+    first: makeCtx(),
+    second: makeCtx(),
+    statusHistory,
+    getCurrentStatus: () => currentStatus,
+  };
+}
+
 function createPlugin() {
   return createCowtailChannelPlugin({
     createStateStore: (stateDir, accountId) => {
@@ -316,6 +350,53 @@ describe("cowtailChannelPlugin", () => {
 
     await releaseAbort();
     await running;
+  });
+
+  test("replacement lifecycle abort does not let the old run clobber current status", async () => {
+    const cowtailChannelPlugin = createPlugin();
+    const { first, second, getCurrentStatus } = createSharedGatewayContexts();
+    const abortResolvers: Array<() => Promise<void>> = [];
+
+    waitUntilAbortImpl = async (_signal, onAbort) => {
+      await new Promise<void>((resolve) => {
+        abortResolvers.push(async () => {
+          await onAbort?.();
+          resolve();
+        });
+      });
+    };
+
+    const firstRun = cowtailChannelPlugin.gateway!.startAccount?.(first as never);
+    expect(clientInstances).toHaveLength(1);
+
+    const secondRun = cowtailChannelPlugin.gateway!.startAccount?.(second as never);
+    expect(clientInstances).toHaveLength(2);
+    expect(clientInstances[0]?.stopped).toBe(true);
+
+    await clientInstances[1]?.deps.onEvent({
+      type: "thread_created",
+      sequence: 2,
+      createdAt: 1700000000001,
+    } as never);
+
+    expect(getCurrentStatus()).toMatchObject({
+      accountId: DEFAULT_ACCOUNT_ID,
+      running: true,
+      connected: true,
+      lastConnectedAt: 1700000000001,
+    });
+
+    await abortResolvers[0]?.();
+
+    expect(getCurrentStatus()).toMatchObject({
+      accountId: DEFAULT_ACCOUNT_ID,
+      running: true,
+      connected: true,
+      lastConnectedAt: 1700000000001,
+    });
+
+    await abortResolvers[1]?.();
+    await Promise.all([firstRun, secondRun]);
   });
 
   test("messaging.normalizeTarget strips the cowtail prefix", () => {

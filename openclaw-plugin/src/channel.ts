@@ -23,6 +23,7 @@ const CHANNEL_DOCS_PATH = "/channels/cowtail";
 const CHANNEL_BLURB = "Send OpenClaw threads through Cowtail mobile realtime.";
 
 const activeClients = new Map<string, CowtailRealtimeClient>();
+const activeRunGenerations = new Map<string, number>();
 
 type CowtailChannelDeps = {
   createStateStore: (stateDir: string, accountId: string) => CowtailStateStore;
@@ -64,6 +65,12 @@ function tokenStatusForAccount(account: ReturnType<typeof resolveCowtailAccount>
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function startRunGeneration(accountId: string): number {
+  const nextGeneration = (activeRunGenerations.get(accountId) ?? 0) + 1;
+  activeRunGenerations.set(accountId, nextGeneration);
+  return nextGeneration;
 }
 
 export function createCowtailChannelPlugin(
@@ -123,10 +130,15 @@ export function createCowtailChannelPlugin(
           throw new Error("Cowtail account is not configured");
         }
 
+        const runGeneration = startRunGeneration(accountId);
+        const isCurrentRun = () => activeRunGenerations.get(accountId) === runGeneration;
         const runtime = deps.resolveRuntime();
         const stateDir = runtime.state.resolveStateDir(process.env);
         const stateStore = deps.createStateStore(stateDir, accountId);
         const setStatus = (patch: Record<string, unknown>) => {
+          if (!isCurrentRun()) {
+            return;
+          }
           ctx.setStatus({
             ...ctx.getStatus(),
             accountId,
@@ -222,6 +234,9 @@ export function createCowtailChannelPlugin(
         } finally {
           if (activeClients.get(accountId) === client) {
             activeClients.delete(accountId);
+          }
+          if (isCurrentRun()) {
+            activeRunGenerations.delete(accountId);
           }
         }
       },
