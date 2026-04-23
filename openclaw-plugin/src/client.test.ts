@@ -146,6 +146,16 @@ async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("CowtailRealtimeClient", () => {
   test("sends plugin hello with token and stored replay cursor on open", async () => {
     const sockets: FakeWebSocket[] = [];
@@ -174,6 +184,64 @@ describe("CowtailRealtimeClient", () => {
       token: "bridge-token",
       lastSeenSequence: 17,
     });
+  });
+
+  test("sends hello before queued command frames when replay cursor load is delayed", async () => {
+    const sockets: FakeWebSocket[] = [];
+    const cursor = createDeferred<number | undefined>();
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: () => cursor.promise,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      requestIdFactory: () => "request-delayed",
+      webSocketFactory: (url) => {
+        const socket = new FakeWebSocket(url);
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    client.start();
+    sockets[0]!.open();
+
+    const pending = client.sendOpenClawMessage({
+      type: "openclaw_message",
+      sessionKey: "session-delayed",
+      text: "queued",
+    });
+
+    await flushMicrotasks();
+    expect(sockets[0]!.sent).toHaveLength(0);
+
+    cursor.resolve(88);
+    await flushMicrotasks();
+
+    expect(sockets[0]!.sent).toHaveLength(2);
+    expect(JSON.parse(sockets[0]!.sent[0]!)).toEqual({
+      protocolVersion: 1,
+      clientKind: "openclaw_plugin",
+      token: "bridge-token",
+      lastSeenSequence: 88,
+    });
+    expect(JSON.parse(sockets[0]!.sent[1]!)).toEqual({
+      type: "openclaw_message",
+      requestId: "request-delayed",
+      sessionKey: "session-delayed",
+      text: "queued",
+      links: [],
+      actions: [],
+    });
+
+    sockets[0]!.message({
+      type: "ack",
+      requestId: "request-delayed",
+      sequence: 101,
+    });
+
+    await expect(pending).resolves.toBe(101);
   });
 
   test("resolves command promises when matching ack arrives", async () => {
@@ -209,6 +277,7 @@ describe("CowtailRealtimeClient", () => {
         return value;
       });
 
+    await flushMicrotasks();
     expect(JSON.parse(sockets[0]!.sent[1]!)).toEqual({
       type: "openclaw_message",
       requestId: "request-1",
@@ -419,6 +488,7 @@ describe("CowtailRealtimeClient", () => {
       sessionKey: "session-1",
     });
 
+    await flushMicrotasks();
     socket.close(1006, "lost connection");
 
     await expect(pending).rejects.toThrow(/closed/i);

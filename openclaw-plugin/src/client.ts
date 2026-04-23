@@ -39,6 +39,12 @@ type PendingRequest = {
   reject: (error: Error) => void;
 };
 
+type HandshakeState = {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: Error) => void;
+};
+
 export type CowtailRealtimeClientDeps = {
   account: ResolvedCowtailAccount;
   stateStore: Pick<CowtailStateStore, "readLastSeenSequence" | "writeLastSeenSequence">;
@@ -84,6 +90,7 @@ export class CowtailRealtimeClient {
   #started = false;
   #reconnectTimer: TimerHandle | undefined;
   #reconnectAttempt = 0;
+  #handshake: HandshakeState | undefined;
   #pendingRequests = new Map<string, PendingRequest>();
 
   constructor(deps: CowtailRealtimeClientDeps) {
@@ -141,10 +148,12 @@ export class CowtailRealtimeClient {
     }
 
     const socket = this.#webSocketFactory(this.#account.url);
+    const handshake = this.#createHandshakeState();
     this.#socket = socket;
+    this.#handshake = handshake;
 
     socket.onopen = () => {
-      void this.#handleOpen(socket);
+      void this.#handleOpen(socket, handshake);
     };
     socket.onmessage = (event) => {
       void this.#handleMessage(socket, event.data);
@@ -157,14 +166,19 @@ export class CowtailRealtimeClient {
     };
   }
 
-  async #handleOpen(socket: WebSocketLike): Promise<void> {
+  async #handleOpen(socket: WebSocketLike, handshake: HandshakeState): Promise<void> {
     if (socket !== this.#socket || !this.#isSocketOpen(socket)) {
       return;
     }
 
-    const lastSeenSequence = await this.#stateStore.readLastSeenSequence();
+    let lastSeenSequence: number | undefined;
+    try {
+      lastSeenSequence = await this.#stateStore.readLastSeenSequence();
+    } catch {
+      this.#logger?.warn?.("Cowtail websocket failed to load replay cursor");
+    }
 
-    if (socket !== this.#socket || !this.#isSocketOpen(socket)) {
+    if (socket !== this.#socket || handshake !== this.#handshake || !this.#isSocketOpen(socket)) {
       return;
     }
 
@@ -182,7 +196,15 @@ export class CowtailRealtimeClient {
             lastSeenSequence,
           };
 
-    socket.send(JSON.stringify(hello));
+    try {
+      socket.send(JSON.stringify(hello));
+      handshake.resolve();
+    } catch (error) {
+      const failure =
+        error instanceof Error ? error : new Error("Cowtail websocket handshake send failed");
+      handshake.reject(failure);
+      throw failure;
+    }
   }
 
   async #handleMessage(socket: WebSocketLike, rawMessage: unknown): Promise<void> {
@@ -230,6 +252,7 @@ export class CowtailRealtimeClient {
     }
 
     this.#socket = undefined;
+    this.#rejectHandshake(new Error("Cowtail websocket closed"));
     this.#rejectAllPendingRequests(new Error("Cowtail websocket closed"));
 
     if (!this.#started) {
@@ -252,6 +275,7 @@ export class CowtailRealtimeClient {
   #closeSocket(): void {
     const socket = this.#socket;
     this.#socket = undefined;
+    this.#rejectHandshake(new Error("Cowtail websocket closed"));
     this.#rejectAllPendingRequests(new Error("Cowtail websocket closed"));
 
     if (!socket) {
@@ -279,12 +303,19 @@ export class CowtailRealtimeClient {
     this.#reconnectTimer = undefined;
   }
 
-  #sendCommand(
+  async #sendCommand(
     command: OpenClawPluginMessageCommand | OpenClawSessionBoundCommand | OpenClawActionResultCommand,
   ): Promise<number | undefined> {
     const socket = this.#socket;
-    if (!socket || !this.#isSocketOpen(socket)) {
-      return Promise.reject(new Error("Cowtail websocket is disconnected"));
+    const handshake = this.#handshake;
+    if (!socket || !handshake || !this.#isSocketOpen(socket)) {
+      throw new Error("Cowtail websocket is disconnected");
+    }
+
+    await handshake.promise;
+
+    if (socket !== this.#socket || handshake !== this.#handshake || !this.#isSocketOpen(socket)) {
+      throw new Error("Cowtail websocket is disconnected");
     }
 
     return new Promise<number | undefined>((resolve, reject) => {
@@ -328,6 +359,26 @@ export class CowtailRealtimeClient {
       this.#pendingRequests.delete(requestId);
       pending.reject(error);
     }
+  }
+
+  #createHandshakeState(): HandshakeState {
+    let resolve!: () => void;
+    let reject!: (error: Error) => void;
+    const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise;
+      reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+  }
+
+  #rejectHandshake(error: Error): void {
+    if (!this.#handshake) {
+      return;
+    }
+
+    const handshake = this.#handshake;
+    this.#handshake = undefined;
+    handshake.reject(error);
   }
 
   #isSocketOpen(socket: WebSocketLike): boolean {
