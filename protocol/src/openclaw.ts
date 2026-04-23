@@ -107,6 +107,95 @@ export const openclawActionSubmittedEventSchema = openclawEventEnvelopeSchema.ex
   payload: jsonObjectSchema,
 });
 
+export const openclawRequestIdSchema = nonEmptyStringSchema;
+
+export const openclawActionDraftSchema = z.object({
+  label: nonEmptyStringSchema,
+  kind: nonEmptyStringSchema,
+  payload: jsonObjectSchema,
+});
+
+export const openclawPluginMessageCommandSchema = z.object({
+  type: z.literal("openclaw_message"),
+  requestId: openclawRequestIdSchema,
+  sessionKey: nonEmptyStringSchema,
+  title: nonEmptyStringSchema.optional(),
+  text: nonEmptyStringSchema,
+  authorLabel: nonEmptyStringSchema.optional(),
+  links: z.array(openclawLinkSchema).default([]),
+  actions: z.array(openclawActionDraftSchema).default([]),
+});
+
+export const openclawIosNewThreadCommandSchema = z.object({
+  type: z.literal("ios_new_thread"),
+  requestId: openclawRequestIdSchema,
+  title: nonEmptyStringSchema.optional(),
+  text: nonEmptyStringSchema,
+});
+
+export const openclawIosReplyCommandSchema = z.object({
+  type: z.literal("ios_reply"),
+  requestId: openclawRequestIdSchema,
+  threadId: nonEmptyStringSchema,
+  text: nonEmptyStringSchema,
+});
+
+export const openclawIosActionCommandSchema = z.object({
+  type: z.literal("ios_action"),
+  requestId: openclawRequestIdSchema,
+  actionId: nonEmptyStringSchema,
+  payload: jsonObjectSchema,
+});
+
+export const openclawIosMarkThreadReadCommandSchema = z.object({
+  type: z.literal("ios_mark_thread_read"),
+  requestId: openclawRequestIdSchema,
+  threadId: nonEmptyStringSchema,
+});
+
+export const openclawSessionBoundCommandSchema = z.object({
+  type: z.literal("openclaw_session_bound"),
+  requestId: openclawRequestIdSchema,
+  threadId: nonEmptyStringSchema,
+  sessionKey: nonEmptyStringSchema,
+});
+
+export const openclawActionResultCommandSchema = z.object({
+  type: z.literal("openclaw_action_result"),
+  requestId: openclawRequestIdSchema,
+  actionId: nonEmptyStringSchema,
+  state: z.enum(["submitted", "failed", "expired"]),
+  resultMetadata: jsonObjectSchema.optional(),
+});
+
+export const openclawRealtimeClientMessageSchema = z.discriminatedUnion("type", [
+  openclawPluginMessageCommandSchema,
+  openclawIosNewThreadCommandSchema,
+  openclawIosReplyCommandSchema,
+  openclawIosActionCommandSchema,
+  openclawIosMarkThreadReadCommandSchema,
+  openclawSessionBoundCommandSchema,
+  openclawActionResultCommandSchema,
+]);
+
+export const openclawRealtimeAckSchema = z.object({
+  type: z.literal("ack"),
+  requestId: openclawRequestIdSchema,
+  sequence: openclawSequenceSchema.optional(),
+});
+
+export const openclawRealtimeErrorSchema = z.object({
+  type: z.literal("realtime_error"),
+  requestId: openclawRequestIdSchema.optional(),
+  error: nonEmptyStringSchema,
+});
+
+export const openclawRealtimeServerMessageSchema = z.union([
+  openclawEventEnvelopeSchema,
+  openclawRealtimeAckSchema,
+  openclawRealtimeErrorSchema,
+]);
+
 export const openclawReplayQuerySchema = z.object({
   afterSequence: openclawSequenceSchema.optional(),
   limit: z.number().int().positive().max(500).default(100),
@@ -139,6 +228,21 @@ export type OpenClawActionState = z.infer<typeof openclawActionStateSchema>;
 export type OpenClawEventType = z.infer<typeof openclawEventTypeSchema>;
 export type OpenClawLink = z.infer<typeof openclawLinkSchema>;
 export type OpenClawActionSubmittedEvent = z.infer<typeof openclawActionSubmittedEventSchema>;
+export type OpenClawRequestId = z.infer<typeof openclawRequestIdSchema>;
+export type OpenClawActionDraft = z.infer<typeof openclawActionDraftSchema>;
+export type OpenClawRealtimeClientMessage = z.infer<typeof openclawRealtimeClientMessageSchema>;
+export type OpenClawPluginMessageCommand = z.infer<typeof openclawPluginMessageCommandSchema>;
+export type OpenClawIosNewThreadCommand = z.infer<typeof openclawIosNewThreadCommandSchema>;
+export type OpenClawIosReplyCommand = z.infer<typeof openclawIosReplyCommandSchema>;
+export type OpenClawIosActionCommand = z.infer<typeof openclawIosActionCommandSchema>;
+export type OpenClawIosMarkThreadReadCommand = z.infer<
+  typeof openclawIosMarkThreadReadCommandSchema
+>;
+export type OpenClawSessionBoundCommand = z.infer<typeof openclawSessionBoundCommandSchema>;
+export type OpenClawActionResultCommand = z.infer<typeof openclawActionResultCommandSchema>;
+export type OpenClawRealtimeAck = z.infer<typeof openclawRealtimeAckSchema>;
+export type OpenClawRealtimeError = z.infer<typeof openclawRealtimeErrorSchema>;
+export type OpenClawRealtimeServerMessage = z.infer<typeof openclawRealtimeServerMessageSchema>;
 export type OpenClawSequence = z.infer<typeof openclawSequenceSchema>;
 export type OpenClawThreadListResponse = z.infer<typeof openclawThreadListResponseSchema>;
 export type OpenClawMessageListResponse = z.infer<typeof openclawMessageListResponseSchema>;

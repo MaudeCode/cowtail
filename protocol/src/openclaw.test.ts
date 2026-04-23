@@ -6,6 +6,8 @@ import {
   openclawEventEnvelopeSchema,
   openclawMessageRecordSchema,
   openclawReplayQuerySchema,
+  openclawRealtimeClientMessageSchema,
+  openclawRealtimeServerMessageSchema,
   openclawThreadRecordSchema,
 } from "./openclaw.js";
 
@@ -110,5 +112,160 @@ describe("openclaw protocol schemas", () => {
     });
 
     expect(negativeSequence.success).toBe(false);
+  });
+
+  test("parses realtime OpenClaw plugin message command", () => {
+    const parsed = openclawRealtimeClientMessageSchema.parse({
+      type: "openclaw_message",
+      requestId: "request-1",
+      sessionKey: "session-1",
+      title: "Deploy approval",
+      text: "Approve production deploy?",
+      authorLabel: "OpenClaw",
+      links: [{ label: "Run", url: "https://cowtail.example.invalid/runs/1" }],
+      actions: [
+        {
+          label: "Approve",
+          kind: "approval",
+          payload: { decision: "approve" },
+        },
+      ],
+    });
+
+    if (parsed.type !== "openclaw_message") {
+      throw new Error("unexpected parsed realtime message type");
+    }
+
+    expect(parsed.type).toBe("openclaw_message");
+    expect(parsed.actions).toEqual([
+      {
+        label: "Approve",
+        kind: "approval",
+        payload: { decision: "approve" },
+      },
+    ]);
+  });
+
+  test("parses realtime iOS commands", () => {
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "ios_new_thread",
+        requestId: "request-2",
+        title: "Check backup",
+        text: "Can you inspect the latest backup?",
+      }),
+    ).toEqual({
+      type: "ios_new_thread",
+      requestId: "request-2",
+      title: "Check backup",
+      text: "Can you inspect the latest backup?",
+    });
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "ios_reply",
+        requestId: "request-3",
+        threadId: "thread-1",
+        text: "Run it now.",
+      }),
+    ).toEqual({
+      type: "ios_reply",
+      requestId: "request-3",
+      threadId: "thread-1",
+      text: "Run it now.",
+    });
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "ios_action",
+        requestId: "request-4",
+        actionId: "action-1",
+        payload: { decision: "approve" },
+      }),
+    ).toEqual({
+      type: "ios_action",
+      requestId: "request-4",
+      actionId: "action-1",
+      payload: { decision: "approve" },
+    });
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "ios_mark_thread_read",
+        requestId: "request-4b",
+        threadId: "thread-1",
+      }),
+    ).toEqual({
+      type: "ios_mark_thread_read",
+      requestId: "request-4b",
+      threadId: "thread-1",
+    });
+  });
+
+  test("parses realtime session binding and action result commands", () => {
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "openclaw_session_bound",
+        requestId: "request-5",
+        threadId: "thread-1",
+        sessionKey: "session-1",
+      }),
+    ).toEqual({
+      type: "openclaw_session_bound",
+      requestId: "request-5",
+      threadId: "thread-1",
+      sessionKey: "session-1",
+    });
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "openclaw_action_result",
+        requestId: "request-6",
+        actionId: "action-1",
+        state: "submitted",
+        resultMetadata: { accepted: true },
+      }),
+    ).toEqual({
+      type: "openclaw_action_result",
+      requestId: "request-6",
+      actionId: "action-1",
+      state: "submitted",
+      resultMetadata: { accepted: true },
+    });
+
+    const invalidActionResult = openclawRealtimeClientMessageSchema.safeParse({
+      type: "openclaw_action_result",
+      requestId: "",
+      actionId: "action-1",
+      state: "submitted",
+    });
+
+    expect(invalidActionResult.success).toBe(false);
+  });
+
+  test("parses realtime server ack and error messages", () => {
+    expect(
+      openclawRealtimeServerMessageSchema.parse({
+        type: "ack",
+        requestId: "request-7",
+        sequence: 42,
+      }),
+    ).toEqual({
+      type: "ack",
+      requestId: "request-7",
+      sequence: 42,
+    });
+
+    expect(
+      openclawRealtimeServerMessageSchema.parse({
+        type: "realtime_error",
+        requestId: "request-8",
+        error: "Unauthorized",
+      }),
+    ).toEqual({
+      type: "realtime_error",
+      requestId: "request-8",
+      error: "Unauthorized",
+    });
   });
 });
