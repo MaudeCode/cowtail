@@ -1,6 +1,8 @@
 import { buildCowtailTarget, normalizeCowtailTarget } from "./session-keys.js";
 import type { ResolvedCowtailAccount } from "./types.js";
 
+type RequestIdFactory = () => string;
+
 type CowtailOutboundClient = {
   sendOpenClawMessage(command: {
     type: "openclaw_message";
@@ -16,6 +18,10 @@ export type CowtailOutboundResult = {
   messageId: string;
   to: string;
 };
+
+function defaultRequestIdFactory(): string {
+  return crypto.randomUUID();
+}
 
 function ensureNonBlankText(text: string): string {
   const normalized = text.trim();
@@ -38,10 +44,12 @@ export async function sendCowtailText(params: {
   client: CowtailOutboundClient;
   to: string;
   text: string;
+  requestIdFactory?: RequestIdFactory;
 }): Promise<CowtailOutboundResult> {
   const { client, to } = params;
   const text = ensureNonBlankText(params.text);
   const target = resolveCowtailTarget(to);
+  const requestIdFactory = params.requestIdFactory ?? defaultRequestIdFactory;
 
   const sequence = await client.sendOpenClawMessage({
     type: "openclaw_message",
@@ -53,7 +61,7 @@ export async function sendCowtailText(params: {
 
   return {
     channel: "cowtail",
-    messageId: sequence === undefined ? target : String(sequence),
+    messageId: sequence === undefined ? requestIdFactory() : String(sequence),
     to: target,
   };
 }

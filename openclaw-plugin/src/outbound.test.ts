@@ -91,6 +91,26 @@ describe("sendCowtailText", () => {
     });
   });
 
+  test("uses a request-id-like fallback when no sequence is returned", async () => {
+    const client = createClient({
+      sendOpenClawMessage: async () => undefined,
+    });
+
+    const result = await sendCowtailText({
+      account: createAccount(),
+      client,
+      to: "cowtail:thread_123",
+      text: "Hello world",
+      requestIdFactory: () => "request-abc",
+    });
+
+    expect(result).toEqual({
+      channel: "cowtail",
+      messageId: "request-abc",
+      to: "cowtail:thread_123",
+    });
+  });
+
   test("rejects blank text before sending", async () => {
     const client = createClient();
 
