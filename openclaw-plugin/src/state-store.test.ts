@@ -35,6 +35,17 @@ describe("CowtailStateStore", () => {
     expect(await reloadedOps.readLastSeenSequence()).toBe(7);
   });
 
+  test("keeps traversal-ish account ids inside the cowtail state directory", async () => {
+    const root = await makeRoot();
+    const store = new CowtailStateStore(root, "../other");
+    const baseDir = path.resolve(root, "plugins", "cowtail");
+    const expectedPath = path.resolve(baseDir, encodeURIComponent("../other"), "state.json");
+
+    expect(store.filePath).toBe(expectedPath);
+    const relativePath = path.relative(baseDir, store.filePath);
+    expect(relativePath === ".." || relativePath.startsWith(`..${path.sep}`)).toBe(false);
+  });
+
   test("ignores corrupt state files", async () => {
     const root = await makeRoot();
     const store = new CowtailStateStore(root, "default");
@@ -42,5 +53,17 @@ describe("CowtailStateStore", () => {
     await fs.writeFile(store.filePath, "not json", "utf8");
 
     expect(await store.readLastSeenSequence()).toBeUndefined();
+  });
+
+  test("ignores invalid sequence writes without overwriting a valid cursor", async () => {
+    const root = await makeRoot();
+    const store = new CowtailStateStore(root, "default");
+
+    await store.writeLastSeenSequence(42);
+    await store.writeLastSeenSequence(-1);
+    await store.writeLastSeenSequence(3.5);
+
+    const reloaded = new CowtailStateStore(root, "default");
+    expect(await reloaded.readLastSeenSequence()).toBe(42);
   });
 });

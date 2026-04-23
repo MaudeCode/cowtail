@@ -5,11 +5,26 @@ type CowtailState = {
   lastSeenSequence?: number;
 };
 
+function normalizeAccountId(accountId: string): string {
+  const trimmed = accountId.trim();
+  if (trimmed.length === 0) {
+    throw new Error("Cowtail state accountId must not be empty");
+  }
+  return encodeURIComponent(trimmed);
+}
+
 export class CowtailStateStore {
   readonly filePath: string;
 
   constructor(stateDir: string, accountId: string) {
-    this.filePath = path.join(stateDir, "plugins", "cowtail", accountId, "state.json");
+    const baseDir = path.resolve(stateDir, "plugins", "cowtail");
+    const safeAccountId = normalizeAccountId(accountId);
+    const filePath = path.resolve(baseDir, safeAccountId, "state.json");
+    const relativePath = path.relative(baseDir, filePath);
+    if (relativePath === ".." || relativePath.startsWith(`..${path.sep}`)) {
+      throw new Error("Cowtail state file must remain inside the Cowtail state directory");
+    }
+    this.filePath = filePath;
   }
 
   async readLastSeenSequence(): Promise<number | undefined> {
