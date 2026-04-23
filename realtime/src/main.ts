@@ -8,7 +8,7 @@ type SocketData = { connectionId: string };
 
 const config = loadRealtimeConfig(Bun.env);
 const registry = new RealtimeConnectionRegistry();
-const api = ConvexCowtailRealtimeApi.fromUrl(config.convexUrl);
+const api = ConvexCowtailRealtimeApi.fromUrl(config.convexUrl, config.realtimeConvexToken);
 const pushBridge = new CowtailHttpPushBridge({
   httpBaseUrl: config.httpBaseUrl,
   bearerToken: config.pushBearerToken,

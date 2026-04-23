@@ -196,11 +196,13 @@ export function toOpenClawEventEnvelope({
   thread,
   message,
   action,
+  actions,
 }: {
   event: StoredOpenClawEvent;
   thread?: StoredOpenClawThread | null;
   message?: StoredOpenClawMessage | null;
   action?: StoredOpenClawAction | null;
+  actions?: StoredOpenClawAction[] | null;
 }): OpenClawEventEnvelope {
   const envelope: OpenClawEventEnvelope = {
     sequence: event.sequence,
@@ -230,6 +232,10 @@ export function toOpenClawEventEnvelope({
 
   if (action !== undefined && action !== null) {
     envelope.action = toOpenClawActionRecord(action);
+  }
+
+  if (actions !== undefined && actions !== null && actions.length > 0) {
+    envelope.actions = actions.map(toOpenClawActionRecord);
   }
 
   if (event.payload !== undefined) {

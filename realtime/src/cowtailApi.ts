@@ -93,17 +93,23 @@ function addDefined(
 
 export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   private readonly convex: ConvexLike;
+  private readonly serviceToken: string;
 
-  constructor(convex: ConvexLike) {
+  constructor(convex: ConvexLike, serviceToken: string) {
     this.convex = convex;
+    this.serviceToken = serviceToken;
   }
 
-  static fromUrl(convexUrl: string): ConvexCowtailRealtimeApi {
-    return new ConvexCowtailRealtimeApi(new ConvexHttpClient(convexUrl) as ConvexLike);
+  static fromUrl(convexUrl: string, serviceToken: string): ConvexCowtailRealtimeApi {
+    return new ConvexCowtailRealtimeApi(
+      new ConvexHttpClient(convexUrl) as ConvexLike,
+      serviceToken,
+    );
   }
 
   async verifyAppSessionToken(token: string): Promise<AppSessionVerificationResult> {
     const result = await this.convex.mutation(convexApi.authSessions.verifySessionTokenHash, {
+      serviceToken: this.serviceToken,
       tokenHash: await sha256Hex(token),
     });
 
@@ -120,7 +126,11 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   }
 
   async replayEvents(afterSequence?: OpenClawSequence): Promise<OpenClawEventEnvelope[]> {
-    const args = addDefined({ limit: 100 }, "afterSequence", afterSequence) as OpenClawReplayQuery;
+    const args = addDefined(
+      { limit: 100, serviceToken: this.serviceToken },
+      "afterSequence",
+      afterSequence,
+    ) as OpenClawReplayQuery & { serviceToken: string };
     return (await this.convex.query(
       convexApi.openclaw.replayEvents,
       args,
@@ -135,6 +145,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
         addDefined(
           addDefined(
             {
+              serviceToken: this.serviceToken,
               sessionKey: command.sessionKey,
               text: command.text,
             },
@@ -155,13 +166,18 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   }
 
   async createIosThread(command: OpenClawIosNewThreadCommand): Promise<OpenClawEventEnvelope> {
-    const args = addDefined({ text: command.text }, "title", command.title);
+    const args = addDefined(
+      { serviceToken: this.serviceToken, text: command.text },
+      "title",
+      command.title,
+    );
     const result = await this.convex.mutation(convexApi.openclaw.createPendingThreadFromIos, args);
     return await this.eventBySequence(getSequence(result));
   }
 
   async createIosReply(command: OpenClawIosReplyCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.createReplyFromIos, {
+      serviceToken: this.serviceToken,
       threadId: command.threadId as never,
       text: command.text,
     });
@@ -170,6 +186,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async submitIosAction(command: OpenClawIosActionCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.submitActionFromIos, {
+      serviceToken: this.serviceToken,
       actionId: command.actionId as never,
       payload: command.payload,
     });
@@ -178,6 +195,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async markThreadRead(command: OpenClawIosMarkThreadReadCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.markThreadRead, {
+      serviceToken: this.serviceToken,
       threadId: command.threadId as never,
     });
     return await this.eventBySequence(getSequence(result));
@@ -185,6 +203,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async bindThreadSession(command: OpenClawSessionBoundCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.bindThreadSession, {
+      serviceToken: this.serviceToken,
       threadId: command.threadId as never,
       sessionKey: command.sessionKey,
     });
@@ -194,6 +213,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async recordActionResult(command: OpenClawActionResultCommand): Promise<OpenClawEventEnvelope> {
     const args = addDefined(
       {
+        serviceToken: this.serviceToken,
         actionId: command.actionId as never,
         state: command.state,
       },
@@ -212,6 +232,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
       await this.convex.query(convexApi.openclaw.replayEvents, {
         afterSequence: sequence - 1,
         limit: 1,
+        serviceToken: this.serviceToken,
       }),
       sequence,
     );

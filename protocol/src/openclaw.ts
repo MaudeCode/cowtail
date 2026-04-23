@@ -96,6 +96,7 @@ export const openclawEventEnvelopeSchema = z.object({
   thread: openclawThreadRecordSchema.optional(),
   message: openclawMessageRecordSchema.optional(),
   action: openclawActionRecordSchema.optional(),
+  actions: z.array(openclawActionRecordSchema).optional(),
   payload: jsonObjectSchema.optional(),
   error: nonEmptyStringSchema.optional(),
 });

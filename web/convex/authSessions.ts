@@ -2,12 +2,48 @@ import { v } from "convex/values";
 
 import { internalMutation, internalQuery, mutation } from "./_generated/server";
 
+export const REALTIME_CONVEX_TOKEN_ENV_VAR = "COWTAIL_REALTIME_CONVEX_TOKEN";
+
 type StoredAuthSession = {
   _id: string;
   userId: string;
   expiresAt: number;
   revokedAt?: number;
 };
+
+export function verifyRealtimeConvexToken({
+  providedToken,
+  expectedToken,
+}: {
+  providedToken: string | undefined;
+  expectedToken: string | undefined;
+}): boolean {
+  if (!providedToken || !expectedToken) {
+    return false;
+  }
+
+  const providedBytes = new TextEncoder().encode(providedToken);
+  const expectedBytes = new TextEncoder().encode(expectedToken);
+  let difference = providedBytes.length ^ expectedBytes.length;
+  const length = Math.max(providedBytes.length, expectedBytes.length);
+
+  for (let index = 0; index < length; index += 1) {
+    difference |= (providedBytes[index] ?? 0) ^ (expectedBytes[index] ?? 0);
+  }
+
+  return difference === 0;
+}
+
+export function requireRealtimeConvexToken(serviceToken: string): void {
+  if (
+    !verifyRealtimeConvexToken({
+      providedToken: serviceToken,
+      expectedToken: process.env[REALTIME_CONVEX_TOKEN_ENV_VAR]?.trim(),
+    })
+  ) {
+    throw new Error("Unauthorized");
+  }
+}
 
 export function evaluateSessionTokenHashVerification<SessionId extends string>(
   session: (StoredAuthSession & { _id: SessionId }) | null | undefined,
@@ -44,9 +80,12 @@ export const getSessionByTokenHash = internalQuery({
 
 export const verifySessionTokenHash = mutation({
   args: {
+    serviceToken: v.string(),
     tokenHash: v.string(),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const session = await ctx.db
       .query("authSessions")
       .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))

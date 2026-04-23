@@ -287,4 +287,88 @@ describe("OpenClaw Convex model helpers", () => {
       },
     });
   });
+
+  test("hydrates message events with available actions", () => {
+    expect(
+      toOpenClawEventEnvelope({
+        event: {
+          sequence: 10,
+          type: "message_created",
+          createdAt: 900,
+          threadId: "thread-1",
+          messageId: "message-1",
+        },
+        thread: {
+          _id: "thread-1",
+          status: "active",
+          targetAgent: "default",
+          title: "Deploy",
+          unreadCount: 1,
+          createdAt: 100,
+          updatedAt: 200,
+        },
+        message: {
+          _id: "message-1",
+          threadId: "thread-1",
+          direction: "openclaw_to_user",
+          text: "Approve?",
+          links: [],
+          deliveryState: "sent",
+          createdAt: 400,
+          updatedAt: 500,
+        },
+        actions: [
+          {
+            _id: "action-1",
+            threadId: "thread-1",
+            messageId: "message-1",
+            label: "Approve",
+            kind: "approval",
+            payload: { decision: "approve" },
+            state: "pending",
+            createdAt: 600,
+            updatedAt: 700,
+          },
+        ],
+      }),
+    ).toEqual({
+      sequence: 10,
+      type: "message_created",
+      createdAt: 900,
+      threadId: "thread-1",
+      messageId: "message-1",
+      thread: {
+        id: "thread-1",
+        status: "active",
+        targetAgent: "default",
+        title: "Deploy",
+        unreadCount: 1,
+        createdAt: 100,
+        updatedAt: 200,
+      },
+      message: {
+        id: "message-1",
+        threadId: "thread-1",
+        direction: "openclaw_to_user",
+        text: "Approve?",
+        links: [],
+        deliveryState: "sent",
+        createdAt: 400,
+        updatedAt: 500,
+      },
+      actions: [
+        {
+          id: "action-1",
+          threadId: "thread-1",
+          messageId: "message-1",
+          label: "Approve",
+          kind: "approval",
+          payload: { decision: "approve" },
+          state: "pending",
+          createdAt: 600,
+          updatedAt: 700,
+        },
+      ],
+    });
+  });
 });

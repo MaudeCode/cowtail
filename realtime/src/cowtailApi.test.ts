@@ -57,7 +57,7 @@ describe("ConvexCowtailRealtimeApi", () => {
         return { ok: true, userId: "owner-user-id", expiresAt: 200 };
       },
     };
-    const api = new ConvexCowtailRealtimeApi(convex);
+    const api = new ConvexCowtailRealtimeApi(convex, "realtime-convex-token");
 
     const result = await api.verifyAppSessionToken("app-session-token");
 
@@ -66,6 +66,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       {
         reference: convexApi.authSessions.verifySessionTokenHash,
         args: {
+          serviceToken: "realtime-convex-token",
           tokenHash: "c939bf0820e59e806b6cd3b59499b355da0a6a9c7332d40dc7bf15ff1795d16f",
         },
       },
@@ -87,7 +88,7 @@ describe("ConvexCowtailRealtimeApi", () => {
         return { threadId: "thread-1", messageId: "message-1", actionIds: [], sequence: 7 };
       },
     };
-    const api = new ConvexCowtailRealtimeApi(convex);
+    const api = new ConvexCowtailRealtimeApi(convex, "realtime-convex-token");
 
     const event = await api.createOpenClawMessage({
       type: "openclaw_message",
@@ -108,26 +109,86 @@ describe("ConvexCowtailRealtimeApi", () => {
           text: "Approve the deploy?",
           links: [],
           actions: [],
+          serviceToken: "realtime-convex-token",
         },
       },
     ]);
     expect(queries).toEqual([
       {
         reference: convexApi.openclaw.replayEvents,
-        args: { afterSequence: 6, limit: 1 },
+        args: { afterSequence: 6, limit: 1, serviceToken: "realtime-convex-token" },
       },
     ]);
     expect(event).toEqual(replayEvent);
     expect(event.sequence).toBe(7);
   });
 
-  test("createOpenClawMessage throws when replay returns the wrong sequence", async () => {
-    const api = new ConvexCowtailRealtimeApi({
-      query: async () => [createReplayEvent(8)],
-      mutation: async () => {
-        return { threadId: "thread-1", messageId: "message-1", actionIds: [], sequence: 7 };
+  test("passes the realtime Convex service token to every Convex call", async () => {
+    const calls: Array<{ kind: "query" | "mutation"; args: unknown }> = [];
+    const convex: ConvexLike = {
+      query: async (_reference, args) => {
+        calls.push({ kind: "query", args });
+        return [createReplayEvent(7)];
       },
+      mutation: async (_reference, args) => {
+        calls.push({ kind: "mutation", args });
+        return { sequence: 7 };
+      },
+    };
+    const api = new ConvexCowtailRealtimeApi(convex, "realtime-convex-token");
+
+    await api.replayEvents(3);
+    await api.createIosThread({
+      type: "ios_new_thread",
+      requestId: "request-1",
+      text: "Start thread",
     });
+    await api.createIosReply({
+      type: "ios_reply",
+      requestId: "request-2",
+      threadId: "thread-1",
+      text: "Reply",
+    });
+    await api.submitIosAction({
+      type: "ios_action",
+      requestId: "request-3",
+      actionId: "action-1",
+      payload: { decision: "approve" },
+    });
+    await api.markThreadRead({
+      type: "ios_mark_thread_read",
+      requestId: "request-4",
+      threadId: "thread-1",
+    });
+    await api.bindThreadSession({
+      type: "openclaw_session_bound",
+      requestId: "request-5",
+      threadId: "thread-1",
+      sessionKey: "session-1",
+    });
+    await api.recordActionResult({
+      type: "openclaw_action_result",
+      requestId: "request-6",
+      actionId: "action-1",
+      state: "submitted",
+    });
+
+    expect(calls.length > 0).toBe(true);
+    for (const call of calls) {
+      expect((call.args as { serviceToken?: unknown }).serviceToken).toBe("realtime-convex-token");
+    }
+  });
+
+  test("createOpenClawMessage throws when replay returns the wrong sequence", async () => {
+    const api = new ConvexCowtailRealtimeApi(
+      {
+        query: async () => [createReplayEvent(8)],
+        mutation: async () => {
+          return { threadId: "thread-1", messageId: "message-1", actionIds: [], sequence: 7 };
+        },
+      },
+      "realtime-convex-token",
+    );
 
     let thrown: unknown;
     try {
@@ -151,12 +212,15 @@ describe("ConvexCowtailRealtimeApi", () => {
   });
 
   test("createOpenClawMessage throws when replay returns no event", async () => {
-    const api = new ConvexCowtailRealtimeApi({
-      query: async () => [],
-      mutation: async () => {
-        return { threadId: "thread-1", messageId: "message-1", actionIds: [], sequence: 7 };
+    const api = new ConvexCowtailRealtimeApi(
+      {
+        query: async () => [],
+        mutation: async () => {
+          return { threadId: "thread-1", messageId: "message-1", actionIds: [], sequence: 7 };
+        },
       },
-    });
+      "realtime-convex-token",
+    );
 
     let thrown: unknown;
     try {

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   openclawActionSubmittedEventSchema,
+  openclawActionRecordSchema,
   openclawClientHelloSchema,
   openclawEventEnvelopeSchema,
   openclawMessageRecordSchema,
@@ -70,6 +71,31 @@ describe("openclaw protocol schemas", () => {
 
     expect(envelope.thread).toEqual(thread);
     expect(envelope.message).toEqual(message);
+  });
+
+  test("parses hydrated message_created envelope with actions", () => {
+    const action = openclawActionRecordSchema.parse({
+      id: "action-1",
+      threadId: "thread-1",
+      messageId: "message-1",
+      label: "Approve",
+      kind: "approval",
+      payload: { decision: "approve" },
+      state: "pending",
+      createdAt: 6,
+      updatedAt: 7,
+    });
+
+    const envelope = openclawEventEnvelopeSchema.parse({
+      sequence: 12,
+      type: "message_created",
+      createdAt: 8,
+      threadId: "thread-1",
+      messageId: "message-1",
+      actions: [action],
+    });
+
+    expect(envelope.actions).toEqual([action]);
   });
 
   test("parses action_submitted event with required payload", () => {

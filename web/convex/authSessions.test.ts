@@ -1,8 +1,38 @@
 import { describe, expect, test } from "bun:test";
 
-import { evaluateSessionTokenHashVerification } from "./authSessions";
+import { evaluateSessionTokenHashVerification, verifyRealtimeConvexToken } from "./authSessions";
 
 describe("auth session helpers", () => {
+  test("authorizes matching realtime Convex service tokens", () => {
+    expect(
+      verifyRealtimeConvexToken({
+        providedToken: "service-token",
+        expectedToken: "service-token",
+      }),
+    ).toBe(true);
+  });
+
+  test("rejects missing or mismatched realtime Convex service tokens", () => {
+    expect(
+      verifyRealtimeConvexToken({
+        providedToken: "",
+        expectedToken: "service-token",
+      }),
+    ).toBe(false);
+    expect(
+      verifyRealtimeConvexToken({
+        providedToken: "service-token",
+        expectedToken: "",
+      }),
+    ).toBe(false);
+    expect(
+      verifyRealtimeConvexToken({
+        providedToken: "service-token",
+        expectedToken: "different-service-token",
+      }),
+    ).toBe(false);
+  });
+
   test("rejects missing, revoked, and expired sessions", () => {
     expect(evaluateSessionTokenHashVerification(null, 100)).toEqual({
       result: { ok: false },

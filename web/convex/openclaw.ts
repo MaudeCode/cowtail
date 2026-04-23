@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import type { OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
 
+import { requireRealtimeConvexToken } from "./authSessions";
 import {
   applyOpenClawThreadTitlePatch,
   buildOpenClawActionResultUpdate,
@@ -83,8 +84,17 @@ async function hydrateOpenClawEvent(ctx: QueryCtx | MutationCtx, event: Doc<"ope
   const thread = event.threadId !== undefined ? await ctx.db.get(event.threadId) : null;
   const message = event.messageId !== undefined ? await ctx.db.get(event.messageId) : null;
   const action = event.actionId !== undefined ? await ctx.db.get(event.actionId) : null;
+  const messageId = event.messageId;
+  const actions =
+    messageId !== undefined
+      ? await ctx.db
+          .query("openclawActions")
+          .withIndex("by_message", (q) => q.eq("messageId", messageId))
+          .order("asc")
+          .collect()
+      : null;
 
-  return toOpenClawEventEnvelope({ event, thread, message, action });
+  return toOpenClawEventEnvelope({ event, thread, message, action, actions });
 }
 
 async function getThreadBySessionKey(ctx: MutationCtx, sessionKey: string) {
@@ -102,6 +112,7 @@ async function getThreadBySessionKey(ctx: MutationCtx, sessionKey: string) {
 
 export const createThreadFromOpenClaw = mutation({
   args: {
+    serviceToken: v.string(),
     sessionKey: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
@@ -118,6 +129,8 @@ export const createThreadFromOpenClaw = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const now = Date.now();
     const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
 
@@ -196,10 +209,13 @@ export const createThreadFromOpenClaw = mutation({
 
 export const createPendingThreadFromIos = mutation({
   args: {
+    serviceToken: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const now = Date.now();
 
     const threadId = await ctx.db.insert("openclawThreads", {
@@ -234,10 +250,13 @@ export const createPendingThreadFromIos = mutation({
 
 export const bindThreadSession = mutation({
   args: {
+    serviceToken: v.string(),
     threadId: v.id("openclawThreads"),
     sessionKey: v.string(),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const now = Date.now();
 
     const thread = await ctx.db.get(args.threadId);
@@ -270,10 +289,13 @@ export const bindThreadSession = mutation({
 
 export const createReplyFromIos = mutation({
   args: {
+    serviceToken: v.string(),
     threadId: v.id("openclawThreads"),
     text: v.string(),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const thread = await ctx.db.get(args.threadId);
     if (!thread) {
       throw new Error(`Thread not found: ${args.threadId}`);
@@ -308,10 +330,13 @@ export const createReplyFromIos = mutation({
 
 export const submitActionFromIos = mutation({
   args: {
+    serviceToken: v.string(),
     actionId: v.id("openclawActions"),
     payload: v.record(v.string(), v.any()),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const action = await ctx.db.get(args.actionId);
     if (!action) {
       throw new Error(`Action not found: ${args.actionId}`);
@@ -338,11 +363,14 @@ export const submitActionFromIos = mutation({
 
 export const recordActionResultFromOpenClaw = mutation({
   args: {
+    serviceToken: v.string(),
     actionId: v.id("openclawActions"),
     state: v.union(v.literal("submitted"), v.literal("failed"), v.literal("expired")),
     resultMetadata: v.optional(v.record(v.string(), v.any())),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const action = await ctx.db.get(args.actionId);
     if (!action) {
       throw new Error(`Action not found: ${args.actionId}`);
@@ -370,9 +398,12 @@ export const recordActionResultFromOpenClaw = mutation({
 
 export const markThreadRead = mutation({
   args: {
+    serviceToken: v.string(),
     threadId: v.id("openclawThreads"),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const now = Date.now();
 
     const thread = await ctx.db.get(args.threadId);
@@ -396,9 +427,12 @@ export const markThreadRead = mutation({
 
 export const listThreads = query({
   args: {
+    serviceToken: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const limit = validateOpenClawLimit(args.limit);
 
     return await ctx.db
@@ -411,10 +445,13 @@ export const listThreads = query({
 
 export const listMessages = query({
   args: {
+    serviceToken: v.string(),
     threadId: v.id("openclawThreads"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const limit = validateOpenClawLimit(args.limit);
 
     return await ctx.db
@@ -427,10 +464,13 @@ export const listMessages = query({
 
 export const listActionsForMessage = query({
   args: {
+    serviceToken: v.string(),
     messageId: v.id("openclawMessages"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const limit = validateOpenClawLimit(args.limit);
 
     return await ctx.db
@@ -443,10 +483,13 @@ export const listActionsForMessage = query({
 
 export const replayEvents = query({
   args: {
+    serviceToken: v.string(),
     afterSequence: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
     const limit = validateOpenClawLimit(args.limit);
     const afterSequence = validateOpenClawAfterSequence(args.afterSequence);
 
