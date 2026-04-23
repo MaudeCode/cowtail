@@ -1,0 +1,47 @@
+{
+  "id": "cowtail",
+  "name": "Cowtail",
+  "description": "Cowtail mobile realtime channel for OpenClaw",
+  "channels": ["cowtail"],
+  "channelEnvVars": {
+    "cowtail": ["OPENCLAW_COWTAIL_BRIDGE_TOKEN"]
+  },
+  "uiHints": {
+    "url": {
+      "label": "Cowtail realtime URL",
+      "placeholder": "wss://cowtail.example.invalid/openclaw/realtime"
+    },
+    "bridgeToken": {
+      "label": "Bridge token",
+      "placeholder": "${OPENCLAW_COWTAIL_BRIDGE_TOKEN}",
+      "sensitive": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "enabled": { "type": "boolean" },
+      "url": { "type": "string" },
+      "bridgeToken": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "provider", "id"],
+            "properties": {
+              "source": { "enum": ["env", "file", "exec"] },
+              "provider": { "type": "string" },
+              "id": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "agentId": { "type": "string" },
+      "connectTimeoutMs": { "type": "number" },
+      "reconnectMinDelayMs": { "type": "number" },
+      "reconnectMaxDelayMs": { "type": "number" }
+    }
+  }
+}
