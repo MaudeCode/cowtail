@@ -173,7 +173,7 @@ export async function handleCowtailEvent(params: {
       }
 
       try {
-        await dispatchCowtailActionTurn({
+        const dispatchSucceeded = await dispatchCowtailActionTurn({
           account,
           runtime,
           route: {
@@ -189,7 +189,7 @@ export async function handleCowtailEvent(params: {
         await client.sendActionResult({
           type: "openclaw_action_result",
           actionId: action.id,
-          state: "submitted",
+          state: dispatchSucceeded ? "submitted" : "failed",
         });
       } catch (error) {
         logger?.error?.(`Cowtail action dispatch failed: ${errorMessage(error)}`);
@@ -261,7 +261,7 @@ export async function dispatchCowtailActionTurn(params: {
   action: OpenClawActionRecord;
   payload: Record<string, unknown>;
   timestamp: number;
-}): Promise<void> {
+}): Promise<boolean> {
   const { account, runtime, logger, route, thread, action, payload, timestamp } = params;
   const text = [
     `Cowtail action selected: ${action.label}`,
@@ -284,6 +284,7 @@ export async function dispatchCowtailActionTurn(params: {
     body,
     timestamp,
   });
+  let dispatchFailed = false;
 
   await dispatchInboundReplyWithBase({
     cfg: runtime.config.loadConfig(),
@@ -298,9 +299,12 @@ export async function dispatchCowtailActionTurn(params: {
       logger?.error?.(`Cowtail inbound session record failed: ${errorMessage(error)}`);
     },
     onDispatchError: (error, info) => {
+      dispatchFailed = true;
       logger?.error?.(`Cowtail ${info.kind} reply failed: ${errorMessage(error)}`);
     },
   });
+
+  return !dispatchFailed;
 }
 
 export function buildCowtailInboundBody(params: {

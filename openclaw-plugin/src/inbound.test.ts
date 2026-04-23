@@ -162,6 +162,10 @@ function createRuntime(overrides?: {
   };
   readSessionUpdatedAt?: number;
   dispatchError?: Error;
+  dispatchViaOnError?: {
+    error: Error;
+    kind: string;
+  };
 }) {
   const cfg: OpenClawConfig = {
     session: {
@@ -230,6 +234,15 @@ function createRuntime(overrides?: {
         },
         async dispatchReplyWithBufferedBlockDispatcher(params) {
           dispatchCalls.push(params);
+          if (overrides?.dispatchViaOnError) {
+            const onError = params.dispatcherOptions.onError as
+              | ((err: unknown, info: { kind: string }) => void)
+              | undefined;
+            onError?.(overrides.dispatchViaOnError.error, {
+              kind: overrides.dispatchViaOnError.kind,
+            });
+            return;
+          }
           if (overrides?.dispatchError) {
             throw overrides.dispatchError;
           }
@@ -536,6 +549,67 @@ describe("handleCowtailEvent", () => {
     ]);
   });
 
+  test("action_submitted reports failed when dispatch uses onDispatchError but still resolves", async () => {
+    const client = createClient();
+    const { logger, errors } = createLogger();
+    const runtimeState = createRuntime({
+      dispatchViaOnError: {
+        error: new Error("buffered dispatch failed"),
+        kind: "buffered",
+      },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 5,
+      type: "action_submitted",
+      createdAt: 1_700_000_000_035,
+      threadId: "thread-5",
+      actionId: "action-5",
+      thread: {
+        id: "thread-5",
+        sessionKey: "session-action-onerror",
+        status: "active",
+        targetAgent: "default",
+        title: "Action thread onError",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_035,
+      },
+      action: {
+        id: "action-5",
+        threadId: "thread-5",
+        messageId: "message-5",
+        label: "Retry",
+        kind: "approval",
+        payload: { decision: "retry" },
+        state: "submitted",
+        createdAt: 1_700_000_000_030,
+        updatedAt: 1_700_000_000_035,
+      },
+      payload: { decision: "retry" },
+    };
+
+    await expect(
+      handleCowtailEvent({
+        event,
+        account: createAccount(),
+        client,
+        runtime: runtimeState.runtime,
+        logger,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(client.sendActionResultCalls).toEqual([
+      {
+        type: "openclaw_action_result",
+        actionId: "action-5",
+        state: "failed",
+      },
+    ]);
+    expect(errors).toEqual([
+      "Cowtail buffered reply failed: buffered dispatch failed",
+    ]);
+  });
+
   test("events missing required thread, message, or action content are ignored with a warning", async () => {
     const client = createClient();
     const { logger, warnings } = createLogger();
@@ -543,7 +617,7 @@ describe("handleCowtailEvent", () => {
 
     await handleCowtailEvent({
       event: {
-        sequence: 5,
+        sequence: 6,
         type: "thread_created",
         createdAt: 1_700_000_000_040,
         threadId: "thread-5",
@@ -565,7 +639,7 @@ describe("handleCowtailEvent", () => {
 
     await handleCowtailEvent({
       event: {
-        sequence: 6,
+        sequence: 7,
         type: "reply_created",
         createdAt: 1_700_000_000_050,
         threadId: "thread-6",
@@ -588,7 +662,7 @@ describe("handleCowtailEvent", () => {
 
     await handleCowtailEvent({
       event: {
-        sequence: 7,
+        sequence: 8,
         type: "action_submitted",
         createdAt: 1_700_000_000_060,
         threadId: "thread-7",
