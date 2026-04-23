@@ -113,6 +113,10 @@ class FakeTimers {
     }
   };
 
+  activeDelays(): number[] {
+    return this.scheduled.filter((entry) => !entry.cleared).map((entry) => entry.delay);
+  }
+
   runNext(): void {
     const timer = this.scheduled.find((entry) => !entry.cleared);
     if (!timer) {
@@ -304,6 +308,39 @@ describe("CowtailRealtimeClient", () => {
     await expect(pending).resolves.toBe(42);
   });
 
+  test("rejects the matching pending request on realtime_error", async () => {
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      requestIdFactory: () => "request-error",
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    socket.open();
+    await flushMicrotasks();
+
+    const pending = client.sendOpenClawMessage({
+      type: "openclaw_message",
+      sessionKey: "session-error",
+      text: "hello",
+    });
+
+    await flushMicrotasks();
+    socket.message({
+      type: "realtime_error",
+      requestId: "request-error",
+      error: "command_failed",
+    });
+
+    await expect(pending).rejects.toThrow(/command_failed/i);
+  });
+
   test("persists last seen sequence for event envelopes before dispatch", async () => {
     const writeCalls: number[] = [];
     const observedWriteState: number[][] = [];
@@ -422,6 +459,36 @@ describe("CowtailRealtimeClient", () => {
     expect(warnings).toHaveLength(2);
   });
 
+  test("logs and ignores non-string incoming messages", async () => {
+    const warnings: string[] = [];
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      logger: {
+        warn: (message) => {
+          warnings.push(message);
+        },
+      },
+      onEvent: () => {
+        throw new Error("onEvent should not run");
+      },
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    socket.open();
+    await flushMicrotasks();
+
+    socket.onmessage?.({ data: new Uint8Array([1, 2, 3]) } as unknown as MessageEvent<string>);
+    await flushMicrotasks();
+
+    expect(warnings).toEqual(["Cowtail websocket received a non-string message"]);
+  });
+
   test("reconnects after close with bounded backoff", async () => {
     const sockets: FakeWebSocket[] = [];
     const timers = new FakeTimers();
@@ -448,21 +515,94 @@ describe("CowtailRealtimeClient", () => {
     await flushMicrotasks();
 
     sockets[0]!.close(1006, "dropped");
-    expect(timers.scheduled.map((entry) => entry.delay)).toEqual([100]);
+    expect(timers.activeDelays()).toEqual([100]);
     timers.runNext();
     expect(sockets).toHaveLength(2);
 
     sockets[1]!.open();
     await flushMicrotasks();
     sockets[1]!.close(1006, "dropped again");
-    expect(timers.scheduled.map((entry) => entry.delay)).toEqual([100, 200]);
+    expect(timers.activeDelays()).toEqual([100]);
     timers.runNext();
     expect(sockets).toHaveLength(3);
 
     sockets[2]!.open();
     await flushMicrotasks();
     sockets[2]!.close(1006, "dropped third");
-    expect(timers.scheduled.map((entry) => entry.delay)).toEqual([100, 200, 250]);
+    expect(timers.activeDelays()).toEqual([100]);
+  });
+
+  test("stop cancels a scheduled reconnect and prevents reconnect after shutdown", async () => {
+    const sockets: FakeWebSocket[] = [];
+    const timers = new FakeTimers();
+    const client = new CowtailRealtimeClient({
+      account: createAccount({
+        reconnectMinDelayMs: 100,
+        reconnectMaxDelayMs: 100,
+      }),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      timers,
+      webSocketFactory: (url) => {
+        const socket = new FakeWebSocket(url);
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    client.start();
+    sockets[0]!.open();
+    await flushMicrotasks();
+    sockets[0]!.close(1006, "dropped");
+
+    expect(timers.activeDelays()).toEqual([100]);
+
+    client.stop();
+
+    expect(timers.activeDelays()).toEqual([]);
+    expect(() => timers.runNext()).toThrow("No timer queued");
+    expect(sockets).toHaveLength(1);
+  });
+
+  test("reconnects when connect timeout expires before open", async () => {
+    const sockets: FakeWebSocket[] = [];
+    const timers = new FakeTimers();
+    const client = new CowtailRealtimeClient({
+      account: createAccount({
+        connectTimeoutMs: 25,
+        reconnectMinDelayMs: 100,
+        reconnectMaxDelayMs: 100,
+      }),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      timers,
+      webSocketFactory: (url) => {
+        const socket = new FakeWebSocket(url);
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    client.start();
+
+    expect(sockets).toHaveLength(1);
+    expect(timers.activeDelays()).toEqual([25]);
+
+    timers.runNext();
+
+    expect(sockets[0]!.readyState).toBe(FakeWebSocket.CLOSED);
+    expect(timers.activeDelays()).toEqual([100]);
+
+    timers.runNext();
+
+    expect(sockets).toHaveLength(2);
+    expect(timers.activeDelays()).toEqual([25]);
   });
 
   test("clears pending requests on close", async () => {

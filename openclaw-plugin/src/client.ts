@@ -88,6 +88,7 @@ export class CowtailRealtimeClient {
 
   #socket: WebSocketLike | undefined;
   #started = false;
+  #connectTimeoutTimer: TimerHandle | undefined;
   #reconnectTimer: TimerHandle | undefined;
   #reconnectAttempt = 0;
   #handshake: HandshakeState | undefined;
@@ -115,6 +116,7 @@ export class CowtailRealtimeClient {
 
   stop(): void {
     this.#started = false;
+    this.#clearConnectTimeout();
     this.#clearReconnectTimer();
     this.#closeSocket();
   }
@@ -151,12 +153,13 @@ export class CowtailRealtimeClient {
     const handshake = this.#createHandshakeState();
     this.#socket = socket;
     this.#handshake = handshake;
+    this.#armConnectTimeout(socket, handshake, "connect");
 
     socket.onopen = () => {
-      void this.#handleOpen(socket, handshake);
+      this.#runOpen(socket, handshake);
     };
     socket.onmessage = (event) => {
-      void this.#handleMessage(socket, event.data);
+      this.#runMessage(socket, event.data);
     };
     socket.onclose = () => {
       this.#handleClose(socket);
@@ -164,6 +167,26 @@ export class CowtailRealtimeClient {
     socket.onerror = () => {
       this.#logger?.warn?.("Cowtail websocket error");
     };
+  }
+
+  #runOpen(socket: WebSocketLike, handshake: HandshakeState): void {
+    this.#clearConnectTimeout();
+    this.#armConnectTimeout(socket, handshake, "handshake");
+    void this.#handleOpen(socket, handshake).catch((error) => {
+      this.#logger?.error?.(
+        `Cowtail websocket open handling failed: ${this.#errorMessage(error)}`,
+      );
+      this.#terminateSocket(socket, "open_failed");
+    });
+  }
+
+  #runMessage(socket: WebSocketLike, rawMessage: unknown): void {
+    void this.#handleMessage(socket, rawMessage).catch((error) => {
+      this.#logger?.error?.(
+        `Cowtail websocket message handling failed: ${this.#errorMessage(error)}`,
+      );
+      this.#terminateSocket(socket, "message_failed");
+    });
   }
 
   async #handleOpen(socket: WebSocketLike, handshake: HandshakeState): Promise<void> {
@@ -198,6 +221,8 @@ export class CowtailRealtimeClient {
 
     try {
       socket.send(JSON.stringify(hello));
+      this.#clearConnectTimeout();
+      this.#reconnectAttempt = 0;
       handshake.resolve();
     } catch (error) {
       const failure =
@@ -251,6 +276,7 @@ export class CowtailRealtimeClient {
       return;
     }
 
+    this.#clearConnectTimeout();
     this.#socket = undefined;
     this.#rejectHandshake(new Error("Cowtail websocket closed"));
     this.#rejectAllPendingRequests(new Error("Cowtail websocket closed"));
@@ -274,6 +300,7 @@ export class CowtailRealtimeClient {
 
   #closeSocket(): void {
     const socket = this.#socket;
+    this.#clearConnectTimeout();
     this.#socket = undefined;
     this.#rejectHandshake(new Error("Cowtail websocket closed"));
     this.#rejectAllPendingRequests(new Error("Cowtail websocket closed"));
@@ -301,6 +328,15 @@ export class CowtailRealtimeClient {
 
     this.#timers.clearTimeout(this.#reconnectTimer);
     this.#reconnectTimer = undefined;
+  }
+
+  #clearConnectTimeout(): void {
+    if (this.#connectTimeoutTimer === undefined) {
+      return;
+    }
+
+    this.#timers.clearTimeout(this.#connectTimeoutTimer);
+    this.#connectTimeoutTimer = undefined;
   }
 
   async #sendCommand(
@@ -368,6 +404,7 @@ export class CowtailRealtimeClient {
       resolve = resolvePromise;
       reject = rejectPromise;
     });
+    void promise.catch(() => undefined);
     return { promise, resolve, reject };
   }
 
@@ -383,5 +420,43 @@ export class CowtailRealtimeClient {
 
   #isSocketOpen(socket: WebSocketLike): boolean {
     return socket.readyState === 1;
+  }
+
+  #armConnectTimeout(
+    socket: WebSocketLike,
+    handshake: HandshakeState,
+    phase: "connect" | "handshake",
+  ): void {
+    this.#clearConnectTimeout();
+    this.#connectTimeoutTimer = this.#timers.setTimeout(() => {
+      this.#connectTimeoutTimer = undefined;
+      if (socket !== this.#socket || handshake !== this.#handshake) {
+        return;
+      }
+
+      if (phase === "connect" && socket.readyState !== 0) {
+        return;
+      }
+
+      this.#logger?.warn?.(`Cowtail websocket ${phase} timed out`);
+      this.#terminateSocket(socket, `${phase}_timeout`);
+    }, this.#account.connectTimeoutMs);
+  }
+
+  #terminateSocket(socket: WebSocketLike, reason: string): void {
+    if (socket !== this.#socket) {
+      return;
+    }
+
+    this.#clearConnectTimeout();
+    try {
+      socket.close(1011, reason);
+    } catch {
+      this.#handleClose(socket);
+    }
+  }
+
+  #errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }
