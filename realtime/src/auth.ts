@@ -9,6 +9,8 @@ export type RealtimeClient =
   | {
       kind: "ios";
       userId: string;
+      sessionId: string;
+      expiresAt: number;
       lastSeenSequence?: OpenClawSequence;
     };
 
@@ -16,6 +18,18 @@ export type AppSessionVerificationResult =
   | {
       ok: true;
       userId: string;
+      sessionId: string;
+      expiresAt: number;
+    }
+  | {
+      ok: false;
+    };
+
+export type AppSessionValidationResult =
+  | {
+      ok: true;
+      userId: string;
+      expiresAt: number;
     }
   | {
       ok: false;
@@ -95,6 +109,8 @@ export async function authenticateClientHello(value: unknown, deps: AuthDeps): P
     client: {
       kind: "ios",
       userId: verification.userId,
+      sessionId: verification.sessionId,
+      expiresAt: verification.expiresAt,
       lastSeenSequence: getLastSeenSequence(hello),
     },
   };

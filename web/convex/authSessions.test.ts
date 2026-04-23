@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { evaluateSessionTokenHashVerification, verifyRealtimeConvexToken } from "./authSessions";
+import {
+  evaluateSessionByIdValidation,
+  evaluateSessionTokenHashVerification,
+  verifyRealtimeConvexToken,
+} from "./authSessions";
 
 describe("auth session helpers", () => {
   test("authorizes matching realtime Convex service tokens", () => {
@@ -75,9 +79,44 @@ describe("auth session helpers", () => {
         100,
       ),
     ).toEqual({
-      result: { ok: true, userId: "user-1", expiresAt: 200 },
+      result: { ok: true, sessionId: "session-1", userId: "user-1", expiresAt: 200 },
       sessionId: "session-1",
       patch: { lastUsedAt: 100 },
     });
+  });
+
+  test("validates sessions by id for realtime command rechecks", () => {
+    expect(evaluateSessionByIdValidation(null, 100)).toEqual({ ok: false });
+    expect(
+      evaluateSessionByIdValidation(
+        {
+          _id: "session-1",
+          userId: "user-1",
+          expiresAt: 200,
+          revokedAt: 90,
+        },
+        100,
+      ),
+    ).toEqual({ ok: false });
+    expect(
+      evaluateSessionByIdValidation(
+        {
+          _id: "session-1",
+          userId: "user-1",
+          expiresAt: 100,
+        },
+        100,
+      ),
+    ).toEqual({ ok: false });
+    expect(
+      evaluateSessionByIdValidation(
+        {
+          _id: "session-1",
+          userId: "user-1",
+          expiresAt: 200,
+        },
+        100,
+      ),
+    ).toEqual({ ok: true, userId: "user-1", expiresAt: 200 });
   });
 });

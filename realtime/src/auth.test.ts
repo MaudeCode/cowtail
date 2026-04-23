@@ -121,7 +121,7 @@ describe("authenticateClientHello", () => {
     expect(verifiedToken).toBe("session-token");
   });
 
-  test('accepts iOS hello only after app-session verification, passes the token to the verifier, returns { kind: "ios", userId, lastSeenSequence }', async () => {
+  test('accepts iOS hello only after app-session verification, passes the token to the verifier, returns { kind: "ios", userId, sessionId, expiresAt, lastSeenSequence }', async () => {
     let verifiedToken: string | undefined;
 
     expect(
@@ -136,7 +136,12 @@ describe("authenticateClientHello", () => {
           bridgeToken: "bridge-token",
           verifyAppSessionToken: async (token) => {
             verifiedToken = token;
-            return { ok: true, userId: "user-123" };
+            return {
+              ok: true,
+              userId: "user-123",
+              sessionId: "session-123",
+              expiresAt: 200,
+            };
           },
         },
       ),
@@ -145,6 +150,8 @@ describe("authenticateClientHello", () => {
       client: {
         kind: "ios",
         userId: "user-123",
+        sessionId: "session-123",
+        expiresAt: 200,
         lastSeenSequence: 9,
       },
     });

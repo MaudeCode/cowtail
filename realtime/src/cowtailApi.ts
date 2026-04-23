@@ -12,10 +12,10 @@ import type {
   OpenClawSessionBoundCommand,
 } from "@maudecode/cowtail-protocol";
 
-import type { AppSessionVerificationResult } from "./auth";
+import type { AppSessionValidationResult, AppSessionVerificationResult } from "./auth";
 
 type ConvexApiRefs = {
-  authSessions: { verifySessionTokenHash: unknown };
+  authSessions: { verifySessionTokenHash: unknown; validateSessionById: unknown };
   openclaw: {
     replayEvents: unknown;
     createThreadFromOpenClaw: unknown;
@@ -38,6 +38,7 @@ export type ConvexLike = {
 
 export interface CowtailRealtimeApi {
   verifyAppSessionToken(token: string): Promise<AppSessionVerificationResult>;
+  validateAppSession(sessionId: string): Promise<AppSessionValidationResult>;
   replayEvents(afterSequence?: OpenClawSequence): Promise<OpenClawEventEnvelope[]>;
   createOpenClawMessage(command: OpenClawPluginMessageCommand): Promise<OpenClawEventEnvelope>;
   createIosThread(command: OpenClawIosNewThreadCommand): Promise<OpenClawEventEnvelope>;
@@ -117,12 +118,49 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
       return { ok: false };
     }
 
-    const verification = result as { ok?: unknown; userId?: unknown };
-    if (verification.ok !== true || typeof verification.userId !== "string") {
+    const verification = result as {
+      ok?: unknown;
+      userId?: unknown;
+      sessionId?: unknown;
+      expiresAt?: unknown;
+    };
+    if (
+      verification.ok !== true ||
+      typeof verification.userId !== "string" ||
+      typeof verification.sessionId !== "string" ||
+      typeof verification.expiresAt !== "number"
+    ) {
       return { ok: false };
     }
 
-    return { ok: true, userId: verification.userId };
+    return {
+      ok: true,
+      userId: verification.userId,
+      sessionId: verification.sessionId,
+      expiresAt: verification.expiresAt,
+    };
+  }
+
+  async validateAppSession(sessionId: string): Promise<AppSessionValidationResult> {
+    const result = await this.convex.query(convexApi.authSessions.validateSessionById, {
+      serviceToken: this.serviceToken,
+      sessionId: sessionId as never,
+    });
+
+    if (!result || typeof result !== "object") {
+      return { ok: false };
+    }
+
+    const validation = result as { ok?: unknown; userId?: unknown; expiresAt?: unknown };
+    if (
+      validation.ok !== true ||
+      typeof validation.userId !== "string" ||
+      typeof validation.expiresAt !== "number"
+    ) {
+      return { ok: false };
+    }
+
+    return { ok: true, userId: validation.userId, expiresAt: validation.expiresAt };
   }
 
   async replayEvents(afterSequence?: OpenClawSequence): Promise<OpenClawEventEnvelope[]> {

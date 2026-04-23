@@ -4,7 +4,7 @@ import type { OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
 import { ConvexCowtailRealtimeApi, type ConvexLike } from "./cowtailApi";
 
 type ConvexApiRefs = {
-  authSessions: { verifySessionTokenHash: unknown };
+  authSessions: { verifySessionTokenHash: unknown; validateSessionById: unknown };
   openclaw: {
     createThreadFromOpenClaw: unknown;
     replayEvents: unknown;
@@ -54,14 +54,24 @@ describe("ConvexCowtailRealtimeApi", () => {
       },
       mutation: async (reference, args) => {
         mutations.push({ reference, args });
-        return { ok: true, userId: "owner-user-id", expiresAt: 200 };
+        return {
+          ok: true,
+          userId: "owner-user-id",
+          sessionId: "session-1",
+          expiresAt: 200,
+        };
       },
     };
     const api = new ConvexCowtailRealtimeApi(convex, "realtime-convex-token");
 
     const result = await api.verifyAppSessionToken("app-session-token");
 
-    expect(result).toEqual({ ok: true, userId: "owner-user-id" });
+    expect(result).toEqual({
+      ok: true,
+      userId: "owner-user-id",
+      sessionId: "session-1",
+      expiresAt: 200,
+    });
     expect(mutations).toEqual([
       {
         reference: convexApi.authSessions.verifySessionTokenHash,
@@ -72,6 +82,30 @@ describe("ConvexCowtailRealtimeApi", () => {
       },
     ]);
     expect(JSON.stringify(mutations[0]?.args).includes("app-session-token")).toBe(false);
+  });
+
+  test("validateAppSession passes the realtime service token and returns user/session expiry data", async () => {
+    const queries: Array<{ reference: unknown; args: unknown }> = [];
+    const convex: ConvexLike = {
+      query: async (reference, args) => {
+        queries.push({ reference, args });
+        return { ok: true, userId: "owner-user-id", expiresAt: 300 };
+      },
+      mutation: async () => {
+        throw new Error("mutation should not be called");
+      },
+    };
+    const api = new ConvexCowtailRealtimeApi(convex, "realtime-convex-token");
+
+    const result = await api.validateAppSession("session-1");
+
+    expect(result).toEqual({ ok: true, userId: "owner-user-id", expiresAt: 300 });
+    expect(queries).toEqual([
+      {
+        reference: convexApi.authSessions.validateSessionById,
+        args: { serviceToken: "realtime-convex-token", sessionId: "session-1" },
+      },
+    ]);
   });
 
   test("createOpenClawMessage returns the hydrated replay event for the created sequence", async () => {

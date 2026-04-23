@@ -216,6 +216,17 @@ export class OpenClawSessionController {
       return;
     }
 
+    if (client.kind === "ios") {
+      const sessionIsValid = await this.#validateIosSessionBeforeCommand(
+        connectionId,
+        client,
+        command.requestId,
+      );
+      if (!sessionIsValid) {
+        return;
+      }
+    }
+
     switch (command.type) {
       case "openclaw_message": {
         try {
@@ -333,6 +344,45 @@ export class OpenClawSessionController {
     } catch {
       // Push fallback is best effort and must not affect websocket command handling.
     }
+  }
+
+  async #validateIosSessionBeforeCommand(
+    connectionId: string,
+    client: Extract<RealtimeClient, { kind: "ios" }>,
+    requestId: string,
+  ): Promise<boolean> {
+    if (Date.now() >= client.expiresAt) {
+      this.#rejectIosSession(connectionId, requestId);
+      return false;
+    }
+
+    let validation: Awaited<ReturnType<CowtailRealtimeApi["validateAppSession"]>>;
+    try {
+      validation = await this.#api.validateAppSession(client.sessionId);
+    } catch {
+      this.#rejectIosSession(connectionId, requestId);
+      return false;
+    }
+
+    if (
+      !validation.ok ||
+      validation.userId !== client.userId ||
+      validation.userId !== this.#ownerUserId
+    ) {
+      this.#rejectIosSession(connectionId, requestId);
+      return false;
+    }
+
+    client.expiresAt = validation.expiresAt;
+    return true;
+  }
+
+  #rejectIosSession(connectionId: string, requestId: string): void {
+    this.#send(connectionId, realtimeError("unauthorized", requestId));
+
+    const connection = this.#connections.get(connectionId);
+    connection?.socket.close(1008, "unauthorized");
+    this.detach(connectionId);
   }
 }
 

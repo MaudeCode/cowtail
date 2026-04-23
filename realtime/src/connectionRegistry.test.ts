@@ -41,13 +41,22 @@ function createAckMessage() {
   } as const;
 }
 
+function iosClient(userId: string): RealtimeClient {
+  return {
+    kind: "ios",
+    userId,
+    sessionId: `session-${userId}`,
+    expiresAt: Date.now() + 60_000,
+  };
+}
+
 describe("RealtimeConnectionRegistry", () => {
   test("broadcastToIos sends only to iOS clients and returns delivery count", () => {
     const registry = new RealtimeConnectionRegistry();
     const iosSocket = new FakeSocket();
     const pluginSocket = new FakeSocket();
 
-    registry.add("ios-1", iosSocket, { kind: "ios", userId: "user-1" } satisfies RealtimeClient);
+    registry.add("ios-1", iosSocket, iosClient("user-1"));
     registry.add("plugin-1", pluginSocket, { kind: "openclaw_plugin" } satisfies RealtimeClient);
 
     expect(registry.broadcastToIos(createEvent(1))).toBe(1);
@@ -60,7 +69,7 @@ describe("RealtimeConnectionRegistry", () => {
     const iosSocket = new FakeSocket();
     const pluginSocket = new FakeSocket();
 
-    registry.add("ios-1", iosSocket, { kind: "ios", userId: "user-1" } satisfies RealtimeClient);
+    registry.add("ios-1", iosSocket, iosClient("user-1"));
     registry.add("plugin-1", pluginSocket, { kind: "openclaw_plugin" } satisfies RealtimeClient);
 
     expect(registry.broadcastToOpenClaw(createEvent(2))).toBe(1);
@@ -74,11 +83,8 @@ describe("RealtimeConnectionRegistry", () => {
     closedSocket.readyState = 3;
     const openSocket = new FakeSocket();
 
-    registry.add("closed", closedSocket, {
-      kind: "ios",
-      userId: "user-1",
-    } satisfies RealtimeClient);
-    registry.add("open", openSocket, { kind: "ios", userId: "user-2" } satisfies RealtimeClient);
+    registry.add("closed", closedSocket, iosClient("user-1"));
+    registry.add("open", openSocket, iosClient("user-2"));
 
     expect(registry.broadcastToIos(createEvent(3))).toBe(1);
     expect(closedSocket.sentMessages).toEqual([]);
@@ -92,7 +98,7 @@ describe("RealtimeConnectionRegistry", () => {
     const socket = new FakeSocket();
     socket.throwOnSend = true;
 
-    registry.add("failing", socket, { kind: "ios", userId: "user-1" } satisfies RealtimeClient);
+    registry.add("failing", socket, iosClient("user-1"));
 
     expect(registry.send("failing", createAckMessage())).toBe(false);
     expect(registry.size).toBe(0);

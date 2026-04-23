@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-import { internalMutation, internalQuery, mutation } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 
 export const REALTIME_CONVEX_TOKEN_ENV_VAR = "COWTAIL_REALTIME_CONVEX_TOKEN";
 
@@ -51,7 +51,7 @@ export function evaluateSessionTokenHashVerification<SessionId extends string>(
 ):
   | { result: { ok: false } }
   | {
-      result: { ok: true; userId: string; expiresAt: number };
+      result: { ok: true; sessionId: string; userId: string; expiresAt: number };
       sessionId: SessionId;
       patch: { lastUsedAt: number };
     } {
@@ -60,10 +60,26 @@ export function evaluateSessionTokenHashVerification<SessionId extends string>(
   }
 
   return {
-    result: { ok: true, userId: session.userId, expiresAt: session.expiresAt },
+    result: {
+      ok: true,
+      sessionId: String(session._id),
+      userId: session.userId,
+      expiresAt: session.expiresAt,
+    },
     sessionId: session._id,
     patch: { lastUsedAt: now },
   };
+}
+
+export function evaluateSessionByIdValidation(
+  session: StoredAuthSession | null | undefined,
+  now: number,
+): { ok: false } | { ok: true; userId: string; expiresAt: number } {
+  if (!session || session.revokedAt !== undefined || session.expiresAt <= now) {
+    return { ok: false };
+  }
+
+  return { ok: true, userId: session.userId, expiresAt: session.expiresAt };
 }
 
 export const getSessionByTokenHash = internalQuery({
@@ -100,6 +116,19 @@ export const verifySessionTokenHash = mutation({
     await ctx.db.patch(verification.sessionId, verification.patch);
 
     return verification.result;
+  },
+});
+
+export const validateSessionById = query({
+  args: {
+    serviceToken: v.string(),
+    sessionId: v.id("authSessions"),
+  },
+  handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
+    const session = await ctx.db.get(args.sessionId);
+    return evaluateSessionByIdValidation(session, Date.now());
   },
 });
 

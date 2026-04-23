@@ -23,12 +23,14 @@ class FakeSocket {
 
 class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
   public verifiedSessionTokens: string[] = [];
+  public validatedSessionIds: string[] = [];
   public readonly replayQueries: Array<number | undefined> = [];
   public replayEventsResult: OpenClawEventEnvelope[] = [];
   public rejectReplayEvents = false;
   public rejectOpenClawMessage = false;
   public rejectVerifyAppSessionToken = false;
   public appSessionVerificationOk = true;
+  public appSessionValidationOk = true;
   public holdOpenClawMessages = false;
   public readonly heldOpenClawMessages: Array<{
     command: Parameters<CowtailRealtimeApi["createOpenClawMessage"]>[0];
@@ -36,8 +38,11 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
   }> = [];
   public readonly openClawMessages: Parameters<CowtailRealtimeApi["createOpenClawMessage"]>[0][] =
     [];
+  public readonly iosThreads: Parameters<CowtailRealtimeApi["createIosThread"]>[0][] = [];
   public readonly iosReplies: Parameters<CowtailRealtimeApi["createIosReply"]>[0][] = [];
   public appSessionUserId = "owner-user-id";
+  public appSessionSessionId = "session-1";
+  public appSessionExpiresAt = Date.now() + 60_000;
   public openClawMessageEvent = createOpenClawMessageEvent(7);
   public iosReplyEvent = createIosReplyEvent(9);
 
@@ -49,7 +54,24 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
     if (!this.appSessionVerificationOk) {
       return { ok: false as const };
     }
-    return { ok: true as const, userId: this.appSessionUserId };
+    return {
+      ok: true as const,
+      userId: this.appSessionUserId,
+      sessionId: this.appSessionSessionId,
+      expiresAt: this.appSessionExpiresAt,
+    };
+  }
+
+  async validateAppSession(sessionId: string) {
+    this.validatedSessionIds.push(sessionId);
+    if (!this.appSessionValidationOk) {
+      return { ok: false as const };
+    }
+    return {
+      ok: true as const,
+      userId: this.appSessionUserId,
+      expiresAt: this.appSessionExpiresAt,
+    };
   }
 
   async replayEvents(afterSequence?: number): Promise<OpenClawEventEnvelope[]> {
@@ -74,6 +96,7 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
   }
 
   async createIosThread(command: Parameters<CowtailRealtimeApi["createIosThread"]>[0]) {
+    this.iosThreads.push(command);
     return createEvent(3, "thread_created", {
       threadId: "thread-1",
       payload: { text: command.text },
@@ -692,6 +715,7 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(api.verifiedSessionTokens).toEqual(["app-session-token"]);
+    expect(api.validatedSessionIds).toEqual(["session-1"]);
     expect(api.iosReplies).toEqual([
       {
         type: "ios_reply",
@@ -705,6 +729,57 @@ describe("OpenClawSessionController", () => {
       api.iosReplyEvent,
       { type: "ack", requestId: "request-2", sequence: 9 },
     ]);
+  });
+
+  test("rejects an expired iOS session before processing a command, closes, and detaches", async () => {
+    const { api, controller, registry } = createController();
+    api.appSessionExpiresAt = 0;
+    const socket = new FakeSocket();
+    await authenticateIos(controller, socket);
+    socket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_new_thread",
+        requestId: "request-expired",
+        text: "Start thread",
+      }),
+    );
+
+    expect(api.validatedSessionIds).toEqual([]);
+    expect(api.iosThreads).toEqual([]);
+    expect(sent(socket)).toEqual([
+      { type: "realtime_error", requestId: "request-expired", error: "unauthorized" },
+    ]);
+    expect(socket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
+    expect(registry.getClient("ios-1")).toBe(undefined);
+  });
+
+  test("rejects a revoked iOS session before processing a command, closes, and detaches", async () => {
+    const { api, controller, registry } = createController();
+    api.appSessionValidationOk = false;
+    const socket = new FakeSocket();
+    await authenticateIos(controller, socket);
+    socket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_reply",
+        requestId: "request-revoked",
+        threadId: "thread-1",
+        text: "Ship it",
+      }),
+    );
+
+    expect(api.validatedSessionIds).toEqual(["session-1"]);
+    expect(api.iosReplies).toEqual([]);
+    expect(sent(socket)).toEqual([
+      { type: "realtime_error", requestId: "request-revoked", error: "unauthorized" },
+    ]);
+    expect(socket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
+    expect(registry.getClient("ios-1")).toBe(undefined);
   });
 });
 
