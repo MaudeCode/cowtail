@@ -1,6 +1,25 @@
 import { describe, expect, test } from "bun:test";
 
 import { sendCowtailText } from "./outbound.js";
+import type { ResolvedCowtailAccount } from "./types.js";
+
+function createAccount(
+  overrides: Partial<ResolvedCowtailAccount> = {},
+): ResolvedCowtailAccount {
+  return {
+    accountId: "default",
+    enabled: true,
+    configured: true,
+    url: "wss://cowtail.example.invalid/openclaw/realtime",
+    bridgeToken: "bridge-token",
+    bridgeTokenSource: "config",
+    agentId: "main",
+    connectTimeoutMs: 5_000,
+    reconnectMinDelayMs: 100,
+    reconnectMaxDelayMs: 250,
+    ...overrides,
+  };
+}
 
 type SentMessage = {
   type: "openclaw_message";
@@ -37,11 +56,13 @@ describe("sendCowtailText", () => {
     const client = createClient();
 
     const first = await sendCowtailText({
+      account: createAccount(),
       client,
       to: "cowtail:thread_123",
       text: "Hello world",
     });
     const second = await sendCowtailText({
+      account: createAccount(),
       client,
       to: "thread_123",
       text: "Hello world",
@@ -81,6 +102,7 @@ describe("sendCowtailText", () => {
     });
 
     const result = await sendCowtailText({
+      account: createAccount(),
       client,
       to: "cowtail:thread_123",
       text: "Hello world",
@@ -98,6 +120,7 @@ describe("sendCowtailText", () => {
 
     await expect(
       sendCowtailText({
+        account: createAccount(),
         client,
         to: "thread_123",
         text: "   ",
@@ -116,6 +139,7 @@ describe("sendCowtailText", () => {
 
     await expect(
       sendCowtailText({
+        account: createAccount(),
         client,
         to: "thread_123",
         text: "Hello world",
