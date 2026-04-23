@@ -68,4 +68,47 @@ describe("Cowtail account resolution", () => {
       }),
     ).toEqual(["default"]);
   });
+
+  test("lists the default account for an unresolved SecretRef without throwing", () => {
+    expect(
+      listCowtailAccountIds({
+        channels: {
+          cowtail: {
+            bridgeToken: {
+              source: "env",
+              provider: "default",
+              id: "OPENCLAW_COWTAIL_BRIDGE_TOKEN",
+            },
+          },
+        },
+      }),
+    ).toEqual(["default"]);
+  });
+
+  test("throws for an unresolved SecretRef in runtime resolution", () => {
+    const previous = process.env.OPENCLAW_COWTAIL_BRIDGE_TOKEN;
+    delete process.env.OPENCLAW_COWTAIL_BRIDGE_TOKEN;
+    try {
+      expect(() =>
+        resolveCowtailAccount({
+          channels: {
+            cowtail: {
+              url: "wss://cowtail.example.invalid/openclaw/realtime",
+              bridgeToken: {
+                source: "env",
+                provider: "default",
+                id: "OPENCLAW_COWTAIL_BRIDGE_TOKEN",
+              },
+            },
+          },
+        }),
+      ).toThrow();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENCLAW_COWTAIL_BRIDGE_TOKEN;
+      } else {
+        process.env.OPENCLAW_COWTAIL_BRIDGE_TOKEN = previous;
+      }
+    }
+  });
 });

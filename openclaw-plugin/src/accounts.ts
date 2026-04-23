@@ -1,6 +1,9 @@
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { normalizeResolvedSecretInputString } from "openclaw/plugin-sdk/secret-input";
+import {
+  hasConfiguredSecretInput,
+  normalizeResolvedSecretInputString,
+} from "openclaw/plugin-sdk/secret-input";
 import type {
   CowtailCoreConfig,
   ResolvedCowtailAccount,
@@ -46,8 +49,9 @@ function resolveBridgeToken(configValue: unknown): {
 export function listCowtailAccountIds(cfg: OpenClawConfig | CowtailCoreConfig): string[] {
   const channelCfg = readCowtailConfig(cfg);
   const url = normalizeUrl(channelCfg.url);
-  const token = resolveBridgeToken(channelCfg.bridgeToken).token;
-  return url || token ? [DEFAULT_ACCOUNT_ID] : [];
+  return url || hasConfiguredSecretInput(channelCfg.bridgeToken)
+    ? [DEFAULT_ACCOUNT_ID]
+    : [];
 }
 
 export function resolveCowtailAccount(
