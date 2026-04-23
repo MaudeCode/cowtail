@@ -6,6 +6,7 @@ ENV VITE_APP_VERSION=${COWTAIL_VERSION}
 COPY package.json bun.lock ./
 COPY web/package.json web/package.json
 COPY protocol/package.json protocol/package.json
+COPY realtime/package.json realtime/package.json
 RUN bun install --frozen-lockfile
 
 COPY web web

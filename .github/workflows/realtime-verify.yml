@@ -1,0 +1,39 @@
+name: Realtime Verify
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
+      - "realtime/**"
+      - "web/convex/**"
+      - ".github/workflows/realtime-verify.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
+      - "realtime/**"
+      - "web/convex/**"
+      - ".github/workflows/realtime-verify.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check:realtime
+      - run: bun run test:realtime
+      - run: bun run fmt:ts:check
+      - run: bun run lint:ts
