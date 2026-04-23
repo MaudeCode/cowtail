@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
+    "dev": "bun run src/main.ts",
     "check": "tsc -p tsconfig.json --noEmit",
+    "start": "bun run src/main.ts",
     "test": "bun test src/**/*.test.ts"
   },
   "dependencies": {

@@ -9,26 +9,29 @@ declare module "bun:test" {
 }
 
 type BunWebSocket<T = unknown> = {
-  data?: T;
+  data: T;
+  readyState: number;
+  send(message: string): void;
+  close(code?: number, reason?: string): void;
 };
 
-type BunServeOptions = {
+type BunServeOptions<Data> = {
   port?: number;
   fetch?: (
     request: Request,
-    server: { upgrade: (request: Request, options?: { data?: unknown }) => boolean },
-  ) => Response | Promise<Response>;
+    server: { upgrade: (request: Request, options?: { data: Data }) => boolean },
+  ) => Response | Promise<Response> | void;
   websocket?: {
-    open?: (ws: BunWebSocket) => void | Promise<void>;
+    open?: (ws: BunWebSocket<Data>) => void | Promise<void>;
     message?: (
-      ws: BunWebSocket,
+      ws: BunWebSocket<Data>,
       message: string | ArrayBuffer | Uint8Array,
     ) => void | Promise<void>;
-    close?: (ws: BunWebSocket, code: number, reason: string) => void | Promise<void>;
+    close?: (ws: BunWebSocket<Data>, code: number, reason: string) => void | Promise<void>;
   };
 };
 
 declare const Bun: {
   env: Record<string, string | undefined>;
-  serve(options: BunServeOptions): { stop(): void };
+  serve<Data>(options: BunServeOptions<Data>): { port: number; stop(): void };
 };
