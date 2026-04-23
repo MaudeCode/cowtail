@@ -35,7 +35,7 @@ export type WebSocketLike = {
 };
 
 type PendingRequest = {
-  resolve: (sequence: number | undefined) => void;
+  resolve: (result: CowtailCommandResult) => void;
   reject: (error: Error) => void;
 };
 
@@ -43,6 +43,11 @@ type HandshakeState = {
   promise: Promise<void>;
   resolve: () => void;
   reject: (error: Error) => void;
+};
+
+export type CowtailCommandResult = {
+  requestId: string;
+  sequence?: number;
 };
 
 export type CowtailRealtimeClientDeps = {
@@ -121,7 +126,7 @@ export class CowtailRealtimeClient {
     this.#closeSocket();
   }
 
-  sendOpenClawMessage(command: OpenClawMessageInput): Promise<number | undefined> {
+  sendOpenClawMessage(command: OpenClawMessageInput): Promise<CowtailCommandResult> {
     return this.#sendCommand({
       ...command,
       requestId: this.#requestIdFactory(),
@@ -134,14 +139,14 @@ export class CowtailRealtimeClient {
     return this.#sendCommand({
       ...command,
       requestId: this.#requestIdFactory(),
-    });
+    }).then((result) => result.sequence);
   }
 
   sendActionResult(command: OpenClawActionResultInput): Promise<number | undefined> {
     return this.#sendCommand({
       ...command,
       requestId: this.#requestIdFactory(),
-    });
+    }).then((result) => result.sequence);
   }
 
   #connect(): void {
@@ -341,7 +346,7 @@ export class CowtailRealtimeClient {
 
   async #sendCommand(
     command: OpenClawPluginMessageCommand | OpenClawSessionBoundCommand | OpenClawActionResultCommand,
-  ): Promise<number | undefined> {
+  ): Promise<CowtailCommandResult> {
     const socket = this.#socket;
     const handshake = this.#handshake;
     if (!socket || !handshake || !this.#isSocketOpen(socket)) {
@@ -354,7 +359,7 @@ export class CowtailRealtimeClient {
       throw new Error("Cowtail websocket is disconnected");
     }
 
-    return new Promise<number | undefined>((resolve, reject) => {
+    return new Promise<CowtailCommandResult>((resolve, reject) => {
       this.#pendingRequests.set(command.requestId, { resolve, reject });
       try {
         socket.send(JSON.stringify(command));
@@ -372,7 +377,7 @@ export class CowtailRealtimeClient {
     }
 
     this.#pendingRequests.delete(requestId);
-    pending.resolve(sequence);
+    pending.resolve({ requestId, sequence });
   }
 
   #rejectPendingRequest(message: OpenClawRealtimeError): void {

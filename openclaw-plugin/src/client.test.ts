@@ -245,7 +245,10 @@ describe("CowtailRealtimeClient", () => {
       sequence: 101,
     });
 
-    await expect(pending).resolves.toBe(101);
+    await expect(pending).resolves.toEqual({
+      requestId: "request-delayed",
+      sequence: 101,
+    });
   });
 
   test("resolves command promises when matching ack arrives", async () => {
@@ -305,7 +308,10 @@ describe("CowtailRealtimeClient", () => {
       sequence: 42,
     });
 
-    await expect(pending).resolves.toBe(42);
+    await expect(pending).resolves.toEqual({
+      requestId: "request-1",
+      sequence: 42,
+    });
   });
 
   test("rejects the matching pending request on realtime_error", async () => {

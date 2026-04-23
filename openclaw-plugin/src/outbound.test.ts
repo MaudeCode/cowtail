@@ -29,8 +29,13 @@ type SentMessage = {
   actions: [];
 };
 
+type SendResult = {
+  requestId: string;
+  sequence?: number;
+};
+
 function createClient(overrides?: {
-  sendOpenClawMessage?: (message: SentMessage) => Promise<number | undefined>;
+  sendOpenClawMessage?: (message: SentMessage) => Promise<SendResult>;
 }) {
   const sentMessages: SentMessage[] = [];
 
@@ -41,7 +46,7 @@ function createClient(overrides?: {
       if (overrides?.sendOpenClawMessage) {
         return overrides.sendOpenClawMessage(message);
       }
-      return 17;
+      return { requestId: "request-17", sequence: 17 };
     },
   };
 }
@@ -93,7 +98,7 @@ describe("sendCowtailText", () => {
 
   test("uses a request-id-like fallback when no sequence is returned", async () => {
     const client = createClient({
-      sendOpenClawMessage: async () => undefined,
+      sendOpenClawMessage: async () => ({ requestId: "request-abc" }),
     });
 
     const result = await sendCowtailText({
@@ -101,7 +106,6 @@ describe("sendCowtailText", () => {
       client,
       to: "cowtail:thread_123",
       text: "Hello world",
-      requestIdFactory: () => "request-abc",
     });
 
     expect(result).toEqual({
