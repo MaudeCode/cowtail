@@ -20,13 +20,19 @@ async function makeRoot() {
 describe("CowtailStateStore", () => {
   test("persists replay cursor per account", async () => {
     const root = await makeRoot();
-    const store = new CowtailStateStore(root, "default");
+    const defaultStore = new CowtailStateStore(root, "default");
+    const opsStore = new CowtailStateStore(root, "ops");
 
-    expect(await store.readLastSeenSequence()).toBeUndefined();
-    await store.writeLastSeenSequence(42);
+    expect(await defaultStore.readLastSeenSequence()).toBeUndefined();
+    expect(await opsStore.readLastSeenSequence()).toBeUndefined();
 
-    const reloaded = new CowtailStateStore(root, "default");
-    expect(await reloaded.readLastSeenSequence()).toBe(42);
+    await defaultStore.writeLastSeenSequence(42);
+    await opsStore.writeLastSeenSequence(7);
+
+    const reloadedDefault = new CowtailStateStore(root, "default");
+    const reloadedOps = new CowtailStateStore(root, "ops");
+    expect(await reloadedDefault.readLastSeenSequence()).toBe(42);
+    expect(await reloadedOps.readLastSeenSequence()).toBe(7);
   });
 
   test("ignores corrupt state files", async () => {
