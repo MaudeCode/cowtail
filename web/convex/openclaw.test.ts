@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildOpenClawActionResultUpdate,
   buildOpenClawEventPayload,
   applyOpenClawThreadTitlePatch,
   normalizeOpenClawTitle,
+  toOpenClawActionRecord,
+  toOpenClawEventEnvelope,
+  toOpenClawMessageRecord,
+  toOpenClawThreadRecord,
   validateOpenClawAfterSequence,
   validateOpenClawLimit,
   sortOpenClawMessagesAscending,
@@ -115,6 +120,171 @@ describe("OpenClaw Convex model helpers", () => {
       threadId: "",
       actionId: "",
       payload: { ok: false, count: 0, label: "", value: null, enabled: false },
+    });
+  });
+
+  test("maps Convex OpenClaw documents to protocol records", () => {
+    const thread = toOpenClawThreadRecord({
+      _id: "thread-1",
+      sessionKey: "session-1",
+      status: "active",
+      targetAgent: "default",
+      title: "Deploy",
+      unreadCount: 1,
+      createdAt: 100,
+      updatedAt: 200,
+      lastMessageAt: 300,
+    });
+    const message = toOpenClawMessageRecord({
+      _id: "message-1",
+      threadId: "thread-1",
+      direction: "openclaw_to_user",
+      authorLabel: "OpenClaw",
+      text: "Approve?",
+      links: [{ label: "Run", url: "https://cowtail.example.invalid/runs/1" }],
+      deliveryState: "sent",
+      createdAt: 400,
+      updatedAt: 500,
+    });
+    const action = toOpenClawActionRecord({
+      _id: "action-1",
+      threadId: "thread-1",
+      messageId: "message-1",
+      label: "Approve",
+      kind: "approval",
+      payload: { decision: "approve" },
+      state: "pending",
+      resultMetadata: { submittedBy: "openclaw" },
+      createdAt: 600,
+      updatedAt: 700,
+    });
+
+    expect(thread).toEqual({
+      id: "thread-1",
+      sessionKey: "session-1",
+      status: "active",
+      targetAgent: "default",
+      title: "Deploy",
+      unreadCount: 1,
+      createdAt: 100,
+      updatedAt: 200,
+      lastMessageAt: 300,
+    });
+    expect(message).toEqual({
+      id: "message-1",
+      threadId: "thread-1",
+      direction: "openclaw_to_user",
+      authorLabel: "OpenClaw",
+      text: "Approve?",
+      links: [{ label: "Run", url: "https://cowtail.example.invalid/runs/1" }],
+      deliveryState: "sent",
+      createdAt: 400,
+      updatedAt: 500,
+    });
+    expect(action).toEqual({
+      id: "action-1",
+      threadId: "thread-1",
+      messageId: "message-1",
+      label: "Approve",
+      kind: "approval",
+      payload: { decision: "approve" },
+      state: "pending",
+      resultMetadata: { submittedBy: "openclaw" },
+      createdAt: 600,
+      updatedAt: 700,
+    });
+  });
+
+  test("builds action result patches and event payloads", () => {
+    expect(
+      buildOpenClawActionResultUpdate({
+        state: "failed",
+        resultMetadata: { reason: "timeout" },
+        updatedAt: 900,
+      }),
+    ).toEqual({
+      actionPatch: {
+        state: "failed",
+        resultMetadata: { reason: "timeout" },
+        updatedAt: 900,
+      },
+      eventPayload: {
+        state: "failed",
+        resultMetadata: { reason: "timeout" },
+      },
+    });
+
+    expect(
+      buildOpenClawActionResultUpdate({
+        state: "submitted",
+        updatedAt: 901,
+      }),
+    ).toEqual({
+      actionPatch: {
+        state: "submitted",
+        updatedAt: 901,
+      },
+      eventPayload: {
+        state: "submitted",
+      },
+    });
+  });
+
+  test("hydrates replay events with available records", () => {
+    expect(
+      toOpenClawEventEnvelope({
+        event: {
+          sequence: 9,
+          type: "message_created",
+          createdAt: 800,
+          threadId: "thread-1",
+          messageId: "message-1",
+        },
+        thread: {
+          _id: "thread-1",
+          status: "active",
+          targetAgent: "default",
+          title: "Deploy",
+          unreadCount: 1,
+          createdAt: 100,
+          updatedAt: 200,
+        },
+        message: {
+          _id: "message-1",
+          threadId: "thread-1",
+          direction: "openclaw_to_user",
+          text: "Approve?",
+          links: [],
+          deliveryState: "sent",
+          createdAt: 400,
+          updatedAt: 500,
+        },
+      }),
+    ).toEqual({
+      sequence: 9,
+      type: "message_created",
+      createdAt: 800,
+      threadId: "thread-1",
+      messageId: "message-1",
+      thread: {
+        id: "thread-1",
+        status: "active",
+        targetAgent: "default",
+        title: "Deploy",
+        unreadCount: 1,
+        createdAt: 100,
+        updatedAt: 200,
+      },
+      message: {
+        id: "message-1",
+        threadId: "thread-1",
+        direction: "openclaw_to_user",
+        text: "Approve?",
+        links: [],
+        deliveryState: "sent",
+        createdAt: 400,
+        updatedAt: 500,
+      },
     });
   });
 });

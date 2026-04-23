@@ -1,11 +1,14 @@
 import { mutation, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import type { OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
 
 import {
   applyOpenClawThreadTitlePatch,
+  buildOpenClawActionResultUpdate,
   normalizeOpenClawTitle,
+  toOpenClawEventEnvelope,
   validateOpenClawAfterSequence,
   validateOpenClawLimit,
   type OpenClawEventPayloadInput,
@@ -74,6 +77,14 @@ async function insertOpenClawEvent(
   });
 
   return sequence;
+}
+
+async function hydrateOpenClawEvent(ctx: QueryCtx | MutationCtx, event: Doc<"openclawEvents">) {
+  const thread = event.threadId !== undefined ? await ctx.db.get(event.threadId) : null;
+  const message = event.messageId !== undefined ? await ctx.db.get(event.messageId) : null;
+  const action = event.actionId !== undefined ? await ctx.db.get(event.actionId) : null;
+
+  return toOpenClawEventEnvelope({ event, thread, message, action });
 }
 
 async function getThreadBySessionKey(ctx: MutationCtx, sessionKey: string) {
@@ -325,6 +336,38 @@ export const submitActionFromIos = mutation({
   },
 });
 
+export const recordActionResultFromOpenClaw = mutation({
+  args: {
+    actionId: v.id("openclawActions"),
+    state: v.union(v.literal("submitted"), v.literal("failed"), v.literal("expired")),
+    resultMetadata: v.optional(v.record(v.string(), v.any())),
+  },
+  handler: async (ctx, args) => {
+    const action = await ctx.db.get(args.actionId);
+    if (!action) {
+      throw new Error(`Action not found: ${args.actionId}`);
+    }
+
+    const now = Date.now();
+    const { actionPatch, eventPayload } = buildOpenClawActionResultUpdate({
+      state: args.state,
+      resultMetadata: args.resultMetadata,
+      updatedAt: now,
+    });
+
+    await ctx.db.patch(args.actionId, actionPatch);
+
+    const sequence = await insertOpenClawEvent(ctx, {
+      type: "action_result",
+      threadId: action.threadId,
+      actionId: args.actionId,
+      payload: eventPayload,
+    });
+
+    return { ok: true, sequence };
+  },
+});
+
 export const markThreadRead = mutation({
   args: {
     threadId: v.id("openclawThreads"),
@@ -407,14 +450,20 @@ export const replayEvents = query({
     const limit = validateOpenClawLimit(args.limit);
     const afterSequence = validateOpenClawAfterSequence(args.afterSequence);
 
-    if (afterSequence === undefined) {
-      return await ctx.db.query("openclawEvents").withIndex("by_sequence").order("asc").take(limit);
+    const events =
+      afterSequence === undefined
+        ? await ctx.db.query("openclawEvents").withIndex("by_sequence").order("asc").take(limit)
+        : await ctx.db
+            .query("openclawEvents")
+            .withIndex("by_sequence", (q) => q.gt("sequence", afterSequence))
+            .order("asc")
+            .take(limit);
+
+    const envelopes: OpenClawEventEnvelope[] = [];
+    for (const event of events) {
+      envelopes.push(await hydrateOpenClawEvent(ctx, event));
     }
 
-    return await ctx.db
-      .query("openclawEvents")
-      .withIndex("by_sequence", (q) => q.gt("sequence", afterSequence))
-      .order("asc")
-      .take(limit);
+    return envelopes;
   },
 });

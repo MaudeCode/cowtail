@@ -1,9 +1,72 @@
-import type { OpenClawEventType } from "@maudecode/cowtail-protocol";
+import type {
+  OpenClawActionRecord,
+  OpenClawActionState,
+  OpenClawDeliveryState,
+  OpenClawEventEnvelope,
+  OpenClawEventType,
+  OpenClawMessageDirection,
+  OpenClawMessageRecord,
+  OpenClawTargetAgent,
+  OpenClawThreadRecord,
+  OpenClawThreadStatus,
+} from "@maudecode/cowtail-protocol";
 
 type MessageLike<IdValue extends string = string> = {
   _id: IdValue;
   createdAt: number;
 };
+
+type DocumentId = string;
+
+type StoredOpenClawThread = {
+  _id: DocumentId;
+  sessionKey?: string;
+  status: OpenClawThreadStatus;
+  targetAgent: OpenClawTargetAgent;
+  title: string;
+  unreadCount: number;
+  createdAt: number;
+  updatedAt: number;
+  lastMessageAt?: number;
+};
+
+type StoredOpenClawMessage = {
+  _id: DocumentId;
+  threadId: DocumentId;
+  direction: OpenClawMessageDirection;
+  authorLabel?: string;
+  text: string;
+  links: OpenClawMessageRecord["links"];
+  deliveryState: OpenClawDeliveryState;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type StoredOpenClawAction = {
+  _id: DocumentId;
+  threadId: DocumentId;
+  messageId: DocumentId;
+  label: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  state: OpenClawActionState;
+  resultMetadata?: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type StoredOpenClawEvent = {
+  sequence: number;
+  type: OpenClawEventType;
+  createdAt: number;
+  threadId?: DocumentId;
+  messageId?: DocumentId;
+  actionId?: DocumentId;
+  payload?: Record<string, unknown>;
+  error?: string;
+};
+
+type OpenClawActionResultState = Extract<OpenClawActionState, "submitted" | "failed" | "expired">;
 
 export type OpenClawEventPayloadInput = {
   type: OpenClawEventType;
@@ -65,6 +128,161 @@ export function sortOpenClawMessagesAscending<
 
     return left._id.localeCompare(right._id);
   });
+}
+
+export function toOpenClawThreadRecord(thread: StoredOpenClawThread): OpenClawThreadRecord {
+  const record: OpenClawThreadRecord = {
+    id: thread._id,
+    status: thread.status,
+    targetAgent: thread.targetAgent,
+    title: thread.title,
+    unreadCount: thread.unreadCount,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+  };
+
+  if (thread.sessionKey !== undefined) {
+    record.sessionKey = thread.sessionKey;
+  }
+
+  if (thread.lastMessageAt !== undefined) {
+    record.lastMessageAt = thread.lastMessageAt;
+  }
+
+  return record;
+}
+
+export function toOpenClawMessageRecord(message: StoredOpenClawMessage): OpenClawMessageRecord {
+  const record: OpenClawMessageRecord = {
+    id: message._id,
+    threadId: message.threadId,
+    direction: message.direction,
+    text: message.text,
+    links: message.links,
+    deliveryState: message.deliveryState,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+  };
+
+  if (message.authorLabel !== undefined) {
+    record.authorLabel = message.authorLabel;
+  }
+
+  return record;
+}
+
+export function toOpenClawActionRecord(action: StoredOpenClawAction): OpenClawActionRecord {
+  const record: OpenClawActionRecord = {
+    id: action._id,
+    threadId: action.threadId,
+    messageId: action.messageId,
+    label: action.label,
+    kind: action.kind,
+    payload: action.payload,
+    state: action.state,
+    createdAt: action.createdAt,
+    updatedAt: action.updatedAt,
+  };
+
+  if (action.resultMetadata !== undefined) {
+    record.resultMetadata = action.resultMetadata;
+  }
+
+  return record;
+}
+
+export function toOpenClawEventEnvelope({
+  event,
+  thread,
+  message,
+  action,
+}: {
+  event: StoredOpenClawEvent;
+  thread?: StoredOpenClawThread | null;
+  message?: StoredOpenClawMessage | null;
+  action?: StoredOpenClawAction | null;
+}): OpenClawEventEnvelope {
+  const envelope: OpenClawEventEnvelope = {
+    sequence: event.sequence,
+    type: event.type,
+    createdAt: event.createdAt,
+  };
+
+  if (event.threadId !== undefined) {
+    envelope.threadId = event.threadId;
+  }
+
+  if (event.messageId !== undefined) {
+    envelope.messageId = event.messageId;
+  }
+
+  if (event.actionId !== undefined) {
+    envelope.actionId = event.actionId;
+  }
+
+  if (thread !== undefined && thread !== null) {
+    envelope.thread = toOpenClawThreadRecord(thread);
+  }
+
+  if (message !== undefined && message !== null) {
+    envelope.message = toOpenClawMessageRecord(message);
+  }
+
+  if (action !== undefined && action !== null) {
+    envelope.action = toOpenClawActionRecord(action);
+  }
+
+  if (event.payload !== undefined) {
+    envelope.payload = event.payload;
+  }
+
+  if (event.error !== undefined) {
+    envelope.error = event.error;
+  }
+
+  return envelope;
+}
+
+export function buildOpenClawActionResultUpdate({
+  state,
+  resultMetadata,
+  updatedAt,
+}: {
+  state: OpenClawActionResultState;
+  resultMetadata?: Record<string, unknown>;
+  updatedAt: number;
+}): {
+  actionPatch: {
+    state: OpenClawActionResultState;
+    updatedAt: number;
+    resultMetadata?: Record<string, unknown>;
+  };
+  eventPayload: {
+    state: OpenClawActionResultState;
+    resultMetadata?: Record<string, unknown>;
+  };
+} {
+  const actionPatch: {
+    state: OpenClawActionResultState;
+    updatedAt: number;
+    resultMetadata?: Record<string, unknown>;
+  } = {
+    state,
+    updatedAt,
+  };
+  const eventPayload: {
+    state: OpenClawActionResultState;
+    resultMetadata?: Record<string, unknown>;
+  } = {
+    state,
+  };
+
+  if (resultMetadata !== undefined) {
+    actionPatch.resultMetadata = resultMetadata;
+    eventPayload.resultMetadata = resultMetadata;
+  }
+
+  return { actionPatch, eventPayload };
 }
 
 export function buildOpenClawEventPayload(input: OpenClawEventPayloadInput) {

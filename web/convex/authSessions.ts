@@ -1,6 +1,34 @@
 import { v } from "convex/values";
 
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, mutation } from "./_generated/server";
+
+type StoredAuthSession = {
+  _id: string;
+  userId: string;
+  expiresAt: number;
+  revokedAt?: number;
+};
+
+export function evaluateSessionTokenHashVerification<SessionId extends string>(
+  session: (StoredAuthSession & { _id: SessionId }) | null | undefined,
+  now: number,
+):
+  | { result: { ok: false } }
+  | {
+      result: { ok: true; userId: string; expiresAt: number };
+      sessionId: SessionId;
+      patch: { lastUsedAt: number };
+    } {
+  if (!session || session.revokedAt !== undefined || session.expiresAt <= now) {
+    return { result: { ok: false } };
+  }
+
+  return {
+    result: { ok: true, userId: session.userId, expiresAt: session.expiresAt },
+    sessionId: session._id,
+    patch: { lastUsedAt: now },
+  };
+}
 
 export const getSessionByTokenHash = internalQuery({
   args: {
@@ -11,6 +39,28 @@ export const getSessionByTokenHash = internalQuery({
       .query("authSessions")
       .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
       .unique();
+  },
+});
+
+export const verifySessionTokenHash = mutation({
+  args: {
+    tokenHash: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("authSessions")
+      .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
+      .unique();
+    const now = Date.now();
+    const verification = evaluateSessionTokenHashVerification(session, now);
+
+    if (!("patch" in verification)) {
+      return verification.result;
+    }
+
+    await ctx.db.patch(verification.sessionId, verification.patch);
+
+    return verification.result;
   },
 });
 
