@@ -1,6 +1,5 @@
 import { buildCowtailTarget, normalizeCowtailTarget } from "./session-keys.js";
 import type { CowtailCommandResult } from "./client.js";
-import type { ResolvedCowtailAccount } from "./types.js";
 
 type CowtailOutboundClient = {
   sendOpenClawMessage(command: {
@@ -35,7 +34,6 @@ function resolveCowtailTarget(to: string): string {
 }
 
 export async function sendCowtailText(params: {
-  account: Pick<ResolvedCowtailAccount, "agentId">;
   client: CowtailOutboundClient;
   to: string;
   text: string;

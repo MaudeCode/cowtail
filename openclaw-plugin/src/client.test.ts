@@ -251,6 +251,41 @@ describe("CowtailRealtimeClient", () => {
     });
   });
 
+  test("resolves command promises with an undefined sequence when ack omits it", async () => {
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      requestIdFactory: () => "request-no-seq",
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    socket.open();
+    await flushMicrotasks();
+
+    const pending = client.sendOpenClawMessage({
+      type: "openclaw_message",
+      sessionKey: "session-no-seq",
+      text: "hello",
+    });
+
+    await flushMicrotasks();
+    socket.message({
+      type: "ack",
+      requestId: "request-no-seq",
+    });
+
+    await expect(pending).resolves.toEqual({
+      requestId: "request-no-seq",
+      sequence: undefined,
+    });
+  });
+
   test("resolves command promises when matching ack arrives", async () => {
     const sockets: FakeWebSocket[] = [];
     const client = new CowtailRealtimeClient({

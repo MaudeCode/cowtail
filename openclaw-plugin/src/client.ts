@@ -47,7 +47,7 @@ type HandshakeState = {
 
 export type CowtailCommandResult = {
   requestId: string;
-  sequence?: number;
+  sequence: number | undefined;
 };
 
 export type CowtailRealtimeClientDeps = {
