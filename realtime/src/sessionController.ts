@@ -231,7 +231,7 @@ export class OpenClawSessionController {
       case "openclaw_message": {
         try {
           const event = await this.#api.createOpenClawMessage(command);
-          const delivered = this.#registry.broadcastToIos(event);
+          const delivered = await this.#broadcastToIos(event);
           if (delivered === 0) {
             this.#sendPushFallback(event);
           }
@@ -245,7 +245,7 @@ export class OpenClawSessionController {
       case "ios_new_thread": {
         try {
           const event = await this.#api.createIosThread(command);
-          this.#broadcastToOpenClawAndIos(event);
+          await this.#broadcastToOpenClawAndIos(event);
           this.#send(connectionId, ack(command.requestId, event.sequence));
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -256,7 +256,7 @@ export class OpenClawSessionController {
       case "ios_reply": {
         try {
           const event = await this.#api.createIosReply(command);
-          this.#broadcastToOpenClawAndIos(event);
+          await this.#broadcastToOpenClawAndIos(event);
           this.#send(connectionId, ack(command.requestId, event.sequence));
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -267,7 +267,7 @@ export class OpenClawSessionController {
       case "ios_action": {
         try {
           const event = await this.#api.submitIosAction(command);
-          this.#broadcastToOpenClawAndIos(event);
+          await this.#broadcastToOpenClawAndIos(event);
           this.#send(connectionId, ack(command.requestId, event.sequence));
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -278,7 +278,7 @@ export class OpenClawSessionController {
       case "ios_mark_thread_read": {
         try {
           const event = await this.#api.markThreadRead(command);
-          this.#registry.broadcastToIos(event);
+          await this.#broadcastToIos(event);
           this.#send(connectionId, ack(command.requestId, event.sequence));
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -289,7 +289,7 @@ export class OpenClawSessionController {
       case "openclaw_session_bound": {
         try {
           const event = await this.#api.bindThreadSession(command);
-          this.#registry.broadcastToIos(event);
+          await this.#broadcastToIos(event);
           this.#send(connectionId, ack(command.requestId, event.sequence));
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -300,7 +300,7 @@ export class OpenClawSessionController {
       case "openclaw_action_result": {
         try {
           const event = await this.#api.recordActionResult(command);
-          this.#registry.broadcastToIos(event);
+          await this.#broadcastToIos(event);
           this.#send(connectionId, ack(command.requestId, event.sequence));
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -313,9 +313,14 @@ export class OpenClawSessionController {
     }
   }
 
-  #broadcastToOpenClawAndIos(event: OpenClawEventEnvelope): void {
+  async #broadcastToOpenClawAndIos(event: OpenClawEventEnvelope): Promise<void> {
     this.#registry.broadcastToOpenClaw(event);
-    this.#registry.broadcastToIos(event);
+    await this.#broadcastToIos(event);
+  }
+
+  async #broadcastToIos(event: OpenClawEventEnvelope): Promise<number> {
+    await this.#pruneInvalidIosDeliverySessions();
+    return this.#registry.broadcastToIos(event);
   }
 
   #send(connectionId: string, message: OpenClawRealtimeServerMessage): boolean {
@@ -351,8 +356,31 @@ export class OpenClawSessionController {
     client: Extract<RealtimeClient, { kind: "ios" }>,
     requestId: string,
   ): Promise<boolean> {
-    if (Date.now() >= client.expiresAt) {
+    const sessionIsValid = await this.#validateIosSession(client);
+    if (!sessionIsValid) {
       this.#rejectIosSession(connectionId, requestId);
+      return false;
+    }
+
+    return true;
+  }
+
+  async #pruneInvalidIosDeliverySessions(): Promise<void> {
+    for (const [connectionId, connection] of Array.from(this.#connections)) {
+      const { client } = connection;
+      if (client?.kind !== "ios") {
+        continue;
+      }
+
+      const sessionIsValid = await this.#validateIosSession(client);
+      if (!sessionIsValid) {
+        this.#rejectIosSession(connectionId);
+      }
+    }
+  }
+
+  async #validateIosSession(client: Extract<RealtimeClient, { kind: "ios" }>): Promise<boolean> {
+    if (Date.now() >= client.expiresAt) {
       return false;
     }
 
@@ -360,16 +388,15 @@ export class OpenClawSessionController {
     try {
       validation = await this.#api.validateAppSession(client.sessionId);
     } catch {
-      this.#rejectIosSession(connectionId, requestId);
       return false;
     }
 
     if (
       !validation.ok ||
       validation.userId !== client.userId ||
-      validation.userId !== this.#ownerUserId
+      validation.userId !== this.#ownerUserId ||
+      Date.now() >= validation.expiresAt
     ) {
-      this.#rejectIosSession(connectionId, requestId);
       return false;
     }
 
@@ -377,10 +404,11 @@ export class OpenClawSessionController {
     return true;
   }
 
-  #rejectIosSession(connectionId: string, requestId: string): void {
+  #rejectIosSession(connectionId: string, requestId?: string): void {
+    const connection = this.#connections.get(connectionId);
+
     this.#send(connectionId, realtimeError("unauthorized", requestId));
 
-    const connection = this.#connections.get(connectionId);
     connection?.socket.close(1008, "unauthorized");
     this.detach(connectionId);
   }

@@ -558,9 +558,74 @@ describe("OpenClawSessionController", () => {
       }),
     );
 
+    expect(api.validatedSessionIds).toEqual(["session-1"]);
     expect(pushBridge.notifications).toEqual([]);
     expect(sent(iosSocket)).toEqual([api.openClawMessageEvent]);
     expect(sent(pluginSocket)).toEqual([{ type: "ack", requestId: "request-3", sequence: 7 }]);
+  });
+
+  test("prunes an expired receive-only iOS socket before OpenClaw delivery and sends push fallback", async () => {
+    const { api, controller, pushBridge, registry } = createController();
+    api.appSessionExpiresAt = 0;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message",
+        requestId: "request-expired-delivery",
+        sessionKey: "session-1",
+        text: "Approve the deploy?",
+        links: [],
+        actions: [],
+      }),
+    );
+
+    expect(api.validatedSessionIds).toEqual([]);
+    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
+    expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
+    expect(registry.getClient("ios-1")).toBe(undefined);
+    expect(sent(pluginSocket)).toEqual([
+      { type: "ack", requestId: "request-expired-delivery", sequence: 7 },
+    ]);
+  });
+
+  test("prunes a revoked receive-only iOS socket before OpenClaw delivery and sends push fallback", async () => {
+    const { api, controller, pushBridge, registry } = createController();
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    api.appSessionValidationOk = false;
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message",
+        requestId: "request-revoked-delivery",
+        sessionKey: "session-1",
+        text: "Approve the deploy?",
+        links: [],
+        actions: [],
+      }),
+    );
+
+    expect(api.validatedSessionIds).toEqual(["session-1"]);
+    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
+    expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
+    expect(registry.getClient("ios-1")).toBe(undefined);
+    expect(sent(pluginSocket)).toEqual([
+      { type: "ack", requestId: "request-revoked-delivery", sequence: 7 },
+    ]);
   });
 
   test("API rejection during a command is contained and sends request-scoped realtime_error", async () => {
@@ -715,7 +780,7 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(api.verifiedSessionTokens).toEqual(["app-session-token"]);
-    expect(api.validatedSessionIds).toEqual(["session-1"]);
+    expect(api.validatedSessionIds).toEqual(["session-1", "session-1"]);
     expect(api.iosReplies).toEqual([
       {
         type: "ios_reply",
