@@ -60,12 +60,9 @@ class FakeWebSocket {
   }
 
   messageRaw(raw: string): void {
-    this.#emit(
-      "message",
-      {
-        data: raw,
-      } as MessageEvent<string>,
-    );
+    this.#emit("message", {
+      data: raw,
+    } as MessageEvent<string>);
   }
 
   #emit(type: string, event: Event): void {
@@ -127,9 +124,7 @@ class FakeTimers {
   }
 }
 
-function createAccount(
-  overrides: Partial<ResolvedCowtailAccount> = {},
-): ResolvedCowtailAccount {
+function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): ResolvedCowtailAccount {
   return {
     accountId: "default",
     enabled: true,

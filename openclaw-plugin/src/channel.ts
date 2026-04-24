@@ -27,7 +27,9 @@ const activeRunGenerations = new Map<string, number>();
 
 type CowtailChannelDeps = {
   createStateStore: (stateDir: string, accountId: string) => CowtailStateStore;
-  createClient: (params: ConstructorParameters<typeof CowtailRealtimeClient>[0]) => CowtailRealtimeClient;
+  createClient: (
+    params: ConstructorParameters<typeof CowtailRealtimeClient>[0],
+  ) => CowtailRealtimeClient;
   handleEvent: typeof handleCowtailEvent;
   sendText: typeof sendCowtailText;
   waitForAbort: typeof waitUntilAbort;
@@ -73,262 +75,260 @@ function startRunGeneration(accountId: string): number {
   return nextGeneration;
 }
 
-export function createCowtailChannelPlugin(
-  deps: CowtailChannelDeps = defaultDeps,
-) {
+export function createCowtailChannelPlugin(deps: CowtailChannelDeps = defaultDeps) {
   return createChatChannelPlugin({
-  base: {
-    id: CHANNEL_ID,
-    meta: {
+    base: {
       id: CHANNEL_ID,
-      label: CHANNEL_LABEL,
-      selectionLabel: CHANNEL_LABEL,
-      detailLabel: CHANNEL_LABEL,
-      docsPath: CHANNEL_DOCS_PATH,
-      docsLabel: CHANNEL_ID,
-      blurb: CHANNEL_BLURB,
-      systemImage: "message",
-      order: 95,
-    },
-    capabilities: {
-      chatTypes: ["direct"],
-      threads: true,
-      reply: true,
-      media: false,
-      reactions: false,
-      edit: false,
-      unsend: false,
-      blockStreaming: false,
-    },
-    setup: {
-      applyAccountConfig: ({ cfg }) => cfg,
-    },
-    config: {
-      listAccountIds: (cfg) => listCowtailAccountIds(cfg),
-      resolveAccount: (cfg, accountId) => {
-        resolveAccountId(accountId);
-        return resolveCowtailAccount(cfg);
+      meta: {
+        id: CHANNEL_ID,
+        label: CHANNEL_LABEL,
+        selectionLabel: CHANNEL_LABEL,
+        detailLabel: CHANNEL_LABEL,
+        docsPath: CHANNEL_DOCS_PATH,
+        docsLabel: CHANNEL_ID,
+        blurb: CHANNEL_BLURB,
+        systemImage: "message",
+        order: 95,
       },
-      defaultAccountId: () => DEFAULT_ACCOUNT_ID,
-      isConfigured: (account) => account.configured,
-      hasConfiguredState: ({ cfg }) => listCowtailAccountIds(cfg).length > 0,
-      describeAccount: (account) => ({
-        accountId: account.accountId,
-        enabled: account.enabled,
-        configured: account.configured,
-        running: false,
-        connected: false,
-        tokenSource: account.bridgeTokenSource,
-        tokenStatus: tokenStatusForAccount(account),
-      }),
-    },
-    gateway: {
-      startAccount: async (ctx) => {
-        const accountId = resolveAccountId(ctx.accountId);
-        const account = resolveCowtailAccount(ctx.cfg);
-        if (!account.configured) {
-          throw new Error("Cowtail account is not configured");
-        }
-
-        const runGeneration = startRunGeneration(accountId);
-        const isCurrentRun = () => activeRunGenerations.get(accountId) === runGeneration;
-        const runtime = deps.resolveRuntime();
-        const stateDir = runtime.state.resolveStateDir(process.env);
-        const stateStore = deps.createStateStore(stateDir, accountId);
-        const setStatus = (patch: Record<string, unknown>) => {
-          if (!isCurrentRun()) {
-            return;
-          }
-          ctx.setStatus({
-            ...ctx.getStatus(),
-            accountId,
-            ...patch,
-          });
-        };
-
-        let client!: CowtailRealtimeClient;
-        const logger = {
-          warn: (message: string) => {
-            ctx.log?.warn(message);
-          },
-          error: (message: string) => {
-            ctx.log?.error(message);
-            setStatus({
-              lastError: message,
-            });
-          },
-        };
-
-        client = deps.createClient({
-          account,
-          stateStore,
-          logger,
-          onEvent: async (event) => {
-            const timestamp = resolveEventTimestamp(event);
-            const currentStatus = ctx.getStatus();
-            const nextStatus: Record<string, unknown> = {
-              lastEventAt: timestamp,
-              lastError: null,
-            };
-            if (!currentStatus.connected) {
-              nextStatus.connected = true;
-              nextStatus.lastConnectedAt = timestamp;
-            }
-            setStatus(nextStatus);
-            try {
-              await deps.handleEvent({
-                event,
-                account,
-                client,
-                runtime: runtime as never,
-                ...(ctx.log ? { logger: ctx.log } : {}),
-              });
-            } catch (error) {
-              setStatus({
-                lastError: errorMessage(error),
-              });
-              throw error;
-            }
-          },
-        });
-
-        const previous = activeClients.get(accountId);
-        if (previous) {
-          previous.stop();
-        }
-        activeClients.set(accountId, client);
-
-        setStatus({
-          running: true,
+      capabilities: {
+        chatTypes: ["direct"],
+        threads: true,
+        reply: true,
+        media: false,
+        reactions: false,
+        edit: false,
+        unsend: false,
+        blockStreaming: false,
+      },
+      setup: {
+        applyAccountConfig: ({ cfg }) => cfg,
+      },
+      config: {
+        listAccountIds: (cfg) => listCowtailAccountIds(cfg),
+        resolveAccount: (cfg, accountId) => {
+          resolveAccountId(accountId);
+          return resolveCowtailAccount(cfg);
+        },
+        defaultAccountId: () => DEFAULT_ACCOUNT_ID,
+        isConfigured: (account) => account.configured,
+        hasConfiguredState: ({ cfg }) => listCowtailAccountIds(cfg).length > 0,
+        describeAccount: (account) => ({
+          accountId: account.accountId,
+          enabled: account.enabled,
+          configured: account.configured,
+          running: false,
           connected: false,
-          lastError: null,
-        });
-        client.start();
+          tokenSource: account.bridgeTokenSource,
+          tokenStatus: tokenStatusForAccount(account),
+        }),
+      },
+      gateway: {
+        startAccount: async (ctx) => {
+          const accountId = resolveAccountId(ctx.accountId);
+          const account = resolveCowtailAccount(ctx.cfg);
+          if (!account.configured) {
+            throw new Error("Cowtail account is not configured");
+          }
 
-        try {
-          await deps.waitForAbort(ctx.abortSignal, async () => {
-            if (activeClients.get(accountId) === client) {
-              activeClients.delete(accountId);
+          const runGeneration = startRunGeneration(accountId);
+          const isCurrentRun = () => activeRunGenerations.get(accountId) === runGeneration;
+          const runtime = deps.resolveRuntime();
+          const stateDir = runtime.state.resolveStateDir(process.env);
+          const stateStore = deps.createStateStore(stateDir, accountId);
+          const setStatus = (patch: Record<string, unknown>) => {
+            if (!isCurrentRun()) {
+              return;
             }
-            client.stop();
+            ctx.setStatus({
+              ...ctx.getStatus(),
+              accountId,
+              ...patch,
+            });
+          };
+
+          let client!: CowtailRealtimeClient;
+          const logger = {
+            warn: (message: string) => {
+              ctx.log?.warn(message);
+            },
+            error: (message: string) => {
+              ctx.log?.error(message);
+              setStatus({
+                lastError: message,
+              });
+            },
+          };
+
+          client = deps.createClient({
+            account,
+            stateStore,
+            logger,
+            onEvent: async (event) => {
+              const timestamp = resolveEventTimestamp(event);
+              const currentStatus = ctx.getStatus();
+              const nextStatus: Record<string, unknown> = {
+                lastEventAt: timestamp,
+                lastError: null,
+              };
+              if (!currentStatus.connected) {
+                nextStatus.connected = true;
+                nextStatus.lastConnectedAt = timestamp;
+              }
+              setStatus(nextStatus);
+              try {
+                await deps.handleEvent({
+                  event,
+                  account,
+                  client,
+                  runtime: runtime as never,
+                  ...(ctx.log ? { logger: ctx.log } : {}),
+                });
+              } catch (error) {
+                setStatus({
+                  lastError: errorMessage(error),
+                });
+                throw error;
+              }
+            },
+          });
+
+          const previous = activeClients.get(accountId);
+          if (previous) {
+            previous.stop();
+          }
+          activeClients.set(accountId, client);
+
+          setStatus({
+            running: true,
+            connected: false,
+            lastError: null,
+          });
+          client.start();
+
+          try {
+            await deps.waitForAbort(ctx.abortSignal, async () => {
+              if (activeClients.get(accountId) === client) {
+                activeClients.delete(accountId);
+              }
+              client.stop();
+              setStatus({
+                running: false,
+                connected: false,
+                lastDisconnect: {
+                  at: Date.now(),
+                },
+              });
+            });
+          } catch (error) {
+            const message = errorMessage(error);
             setStatus({
               running: false,
               connected: false,
               lastDisconnect: {
                 at: Date.now(),
+                error: message,
               },
+              lastError: message,
             });
-          });
-        } catch (error) {
-          const message = errorMessage(error);
-          setStatus({
-            running: false,
-            connected: false,
-            lastDisconnect: {
-              at: Date.now(),
-              error: message,
-            },
-            lastError: message,
-          });
-          throw error;
-        } finally {
-          if (activeClients.get(accountId) === client) {
-            activeClients.delete(accountId);
+            throw error;
+          } finally {
+            if (activeClients.get(accountId) === client) {
+              activeClients.delete(accountId);
+            }
+            if (isCurrentRun()) {
+              activeRunGenerations.delete(accountId);
+            }
           }
-          if (isCurrentRun()) {
-            activeRunGenerations.delete(accountId);
-          }
-        }
+        },
       },
-    },
-    messaging: {
-      inferTargetChatType: () => "direct",
-      normalizeTarget: (raw) => normalizeCowtailTarget(raw) || undefined,
-      targetResolver: {
-        hint: "Use a Cowtail thread id",
-        resolveTarget: async (params) => {
-          resolveAccountId(params.accountId);
-          const target = normalizeCowtailTarget(params.normalized);
+      messaging: {
+        inferTargetChatType: () => "direct",
+        normalizeTarget: (raw) => normalizeCowtailTarget(raw) || undefined,
+        targetResolver: {
+          hint: "Use a Cowtail thread id",
+          resolveTarget: async (params) => {
+            resolveAccountId(params.accountId);
+            const target = normalizeCowtailTarget(params.normalized);
+            if (!target) {
+              return null;
+            }
+            return {
+              to: buildCowtailTarget(target),
+              kind: "user",
+              source: "normalized",
+            };
+          },
+        },
+        resolveOutboundSessionRoute: (params) => {
+          if (!isSupportedCowtailAgent(params.agentId)) {
+            throw new Error('Cowtail channel only supports agentId "main"');
+          }
+
+          const accountId = resolveAccountId(params.accountId);
+          const target = normalizeCowtailTarget(params.target);
           if (!target) {
             return null;
           }
-          return {
-            to: buildCowtailTarget(target),
-            kind: "user",
-            source: "normalized",
-          };
+
+          const formattedTarget = buildCowtailTarget(target);
+          return buildChannelOutboundSessionRoute({
+            cfg: params.cfg,
+            agentId: "main",
+            channel: CHANNEL_ID,
+            accountId,
+            peer: {
+              kind: "direct",
+              id: target,
+            },
+            chatType: "direct",
+            from: formattedTarget,
+            to: formattedTarget,
+            ...(params.threadId != null ? { threadId: params.threadId } : {}),
+          });
         },
       },
-      resolveOutboundSessionRoute: (params) => {
-        if (!isSupportedCowtailAgent(params.agentId)) {
-          throw new Error('Cowtail channel only supports agentId "main"');
-        }
+      outbound: {
+        deliveryMode: "direct",
+        sendText: async (ctx) => {
+          const accountId = resolveAccountId(ctx.accountId);
+          const account = resolveCowtailAccount(ctx.cfg);
+          if (!account.configured) {
+            throw new Error("Cowtail account is not configured");
+          }
 
-        const accountId = resolveAccountId(params.accountId);
-        const target = normalizeCowtailTarget(params.target);
-        if (!target) {
-          return null;
-        }
+          const activeClient = activeClients.get(accountId);
+          if (activeClient) {
+            return deps.sendText({
+              account,
+              client: activeClient,
+              to: ctx.to,
+              text: ctx.text,
+            });
+          }
 
-        const formattedTarget = buildCowtailTarget(target);
-        return buildChannelOutboundSessionRoute({
-          cfg: params.cfg,
-          agentId: "main",
-          channel: CHANNEL_ID,
-          accountId,
-          peer: {
-            kind: "direct",
-            id: target,
-          },
-          chatType: "direct",
-          from: formattedTarget,
-          to: formattedTarget,
-          ...(params.threadId != null ? { threadId: params.threadId } : {}),
-        });
+          const runtime = deps.resolveRuntime();
+          const stateDir = runtime.state.resolveStateDir(process.env);
+          const stateStore = deps.createStateStore(stateDir, accountId);
+          const client = deps.createClient({
+            account,
+            stateStore,
+            onEvent: async () => undefined,
+          });
+
+          client.start();
+          try {
+            return await deps.sendText({
+              account,
+              client,
+              to: ctx.to,
+              text: ctx.text,
+            });
+          } finally {
+            client.stop();
+          }
+        },
       },
     },
-    outbound: {
-      deliveryMode: "direct",
-      sendText: async (ctx) => {
-        const accountId = resolveAccountId(ctx.accountId);
-        const account = resolveCowtailAccount(ctx.cfg);
-        if (!account.configured) {
-          throw new Error("Cowtail account is not configured");
-        }
-
-        const activeClient = activeClients.get(accountId);
-        if (activeClient) {
-          return deps.sendText({
-            account,
-            client: activeClient,
-            to: ctx.to,
-            text: ctx.text,
-          });
-        }
-
-        const runtime = deps.resolveRuntime();
-        const stateDir = runtime.state.resolveStateDir(process.env);
-        const stateStore = deps.createStateStore(stateDir, accountId);
-        const client = deps.createClient({
-          account,
-          stateStore,
-          onEvent: async () => undefined,
-        });
-
-        client.start();
-        try {
-          return await deps.sendText({
-            account,
-            client,
-            to: ctx.to,
-            text: ctx.text,
-          });
-        } finally {
-          client.stop();
-        }
-      },
-    },
-  },
   });
 }
 

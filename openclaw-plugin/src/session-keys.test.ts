@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { buildCowtailTarget, normalizeCowtailTarget, isSupportedCowtailAgent } from "./session-keys.js";
+import {
+  buildCowtailTarget,
+  normalizeCowtailTarget,
+  isSupportedCowtailAgent,
+} from "./session-keys.js";
 
 describe("Cowtail session helpers", () => {
   test("normalizes explicit cowtail target prefixes", () => {

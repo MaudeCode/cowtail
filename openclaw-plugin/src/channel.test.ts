@@ -215,16 +215,12 @@ describe("cowtailChannelPlugin", () => {
     expect(cowtailChannelPlugin.config.listAccountIds(configuredCfg)).toEqual(
       listCowtailAccountIds(configuredCfg),
     );
-    expect(cowtailChannelPlugin.config.defaultAccountId?.(configuredCfg)).toBe(
-      DEFAULT_ACCOUNT_ID,
-    );
+    expect(cowtailChannelPlugin.config.defaultAccountId?.(configuredCfg)).toBe(DEFAULT_ACCOUNT_ID);
     expect(configuredAccount).toEqual(resolveCowtailAccount(configuredCfg));
-    expect(cowtailChannelPlugin.config.isConfigured?.(configuredAccount, configuredCfg)).toBe(
-      true,
+    expect(cowtailChannelPlugin.config.isConfigured?.(configuredAccount, configuredCfg)).toBe(true);
+    expect(cowtailChannelPlugin.config.isConfigured?.(unconfiguredAccount, unconfiguredCfg)).toBe(
+      false,
     );
-    expect(
-      cowtailChannelPlugin.config.isConfigured?.(unconfiguredAccount, unconfiguredCfg),
-    ).toBe(false);
   });
 
   test("describes accounts without exposing the bridge token", () => {

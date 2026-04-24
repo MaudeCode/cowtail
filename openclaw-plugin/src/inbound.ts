@@ -47,9 +47,7 @@ type CowtailInboundRuntime = {
         from: string;
         timestamp?: number;
         previousTimestamp?: number;
-        envelope: ReturnType<
-          PluginRuntime["channel"]["reply"]["resolveEnvelopeFormatOptions"]
-        >;
+        envelope: ReturnType<PluginRuntime["channel"]["reply"]["resolveEnvelopeFormatOptions"]>;
         body: string;
       }) => string;
       finalizeInboundContext: <T extends Record<string, unknown>>(

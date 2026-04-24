@@ -60,7 +60,10 @@ export type CowtailRealtimeClientDeps = {
   requestIdFactory?: () => string;
 };
 
-export type OpenClawMessageInput = Omit<OpenClawPluginMessageCommand, "requestId" | "links" | "actions"> &
+export type OpenClawMessageInput = Omit<
+  OpenClawPluginMessageCommand,
+  "requestId" | "links" | "actions"
+> &
   Partial<Pick<OpenClawPluginMessageCommand, "links" | "actions">>;
 export type OpenClawSessionBoundInput = Omit<OpenClawSessionBoundCommand, "requestId">;
 export type OpenClawActionResultInput = Omit<OpenClawActionResultCommand, "requestId">;
@@ -73,11 +76,7 @@ function defaultRequestIdFactory(): string {
   return crypto.randomUUID();
 }
 
-function reconnectDelayForAttempt(
-  attempt: number,
-  minDelayMs: number,
-  maxDelayMs: number,
-): number {
+function reconnectDelayForAttempt(attempt: number, minDelayMs: number, maxDelayMs: number): number {
   const exponent = Math.max(attempt - 1, 0);
   return Math.min(maxDelayMs, minDelayMs * 2 ** exponent);
 }
@@ -178,9 +177,7 @@ export class CowtailRealtimeClient {
     this.#clearConnectTimeout();
     this.#armConnectTimeout(socket, handshake, "handshake");
     void this.#handleOpen(socket, handshake).catch((error) => {
-      this.#logger?.error?.(
-        `Cowtail websocket open handling failed: ${this.#errorMessage(error)}`,
-      );
+      this.#logger?.error?.(`Cowtail websocket open handling failed: ${this.#errorMessage(error)}`);
       this.#terminateSocket(socket, "open_failed");
     });
   }
@@ -345,7 +342,10 @@ export class CowtailRealtimeClient {
   }
 
   async #sendCommand(
-    command: OpenClawPluginMessageCommand | OpenClawSessionBoundCommand | OpenClawActionResultCommand,
+    command:
+      | OpenClawPluginMessageCommand
+      | OpenClawSessionBoundCommand
+      | OpenClawActionResultCommand,
   ): Promise<CowtailCommandResult> {
     const socket = this.#socket;
     const handshake = this.#handshake;

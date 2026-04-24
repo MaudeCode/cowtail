@@ -1,5 +1,8 @@
 export function normalizeCowtailTarget(raw: string): string {
-  return raw.trim().replace(/^cowtail:/i, "").trim();
+  return raw
+    .trim()
+    .replace(/^cowtail:/i, "")
+    .trim();
 }
 
 export function buildCowtailTarget(threadId: string): string {

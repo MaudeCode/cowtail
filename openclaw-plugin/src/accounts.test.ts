@@ -53,7 +53,7 @@ describe("Cowtail account resolution", () => {
           },
         },
       }),
-    ).toThrow(/only supports agentId \"main\"/);
+    ).toThrow(/only supports agentId "main"/);
   });
 
   test("lists only the default account when configured", () => {

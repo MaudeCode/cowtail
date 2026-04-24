@@ -57,7 +57,10 @@ type FakeRuntime = {
       };
     };
     session: {
-      readSessionUpdatedAt: (params: { storePath: string; sessionKey: string }) => number | undefined;
+      readSessionUpdatedAt: (params: {
+        storePath: string;
+        sessionKey: string;
+      }) => number | undefined;
       recordInboundSession: (params: RecordCall) => Promise<void>;
     };
     reply: {
@@ -70,7 +73,9 @@ type FakeRuntime = {
         envelope: Record<string, unknown>;
         body: string;
       }) => string;
-      finalizeInboundContext: <T extends Record<string, unknown>>(ctx: T) => T & { finalized: true };
+      finalizeInboundContext: <T extends Record<string, unknown>>(
+        ctx: T,
+      ) => T & { finalized: true };
       dispatchReplyWithBufferedBlockDispatcher: (params: DispatchCall) => Promise<void>;
     };
   };
@@ -101,9 +106,7 @@ type FakeClient = {
   }) => Promise<number | undefined>;
 };
 
-function createAccount(
-  overrides: Partial<ResolvedCowtailAccount> = {},
-): ResolvedCowtailAccount {
+function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): ResolvedCowtailAccount {
   return {
     accountId: "default",
     enabled: true,
@@ -320,9 +323,7 @@ describe("handleCowtailEvent", () => {
         },
       },
     ]);
-    expect(runtimeState.storePathCalls).toEqual([
-      { store: "sessions.json", agentId: "main" },
-    ]);
+    expect(runtimeState.storePathCalls).toEqual([{ store: "sessions.json", agentId: "main" }]);
     expect(runtimeState.readSessionUpdatedAtCalls).toEqual([
       {
         storePath: "/tmp/main-sessions.json",
@@ -544,9 +545,7 @@ describe("handleCowtailEvent", () => {
         state: "failed",
       },
     ]);
-    expect(errors).toEqual([
-      "Cowtail action dispatch failed: dispatch exploded",
-    ]);
+    expect(errors).toEqual(["Cowtail action dispatch failed: dispatch exploded"]);
   });
 
   test("action_submitted reports failed when dispatch uses onDispatchError but still resolves", async () => {
@@ -605,9 +604,7 @@ describe("handleCowtailEvent", () => {
         state: "failed",
       },
     ]);
-    expect(errors).toEqual([
-      "Cowtail buffered reply failed: buffered dispatch failed",
-    ]);
+    expect(errors).toEqual(["Cowtail buffered reply failed: buffered dispatch failed"]);
   });
 
   test("events missing required thread, message, or action content are ignored with a warning", async () => {

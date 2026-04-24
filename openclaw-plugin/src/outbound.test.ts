@@ -3,9 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { sendCowtailText } from "./outbound.js";
 import type { ResolvedCowtailAccount } from "./types.js";
 
-function createAccount(
-  overrides: Partial<ResolvedCowtailAccount> = {},
-): ResolvedCowtailAccount {
+function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): ResolvedCowtailAccount {
   return {
     accountId: "default",
     enabled: true,
