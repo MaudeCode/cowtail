@@ -306,13 +306,17 @@ export function createCowtailChannelPlugin(deps: CowtailChannelDeps = defaultDep
             });
           }
 
-          const runtime = deps.resolveRuntime();
-          const stateDir = runtime.state.resolveStateDir(process.env);
-          const stateStore = deps.createStateStore(stateDir, accountId);
           const client = deps.createClient({
             account,
-            stateStore,
-            onEvent: async () => undefined,
+            stateStore: {
+              readLastSeenSequence: async () => undefined,
+              writeLastSeenSequence: async () => undefined,
+            },
+            onEvent: async (event) => {
+              console.warn(
+                `Cowtail transient outbound client received unexpected ${event.type} event`,
+              );
+            },
           });
 
           client.start();

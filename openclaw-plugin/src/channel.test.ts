@@ -6,6 +6,7 @@ import { createCowtailChannelPlugin } from "./channel.js";
 import type { CowtailRealtimeClientDeps } from "./client.js";
 
 type FakeClientDeps = CowtailRealtimeClientDeps;
+type FakeStateStore = FakeClientDeps["stateStore"];
 
 class FakeCowtailRealtimeClient {
   readonly deps: FakeClientDeps;
@@ -26,6 +27,7 @@ class FakeCowtailRealtimeClient {
 }
 
 const stateStoreCreations: Array<{ stateDir: string; accountId: string }> = [];
+const createdStateStores: FakeStateStore[] = [];
 const waitUntilAbortCalls: Array<{
   signal: AbortSignal | undefined;
   onAbort: (() => void | Promise<void>) | undefined;
@@ -139,7 +141,12 @@ function createPlugin() {
   return createCowtailChannelPlugin({
     createStateStore: (stateDir, accountId) => {
       stateStoreCreations.push({ stateDir, accountId });
-      return {} as never;
+      const stateStore: FakeStateStore = {
+        readLastSeenSequence: async () => 999,
+        writeLastSeenSequence: async () => undefined,
+      };
+      createdStateStores.push(stateStore);
+      return stateStore as never;
     },
     createClient: (deps) => {
       const client = new FakeCowtailRealtimeClient(deps);
@@ -158,6 +165,7 @@ function createPlugin() {
 
 beforeEach(() => {
   stateStoreCreations.length = 0;
+  createdStateStores.length = 0;
   waitUntilAbortCalls.length = 0;
   clientInstances.length = 0;
   waitUntilAbortImpl = async (_signal, onAbort) => {
@@ -359,12 +367,8 @@ describe("cowtailChannelPlugin", () => {
       text: "Hello from a fresh process",
     } as never);
 
-    expect(stateStoreCreations).toEqual([
-      {
-        stateDir: "/tmp/openclaw-state",
-        accountId: DEFAULT_ACCOUNT_ID,
-      },
-    ]);
+    expect(stateStoreCreations).toEqual([]);
+    expect(createdStateStores).toEqual([]);
     expect(clientInstances).toHaveLength(1);
     expect(clientInstances[0]?.started).toBe(true);
     expect(clientInstances[0]?.stopped).toBe(true);
@@ -380,6 +384,27 @@ describe("cowtailChannelPlugin", () => {
       messageId: "sent-1",
       to: "cowtail:thread_123",
     });
+  });
+
+  test("outbound.sendText uses an isolated no-op replay state store for the transient client", async () => {
+    const cowtailChannelPlugin = createPlugin();
+    const cfg = createConfig();
+
+    await cowtailChannelPlugin.outbound!.sendText?.({
+      cfg,
+      accountId: DEFAULT_ACCOUNT_ID,
+      to: "thread_transient",
+      text: "Hello from isolated fallback",
+    } as never);
+
+    expect(clientInstances).toHaveLength(1);
+    expect(createdStateStores).toHaveLength(0);
+    await expect(clientInstances[0]!.deps.stateStore.readLastSeenSequence()).resolves.toBe(
+      undefined,
+    );
+    await expect(
+      clientInstances[0]!.deps.stateStore.writeLastSeenSequence(12345),
+    ).resolves.toBeUndefined();
   });
 
   test("replacement lifecycle abort does not let the old run clobber current status", async () => {

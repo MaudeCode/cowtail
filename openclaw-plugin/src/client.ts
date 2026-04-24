@@ -269,8 +269,8 @@ export class CowtailRealtimeClient {
       return;
     }
 
-    await this.#stateStore.writeLastSeenSequence(message.sequence);
     await this.#onEvent(message);
+    await this.#stateStore.writeLastSeenSequence(message.sequence);
   }
 
   #handleClose(socket: WebSocketLike): void {

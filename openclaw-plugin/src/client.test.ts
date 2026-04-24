@@ -426,7 +426,7 @@ describe("CowtailRealtimeClient", () => {
     await expect(pending).rejects.toThrow(/command_failed/i);
   });
 
-  test("persists last seen sequence for event envelopes before dispatch", async () => {
+  test("persists last seen sequence for event envelopes after dispatch", async () => {
     const writeCalls: number[] = [];
     const observedWriteState: number[][] = [];
     const event: OpenClawEventEnvelope = {
@@ -466,7 +466,57 @@ describe("CowtailRealtimeClient", () => {
     await flushMicrotasks();
 
     expect(writeCalls).toEqual([7]);
-    expect(observedWriteState).toEqual([[7]]);
+    expect(observedWriteState).toEqual([[]]);
+  });
+
+  test("does not persist last seen sequence when onEvent throws", async () => {
+    const writeCalls: number[] = [];
+    const errors: string[] = [];
+    const event: OpenClawEventEnvelope = {
+      sequence: 8,
+      type: "thread_created",
+      createdAt: 123,
+      threadId: "thread-2",
+      thread: {
+        id: "thread-2",
+        status: "active",
+        targetAgent: "default",
+        title: "Thread",
+        unreadCount: 0,
+        createdAt: 123,
+        updatedAt: 123,
+      },
+    };
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async (sequence) => {
+          writeCalls.push(sequence);
+        },
+      },
+      logger: {
+        error: (message) => {
+          errors.push(message);
+        },
+      },
+      onEvent: () => {
+        throw new Error("boom");
+      },
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    socket.open();
+    await flushMicrotasks();
+    socket.message(event);
+    await flushMicrotasks();
+
+    expect(writeCalls).toEqual([]);
+    expect(errors).toContain(
+      "Cowtail websocket message handling failed: boom",
+    );
   });
 
   test("dispatches event envelopes to onEvent", async () => {
