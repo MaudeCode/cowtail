@@ -4,7 +4,11 @@ import {
   openclawActionSubmittedEventSchema,
   openclawActionRecordSchema,
   openclawClientHelloSchema,
+  openclawDisplayPreferencesResponseSchema,
+  openclawDisplayPreferencesUpdateRequestSchema,
   openclawEventEnvelopeSchema,
+  openclawMessageWithActionsRecordSchema,
+  openclawMessageWithActionsListResponseSchema,
   openclawMessageRecordSchema,
   openclawReplayQuerySchema,
   openclawRealtimeClientMessageSchema,
@@ -293,5 +297,66 @@ describe("openclaw protocol schemas", () => {
       requestId: "request-8",
       error: "Unauthorized",
     });
+  });
+
+  test("parses OpenClaw display preferences", () => {
+    expect(
+      openclawDisplayPreferencesResponseSchema.parse({
+        ok: true,
+        preferences: {
+          displayName: "Maude",
+        },
+      }),
+    ).toEqual({
+      ok: true,
+      preferences: {
+        displayName: "Maude",
+      },
+    });
+
+    expect(
+      openclawDisplayPreferencesUpdateRequestSchema.parse({
+        displayName: "  Maude  ",
+      }),
+    ).toEqual({
+      displayName: "Maude",
+    });
+  });
+
+  test("parses OpenClaw messages with embedded actions", () => {
+    const message = openclawMessageWithActionsRecordSchema.parse({
+      id: "message-1",
+      threadId: "thread-1",
+      direction: "openclaw_to_user",
+      authorLabel: "OpenClaw",
+      text: "Approve rollout?",
+      links: [],
+      deliveryState: "sent",
+      createdAt: 1777128000000,
+      updatedAt: 1777128000000,
+      actions: [
+        {
+          id: "action-1",
+          threadId: "thread-1",
+          messageId: "message-1",
+          label: "Approve",
+          kind: "decision",
+          payload: { decision: "approve" },
+          state: "pending",
+          createdAt: 1777128000001,
+          updatedAt: 1777128000001,
+        },
+      ],
+    });
+
+    expect(message.actions[0]?.label).toBe("Approve");
+
+    expect(
+      openclawMessageWithActionsListResponseSchema.parse({
+        ok: true,
+        count: 1,
+        messages: [message],
+      }).count,
+    ).toBe(1);
   });
 });

@@ -214,6 +214,29 @@ export const openclawMessageListResponseSchema = z.object({
   messages: z.array(openclawMessageRecordSchema),
 });
 
+export const openclawMessageWithActionsRecordSchema = openclawMessageRecordSchema.extend({
+  actions: z.array(openclawActionRecordSchema).default([]),
+});
+
+export const openclawMessageWithActionsListResponseSchema = z.object({
+  ok: z.literal(true),
+  count: z.number().int().nonnegative(),
+  messages: z.array(openclawMessageWithActionsRecordSchema),
+});
+
+export const openclawDisplayPreferencesSchema = z.object({
+  displayName: nonEmptyStringSchema.default("OpenClaw"),
+});
+
+export const openclawDisplayPreferencesResponseSchema = z.object({
+  ok: z.literal(true),
+  preferences: openclawDisplayPreferencesSchema,
+});
+
+export const openclawDisplayPreferencesUpdateRequestSchema = z.object({
+  displayName: nonEmptyStringSchema,
+});
+
 export const openclawEventReplayResponseSchema = z.object({
   ok: z.literal(true),
   events: z.array(openclawEventEnvelopeSchema),
@@ -247,6 +270,19 @@ export type OpenClawRealtimeServerMessage = z.infer<typeof openclawRealtimeServe
 export type OpenClawSequence = z.infer<typeof openclawSequenceSchema>;
 export type OpenClawThreadListResponse = z.infer<typeof openclawThreadListResponseSchema>;
 export type OpenClawMessageListResponse = z.infer<typeof openclawMessageListResponseSchema>;
+export type OpenClawMessageWithActionsRecord = z.infer<
+  typeof openclawMessageWithActionsRecordSchema
+>;
+export type OpenClawMessageWithActionsListResponse = z.infer<
+  typeof openclawMessageWithActionsListResponseSchema
+>;
+export type OpenClawDisplayPreferences = z.infer<typeof openclawDisplayPreferencesSchema>;
+export type OpenClawDisplayPreferencesResponse = z.infer<
+  typeof openclawDisplayPreferencesResponseSchema
+>;
+export type OpenClawDisplayPreferencesUpdateRequest = z.infer<
+  typeof openclawDisplayPreferencesUpdateRequestSchema
+>;
 export type OpenClawEventReplayResponse = z.infer<typeof openclawEventReplayResponseSchema>;
 export type OpenClawClientHello = z.infer<typeof openclawClientHelloSchema>;
 export type OpenClawThreadRecord = z.infer<typeof openclawThreadRecordSchema>;
