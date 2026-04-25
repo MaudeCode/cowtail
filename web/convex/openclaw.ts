@@ -10,6 +10,8 @@ import {
   buildOpenClawActionResultUpdate,
   normalizeOpenClawTitle,
   toOpenClawEventEnvelope,
+  toOpenClawMessageWithActionsRecord,
+  toOpenClawThreadRecord,
   validateOpenClawAfterSequence,
   validateOpenClawLimit,
   type OpenClawEventPayloadInput,
@@ -478,6 +480,49 @@ export const listActionsForMessage = query({
       .withIndex("by_message", (q) => q.eq("messageId", args.messageId))
       .order("asc")
       .take(limit);
+  },
+});
+
+export const listThreadsForApp = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = validateOpenClawLimit(args.limit);
+    const threads = await ctx.db
+      .query("openclawThreads")
+      .withIndex("by_updatedAt")
+      .order("desc")
+      .take(limit);
+
+    return threads.map(toOpenClawThreadRecord);
+  },
+});
+
+export const listMessagesForApp = query({
+  args: {
+    threadId: v.id("openclawThreads"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = validateOpenClawLimit(args.limit);
+    const messages = await ctx.db
+      .query("openclawMessages")
+      .withIndex("by_thread_createdAt", (q) => q.eq("threadId", args.threadId))
+      .order("asc")
+      .take(limit);
+
+    const records = [];
+    for (const message of messages) {
+      const actions = await ctx.db
+        .query("openclawActions")
+        .withIndex("by_message", (q) => q.eq("messageId", message._id))
+        .order("asc")
+        .collect();
+      records.push(toOpenClawMessageWithActionsRecord(message, actions));
+    }
+
+    return records;
   },
 });
 

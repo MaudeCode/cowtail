@@ -18,6 +18,10 @@ import {
   healthResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
+  openclawDisplayPreferencesResponseSchema,
+  openclawDisplayPreferencesUpdateRequestSchema,
+  openclawMessageWithActionsListResponseSchema,
+  openclawThreadListResponseSchema,
   okResponseSchema,
   pushRegisterRequestSchema,
   pushRegisterResponseSchema,
@@ -788,6 +792,92 @@ app.put("/api/me/notification-preferences", async (c) => {
     notificationPreferencesResponseSchema.parse({
       ok: true,
       preferences: parsed.data,
+    }),
+  );
+});
+
+// GET /api/me/openclaw-preferences — account-scoped OpenClaw preferences
+app.get("/api/me/openclaw-preferences", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  const preferences = await c.env.runQuery(internal.openclawPreferences.getEffectiveForUser, {
+    userId: auth.userId,
+  });
+
+  return c.json(
+    openclawDisplayPreferencesResponseSchema.parse({
+      ok: true,
+      preferences: {
+        displayName: preferences.displayName,
+      },
+    }),
+  );
+});
+
+// PUT /api/me/openclaw-preferences — update account-scoped OpenClaw preferences
+app.put("/api/me/openclaw-preferences", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  const body = await c.req.json().catch(() => null);
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+
+  const parsed = openclawDisplayPreferencesUpdateRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
+  }
+
+  await c.env.runMutation(internal.openclawPreferences.upsertForUser, {
+    userId: auth.userId,
+    displayName: parsed.data.displayName,
+  });
+
+  return c.json(
+    openclawDisplayPreferencesResponseSchema.parse({
+      ok: true,
+      preferences: parsed.data,
+    }),
+  );
+});
+
+// GET /api/openclaw/threads — app-session scoped OpenClaw thread list
+app.get("/api/openclaw/threads", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  const limit = parseOptionalQueryTimestamp(c.req.query("limit"));
+  const threads = await c.env.runQuery(api.openclaw.listThreadsForApp, {
+    limit,
+  });
+
+  return c.json(
+    openclawThreadListResponseSchema.parse({
+      ok: true,
+      count: threads.length,
+      threads,
+    }),
+  );
+});
+
+// GET /api/openclaw/threads/:threadId/messages — app-session scoped thread history
+app.get("/api/openclaw/threads/:threadId/messages", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  const limit = parseOptionalQueryTimestamp(c.req.query("limit"));
+  const messages = await c.env.runQuery(api.openclaw.listMessagesForApp, {
+    threadId: c.req.param("threadId") as any,
+    limit,
+  });
+
+  return c.json(
+    openclawMessageWithActionsListResponseSchema.parse({
+      ok: true,
+      count: messages.length,
+      messages,
     }),
   );
 });

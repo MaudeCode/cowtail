@@ -46,6 +46,13 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_dailyRoundupEnabled", ["dailyRoundupEnabled"]),
 
+  userOpenClawPreferences: defineTable({
+    userId: v.string(),
+    displayName: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
   authSessions: defineTable({
     userId: v.string(),
     tokenHash: v.string(),

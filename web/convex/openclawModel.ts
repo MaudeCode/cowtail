@@ -6,6 +6,7 @@ import type {
   OpenClawEventType,
   OpenClawMessageDirection,
   OpenClawMessageRecord,
+  OpenClawMessageWithActionsRecord,
   OpenClawTargetAgent,
   OpenClawThreadRecord,
   OpenClawThreadStatus,
@@ -189,6 +190,16 @@ export function toOpenClawActionRecord(action: StoredOpenClawAction): OpenClawAc
   }
 
   return record;
+}
+
+export function toOpenClawMessageWithActionsRecord(
+  message: StoredOpenClawMessage,
+  actions: StoredOpenClawAction[],
+): OpenClawMessageWithActionsRecord {
+  return {
+    ...toOpenClawMessageRecord(message),
+    actions: actions.map(toOpenClawActionRecord),
+  };
 }
 
 export function toOpenClawEventEnvelope({

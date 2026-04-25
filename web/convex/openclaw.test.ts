@@ -7,6 +7,7 @@ import {
   normalizeOpenClawTitle,
   toOpenClawActionRecord,
   toOpenClawEventEnvelope,
+  toOpenClawMessageWithActionsRecord,
   toOpenClawMessageRecord,
   toOpenClawThreadRecord,
   validateOpenClawAfterSequence,
@@ -193,6 +194,40 @@ describe("OpenClaw Convex model helpers", () => {
       createdAt: 600,
       updatedAt: 700,
     });
+  });
+
+  test("maps OpenClaw messages with embedded actions", () => {
+    const message = toOpenClawMessageWithActionsRecord(
+      {
+        _id: "message-1",
+        _creationTime: 1,
+        threadId: "thread-1",
+        direction: "openclaw_to_user",
+        authorLabel: "OpenClaw",
+        text: "Approve rollout?",
+        links: [],
+        deliveryState: "sent",
+        createdAt: 1777128000000,
+        updatedAt: 1777128000000,
+      },
+      [
+        {
+          _id: "action-1",
+          _creationTime: 2,
+          threadId: "thread-1",
+          messageId: "message-1",
+          label: "Approve",
+          kind: "decision",
+          payload: { decision: "approve" },
+          state: "pending",
+          createdAt: 1777128000001,
+          updatedAt: 1777128000001,
+        },
+      ],
+    );
+
+    expect(message.actions).toHaveLength(1);
+    expect(message.actions[0]?.id).toBe("action-1");
   });
 
   test("builds action result patches and event payloads", () => {
