@@ -1,0 +1,41 @@
+name: OpenClaw Plugin Verify
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
+      - "openclaw-plugin/**"
+      - ".github/workflows/openclaw-plugin-verify.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
+      - "openclaw-plugin/**"
+      - ".github/workflows/openclaw-plugin-verify.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - name: Install root dependencies
+        run: bun install --frozen-lockfile
+      - name: Install OpenClaw plugin dependencies
+        working-directory: openclaw-plugin
+        run: bun install --frozen-lockfile
+      - run: bun run check:openclaw-plugin
+      - run: bun run test:openclaw-plugin
+      - run: bun run fmt:ts:check
+      - run: bun run lint:ts

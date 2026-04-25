@@ -514,9 +514,7 @@ describe("CowtailRealtimeClient", () => {
     await flushMicrotasks();
 
     expect(writeCalls).toEqual([]);
-    expect(errors).toContain(
-      "Cowtail websocket message handling failed: boom",
-    );
+    expect(errors).toContain("Cowtail websocket message handling failed: boom");
   });
 
   test("dispatches event envelopes to onEvent", async () => {
