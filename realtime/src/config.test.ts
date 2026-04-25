@@ -9,7 +9,7 @@ describe("loadRealtimeConfig", () => {
         OPENCLAW_COWTAIL_BRIDGE_TOKEN: "  bridge-token  ",
         CONVEX_URL: "  https://convex.example.invalid  ",
         COWTAIL_HTTP_BASE_URL: "  https://cowtail.example.invalid/  ",
-        COWTAIL_PUSH_API_BEARER_TOKEN: "  push-token  ",
+        PUSH_API_BEARER_TOKEN: "  push-token  ",
         COWTAIL_OPENCLAW_OWNER_USER_ID: "  owner-user-id  ",
         COWTAIL_REALTIME_CONVEX_TOKEN: "  realtime-convex-token  ",
         PORT: " 8787 ",
@@ -31,7 +31,7 @@ describe("loadRealtimeConfig", () => {
         OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
         VITE_CONVEX_URL: "https://convex.example.invalid",
         COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid/",
-        COWTAIL_PUSH_API_BEARER_TOKEN: "push-token",
+        PUSH_API_BEARER_TOKEN: "push-token",
         COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
         COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
       }).port,
@@ -44,7 +44,7 @@ describe("loadRealtimeConfig", () => {
         OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
         VITE_CONVEX_URL: "https://vite-convex.example.invalid",
         COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid",
-        COWTAIL_PUSH_API_BEARER_TOKEN: "push-token",
+        PUSH_API_BEARER_TOKEN: "push-token",
         COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
         COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
       }).convexUrl,
@@ -56,7 +56,7 @@ describe("loadRealtimeConfig", () => {
         CONVEX_URL: "https://convex.example.invalid",
         VITE_CONVEX_URL: "https://vite-convex.example.invalid",
         COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid",
-        COWTAIL_PUSH_API_BEARER_TOKEN: "push-token",
+        PUSH_API_BEARER_TOKEN: "push-token",
         COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
         COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
       }).convexUrl,
@@ -69,7 +69,7 @@ describe("loadRealtimeConfig", () => {
         OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
         CONVEX_URL: "https://convex.example.invalid",
         COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid///",
-        COWTAIL_PUSH_API_BEARER_TOKEN: "push-token",
+        PUSH_API_BEARER_TOKEN: "push-token",
         COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
         COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
       }).httpBaseUrl,
@@ -82,7 +82,7 @@ describe("loadRealtimeConfig", () => {
         OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
         CONVEX_URL: "https://convex.example.invalid",
         COWTAIL_HTTP_BASE_URL: "///",
-        COWTAIL_PUSH_API_BEARER_TOKEN: "push-token",
+        PUSH_API_BEARER_TOKEN: "push-token",
         COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
         COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
       }),
@@ -103,10 +103,37 @@ describe("loadRealtimeConfig", () => {
         OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
         CONVEX_URL: "https://convex.example.invalid",
         COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid",
-        COWTAIL_PUSH_API_BEARER_TOKEN: "push-token",
+        PUSH_API_BEARER_TOKEN: "push-token",
         COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
       }),
     ).toThrow("Missing required env var: COWTAIL_REALTIME_CONVEX_TOKEN");
+  });
+
+  test("uses PUSH_API_BEARER_TOKEN before the legacy realtime-specific name", () => {
+    expect(
+      loadRealtimeConfig({
+        OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
+        CONVEX_URL: "https://convex.example.invalid",
+        COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid",
+        PUSH_API_BEARER_TOKEN: "canonical-push-token",
+        COWTAIL_PUSH_API_BEARER_TOKEN: "legacy-push-token",
+        COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
+        COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
+      }).pushBearerToken,
+    ).toBe("canonical-push-token");
+  });
+
+  test("falls back to the legacy realtime-specific push token during transition", () => {
+    expect(
+      loadRealtimeConfig({
+        OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
+        CONVEX_URL: "https://convex.example.invalid",
+        COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid",
+        COWTAIL_PUSH_API_BEARER_TOKEN: "legacy-push-token",
+        COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
+        COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
+      }).pushBearerToken,
+    ).toBe("legacy-push-token");
   });
 
   test("rejects invalid port values", () => {
@@ -114,7 +141,7 @@ describe("loadRealtimeConfig", () => {
       OPENCLAW_COWTAIL_BRIDGE_TOKEN: "bridge-token",
       CONVEX_URL: "https://convex.example.invalid",
       COWTAIL_HTTP_BASE_URL: "https://cowtail.example.invalid",
-      COWTAIL_PUSH_API_BEARER_TOKEN: "push-token",
+      PUSH_API_BEARER_TOKEN: "push-token",
       COWTAIL_OPENCLAW_OWNER_USER_ID: "owner-user-id",
       COWTAIL_REALTIME_CONVEX_TOKEN: "realtime-convex-token",
     };

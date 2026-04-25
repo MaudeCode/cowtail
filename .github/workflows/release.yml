@@ -7,13 +7,22 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: maudecode/cowtail
+  WEB_IMAGE_NAME: maudecode/cowtail
+  REALTIME_IMAGE_NAME: maudecode/cowtail-realtime
 
 jobs:
-  docker-build:
+  web-docker-build:
     uses: ./.github/workflows/docker-build.yml
     with:
       version: ${{ github.ref_name }}
+
+  realtime-docker-build:
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      version: ${{ github.ref_name }}
+      dockerfile: realtime/Dockerfile
+      artifact_prefix: realtime-docker
+      image_name: cowtail-realtime
 
   cli-build:
     uses: ./.github/workflows/cli-build.yml
@@ -23,19 +32,31 @@ jobs:
   validate:
     name: Validate Artifacts
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    needs: [docker-build, cli-build]
+    needs: [web-docker-build, realtime-docker-build, cli-build]
     steps:
-      - name: Download Docker amd64
+      - name: Download web Docker amd64
         uses: actions/download-artifact@v8
         with:
           name: docker-amd64
           path: docker-amd64
 
-      - name: Download Docker arm64
+      - name: Download web Docker arm64
         uses: actions/download-artifact@v8
         with:
           name: docker-arm64
           path: docker-arm64
+
+      - name: Download realtime Docker amd64
+        uses: actions/download-artifact@v8
+        with:
+          name: realtime-docker-amd64
+          path: realtime-docker-amd64
+
+      - name: Download realtime Docker arm64
+        uses: actions/download-artifact@v8
+        with:
+          name: realtime-docker-arm64
+          path: realtime-docker-arm64
 
       - name: Download CLI release artifacts
         uses: actions/download-artifact@v8
@@ -45,12 +66,18 @@ jobs:
 
       - name: Verify artifacts exist
         run: |
-          ls -la docker-amd64/image.tar
-          ls -la docker-arm64/image.tar
-          ls -la cli-release/cowtail-darwin-arm64.tar.gz
-          ls -la cli-release/cowtail-darwin-x64.tar.gz
-          ls -la cli-release/cowtail-linux-arm64.tar.gz
-          ls -la cli-release/cowtail-linux-x64.tar.gz
+          test -s docker-amd64/image.tar
+          test -s docker-arm64/image.tar
+          test -s realtime-docker-amd64/image.tar
+          test -s realtime-docker-arm64/image.tar
+          test -s cli-release/cowtail-darwin-arm64.tar.gz
+          test -s cli-release/cowtail-darwin-x64.tar.gz
+          test -s cli-release/cowtail-linux-arm64.tar.gz
+          test -s cli-release/cowtail-linux-x64.tar.gz
+          tar -tf docker-amd64/image.tar > /dev/null
+          tar -tf docker-arm64/image.tar > /dev/null
+          tar -tf realtime-docker-amd64/image.tar > /dev/null
+          tar -tf realtime-docker-arm64/image.tar > /dev/null
 
   publish:
     name: Publish
@@ -64,17 +91,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download Docker amd64
+      - name: Download web Docker amd64
         uses: actions/download-artifact@v8
         with:
           name: docker-amd64
           path: docker-amd64
 
-      - name: Download Docker arm64
+      - name: Download web Docker arm64
         uses: actions/download-artifact@v8
         with:
           name: docker-arm64
           path: docker-arm64
+
+      - name: Download realtime Docker amd64
+        uses: actions/download-artifact@v8
+        with:
+          name: realtime-docker-amd64
+          path: realtime-docker-amd64
+
+      - name: Download realtime Docker arm64
+        uses: actions/download-artifact@v8
+        with:
+          name: realtime-docker-arm64
+          path: realtime-docker-arm64
 
       - name: Download CLI release artifacts
         uses: actions/download-artifact@v8
@@ -92,35 +131,60 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
+      - name: Extract web metadata
+        id: meta-web
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}
           tags: |
             type=match,pattern=v(.*),group=1
             type=raw,value=latest
 
-      - name: Load and push amd64
-        run: |
-          docker load -i docker-amd64/image.tar
-          IMAGE_ID=$(docker images --format '{{.ID}}' | head -1)
-          docker tag $IMAGE_ID ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:amd64-${{ github.ref_name }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:amd64-${{ github.ref_name }}
+      - name: Extract realtime metadata
+        id: meta-realtime
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}
+          tags: |
+            type=match,pattern=v(.*),group=1
+            type=raw,value=latest
 
-      - name: Load and push arm64
+      - name: Load and push architecture images
         run: |
-          docker load -i docker-arm64/image.tar
-          IMAGE_ID=$(docker images --format '{{.ID}}' | head -1)
-          docker tag $IMAGE_ID ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:arm64-${{ github.ref_name }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:arm64-${{ github.ref_name }}
+          load_and_push() {
+            artifact_dir="$1"
+            image_name="$2"
+            arch="$3"
+            load_output="$(docker load -i "${artifact_dir}/image.tar")"
+            printf '%s\n' "$load_output"
+            image_ref="$(printf '%s\n' "$load_output" | awk -F': ' '/Loaded image/{ref=$2} END{print ref}')"
+            test -n "$image_ref"
+            tag="${{ env.REGISTRY }}/${image_name}:${arch}-${{ github.ref_name }}"
+            docker tag "$image_ref" "$tag"
+            docker push "$tag"
+          }
 
-      - name: Create and push multi-arch manifest
+          load_and_push docker-amd64 "${{ env.WEB_IMAGE_NAME }}" amd64
+          load_and_push docker-arm64 "${{ env.WEB_IMAGE_NAME }}" arm64
+          load_and_push realtime-docker-amd64 "${{ env.REALTIME_IMAGE_NAME }}" amd64
+          load_and_push realtime-docker-arm64 "${{ env.REALTIME_IMAGE_NAME }}" arm64
+
+      - name: Create and push web multi-arch manifest
         run: |
-          for tag in $(echo '${{ steps.meta.outputs.tags }}' | tr ',' '\n'); do
+          printf '%s\n' '${{ steps.meta-web.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
+            test -n "$tag"
             docker buildx imagetools create -t $tag \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:amd64-${{ github.ref_name }} \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:arm64-${{ github.ref_name }}
+              ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:amd64-${{ github.ref_name }} \
+              ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:arm64-${{ github.ref_name }}
+          done
+
+      - name: Create and push realtime multi-arch manifest
+        run: |
+          printf '%s\n' '${{ steps.meta-realtime.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
+            test -n "$tag"
+            docker buildx imagetools create -t $tag \
+              ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}:amd64-${{ github.ref_name }} \
+              ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}:arm64-${{ github.ref_name }}
           done
 
       - name: Generate CLI checksums

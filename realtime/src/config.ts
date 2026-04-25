@@ -61,7 +61,7 @@ export function loadRealtimeConfig(env: Env): RealtimeConfig {
     bridgeToken: required(env, "OPENCLAW_COWTAIL_BRIDGE_TOKEN"),
     convexUrl: requiredAny(env, ["CONVEX_URL", "VITE_CONVEX_URL"]),
     httpBaseUrl,
-    pushBearerToken: required(env, "COWTAIL_PUSH_API_BEARER_TOKEN"),
+    pushBearerToken: requiredAny(env, ["PUSH_API_BEARER_TOKEN", "COWTAIL_PUSH_API_BEARER_TOKEN"]),
     ownerUserId: required(env, "COWTAIL_OPENCLAW_OWNER_USER_ID"),
     realtimeConvexToken: required(env, "COWTAIL_REALTIME_CONVEX_TOKEN"),
     port: parsePort(env.PORT),

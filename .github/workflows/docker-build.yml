@@ -7,6 +7,18 @@ on:
         required: false
         type: string
         default: dev
+      dockerfile:
+        required: false
+        type: string
+        default: web/Dockerfile
+      artifact_prefix:
+        required: false
+        type: string
+        default: docker
+      image_name:
+        required: false
+        type: string
+        default: cowtail
 
 permissions:
   contents: read
@@ -20,11 +32,11 @@ jobs:
       matrix:
         include:
           - platform: linux/amd64
+            arch: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
-            artifact: docker-amd64
           - platform: linux/arm64
+            arch: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
-            artifact: docker-arm64
     steps:
       - uses: actions/checkout@v6
 
@@ -35,7 +47,8 @@ jobs:
         uses: useblacksmith/build-push-action@v2
         with:
           context: .
-          file: web/Dockerfile
+          file: ${{ inputs.dockerfile }}
+          tags: local/${{ inputs.image_name }}:${{ matrix.arch }}-${{ inputs.version }}
           build-args: |
             COWTAIL_VERSION=${{ inputs.version }}
           platforms: ${{ matrix.platform }}
@@ -44,6 +57,6 @@ jobs:
       - name: Upload image artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
+          name: ${{ inputs.artifact_prefix }}-${{ matrix.arch }}
           path: /tmp/image.tar
           retention-days: 1

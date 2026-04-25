@@ -10,7 +10,7 @@ on:
       - "package.json"
       - "bun.lock"
       - "protocol/**"
-      - "realtime/package.json"
+      - "realtime/**"
       - "web/**"
       - ".github/workflows/docker-build.yml"
       - ".github/workflows/docker-verify.yml"
@@ -24,7 +24,7 @@ on:
       - "package.json"
       - "bun.lock"
       - "protocol/**"
-      - "realtime/package.json"
+      - "realtime/**"
       - "web/**"
       - ".github/workflows/docker-build.yml"
       - ".github/workflows/docker-verify.yml"
@@ -32,5 +32,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  docker-build:
+  web-docker-build:
     uses: ./.github/workflows/docker-build.yml
+
+  realtime-docker-build:
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      dockerfile: realtime/Dockerfile
+      artifact_prefix: realtime-docker
+      image_name: cowtail-realtime
