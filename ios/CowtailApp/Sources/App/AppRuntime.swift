@@ -105,6 +105,8 @@ final class AppRuntime {
                 selectedTab: configuration.selectedTab,
                 deepLinkURL: configuration.deepLinkURL
             )
+            let openClawDefaults = UserDefaults.standard
+            openClawDefaults.set(scenario.seed.openClaw.displayName, forKey: "openclaw.displayName")
 
             return AppRuntime(
                 appleAccountManager: appleAccountManager,
@@ -119,9 +121,10 @@ final class AppRuntime {
                 ),
                 notificationManager: notificationManager,
                 openClawStore: OpenClawStore(
-                    api: UITestingOpenClawAPI(),
-                    realtime: UITestingOpenClawRealtime(),
-                    appSessionManager: appSessionManager
+                    api: OpenClawSeededAPI(seed: scenario.seed.openClaw),
+                    realtime: OpenClawSeededRealtime(),
+                    appSessionManager: appSessionManager,
+                    defaults: openClawDefaults
                 ),
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,
@@ -129,40 +132,6 @@ final class AppRuntime {
             )
         }
     }
-}
-
-private actor UITestingOpenClawAPI: OpenClawAPIClient {
-    private var displayName = "OpenClaw"
-
-    func fetchPreferences(sessionToken: String) async throws -> String {
-        displayName
-    }
-
-    func updatePreferences(displayName: String, sessionToken: String) async throws -> String {
-        self.displayName = displayName
-        return displayName
-    }
-
-    func fetchThreads(sessionToken: String) async throws -> [OpenClawThread] {
-        []
-    }
-
-    func fetchMessages(threadId: String, sessionToken: String) async throws -> [OpenClawMessageWithActions] {
-        []
-    }
-}
-
-@MainActor
-private final class UITestingOpenClawRealtime: OpenClawRealtimeConnecting {
-    func start(
-        sessionToken: String,
-        lastSeenSequence: Int64?,
-        onMessage: @escaping @MainActor (OpenClawServerMessage) -> Void
-    ) {}
-
-    func stop() {}
-
-    func send(_ command: OpenClawClientCommand) async throws {}
 }
 
 private struct RoundupDataClientKey: EnvironmentKey {

@@ -15,6 +15,9 @@ struct UITestScenario {
         case notificationsPermissionDenied = "notifications_permission_denied"
         case notificationsReady = "notifications_ready"
         case notificationsSyncError = "notifications_sync_error"
+        case openClawPopulated = "openclaw_populated"
+        case openClawEmpty = "openclaw_empty"
+        case openClawSignedOut = "openclaw_signed_out"
     }
 
     struct Seed {
@@ -24,6 +27,7 @@ struct UITestScenario {
         let apple: AppleSeed
         let session: SessionSeed
         let notification: NotificationSeed
+        let openClaw: OpenClawSeed
 
         var apiMode: SeededCowtailAPI.Mode {
             store.apiMode(
@@ -87,6 +91,12 @@ struct UITestScenario {
         let dailyRoundupEnabled: Bool
         let dailyRoundupPreferenceRequiresSignIn: Bool
         let dailyRoundupPreferenceError: String?
+    }
+
+    struct OpenClawSeed {
+        let displayName: String
+        let threads: [OpenClawThread]
+        let messagesByThreadID: [String: [OpenClawMessageWithActions]]
     }
 
     let name: Name
@@ -242,6 +252,14 @@ private enum SeedFactory {
         dailyRoundupPreferenceError: nil
     )
 
+    private static let openClawDefault = UITestScenario.OpenClawSeed(
+        displayName: "Maude",
+        threads: [CowtailPreviewFixtures.openClawThread],
+        messagesByThreadID: [
+            CowtailPreviewFixtures.openClawThread.id: []
+        ]
+    )
+
     private static let scenarioDefaults = UITestScenario.Seed(
         store: UITestScenario.StoreSeed(
             alerts: FixtureCatalog.inboxAlerts,
@@ -253,7 +271,8 @@ private enum SeedFactory {
         roundupFixes: FixtureCatalog.roundupFixes,
         apple: signedInApple,
         session: readySession,
-        notification: connectedNotification
+        notification: connectedNotification,
+        openClaw: openClawDefault
     )
 
     static func makeSeed(for name: UITestScenario.Name) -> UITestScenario.Seed {
@@ -348,6 +367,18 @@ private enum SeedFactory {
                     dailyRoundupPreferenceError: "Seeded notification sync error."
                 )
             )
+
+        case .openClawPopulated:
+            return seed(openClaw: openClawDefault)
+
+        case .openClawEmpty:
+            return seed(openClaw: .init(displayName: "Maude", threads: [], messagesByThreadID: [:]))
+
+        case .openClawSignedOut:
+            return seed(
+                session: idleSession,
+                openClaw: .init(displayName: "OpenClaw", threads: [], messagesByThreadID: [:])
+            )
         }
     }
 
@@ -366,7 +397,8 @@ private enum SeedFactory {
         roundupFixes: [AlertFix]? = nil,
         apple: UITestScenario.AppleSeed? = nil,
         session: UITestScenario.SessionSeed? = nil,
-        notification: UITestScenario.NotificationSeed? = nil
+        notification: UITestScenario.NotificationSeed? = nil,
+        openClaw: UITestScenario.OpenClawSeed? = nil
     ) -> UITestScenario.Seed {
         UITestScenario.Seed(
             store: store ?? scenarioDefaults.store,
@@ -374,7 +406,8 @@ private enum SeedFactory {
             roundupFixes: roundupFixes ?? scenarioDefaults.roundupFixes,
             apple: apple ?? scenarioDefaults.apple,
             session: session ?? scenarioDefaults.session,
-            notification: notification ?? scenarioDefaults.notification
+            notification: notification ?? scenarioDefaults.notification,
+            openClaw: openClaw ?? scenarioDefaults.openClaw
         )
     }
 }
