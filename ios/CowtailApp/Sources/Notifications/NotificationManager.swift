@@ -18,8 +18,7 @@ final class NotificationManager: NSObject, ObservableObject {
 
     private struct NotificationOpenPayload: Sendable {
         let title: String
-        let urlString: String?
-        let alertID: String?
+        let userInfo: [String: String]
     }
 
     enum RegistrationState: String {
@@ -234,10 +233,7 @@ final class NotificationManager: NSObject, ObservableObject {
 
     private func didOpenNotification(_ payload: NotificationOpenPayload) {
         lastNotificationResponse = payload.title
-        _ = UniversalLinkRouter.shared.handleNotification(
-            urlString: payload.urlString,
-            alertID: payload.alertID
-        )
+        _ = UniversalLinkRouter.shared.handleNotification(userInfo: payload.userInfo)
     }
 
     var authorizationLabel: String {
@@ -707,28 +703,19 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
 
         return NotificationOpenPayload(
             title: response.notification.request.content.title,
-            urlString: stringValue(
-                for: ["url", "link", "deepLinkURL", "deepLinkUrl", "deep_link_url"],
-                in: userInfo
-            ),
-            alertID: stringValue(for: ["alertId", "alertID", "alert_id"], in: userInfo)
+            userInfo: stringUserInfo(from: userInfo)
         )
     }
 
-    nonisolated private static func stringValue(
-        for keys: [String],
-        in userInfo: [AnyHashable: Any]
-    ) -> String? {
-        for key in keys {
-            if let string = userInfo[key] as? String {
-                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    return trimmed
-                }
+    nonisolated private static func stringUserInfo(from userInfo: [AnyHashable: Any]) -> [String: String] {
+        userInfo.reduce(into: [:]) { result, item in
+            guard let key = item.key as? String,
+                  let value = item.value as? String else {
+                return
             }
-        }
 
-        return nil
+            result[key] = value
+        }
     }
 
     nonisolated func userNotificationCenter(

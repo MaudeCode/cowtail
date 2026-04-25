@@ -3,6 +3,7 @@ import Foundation
 enum AppTab: Hashable {
     case inbox
     case roundup
+    case openclaw
     case farmhouse
 }
 
@@ -16,6 +17,10 @@ struct RoundupRoute: Hashable {
     let to: String
 }
 
+enum OpenClawRoute: Hashable {
+    case thread(String)
+}
+
 @MainActor
 final class UniversalLinkRouter: ObservableObject {
     static let shared = UniversalLinkRouter()
@@ -23,9 +28,16 @@ final class UniversalLinkRouter: ObservableObject {
     @Published var selectedTab: AppTab = .inbox
     @Published var inboxPath: [InboxRoute] = []
     @Published var roundupRoute: RoundupRoute
+    @Published var openClawPath: [OpenClawRoute] = []
 
     private init() {
         self.roundupRoute = Self.makeDefaultRoundupRoute()
+    }
+
+    static func makeForTesting() -> UniversalLinkRouter {
+        let router = UniversalLinkRouter()
+        router.resetForUITesting()
+        return router
     }
 
     @discardableResult
@@ -60,6 +72,12 @@ final class UniversalLinkRouter: ObservableObject {
 
     @discardableResult
     func handleNotification(userInfo: [AnyHashable: Any]) -> Bool {
+        if stringValue(for: ["kind", "type"], in: userInfo)?.lowercased() == "openclaw",
+           let threadID = stringValue(for: ["threadId", "threadID", "thread_id"], in: userInfo) {
+            openOpenClawThread(threadID)
+            return true
+        }
+
         if let urlString = stringValue(
             for: ["url", "link", "deepLinkURL", "deepLinkUrl", "deep_link_url"],
             in: userInfo
@@ -110,6 +128,17 @@ final class UniversalLinkRouter: ObservableObject {
         self.roundupRoute = roundupRoute
     }
 
+    func openOpenClawThread(_ threadID: String) {
+        let trimmedThreadID = threadID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedThreadID.isEmpty else {
+            return
+        }
+
+        selectedTab = .openclaw
+        openClawPath.removeAll()
+        openClawPath = [.thread(trimmedThreadID)]
+    }
+
     func applyUITestStartupSelection(selectedTab: AppTab?, deepLinkURL: URL?) {
         resetForUITesting()
 
@@ -122,6 +151,8 @@ final class UniversalLinkRouter: ObservableObject {
             openInbox()
         case .roundup:
             openRoundup(roundupRoute)
+        case .openclaw:
+            self.selectedTab = .openclaw
         case .farmhouse:
             self.selectedTab = .farmhouse
         case nil:
@@ -133,6 +164,7 @@ final class UniversalLinkRouter: ObservableObject {
         selectedTab = .inbox
         inboxPath.removeAll()
         roundupRoute = Self.makeDefaultRoundupRoute()
+        openClawPath.removeAll()
     }
 
     private func stringValue(for keys: [String], in userInfo: [AnyHashable: Any]) -> String? {

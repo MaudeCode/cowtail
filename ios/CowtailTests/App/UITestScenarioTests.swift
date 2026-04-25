@@ -4,6 +4,21 @@ import XCTest
 
 final class UITestScenarioTests: XCTestCase {
     @MainActor
+    func testOpenClawNotificationRoutesToThreadDetail() {
+        let router = UniversalLinkRouter.makeForTesting()
+
+        let handled = router.handleNotification(userInfo: [
+            "kind": "openclaw",
+            "threadId": "thread-1",
+            "messageId": "message-1",
+        ])
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(router.selectedTab, .openclaw)
+        XCTAssertEqual(router.openClawPath, [.thread("thread-1")])
+    }
+
+    @MainActor
     func testAppRuntimeSeedsManagersAndStartupTabForUITesting() {
         AppleAccountManager.shared.seedForUITesting(
             signInState: .signedOut,
