@@ -4,6 +4,7 @@ declare module "bun:test" {
   export function expect<T>(value: T): {
     toEqual: (value: T) => void;
     toBe: (value: T) => void;
+    toContain: (value: string) => void;
     toThrow: (message?: string) => void;
   };
 }
@@ -33,5 +34,6 @@ type BunServeOptions<Data> = {
 
 declare const Bun: {
   env: Record<string, string | undefined>;
+  file(path: string | URL): { text(): Promise<string> };
   serve<Data>(options: BunServeOptions<Data>): { port: number; stop(): void };
 };
