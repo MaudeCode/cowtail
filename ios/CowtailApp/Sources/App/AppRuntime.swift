@@ -6,6 +6,7 @@ final class AppRuntime {
     let appSessionManager: AppSessionManager
     let cowtailStore: CowtailStore
     let notificationManager: NotificationManager
+    let openClawStore: OpenClawStore
     let themeSettings: ThemeSettings
     let universalLinkRouter: UniversalLinkRouter
     let roundupDataClient: any RoundupDataClient
@@ -17,6 +18,7 @@ final class AppRuntime {
         appSessionManager: AppSessionManager,
         cowtailStore: CowtailStore,
         notificationManager: NotificationManager,
+        openClawStore: OpenClawStore,
         themeSettings: ThemeSettings,
         universalLinkRouter: UniversalLinkRouter,
         roundupDataClient: any RoundupDataClient
@@ -25,6 +27,7 @@ final class AppRuntime {
         self.appSessionManager = appSessionManager
         self.cowtailStore = cowtailStore
         self.notificationManager = notificationManager
+        self.openClawStore = openClawStore
         self.themeSettings = themeSettings
         self.universalLinkRouter = universalLinkRouter
         self.roundupDataClient = roundupDataClient
@@ -52,6 +55,11 @@ final class AppRuntime {
                 appSessionManager: appSessionManager,
                 cowtailStore: CowtailStore(api: api),
                 notificationManager: notificationManager,
+                openClawStore: OpenClawStore(
+                    api: OpenClawAPI(),
+                    realtime: OpenClawRealtimeClient(),
+                    appSessionManager: appSessionManager
+                ),
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,
                 roundupDataClient: api
@@ -110,6 +118,11 @@ final class AppRuntime {
                     hasLoaded: true
                 ),
                 notificationManager: notificationManager,
+                openClawStore: OpenClawStore(
+                    api: OpenClawAPI(),
+                    realtime: OpenClawRealtimeClient(),
+                    appSessionManager: appSessionManager
+                ),
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,
                 roundupDataClient: seededAPI

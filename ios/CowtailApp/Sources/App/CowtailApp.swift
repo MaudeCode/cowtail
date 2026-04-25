@@ -8,6 +8,7 @@ struct CowtailApp: App {
     @StateObject private var appSessionManager: AppSessionManager
     @StateObject private var cowtailStore: CowtailStore
     @StateObject private var notificationManager: NotificationManager
+    @StateObject private var openClawStore: OpenClawStore
     @StateObject private var themeSettings: ThemeSettings
     @StateObject private var universalLinkRouter: UniversalLinkRouter
 
@@ -18,6 +19,7 @@ struct CowtailApp: App {
         _appSessionManager = StateObject(wrappedValue: runtime.appSessionManager)
         _cowtailStore = StateObject(wrappedValue: runtime.cowtailStore)
         _notificationManager = StateObject(wrappedValue: runtime.notificationManager)
+        _openClawStore = StateObject(wrappedValue: runtime.openClawStore)
         _themeSettings = StateObject(wrappedValue: runtime.themeSettings)
         _universalLinkRouter = StateObject(wrappedValue: runtime.universalLinkRouter)
     }
@@ -30,6 +32,7 @@ struct CowtailApp: App {
                     .environmentObject(appSessionManager)
                     .environmentObject(cowtailStore)
                     .environmentObject(notificationManager)
+                    .environmentObject(openClawStore)
                     .environmentObject(universalLinkRouter)
             }
             .environmentObject(themeSettings)

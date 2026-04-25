@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.cowtailPalette) private var palette
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var openClawStore: OpenClawStore
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
 
     var body: some View {
@@ -32,6 +34,22 @@ struct ContentView: View {
             }
             .accessibilityIdentifier("tab.roundup")
 
+            NavigationStack(path: $universalLinkRouter.openClawPath) {
+                OpenClawThreadListView()
+                    .navigationDestination(for: OpenClawRoute.self) { route in
+                        switch route {
+                        case .thread(let threadID):
+                            OpenClawThreadDetailView(threadID: threadID)
+                        }
+                    }
+            }
+            .tag(AppTab.openclaw)
+            .tabItem {
+                Label(openClawTabTitle, systemImage: "bubble.left.and.bubble.right")
+            }
+            .badge(openClawStore.unreadCount)
+            .accessibilityIdentifier("tab.openclaw")
+
             NavigationStack {
                 FarmhouseView()
             }
@@ -47,10 +65,33 @@ struct ContentView: View {
         .toolbarBackground(palette.surfaceRaised, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .task {
+            await openClawStore.refreshIfPossible()
+            await openClawStore.connectForeground()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                Task {
+                    await openClawStore.refreshIfPossible()
+                    await openClawStore.connectForeground()
+                }
+            case .background, .inactive:
+                openClawStore.disconnectForeground()
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    private var openClawTabTitle: String {
+        let displayName = openClawStore.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return displayName.isEmpty ? "OpenClaw" : displayName
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(OpenClawStore())
         .environmentObject(UniversalLinkRouter.shared)
 }

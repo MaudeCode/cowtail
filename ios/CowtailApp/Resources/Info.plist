@@ -26,18 +26,20 @@
 	<string>$(COWTAIL_AUTH_SESSION_URL)</string>
 	<key>CowtailConvexQueryURL</key>
 	<string>$(COWTAIL_CONVEX_QUERY_URL)</string>
-	<key>CowtailRoundupTimeZone</key>
-	<string>$(COWTAIL_ROUNDUP_TIMEZONE)</string>
 	<key>CowtailHealthSummaryURL</key>
 	<string>$(COWTAIL_HEALTH_SUMMARY_URL)</string>
 	<key>CowtailNotificationPreferencesURL</key>
 	<string>$(COWTAIL_NOTIFICATION_PREFERENCES_URL)</string>
+	<key>CowtailOpenClawRealtimeURL</key>
+	<string>$(COWTAIL_OPENCLAW_REALTIME_URL)</string>
 	<key>CowtailPublicSiteURL</key>
 	<string>$(COWTAIL_PUBLIC_SITE_URL)</string>
 	<key>CowtailPushRegistrationURL</key>
 	<string>$(COWTAIL_PUSH_REGISTRATION_URL)</string>
 	<key>CowtailPushUnregistrationURL</key>
 	<string>$(COWTAIL_PUSH_UNREGISTRATION_URL)</string>
+	<key>CowtailRoundupTimeZone</key>
+	<string>$(COWTAIL_ROUNDUP_TIMEZONE)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk-Regular.ttf</string>
