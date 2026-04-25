@@ -39,6 +39,7 @@ import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
+import { validateOpenClawLimit } from "./openclawModel";
 import { sendPushToUser } from "./pushDelivery";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -173,6 +174,37 @@ function parseOptionalQueryTimestamp(value: string | undefined): number | undefi
 
   const parsed = Number(value.trim());
   return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+}
+
+export function parseOpenClawListLimit(
+  value: string | undefined,
+): { limit: number | undefined } | { error: string } {
+  if (value === undefined) {
+    return { limit: undefined };
+  }
+
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return { error: "limit must be an integer between 1 and 500" };
+  }
+
+  const parsed = Number(trimmed);
+  try {
+    return { limit: validateOpenClawLimit(parsed) };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "limit must be an integer between 1 and 500",
+    };
+  }
+}
+
+function isConvexArgumentValidationError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("ArgumentValidationError") ||
+    message.includes("Value does not match validator") ||
+    message.includes("Invalid id")
+  );
 }
 
 function mapAlertRecord(alert: Record<string, unknown> & { _id: string }) {
@@ -848,9 +880,13 @@ app.get("/api/openclaw/threads", async (c) => {
   const auth = await requireAppSession(c);
   if ("error" in auth) return auth.error;
 
-  const limit = parseOptionalQueryTimestamp(c.req.query("limit"));
-  const threads = await c.env.runQuery(api.openclaw.listThreadsForApp, {
-    limit,
+  const parsedLimit = parseOpenClawListLimit(c.req.query("limit"));
+  if ("error" in parsedLimit) {
+    return jsonError(parsedLimit.error, 400);
+  }
+
+  const threads = await c.env.runQuery(internal.openclaw.listThreadsForApp, {
+    limit: parsedLimit.limit,
   });
 
   return c.json(
@@ -867,11 +903,24 @@ app.get("/api/openclaw/threads/:threadId/messages", async (c) => {
   const auth = await requireAppSession(c);
   if ("error" in auth) return auth.error;
 
-  const limit = parseOptionalQueryTimestamp(c.req.query("limit"));
-  const messages = await c.env.runQuery(api.openclaw.listMessagesForApp, {
-    threadId: c.req.param("threadId") as any,
-    limit,
-  });
+  const parsedLimit = parseOpenClawListLimit(c.req.query("limit"));
+  if ("error" in parsedLimit) {
+    return jsonError(parsedLimit.error, 400);
+  }
+
+  let messages;
+  try {
+    messages = await c.env.runQuery(internal.openclaw.listMessagesForApp, {
+      threadId: c.req.param("threadId") as any,
+      limit: parsedLimit.limit,
+    });
+  } catch (error) {
+    if (isConvexArgumentValidationError(error)) {
+      return jsonError("Invalid threadId", 400);
+    }
+
+    throw error;
+  }
 
   return c.json(
     openclawMessageWithActionsListResponseSchema.parse({

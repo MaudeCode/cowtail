@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -483,7 +483,7 @@ export const listActionsForMessage = query({
   },
 });
 
-export const listThreadsForApp = query({
+export const listThreadsForApp = internalQuery({
   args: {
     limit: v.optional(v.number()),
   },
@@ -499,7 +499,7 @@ export const listThreadsForApp = query({
   },
 });
 
-export const listMessagesForApp = query({
+export const listMessagesForApp = internalQuery({
   args: {
     threadId: v.id("openclawThreads"),
     limit: v.optional(v.number()),

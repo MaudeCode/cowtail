@@ -14,6 +14,7 @@ import {
   validateOpenClawLimit,
   sortOpenClawMessagesAscending,
 } from "./openclawModel";
+import { parseOpenClawListLimit } from "./http";
 
 describe("OpenClaw Convex model helpers", () => {
   test("normalizes blank titles to Main", () => {
@@ -49,6 +50,28 @@ describe("OpenClaw Convex model helpers", () => {
     expect(() => {
       validateOpenClawLimit(501);
     }).toThrow("limit must be an integer between 1 and 500");
+  });
+
+  test("parses OpenClaw HTTP list limits", () => {
+    expect(parseOpenClawListLimit(undefined)).toEqual({ limit: undefined });
+    expect(parseOpenClawListLimit("1")).toEqual({ limit: 1 });
+    expect(parseOpenClawListLimit("500")).toEqual({ limit: 500 });
+
+    expect(parseOpenClawListLimit("")).toEqual({
+      error: "limit must be an integer between 1 and 500",
+    });
+    expect(parseOpenClawListLimit("0")).toEqual({
+      error: "limit must be an integer between 1 and 500",
+    });
+    expect(parseOpenClawListLimit("501")).toEqual({
+      error: "limit must be an integer between 1 and 500",
+    });
+    expect(parseOpenClawListLimit("12.5")).toEqual({
+      error: "limit must be an integer between 1 and 500",
+    });
+    expect(parseOpenClawListLimit("abc")).toEqual({
+      error: "limit must be an integer between 1 and 500",
+    });
   });
 
   test("validates replay sequence cursor", () => {
