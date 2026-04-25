@@ -46,6 +46,26 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /me/notification-preferences`.
     /// - Remark: Generated from `#/paths//me/notification-preferences/put(updateNotificationPreferences)`.
     func updateNotificationPreferences(_ input: Operations.UpdateNotificationPreferences.Input) async throws -> Operations.UpdateNotificationPreferences.Output
+    /// Fetch the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `GET /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/get(getOpenClawPreferences)`.
+    func getOpenClawPreferences(_ input: Operations.GetOpenClawPreferences.Input) async throws -> Operations.GetOpenClawPreferences.Output
+    /// Update the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `PUT /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/put(updateOpenClawPreferences)`.
+    func updateOpenClawPreferences(_ input: Operations.UpdateOpenClawPreferences.Input) async throws -> Operations.UpdateOpenClawPreferences.Output
+    /// List OpenClaw threads for the current app session
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/get(listOpenClawThreads)`.
+    func listOpenClawThreads(_ input: Operations.ListOpenClawThreads.Input) async throws -> Operations.ListOpenClawThreads.Output
+    /// List OpenClaw messages and actions for a thread
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads/{threadId}/messages`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/{threadId}/messages/get(listOpenClawThreadMessages)`.
+    func listOpenClawThreadMessages(_ input: Operations.ListOpenClawThreadMessages.Input) async throws -> Operations.ListOpenClawThreadMessages.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -127,6 +147,46 @@ extension APIProtocol {
         try await updateNotificationPreferences(Operations.UpdateNotificationPreferences.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// Fetch the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `GET /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/get(getOpenClawPreferences)`.
+    internal func getOpenClawPreferences(headers: Operations.GetOpenClawPreferences.Input.Headers = .init()) async throws -> Operations.GetOpenClawPreferences.Output {
+        try await getOpenClawPreferences(Operations.GetOpenClawPreferences.Input(headers: headers))
+    }
+    /// Update the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `PUT /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/put(updateOpenClawPreferences)`.
+    internal func updateOpenClawPreferences(
+        headers: Operations.UpdateOpenClawPreferences.Input.Headers = .init(),
+        body: Operations.UpdateOpenClawPreferences.Input.Body
+    ) async throws -> Operations.UpdateOpenClawPreferences.Output {
+        try await updateOpenClawPreferences(Operations.UpdateOpenClawPreferences.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// List OpenClaw threads for the current app session
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/get(listOpenClawThreads)`.
+    internal func listOpenClawThreads(headers: Operations.ListOpenClawThreads.Input.Headers = .init()) async throws -> Operations.ListOpenClawThreads.Output {
+        try await listOpenClawThreads(Operations.ListOpenClawThreads.Input(headers: headers))
+    }
+    /// List OpenClaw messages and actions for a thread
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads/{threadId}/messages`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/{threadId}/messages/get(listOpenClawThreadMessages)`.
+    internal func listOpenClawThreadMessages(
+        path: Operations.ListOpenClawThreadMessages.Input.Path,
+        headers: Operations.ListOpenClawThreadMessages.Input.Headers = .init()
+    ) async throws -> Operations.ListOpenClawThreadMessages.Output {
+        try await listOpenClawThreadMessages(Operations.ListOpenClawThreadMessages.Input(
+            path: path,
+            headers: headers
         ))
     }
 }
@@ -1114,6 +1174,419 @@ internal enum Components {
                 case dailyRoundupEnabled
             }
         }
+        /// - Remark: Generated from `#/components/schemas/OpenClawDisplayPreferencesResponse`.
+        internal struct OpenClawDisplayPreferencesResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OpenClawDisplayPreferencesResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/OpenClawDisplayPreferencesResponse/preferences`.
+            internal struct PreferencesPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/OpenClawDisplayPreferencesResponse/preferences/displayName`.
+                internal var displayName: Swift.String?
+                /// Creates a new `PreferencesPayload`.
+                ///
+                /// - Parameters:
+                ///   - displayName:
+                internal init(displayName: Swift.String? = nil) {
+                    self.displayName = displayName
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case displayName
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/OpenClawDisplayPreferencesResponse/preferences`.
+            internal var preferences: Components.Schemas.OpenClawDisplayPreferencesResponse.PreferencesPayload
+            /// Creates a new `OpenClawDisplayPreferencesResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - preferences:
+            internal init(
+                ok: Swift.Bool,
+                preferences: Components.Schemas.OpenClawDisplayPreferencesResponse.PreferencesPayload
+            ) {
+                self.ok = ok
+                self.preferences = preferences
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case preferences
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/OpenClawDisplayPreferencesUpdateRequest`.
+        internal struct OpenClawDisplayPreferencesUpdateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OpenClawDisplayPreferencesUpdateRequest/displayName`.
+            internal var displayName: Swift.String
+            /// Creates a new `OpenClawDisplayPreferencesUpdateRequest`.
+            ///
+            /// - Parameters:
+            ///   - displayName:
+            internal init(displayName: Swift.String) {
+                self.displayName = displayName
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case displayName
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse`.
+        internal struct OpenClawThreadListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/count`.
+            internal var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload`.
+            internal struct ThreadsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/id`.
+                internal var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/sessionKey`.
+                internal var sessionKey: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/status`.
+                internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case pending = "pending"
+                    case active = "active"
+                    case archived = "archived"
+                }
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/status`.
+                internal var status: Components.Schemas.OpenClawThreadListResponse.ThreadsPayloadPayload.StatusPayload
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/targetAgent`.
+                internal enum TargetAgentPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case _default = "default"
+                }
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/targetAgent`.
+                internal var targetAgent: Components.Schemas.OpenClawThreadListResponse.ThreadsPayloadPayload.TargetAgentPayload
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/title`.
+                internal var title: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/unreadCount`.
+                internal var unreadCount: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/createdAt`.
+                internal var createdAt: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/updatedAt`.
+                internal var updatedAt: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/ThreadsPayload/lastMessageAt`.
+                internal var lastMessageAt: Swift.Int?
+                /// Creates a new `ThreadsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                ///   - sessionKey:
+                ///   - status:
+                ///   - targetAgent:
+                ///   - title:
+                ///   - unreadCount:
+                ///   - createdAt:
+                ///   - updatedAt:
+                ///   - lastMessageAt:
+                internal init(
+                    id: Swift.String,
+                    sessionKey: Swift.String? = nil,
+                    status: Components.Schemas.OpenClawThreadListResponse.ThreadsPayloadPayload.StatusPayload,
+                    targetAgent: Components.Schemas.OpenClawThreadListResponse.ThreadsPayloadPayload.TargetAgentPayload,
+                    title: Swift.String,
+                    unreadCount: Swift.Int,
+                    createdAt: Swift.Int,
+                    updatedAt: Swift.Int,
+                    lastMessageAt: Swift.Int? = nil
+                ) {
+                    self.id = id
+                    self.sessionKey = sessionKey
+                    self.status = status
+                    self.targetAgent = targetAgent
+                    self.title = title
+                    self.unreadCount = unreadCount
+                    self.createdAt = createdAt
+                    self.updatedAt = updatedAt
+                    self.lastMessageAt = lastMessageAt
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case id
+                    case sessionKey
+                    case status
+                    case targetAgent
+                    case title
+                    case unreadCount
+                    case createdAt
+                    case updatedAt
+                    case lastMessageAt
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/threads`.
+            internal typealias ThreadsPayload = [Components.Schemas.OpenClawThreadListResponse.ThreadsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/OpenClawThreadListResponse/threads`.
+            internal var threads: Components.Schemas.OpenClawThreadListResponse.ThreadsPayload
+            /// Creates a new `OpenClawThreadListResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - count:
+            ///   - threads:
+            internal init(
+                ok: Swift.Bool,
+                count: Swift.Int,
+                threads: Components.Schemas.OpenClawThreadListResponse.ThreadsPayload
+            ) {
+                self.ok = ok
+                self.count = count
+                self.threads = threads
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case count
+                case threads
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse`.
+        internal struct OpenClawMessageWithActionsListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/count`.
+            internal var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload`.
+            internal struct MessagesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/id`.
+                internal var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/threadId`.
+                internal var threadId: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/direction`.
+                internal enum DirectionPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case openclawToUser = "openclaw_to_user"
+                    case userToOpenclaw = "user_to_openclaw"
+                }
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/direction`.
+                internal var direction: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.DirectionPayload
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/authorLabel`.
+                internal var authorLabel: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/text`.
+                internal var text: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/LinksPayload`.
+                internal struct LinksPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/LinksPayload/label`.
+                    internal var label: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/LinksPayload/url`.
+                    internal var url: Swift.String
+                    /// Creates a new `LinksPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - label:
+                    ///   - url:
+                    internal init(
+                        label: Swift.String,
+                        url: Swift.String
+                    ) {
+                        self.label = label
+                        self.url = url
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case label
+                        case url
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/links`.
+                internal typealias LinksPayload = [Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.LinksPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/links`.
+                internal var links: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.LinksPayload?
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/deliveryState`.
+                internal enum DeliveryStatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case pending = "pending"
+                    case sent = "sent"
+                    case failed = "failed"
+                }
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/deliveryState`.
+                internal var deliveryState: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.DeliveryStatePayload
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/createdAt`.
+                internal var createdAt: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/updatedAt`.
+                internal var updatedAt: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload`.
+                internal struct ActionsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/id`.
+                    internal var id: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/threadId`.
+                    internal var threadId: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/messageId`.
+                    internal var messageId: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/label`.
+                    internal var label: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/kind`.
+                    internal var kind: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/payload`.
+                    internal struct PayloadPayload: Codable, Hashable, Sendable {
+                        /// A container of undocumented properties.
+                        internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
+                        /// Creates a new `PayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        internal init(from decoder: any Swift.Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        internal func encode(to encoder: any Swift.Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/payload`.
+                    internal var payload: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayloadPayload.PayloadPayload
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/state`.
+                    internal enum StatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case pending = "pending"
+                        case submitted = "submitted"
+                        case failed = "failed"
+                        case expired = "expired"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/state`.
+                    internal var state: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayloadPayload.StatePayload
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/resultMetadata`.
+                    internal struct ResultMetadataPayload: Codable, Hashable, Sendable {
+                        /// A container of undocumented properties.
+                        internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
+                        /// Creates a new `ResultMetadataPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        internal init(from decoder: any Swift.Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        internal func encode(to encoder: any Swift.Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/resultMetadata`.
+                    internal var resultMetadata: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayloadPayload.ResultMetadataPayload?
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/createdAt`.
+                    internal var createdAt: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ActionsPayload/updatedAt`.
+                    internal var updatedAt: Swift.Int
+                    /// Creates a new `ActionsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - id:
+                    ///   - threadId:
+                    ///   - messageId:
+                    ///   - label:
+                    ///   - kind:
+                    ///   - payload:
+                    ///   - state:
+                    ///   - resultMetadata:
+                    ///   - createdAt:
+                    ///   - updatedAt:
+                    internal init(
+                        id: Swift.String,
+                        threadId: Swift.String,
+                        messageId: Swift.String,
+                        label: Swift.String,
+                        kind: Swift.String,
+                        payload: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayloadPayload.PayloadPayload,
+                        state: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayloadPayload.StatePayload,
+                        resultMetadata: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayloadPayload.ResultMetadataPayload? = nil,
+                        createdAt: Swift.Int,
+                        updatedAt: Swift.Int
+                    ) {
+                        self.id = id
+                        self.threadId = threadId
+                        self.messageId = messageId
+                        self.label = label
+                        self.kind = kind
+                        self.payload = payload
+                        self.state = state
+                        self.resultMetadata = resultMetadata
+                        self.createdAt = createdAt
+                        self.updatedAt = updatedAt
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case id
+                        case threadId
+                        case messageId
+                        case label
+                        case kind
+                        case payload
+                        case state
+                        case resultMetadata
+                        case createdAt
+                        case updatedAt
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/actions`.
+                internal typealias ActionsPayload = [Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/actions`.
+                internal var actions: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayload?
+                /// Creates a new `MessagesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                ///   - threadId:
+                ///   - direction:
+                ///   - authorLabel:
+                ///   - text:
+                ///   - links:
+                ///   - deliveryState:
+                ///   - createdAt:
+                ///   - updatedAt:
+                ///   - actions:
+                internal init(
+                    id: Swift.String,
+                    threadId: Swift.String,
+                    direction: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.DirectionPayload,
+                    authorLabel: Swift.String? = nil,
+                    text: Swift.String,
+                    links: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.LinksPayload? = nil,
+                    deliveryState: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.DeliveryStatePayload,
+                    createdAt: Swift.Int,
+                    updatedAt: Swift.Int,
+                    actions: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ActionsPayload? = nil
+                ) {
+                    self.id = id
+                    self.threadId = threadId
+                    self.direction = direction
+                    self.authorLabel = authorLabel
+                    self.text = text
+                    self.links = links
+                    self.deliveryState = deliveryState
+                    self.createdAt = createdAt
+                    self.updatedAt = updatedAt
+                    self.actions = actions
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case id
+                    case threadId
+                    case direction
+                    case authorLabel
+                    case text
+                    case links
+                    case deliveryState
+                    case createdAt
+                    case updatedAt
+                    case actions
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/messages`.
+            internal typealias MessagesPayload = [Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/messages`.
+            internal var messages: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayload
+            /// Creates a new `OpenClawMessageWithActionsListResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - count:
+            ///   - messages:
+            internal init(
+                ok: Swift.Bool,
+                count: Swift.Int,
+                messages: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayload
+            ) {
+                self.ok = ok
+                self.count = count
+                self.messages = messages
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case count
+                case messages
+            }
+        }
     }
     /// Types generated from the `#/components/parameters` section of the OpenAPI document.
     internal enum Parameters {}
@@ -1909,6 +2382,475 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
             internal var ok: Operations.UpdateNotificationPreferences.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Fetch the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `GET /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/get(getOpenClawPreferences)`.
+    internal enum GetOpenClawPreferences {
+        internal static let id: Swift.String = "getOpenClawPreferences"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/me/openclaw-preferences/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetOpenClawPreferences.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetOpenClawPreferences.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.GetOpenClawPreferences.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            internal init(headers: Operations.GetOpenClawPreferences.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/me/openclaw-preferences/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/me/openclaw-preferences/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.OpenClawDisplayPreferencesResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.OpenClawDisplayPreferencesResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.GetOpenClawPreferences.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.GetOpenClawPreferences.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The account OpenClaw preferences.
+            ///
+            /// - Remark: Generated from `#/paths//me/openclaw-preferences/get(getOpenClawPreferences)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetOpenClawPreferences.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.GetOpenClawPreferences.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Update the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `PUT /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/put(updateOpenClawPreferences)`.
+    internal enum UpdateOpenClawPreferences {
+        internal static let id: Swift.String = "updateOpenClawPreferences"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/me/openclaw-preferences/PUT/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateOpenClawPreferences.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateOpenClawPreferences.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.UpdateOpenClawPreferences.Input.Headers
+            /// - Remark: Generated from `#/paths/me/openclaw-preferences/PUT/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/me/openclaw-preferences/PUT/requestBody/content/application\/json`.
+                case json(Components.Schemas.OpenClawDisplayPreferencesUpdateRequest)
+            }
+            internal var body: Operations.UpdateOpenClawPreferences.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                headers: Operations.UpdateOpenClawPreferences.Input.Headers = .init(),
+                body: Operations.UpdateOpenClawPreferences.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/me/openclaw-preferences/PUT/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/me/openclaw-preferences/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.OpenClawDisplayPreferencesResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.OpenClawDisplayPreferencesResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.UpdateOpenClawPreferences.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.UpdateOpenClawPreferences.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The updated account OpenClaw preferences.
+            ///
+            /// - Remark: Generated from `#/paths//me/openclaw-preferences/put(updateOpenClawPreferences)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UpdateOpenClawPreferences.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.UpdateOpenClawPreferences.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List OpenClaw threads for the current app session
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/get(listOpenClawThreads)`.
+    internal enum ListOpenClawThreads {
+        internal static let id: Swift.String = "listOpenClawThreads"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/openclaw/threads/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListOpenClawThreads.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListOpenClawThreads.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.ListOpenClawThreads.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            internal init(headers: Operations.ListOpenClawThreads.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/openclaw/threads/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/openclaw/threads/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.OpenClawThreadListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.OpenClawThreadListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListOpenClawThreads.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListOpenClawThreads.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// OpenClaw thread list.
+            ///
+            /// - Remark: Generated from `#/paths//openclaw/threads/get(listOpenClawThreads)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListOpenClawThreads.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.ListOpenClawThreads.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List OpenClaw messages and actions for a thread
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads/{threadId}/messages`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/{threadId}/messages/get(listOpenClawThreadMessages)`.
+    internal enum ListOpenClawThreadMessages {
+        internal static let id: Swift.String = "listOpenClawThreadMessages"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/openclaw/threads/{threadId}/messages/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/openclaw/threads/{threadId}/messages/GET/path/threadId`.
+                internal var threadId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - threadId:
+                internal init(threadId: Swift.String) {
+                    self.threadId = threadId
+                }
+            }
+            internal var path: Operations.ListOpenClawThreadMessages.Input.Path
+            /// - Remark: Generated from `#/paths/openclaw/threads/{threadId}/messages/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListOpenClawThreadMessages.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListOpenClawThreadMessages.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.ListOpenClawThreadMessages.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.ListOpenClawThreadMessages.Input.Path,
+                headers: Operations.ListOpenClawThreadMessages.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/openclaw/threads/{threadId}/messages/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/openclaw/threads/{threadId}/messages/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.OpenClawMessageWithActionsListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.OpenClawMessageWithActionsListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListOpenClawThreadMessages.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListOpenClawThreadMessages.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// OpenClaw thread message list.
+            ///
+            /// - Remark: Generated from `#/paths//openclaw/threads/{threadId}/messages/get(listOpenClawThreadMessages)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListOpenClawThreadMessages.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.ListOpenClawThreadMessages.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):

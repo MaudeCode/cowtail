@@ -11,6 +11,10 @@ import {
   healthResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
+  openclawDisplayPreferencesResponseSchema,
+  openclawDisplayPreferencesUpdateRequestSchema,
+  openclawMessageWithActionsListResponseSchema,
+  openclawThreadListResponseSchema,
   pushRegisterRequestSchema,
   pushRegisterResponseSchema,
   pushUnregisterRequestSchema,
@@ -142,6 +146,19 @@ const NotificationPreferencesResponse = notificationPreferencesResponseSchema.me
 const NotificationPreferencesUpdateRequest = notificationPreferencesUpdateRequestSchema.meta({
   id: "NotificationPreferencesUpdateRequest",
 });
+const OpenClawDisplayPreferencesResponse = openclawDisplayPreferencesResponseSchema.meta({
+  id: "OpenClawDisplayPreferencesResponse",
+});
+const OpenClawDisplayPreferencesUpdateRequest =
+  openclawDisplayPreferencesUpdateRequestSchema.meta({
+    id: "OpenClawDisplayPreferencesUpdateRequest",
+  });
+const OpenClawThreadListResponse = openclawThreadListResponseSchema.meta({
+  id: "OpenClawThreadListResponse",
+});
+const OpenClawMessageWithActionsListResponse = openclawMessageWithActionsListResponseSchema.meta({
+  id: "OpenClawMessageWithActionsListResponse",
+});
 const PushRegisterRequest = pushRegisterRequestSchema.meta({ id: "PushRegisterRequest" });
 const PushRegisterResponse = pushRegisterResponseSchema.meta({ id: "PushRegisterResponse" });
 const PushUnregisterRequest = pushUnregisterRequestSchema.meta({ id: "PushUnregisterRequest" });
@@ -266,6 +283,64 @@ registry.registerPath({
   },
   responses: {
     200: jsonResponse("The updated account notification preferences.", NotificationPreferencesResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/me/openclaw-preferences",
+  operationId: "getOpenClawPreferences",
+  tags: ["openclaw"],
+  summary: "Fetch the current account-scoped OpenClaw preferences",
+  responses: {
+    200: jsonResponse("The account OpenClaw preferences.", OpenClawDisplayPreferencesResponse),
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/me/openclaw-preferences",
+  operationId: "updateOpenClawPreferences",
+  tags: ["openclaw"],
+  summary: "Update the current account-scoped OpenClaw preferences",
+  request: {
+    body: {
+      required: true,
+      content: jsonContent(OpenClawDisplayPreferencesUpdateRequest),
+    },
+  },
+  responses: {
+    200: jsonResponse(
+      "The updated account OpenClaw preferences.",
+      OpenClawDisplayPreferencesResponse,
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/openclaw/threads",
+  operationId: "listOpenClawThreads",
+  tags: ["openclaw"],
+  summary: "List OpenClaw threads for the current app session",
+  responses: {
+    200: jsonResponse("OpenClaw thread list.", OpenClawThreadListResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/openclaw/threads/{threadId}/messages",
+  operationId: "listOpenClawThreadMessages",
+  tags: ["openclaw"],
+  summary: "List OpenClaw messages and actions for a thread",
+  request: {
+    params: z.object({
+      threadId: nonEmptyStringSchema,
+    }),
+  },
+  responses: {
+    200: jsonResponse("OpenClaw thread message list.", OpenClawMessageWithActionsListResponse),
   },
 });
 

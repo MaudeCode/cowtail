@@ -503,4 +503,255 @@ internal struct Client: APIProtocol {
             }
         )
     }
+    /// Fetch the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `GET /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/get(getOpenClawPreferences)`.
+    internal func getOpenClawPreferences(_ input: Operations.GetOpenClawPreferences.Input) async throws -> Operations.GetOpenClawPreferences.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.GetOpenClawPreferences.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/me/openclaw-preferences",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.GetOpenClawPreferences.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.OpenClawDisplayPreferencesResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Update the current account-scoped OpenClaw preferences
+    ///
+    /// - Remark: HTTP `PUT /me/openclaw-preferences`.
+    /// - Remark: Generated from `#/paths//me/openclaw-preferences/put(updateOpenClawPreferences)`.
+    internal func updateOpenClawPreferences(_ input: Operations.UpdateOpenClawPreferences.Input) async throws -> Operations.UpdateOpenClawPreferences.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.UpdateOpenClawPreferences.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/me/openclaw-preferences",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .put
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case let .json(value):
+                    body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.UpdateOpenClawPreferences.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.OpenClawDisplayPreferencesResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// List OpenClaw threads for the current app session
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/get(listOpenClawThreads)`.
+    internal func listOpenClawThreads(_ input: Operations.ListOpenClawThreads.Input) async throws -> Operations.ListOpenClawThreads.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.ListOpenClawThreads.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/openclaw/threads",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.ListOpenClawThreads.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.OpenClawThreadListResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// List OpenClaw messages and actions for a thread
+    ///
+    /// - Remark: HTTP `GET /openclaw/threads/{threadId}/messages`.
+    /// - Remark: Generated from `#/paths//openclaw/threads/{threadId}/messages/get(listOpenClawThreadMessages)`.
+    internal func listOpenClawThreadMessages(_ input: Operations.ListOpenClawThreadMessages.Input) async throws -> Operations.ListOpenClawThreadMessages.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.ListOpenClawThreadMessages.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/openclaw/threads/{}/messages",
+                    parameters: [
+                        input.path.threadId
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.ListOpenClawThreadMessages.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.OpenClawMessageWithActionsListResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
 }

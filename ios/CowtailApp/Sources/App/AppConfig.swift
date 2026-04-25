@@ -7,6 +7,7 @@ enum AppConfig {
     static let alertWriteURL = requiredURL("CowtailAlertWriteURL")
     static let authSessionURL = requiredURL("CowtailAuthSessionURL")
     static let notificationPreferencesURL = requiredURL("CowtailNotificationPreferencesURL")
+    static let openClawRealtimeURL = requiredURL("CowtailOpenClawRealtimeURL")
     static let pushRegistrationURL = requiredURL("CowtailPushRegistrationURL")
     static let pushUnregistrationURL = requiredURL("CowtailPushUnregistrationURL")
     static let roundupTimeZoneIdentifier = requiredString("CowtailRoundupTimeZone")

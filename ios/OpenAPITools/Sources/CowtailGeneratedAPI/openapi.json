@@ -1,0 +1,1185 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cowtail iOS API",
+    "version": "1.0.0",
+    "description": "Generated from the working Cowtail iOS transport contract."
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Generic API base shared by the generated clients."
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ConvexQueryResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ConvexFetchAlertsResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ConvexFetchAlertResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ConvexFetchFixesResponse"
+          }
+        ]
+      },
+      "ConvexFetchAlertsResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConvexAlertRecord"
+            }
+          },
+          "errorMessage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ConvexAlertRecord": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "number",
+            "minimum": 0
+          },
+          "alertname": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "rootCause": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "type": "number",
+            "minimum": 0
+          },
+          "messaged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "_id",
+          "timestamp",
+          "alertname",
+          "severity",
+          "namespace",
+          "status",
+          "outcome",
+          "summary"
+        ]
+      },
+      "ConvexFetchAlertResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConvexAlertRecord"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ConvexFetchFixesResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConvexFixRecord"
+            }
+          },
+          "errorMessage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ConvexFixRecord": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "rootCause": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "_id",
+          "timestamp"
+        ]
+      },
+      "ConvexQueryRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ConvexFetchAlertsRequest"
+          },
+          {
+            "$ref": "#/components/schemas/ConvexFetchAlertRequest"
+          },
+          {
+            "$ref": "#/components/schemas/ConvexFetchFixesRequest"
+          },
+          {
+            "$ref": "#/components/schemas/ConvexFetchFixesByTimeRangeRequest"
+          }
+        ]
+      },
+      "ConvexFetchAlertsRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "alerts:getByTimeRange"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "number",
+                "minimum": 0
+              },
+              "to": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "convex_encoded_json"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "args",
+          "format"
+        ]
+      },
+      "ConvexFetchAlertRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "alerts:getById"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "convex_encoded_json"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "args",
+          "format"
+        ]
+      },
+      "ConvexFetchFixesRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "fixes:getByAlertIds"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "properties": {
+              "alertIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "alertIds"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "convex_encoded_json"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "args",
+          "format"
+        ]
+      },
+      "ConvexFetchFixesByTimeRangeRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "fixes:getByTimeRange"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "number",
+                "minimum": 0
+              },
+              "to": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "convex_encoded_json"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "args",
+          "format"
+        ]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "Ready",
+                    "NotReady",
+                    "Unknown"
+                  ]
+                },
+                "cpu": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "memory": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "name",
+                "status",
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "cephStatus": {
+            "type": "string",
+            "enum": [
+              "HEALTH_OK",
+              "HEALTH_WARN",
+              "HEALTH_ERR"
+            ]
+          },
+          "cephMessage": {
+            "type": "string",
+            "minLength": 1
+          },
+          "storageUsed": {
+            "type": "number",
+            "minimum": 0
+          },
+          "storageTotal": {
+            "type": "number",
+            "minimum": 0
+          },
+          "storageUnit": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "nodes",
+          "cephStatus",
+          "cephMessage",
+          "storageUsed",
+          "storageTotal",
+          "storageUnit"
+        ]
+      },
+      "AuthSessionCreateResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "session": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "minLength": 1
+              },
+              "userId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "expiresAt": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "token",
+              "userId",
+              "expiresAt"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "session"
+        ]
+      },
+      "AuthSessionCreateRequest": {
+        "type": "object",
+        "properties": {
+          "identityToken": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "identityToken"
+        ]
+      },
+      "PushRegisterResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "ok",
+          "created",
+          "id"
+        ]
+      },
+      "PushRegisterRequest": {
+        "type": "object",
+        "properties": {
+          "identityToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deviceToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "platform": {
+            "type": "string",
+            "minLength": 1
+          },
+          "environment": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deviceName": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "identityToken",
+          "deviceToken"
+        ]
+      },
+      "PushUnregisterResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "updated"
+        ]
+      },
+      "PushUnregisterRequest": {
+        "type": "object",
+        "properties": {
+          "deviceToken": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "deviceToken"
+        ]
+      },
+      "NotificationPreferencesResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "preferences": {
+            "type": "object",
+            "properties": {
+              "dailyRoundupEnabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "dailyRoundupEnabled"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "preferences"
+        ]
+      },
+      "NotificationPreferencesUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "dailyRoundupEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dailyRoundupEnabled"
+        ]
+      },
+      "OpenClawDisplayPreferencesResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "preferences": {
+            "type": "object",
+            "properties": {
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "default": "OpenClaw"
+              }
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "preferences"
+        ]
+      },
+      "OpenClawDisplayPreferencesUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "displayName"
+        ]
+      },
+      "OpenClawThreadListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "threads": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sessionKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "active",
+                    "archived"
+                  ]
+                },
+                "targetAgent": {
+                  "type": "string",
+                  "enum": [
+                    "default"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "unreadCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "updatedAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "lastMessageAt": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "targetAgent",
+                "title",
+                "unreadCount",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "count",
+          "threads"
+        ]
+      },
+      "OpenClawMessageWithActionsListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "threadId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "openclaw_to_user",
+                    "user_to_openclaw"
+                  ]
+                },
+                "authorLabel": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "links": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "url": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "url"
+                    ]
+                  },
+                  "default": []
+                },
+                "deliveryState": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "sent",
+                    "failed"
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "updatedAt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "actions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "threadId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "messageId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "kind": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "payload": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true
+                        }
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "submitted",
+                          "failed",
+                          "expired"
+                        ]
+                      },
+                      "resultMetadata": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true
+                        }
+                      },
+                      "createdAt": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "updatedAt": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "threadId",
+                      "messageId",
+                      "label",
+                      "kind",
+                      "payload",
+                      "state",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "id",
+                "threadId",
+                "direction",
+                "text",
+                "deliveryState",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "count",
+          "messages"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/query": {
+      "post": {
+        "operationId": "query",
+        "tags": [
+          "convexQuery"
+        ],
+        "summary": "Perform a typed Convex query request",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvexQueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Convex query response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConvexQueryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "fetchHealthSummary",
+        "tags": [
+          "health"
+        ],
+        "summary": "Fetch the cluster health payload",
+        "responses": {
+          "200": {
+            "description": "The cluster health payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/session": {
+      "post": {
+        "operationId": "createAuthSession",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Exchange a fresh Apple identity token for an app session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthSessionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The app session payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionCreateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/push/register": {
+      "post": {
+        "operationId": "registerPushDevice",
+        "tags": [
+          "push"
+        ],
+        "summary": "Register or refresh an iOS push device token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The device registration result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushRegisterResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/push/unregister": {
+      "post": {
+        "operationId": "unregisterPushDevice",
+        "tags": [
+          "push"
+        ],
+        "summary": "Disable an existing push device token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushUnregisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The device unregistration result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushUnregisterResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/notification-preferences": {
+      "get": {
+        "operationId": "getNotificationPreferences",
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Fetch the current account-scoped notification preferences",
+        "responses": {
+          "200": {
+            "description": "The account notification preferences.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferencesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateNotificationPreferences",
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Update the current account-scoped notification preferences",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferencesUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated account notification preferences.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferencesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/openclaw-preferences": {
+      "get": {
+        "operationId": "getOpenClawPreferences",
+        "tags": [
+          "openclaw"
+        ],
+        "summary": "Fetch the current account-scoped OpenClaw preferences",
+        "responses": {
+          "200": {
+            "description": "The account OpenClaw preferences.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenClawDisplayPreferencesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateOpenClawPreferences",
+        "tags": [
+          "openclaw"
+        ],
+        "summary": "Update the current account-scoped OpenClaw preferences",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenClawDisplayPreferencesUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated account OpenClaw preferences.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenClawDisplayPreferencesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openclaw/threads": {
+      "get": {
+        "operationId": "listOpenClawThreads",
+        "tags": [
+          "openclaw"
+        ],
+        "summary": "List OpenClaw threads for the current app session",
+        "responses": {
+          "200": {
+            "description": "OpenClaw thread list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenClawThreadListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openclaw/threads/{threadId}/messages": {
+      "get": {
+        "operationId": "listOpenClawThreadMessages",
+        "tags": [
+          "openclaw"
+        ],
+        "summary": "List OpenClaw messages and actions for a thread",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "threadId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OpenClaw thread message list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenClawMessageWithActionsListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
