@@ -36,6 +36,7 @@ import {
   usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
 import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
+import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
@@ -875,7 +876,8 @@ app.put("/api/me/openclaw-preferences", async (c) => {
   );
 });
 
-// GET /api/openclaw/threads — app-session scoped OpenClaw thread list
+// GET /api/openclaw/threads — app-session-authenticated global OpenClaw thread list.
+// OpenClaw is single-owner/multi-device, so a valid app session gates access to the shared account history.
 app.get("/api/openclaw/threads", async (c) => {
   const auth = await requireAppSession(c);
   if ("error" in auth) return auth.error;
@@ -898,7 +900,7 @@ app.get("/api/openclaw/threads", async (c) => {
   );
 });
 
-// GET /api/openclaw/threads/:threadId/messages — app-session scoped thread history
+// GET /api/openclaw/threads/:threadId/messages — app-session-authenticated global thread history.
 app.get("/api/openclaw/threads/:threadId/messages", async (c) => {
   const auth = await requireAppSession(c);
   if ("error" in auth) return auth.error;
@@ -911,7 +913,7 @@ app.get("/api/openclaw/threads/:threadId/messages", async (c) => {
   let messages;
   try {
     messages = await c.env.runQuery(internal.openclaw.listMessagesForApp, {
-      threadId: c.req.param("threadId") as any,
+      threadId: c.req.param("threadId") as Id<"openclawThreads">,
       limit: parsedLimit.limit,
     });
   } catch (error) {
