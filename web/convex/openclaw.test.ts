@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 
 import {
   buildOpenClawActionResultUpdate,
@@ -14,7 +14,18 @@ import {
   validateOpenClawLimit,
   sortOpenClawMessagesAscending,
 } from "./openclawModel";
-import { parseOpenClawListLimit } from "./http";
+import { parseOpenClawListLimit, requireOpenClawOwner } from "./http";
+
+const originalOpenClawOwnerUserId = process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
+
+afterEach(() => {
+  if (originalOpenClawOwnerUserId === undefined) {
+    delete process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
+    return;
+  }
+
+  process.env.COWTAIL_OPENCLAW_OWNER_USER_ID = originalOpenClawOwnerUserId;
+});
 
 describe("OpenClaw Convex model helpers", () => {
   test("normalizes blank titles to Main", () => {
@@ -71,6 +82,38 @@ describe("OpenClaw Convex model helpers", () => {
     });
     expect(parseOpenClawListLimit("abc")).toEqual({
       error: "limit must be an integer between 1 and 500",
+    });
+  });
+
+  test("allows the configured OpenClaw owner", () => {
+    process.env.COWTAIL_OPENCLAW_OWNER_USER_ID = "owner-user";
+
+    expect(requireOpenClawOwner({ userId: "owner-user" })).toBeNull();
+  });
+
+  test("rejects OpenClaw owner checks when owner config is missing", async () => {
+    delete process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
+
+    const response = requireOpenClawOwner({ userId: "owner-user" });
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.status).toBe(500);
+    expect(await response?.json()).toEqual({
+      ok: false,
+      error: "OpenClaw owner user ID is not configured",
+    });
+  });
+
+  test("rejects non-owner OpenClaw history access", async () => {
+    process.env.COWTAIL_OPENCLAW_OWNER_USER_ID = "owner-user";
+
+    const response = requireOpenClawOwner({ userId: "other-user" });
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.status).toBe(403);
+    expect(await response?.json()).toEqual({
+      ok: false,
+      error: "Forbidden",
     });
   });
 

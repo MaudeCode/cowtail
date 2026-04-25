@@ -164,6 +164,19 @@ async function requireAppSession(c: {
   };
 }
 
+export function requireOpenClawOwner(auth: { userId: string }) {
+  const ownerUserId = nonEmptyString(process.env.COWTAIL_OPENCLAW_OWNER_USER_ID);
+  if (!ownerUserId) {
+    return jsonError("OpenClaw owner user ID is not configured", 500);
+  }
+
+  if (auth.userId !== ownerUserId) {
+    return jsonError("Forbidden", 403);
+  }
+
+  return null;
+}
+
 function parseOptionalQueryTimestamp(value: string | undefined): number | undefined {
   if (value === undefined || value.trim() === "") {
     return undefined;
@@ -877,10 +890,12 @@ app.put("/api/me/openclaw-preferences", async (c) => {
 });
 
 // GET /api/openclaw/threads — app-session-authenticated global OpenClaw thread list.
-// OpenClaw is single-owner/multi-device, so a valid app session gates access to the shared account history.
+// OpenClaw is single-owner/multi-device, so only the configured owner can read shared account history.
 app.get("/api/openclaw/threads", async (c) => {
   const auth = await requireAppSession(c);
   if ("error" in auth) return auth.error;
+  const ownerError = requireOpenClawOwner(auth);
+  if (ownerError) return ownerError;
 
   const parsedLimit = parseOpenClawListLimit(c.req.query("limit"));
   if ("error" in parsedLimit) {
@@ -904,6 +919,8 @@ app.get("/api/openclaw/threads", async (c) => {
 app.get("/api/openclaw/threads/:threadId/messages", async (c) => {
   const auth = await requireAppSession(c);
   if ("error" in auth) return auth.error;
+  const ownerError = requireOpenClawOwner(auth);
+  if (ownerError) return ownerError;
 
   const parsedLimit = parseOpenClawListLimit(c.req.query("limit"));
   if ("error" in parsedLimit) {
