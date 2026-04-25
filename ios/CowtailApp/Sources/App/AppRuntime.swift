@@ -119,8 +119,8 @@ final class AppRuntime {
                 ),
                 notificationManager: notificationManager,
                 openClawStore: OpenClawStore(
-                    api: OpenClawAPI(),
-                    realtime: OpenClawRealtimeClient(),
+                    api: UITestingOpenClawAPI(),
+                    realtime: UITestingOpenClawRealtime(),
                     appSessionManager: appSessionManager
                 ),
                 themeSettings: themeSettings,
@@ -129,6 +129,40 @@ final class AppRuntime {
             )
         }
     }
+}
+
+private actor UITestingOpenClawAPI: OpenClawAPIClient {
+    private var displayName = "OpenClaw"
+
+    func fetchPreferences(sessionToken: String) async throws -> String {
+        displayName
+    }
+
+    func updatePreferences(displayName: String, sessionToken: String) async throws -> String {
+        self.displayName = displayName
+        return displayName
+    }
+
+    func fetchThreads(sessionToken: String) async throws -> [OpenClawThread] {
+        []
+    }
+
+    func fetchMessages(threadId: String, sessionToken: String) async throws -> [OpenClawMessageWithActions] {
+        []
+    }
+}
+
+@MainActor
+private final class UITestingOpenClawRealtime: OpenClawRealtimeConnecting {
+    func start(
+        sessionToken: String,
+        lastSeenSequence: Int64?,
+        onMessage: @escaping @MainActor (OpenClawServerMessage) -> Void
+    ) {}
+
+    func stop() {}
+
+    func send(_ command: OpenClawClientCommand) async throws {}
 }
 
 private struct RoundupDataClientKey: EnvironmentKey {

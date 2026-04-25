@@ -92,6 +92,6 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .environmentObject(OpenClawStore())
+        .environmentObject(CowtailPreviewFixtures.openClawStore())
         .environmentObject(UniversalLinkRouter.shared)
 }
