@@ -34,6 +34,7 @@ struct OpenClawThreadDetailView: View {
                         } else {
                             ForEach(messages) { message in
                                 OpenClawMessageBubble(message: message)
+                                    .accessibilityIdentifier("message.openclaw.\(message.id)")
                             }
                         }
                     }
