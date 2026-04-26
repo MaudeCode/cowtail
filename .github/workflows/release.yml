@@ -210,9 +210,6 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Ensure latest npm
-        run: npm install -g npm@latest
-
       - name: Publish OpenClaw plugin to npm
         run: |
           tarball="$(ls openclaw-plugin-npm-package/*.tgz)"
