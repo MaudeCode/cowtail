@@ -247,12 +247,11 @@ private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
         // Keep the hidden link wrapper so custom cards do not regain
         // SwiftUI's default disclosure chevron.
         .background {
-            NavigationLink(isActive: $isActive) {
-                destination
-            } label: {
-                EmptyView()
-            }
-            .hidden()
+            // Use navigationDestination(isPresented:) with an invisible view to drive programmatic navigation
+            Color.clear
+                .navigationDestination(isPresented: $isActive) {
+                    destination
+                }
         }
     }
 }
