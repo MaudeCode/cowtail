@@ -46,12 +46,12 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 
 ## Convex Deploy Path
 
-Convex is deployed separately from the web image.
+Convex deploys are part of the release workflow for version tags.
 
 - Workflow: [`.github/workflows/convex-deploy.yml`](./.github/workflows/convex-deploy.yml)
 - Trigger:
-  - push of a version tag matching `v*`
-  - can also be run manually with `workflow_dispatch`
+  - called by [`.github/workflows/release.yml`](./.github/workflows/release.yml) after release artifact publication succeeds
+  - can be run manually with `workflow_dispatch`
 - Runtime:
   - runs on a self-hosted GitHub Actions runner
   - installs dependencies from the repo root workspace
@@ -77,11 +77,13 @@ The release workflow builds and publishes the repo-owned release artifacts.
   - builds and publishes the OpenClaw plugin npm package from [`openclaw-plugin/`](./openclaw-plugin)
   - publishes multi-architecture container images
   - creates a GitHub Release for the tag and attaches the CLI artifacts
+  - deploys Convex from [`web/`](./web) after artifact publication succeeds
   - passes the Git tag into both the web and CLI builds as the canonical release version
 
 Important boundary:
 
 - This repository builds and publishes the web image, realtime image, CLI archives, CLI npm package, and OpenClaw plugin package.
+- This repository deploys Convex functions as part of a successful release.
 - The root Bun workspace is intentionally limited to `web/` and `protocol/` so the web container build does not depend on CLI workspace metadata.
 - The actual Kubernetes rollout is managed outside this repo by GitOps.
 - Runtime upstreams and public association identifiers are injected with container env vars instead of being hardcoded in tracked nginx config.
@@ -93,5 +95,5 @@ Before changing deploy behavior:
 
 - Read the relevant workflow file first.
 - Preserve Bun-based install and build steps unless there is a strong reason to change them.
-- Preserve the split between Convex deploys and web image releases.
+- Keep release-time Convex deploys sequenced after artifact publication succeeds.
 - Avoid adding environment-specific values or identifying infrastructure details to this repository.

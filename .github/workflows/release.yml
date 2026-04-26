@@ -274,7 +274,7 @@ jobs:
         run: |
           printf '%s\n' '${{ steps.meta-web.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
             test -n "$tag"
-            docker buildx imagetools create -t $tag \
+            docker buildx imagetools create -t "$tag" \
               ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:amd64-${{ github.ref_name }} \
               ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:arm64-${{ github.ref_name }}
           done
@@ -283,7 +283,7 @@ jobs:
         run: |
           printf '%s\n' '${{ steps.meta-realtime.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
             test -n "$tag"
-            docker buildx imagetools create -t $tag \
+            docker buildx imagetools create -t "$tag" \
               ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}:amd64-${{ github.ref_name }} \
               ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}:arm64-${{ github.ref_name }}
           done
@@ -291,7 +291,7 @@ jobs:
       - name: Generate CLI checksums
         run: |
           cd cli-release
-          shasum -a 256 *.tar.gz > checksums.txt
+          shasum -a 256 ./*.tar.gz > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -305,3 +305,9 @@ jobs:
             cli-release/checksums.txt
             cli-npm-package/*.tgz
             openclaw-plugin-npm-package/*.tgz
+
+  deploy-convex:
+    name: Deploy Convex
+    needs: [publish]
+    uses: ./.github/workflows/convex-deploy.yml
+    secrets: inherit

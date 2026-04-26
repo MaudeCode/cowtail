@@ -2,9 +2,7 @@
 name: Deploy Convex
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

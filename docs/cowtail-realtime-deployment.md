@@ -10,15 +10,16 @@ Keep environment-specific names, hostnames, cluster names, filesystem paths, and
 
 Push a version tag matching `v*` after `main` contains the desired changes.
 
-The release workflows publish:
+The release workflow publishes:
 
 - Cowtail web image from `web/Dockerfile`;
 - Cowtail realtime image from `realtime/Dockerfile`;
 - CLI npm package from `cli/`;
 - OpenClaw plugin npm package from `openclaw-plugin/`;
-- CLI release artifacts.
+- CLI release artifacts;
+- Convex functions from `web/`, after artifact publication succeeds.
 
-The Convex deploy workflow deploys functions from `web/`.
+The Convex deploy workflow is called by the release workflow and can also be run manually for a direct Convex deploy.
 
 The running rollout is managed outside this repository. Update the infrastructure source of truth to reference the published image tags and runtime configuration. Do not patch running infrastructure directly from this repo.
 
@@ -68,7 +69,7 @@ The web nginx container continues to serve the static app and proxy the existing
 
 After deployment:
 
-1. Confirm the tag workflows completed for Convex, web image, and realtime image.
+1. Confirm the release workflow completed successfully, including Convex deploy, web image, and realtime image jobs.
 2. Confirm the web deployment serves existing Cowtail routes.
 3. Confirm the realtime deployment reports healthy on `/healthz`.
 4. Confirm `/openclaw/realtime` reaches the realtime service and does not return a generic routing 404.
