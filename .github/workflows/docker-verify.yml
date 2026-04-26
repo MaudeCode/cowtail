@@ -1,6 +1,24 @@
 name: Docker Verify
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: dev
+      web_artifact_prefix:
+        required: false
+        type: string
+        default: docker
+      realtime_artifact_prefix:
+        required: false
+        type: string
+        default: realtime-docker
+      upload_artifacts:
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - "main"
@@ -34,10 +52,16 @@ on:
 jobs:
   web-docker-build:
     uses: ./.github/workflows/docker-build.yml
+    with:
+      version: ${{ inputs.version || 'dev' }}
+      artifact_prefix: ${{ inputs.web_artifact_prefix || 'docker' }}
+      upload_artifacts: ${{ inputs.upload_artifacts || false }}
 
   realtime-docker-build:
     uses: ./.github/workflows/docker-build.yml
     with:
+      version: ${{ inputs.version || 'dev' }}
       dockerfile: realtime/Dockerfile
-      artifact_prefix: realtime-docker
+      artifact_prefix: ${{ inputs.realtime_artifact_prefix || 'realtime-docker' }}
       image_name: cowtail-realtime
+      upload_artifacts: ${{ inputs.upload_artifacts || false }}

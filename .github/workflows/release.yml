@@ -11,12 +11,41 @@ env:
   REALTIME_IMAGE_NAME: maudecode/cowtail-realtime
 
 jobs:
+  global-verify:
+    uses: ./.github/workflows/global-verify.yml
+
+  web-verify:
+    uses: ./.github/workflows/web-verify.yml
+
+  realtime-verify:
+    uses: ./.github/workflows/realtime-verify.yml
+
+  openclaw-plugin-verify:
+    uses: ./.github/workflows/openclaw-plugin-verify.yml
+
+  cli-verify:
+    uses: ./.github/workflows/cli-verify.yml
+    with:
+      version: ${{ github.ref_name }}
+
   web-docker-build:
+    needs:
+      - global-verify
+      - web-verify
+      - realtime-verify
+      - openclaw-plugin-verify
+      - cli-verify
     uses: ./.github/workflows/docker-build.yml
     with:
       version: ${{ github.ref_name }}
 
   realtime-docker-build:
+    needs:
+      - global-verify
+      - web-verify
+      - realtime-verify
+      - openclaw-plugin-verify
+      - cli-verify
     uses: ./.github/workflows/docker-build.yml
     with:
       version: ${{ github.ref_name }}
@@ -25,67 +54,40 @@ jobs:
       image_name: cowtail-realtime
 
   cli-build:
+    needs:
+      - global-verify
+      - web-verify
+      - realtime-verify
+      - openclaw-plugin-verify
+      - cli-verify
     uses: ./.github/workflows/cli-build.yml
     with:
       version: ${{ github.ref_name }}
 
   openclaw-plugin-build:
-    name: Build OpenClaw plugin npm package
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Install root dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install OpenClaw plugin dependencies
-        working-directory: openclaw-plugin
-        run: bun install --frozen-lockfile
-
-      - name: Set npm package version from tag
-        working-directory: openclaw-plugin
-        run: |
-          node <<'NODE'
-          const fs = require("node:fs");
-
-          const version = process.env.GITHUB_REF_NAME.replace(/^v/, "");
-          const packageJsonPath = "package.json";
-          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-          packageJson.version = version;
-          fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
-          NODE
-
-      - name: Check OpenClaw plugin
-        run: bun run check:openclaw-plugin
-
-      - name: Test OpenClaw plugin
-        run: bun run test:openclaw-plugin
-
-      - name: Build OpenClaw plugin npm package
-        working-directory: openclaw-plugin
-        run: bun run build
-
-      - name: Pack OpenClaw plugin npm tarball
-        working-directory: openclaw-plugin
-        run: npm pack
-
-      - name: Upload OpenClaw plugin npm artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: openclaw-plugin-npm-package
-          path: openclaw-plugin/*.tgz
-          retention-days: 1
+    needs:
+      - global-verify
+      - web-verify
+      - realtime-verify
+      - openclaw-plugin-verify
+      - cli-verify
+    uses: ./.github/workflows/openclaw-plugin-build.yml
+    with:
+      version: ${{ github.ref_name }}
 
   validate:
     name: Validate Artifacts
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    needs: [web-docker-build, realtime-docker-build, cli-build, openclaw-plugin-build]
+    needs:
+      - global-verify
+      - web-verify
+      - realtime-verify
+      - openclaw-plugin-verify
+      - cli-verify
+      - web-docker-build
+      - realtime-docker-build
+      - cli-build
+      - openclaw-plugin-build
     steps:
       - name: Download web Docker amd64
         uses: actions/download-artifact@v8

@@ -1,6 +1,12 @@
 name: CLI Verify
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: v0.0.0-dev
   push:
     branches:
       - "main"
@@ -22,5 +28,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  cli-build:
-    uses: ./.github/workflows/cli-build.yml
+  verify:
+    name: CLI Verify
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install protocol dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: bun install --frozen-lockfile
+
+      - name: Check CLI
+        working-directory: cli
+        run: bun run check
+
+      - name: Verify version command
+        working-directory: cli
+        env:
+          COWTAIL_VERSION: ${{ inputs.version || 'v0.0.0-dev' }}
+        run: |
+          bun run build:js
+          test "$(node ./dist/cowtail.js version)" = "${COWTAIL_VERSION}"

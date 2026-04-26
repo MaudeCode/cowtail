@@ -6,47 +6,19 @@ on:
       version:
         required: false
         type: string
-        default: dev
+        default: v0.0.0-dev
+      upload_artifacts:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 jobs:
-  check:
-    name: CLI Check
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Install protocol dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install CLI dependencies
-        working-directory: cli
-        run: bun install --frozen-lockfile
-
-      - name: Check CLI
-        working-directory: cli
-        run: bun run check
-
-      - name: Verify version command
-        working-directory: cli
-        env:
-          COWTAIL_VERSION: ${{ inputs.version }}
-        run: |
-          bun run build:js
-          test "$(node ./dist/cowtail.js version)" = "${COWTAIL_VERSION}"
-
   build:
     name: Build CLI Release Artifacts
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    needs: check
     steps:
       - uses: actions/checkout@v6
 
@@ -109,6 +81,7 @@ jobs:
           npm pack
 
       - name: Upload CLI artifact
+        if: ${{ inputs.upload_artifacts }}
         uses: actions/upload-artifact@v7
         with:
           name: cli-release
@@ -116,6 +89,7 @@ jobs:
           retention-days: 1
 
       - name: Upload CLI npm artifact
+        if: ${{ inputs.upload_artifacts }}
         uses: actions/upload-artifact@v7
         with:
           name: cli-npm-package

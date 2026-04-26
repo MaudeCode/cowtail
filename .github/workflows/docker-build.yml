@@ -19,6 +19,10 @@ on:
         required: false
         type: string
         default: cowtail
+      upload_artifacts:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -55,6 +59,7 @@ jobs:
           outputs: type=docker,dest=/tmp/image.tar
 
       - name: Upload image artifact
+        if: ${{ inputs.upload_artifacts }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact_prefix }}-${{ matrix.arch }}

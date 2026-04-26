@@ -1,6 +1,7 @@
 name: Realtime Verify
 
 on:
+  workflow_call:
   push:
     branches:
       - "main"
@@ -11,6 +12,7 @@ on:
       - "realtime/**"
       - "web/convex/**"
       - ".github/workflows/realtime-verify.yml"
+      - ".github/workflows/release.yml"
   pull_request:
     branches:
       - "main"
@@ -21,6 +23,7 @@ on:
       - "realtime/**"
       - "web/convex/**"
       - ".github/workflows/realtime-verify.yml"
+      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 permissions:
@@ -39,5 +42,3 @@ jobs:
       - run: cd web && bunx tsc -p convex/tsconfig.json --noEmit
       - run: bun run check:realtime
       - run: bun run test:realtime
-      - run: bun run fmt:ts:check
-      - run: bun run lint:ts
