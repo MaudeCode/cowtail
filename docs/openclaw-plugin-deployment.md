@@ -36,10 +36,11 @@ Required workflow/package details:
 
 - the publish job must run on a GitHub-hosted runner;
 - the publish job must grant `id-token: write`;
+- the publish job must use an npm CLI version supported by npm trusted publishing;
 - `openclaw-plugin/package.json` must keep repository metadata that points at this repository and the plugin subdirectory;
 - publish with `npm publish --provenance --access public`.
 
-If trusted publishing fails, check npm package settings, the package repository metadata, the workflow filename, and the publish job runner before adding a long-lived npm token.
+If trusted publishing fails, check npm package settings, the package repository metadata, the workflow filename, the publish job runner, and the npm CLI version before adding a long-lived npm token.
 
 ## OpenClaw Configuration
 
