@@ -220,6 +220,8 @@ struct AlertInboxView: View {
 }
 
 private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
+    @State private var isActive = false
+
     let destination: Destination
     let accessibilityIdentifier: String?
     let content: () -> Content
@@ -235,13 +237,23 @@ private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
     }
 
     var body: some View {
-        NavigationLink {
-            destination
+        Button {
+            isActive = true
         } label: {
             content()
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
+        // Keep the hidden link wrapper so custom cards do not regain
+        // SwiftUI's default disclosure chevron.
+        .background {
+            NavigationLink(isActive: $isActive) {
+                destination
+            } label: {
+                EmptyView()
+            }
+            .hidden()
+        }
     }
 }
 
