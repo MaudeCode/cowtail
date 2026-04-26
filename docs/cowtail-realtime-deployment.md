@@ -14,6 +14,7 @@ The release workflows publish:
 
 - Cowtail web image from `web/Dockerfile`;
 - Cowtail realtime image from `realtime/Dockerfile`;
+- CLI npm package from `cli/`;
 - OpenClaw plugin npm package from `openclaw-plugin/`;
 - CLI release artifacts.
 

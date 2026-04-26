@@ -73,6 +73,7 @@ The release workflow builds and publishes the repo-owned release artifacts.
 - Runtime:
   - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context
   - builds CLI release binaries from [`cli/`](./cli)
+  - builds and publishes the CLI npm package from [`cli/`](./cli)
   - builds and publishes the OpenClaw plugin npm package from [`openclaw-plugin/`](./openclaw-plugin)
   - publishes multi-architecture container images
   - creates a GitHub Release for the tag and attaches the CLI artifacts
@@ -80,7 +81,7 @@ The release workflow builds and publishes the repo-owned release artifacts.
 
 Important boundary:
 
-- This repository builds and publishes the web image, realtime image, CLI archives, and OpenClaw plugin package.
+- This repository builds and publishes the web image, realtime image, CLI archives, CLI npm package, and OpenClaw plugin package.
 - The root Bun workspace is intentionally limited to `web/` and `protocol/` so the web container build does not depend on CLI workspace metadata.
 - The actual Kubernetes rollout is managed outside this repo by GitOps.
 - Runtime upstreams and public association identifiers are injected with container env vars instead of being hardcoded in tracked nginx config.

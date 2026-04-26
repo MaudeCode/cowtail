@@ -1,31 +1,41 @@
 {
-  "name": "cowtail-cli",
+  "name": "@maudecode/cowtail-cli",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "description": "Cowtail CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaudeCode/cowtail.git",
+    "directory": "cli"
+  },
+  "main": "./dist/cowtail.js",
   "bin": {
-    "cowtail": "./dist/cowtail"
+    "cowtail": "./dist/cowtail.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs/config.example.json",
+    "install.sh"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "bun run src/cli.ts",
     "build": "bun build ./src/cli.ts --compile --outfile ./dist/cowtail --env='COWTAIL_*'",
     "build:js": "bun build ./src/cli.ts --target=node --outfile ./dist/cowtail.js --env='COWTAIL_*'",
+    "build:npm": "rm -rf dist && bun run build:js && chmod +x ./dist/cowtail.js",
     "check": "tsc --noEmit",
     "test": "bun test"
   },
   "engines": {
-    "bun": ">=1.1.0"
+    "node": ">=22"
   },
-  "trustedDependencies": [
-    "@maudecode/cowtail-protocol"
-  ],
   "devDependencies": {
-    "@types/node": "^24.7.2",
-    "typescript": "^5.9.3"
-  },
-  "dependencies": {
     "@maudecode/cowtail-protocol": "file:../protocol",
-    "clipanion": "^4.0.0-rc.4"
+    "@types/node": "^24.7.2",
+    "clipanion": "^4.0.0-rc.4",
+    "typescript": "^5.9.3"
   }
 }

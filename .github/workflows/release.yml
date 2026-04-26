@@ -117,6 +117,12 @@ jobs:
           name: cli-release
           path: cli-release
 
+      - name: Download CLI npm package
+        uses: actions/download-artifact@v8
+        with:
+          name: cli-npm-package
+          path: cli-npm-package
+
       - name: Download OpenClaw plugin npm package
         uses: actions/download-artifact@v8
         with:
@@ -133,11 +139,13 @@ jobs:
           test -s cli-release/cowtail-darwin-x64.tar.gz
           test -s cli-release/cowtail-linux-arm64.tar.gz
           test -s cli-release/cowtail-linux-x64.tar.gz
+          test -s cli-npm-package/*.tgz
           test -s openclaw-plugin-npm-package/*.tgz
           tar -tf docker-amd64/image.tar > /dev/null
           tar -tf docker-arm64/image.tar > /dev/null
           tar -tf realtime-docker-amd64/image.tar > /dev/null
           tar -tf realtime-docker-arm64/image.tar > /dev/null
+          tar -tzf cli-npm-package/*.tgz > /dev/null
           tar -tzf openclaw-plugin-npm-package/*.tgz > /dev/null
 
   publish:
@@ -183,6 +191,12 @@ jobs:
           name: cli-release
           path: cli-release
 
+      - name: Download CLI npm package
+        uses: actions/download-artifact@v8
+        with:
+          name: cli-npm-package
+          path: cli-npm-package
+
       - name: Download OpenClaw plugin npm package
         uses: actions/download-artifact@v8
         with:
@@ -200,6 +214,12 @@ jobs:
       - name: Publish OpenClaw plugin to npm
         run: |
           tarball="$(ls openclaw-plugin-npm-package/*.tgz)"
+          echo "Publishing ${tarball}"
+          npm publish "${tarball}" --provenance --access public --tag latest
+
+      - name: Publish CLI to npm
+        run: |
+          tarball="$(ls cli-npm-package/*.tgz)"
           echo "Publishing ${tarball}"
           npm publish "${tarball}" --provenance --access public --tag latest
 
@@ -284,4 +304,5 @@ jobs:
             cli-release/cowtail-linux-arm64.tar.gz
             cli-release/cowtail-linux-x64.tar.gz
             cli-release/checksums.txt
+            cli-npm-package/*.tgz
             openclaw-plugin-npm-package/*.tgz

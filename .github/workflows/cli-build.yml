@@ -18,6 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - uses: oven-sh/setup-bun@v2
 
       - name: Install protocol dependencies
@@ -83,9 +87,37 @@ jobs:
             tar -C "${asset_dir}" -czf "./release/${asset_name}.tar.gz" cowtail
           done
 
+      - name: Set npm package version from tag
+        working-directory: cli
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const version = process.env.GITHUB_REF_NAME?.replace(/^v/, "") || "${{ inputs.version }}".replace(/^v/, "");
+          const packageJsonPath = "package.json";
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+          packageJson.version = version;
+          fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+          NODE
+
+      - name: Pack CLI npm package
+        working-directory: cli
+        env:
+          COWTAIL_VERSION: ${{ inputs.version }}
+        run: |
+          bun run build:npm
+          npm pack
+
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v7
         with:
           name: cli-release
           path: cli/release/*.tar.gz
+          retention-days: 1
+
+      - name: Upload CLI npm artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cli-npm-package
+          path: cli/*.tgz
           retention-days: 1

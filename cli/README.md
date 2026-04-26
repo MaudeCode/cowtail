@@ -61,6 +61,13 @@ curl -fsSL https://raw.githubusercontent.com/MaudeCode/cowtail/main/cli/install.
 
 Set `COWTAIL_VERSION=vX.Y.Z` to pin a specific release tag. Set `INSTALL_DIR=/your/bin` to override the install location.
 
+## Install From npm
+```bash
+npm install -g @maudecode/cowtail-cli
+```
+
+The npm package exposes the `cowtail` command. Tagged releases publish the package through the root release workflow, with the npm version derived from the Git tag by removing the leading `v`.
+
 ## Config
 The CLI reads runtime settings from a JSON config file.
 
