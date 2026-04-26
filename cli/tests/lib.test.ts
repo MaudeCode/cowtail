@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { CliError } from "../src/lib/errors";
+import { deriveRealtimeHealthUrl } from "../src/lib/realtime";
 import {
   optionalTrimmedString,
   parseCommaSeparatedStrings,
@@ -59,5 +60,25 @@ describe("render helpers", () => {
 
   test("formatOptionalText handles missing values", () => {
     expect(formatOptionalText(undefined)).toBe("(not set)");
+  });
+});
+
+describe("realtime helpers", () => {
+  test("derives the realtime health URL from the Cowtail base URL origin", () => {
+    expect(deriveRealtimeHealthUrl("https://cowtail.example.invalid/actions")).toBe(
+      "https://cowtail.example.invalid/healthz",
+    );
+  });
+
+  test("derives the realtime health URL from nested Cowtail base paths", () => {
+    expect(deriveRealtimeHealthUrl("http://127.0.0.1:8787/actions/api")).toBe(
+      "http://127.0.0.1:8787/healthz",
+    );
+  });
+
+  test("rejects unsupported Cowtail base URL protocols for realtime health", () => {
+    expect(() => deriveRealtimeHealthUrl("ftp://cowtail.example.invalid/actions")).toThrow(
+      CliError,
+    );
   });
 });

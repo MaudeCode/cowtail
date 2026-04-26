@@ -3,6 +3,7 @@ import { Command } from "clipanion";
 import { getJson } from "../../lib/http";
 import { JsonCommand } from "../../lib/output";
 import { inspectConfig } from "../../lib/config";
+import { getRealtimeHealthStatus } from "../../lib/realtime";
 import { healthResponseSchema, usersListResponseSchema } from "@maudecode/cowtail-protocol";
 
 export const CONFIG_DOCTOR_DESCRIPTION = `Run basic local and remote CLI diagnostics.`;
@@ -11,6 +12,14 @@ type DoctorReport = ReturnType<typeof inspectConfig> & {
   checks: {
     health: { ok: boolean; message: string } | null;
     pushAuth: { ok: boolean; message: string } | null;
+    realtime: {
+      ok: boolean;
+      skipped: boolean;
+      message: string;
+      url?: string;
+      statusCode?: number;
+      body?: string;
+    } | null;
   };
 };
 
@@ -29,6 +38,7 @@ export class ConfigDoctorCommand extends JsonCommand {
       checks: {
         health: null,
         pushAuth: null,
+        realtime: null,
       },
     };
 
@@ -69,12 +79,38 @@ export class ConfigDoctorCommand extends JsonCommand {
           message: "pushBearerToken not configured; skipping authenticated check",
         };
       }
+
+      const baseUrl = report.baseUrl;
+      if (baseUrl) {
+        try {
+          const realtime = await getRealtimeHealthStatus(baseUrl, report.timeoutMs);
+          doctorReport.checks.realtime = {
+            ...realtime,
+            skipped: false,
+            message: `Cowtail Realtime reachable (${realtime.statusCode})`,
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          doctorReport.checks.realtime = {
+            ok: false,
+            skipped: false,
+            message,
+          };
+        }
+      } else {
+        doctorReport.checks.realtime = {
+          ok: true,
+          skipped: true,
+          message: "baseUrl not configured; skipping realtime check",
+        };
+      }
     }
 
     const ok =
       report.valid &&
       doctorReport.checks.health?.ok === true &&
-      (doctorReport.checks.pushAuth?.ok === true || !report.hasPushBearerToken);
+      (doctorReport.checks.pushAuth?.ok === true || !report.hasPushBearerToken) &&
+      doctorReport.checks.realtime?.ok === true;
 
     if (this.json) {
       this.printJson(doctorReport);
@@ -85,6 +121,7 @@ export class ConfigDoctorCommand extends JsonCommand {
           ...report.errors.map((error) => `- ${error}`),
           `Health: ${doctorReport.checks.health?.message ?? "skipped"}`,
           `Push auth: ${doctorReport.checks.pushAuth?.message ?? "skipped"}`,
+          `Realtime: ${doctorReport.checks.realtime?.message ?? "skipped"}`,
         ].join("\n"),
       );
     }

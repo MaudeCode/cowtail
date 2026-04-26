@@ -34,6 +34,7 @@ describe("built binary help and structure", () => {
     expect(result.stdout).toContain("config");
     expect(result.stdout).toContain("roundup");
     expect(result.stdout).toContain("health");
+    expect(result.stdout).toContain("realtime");
     expect(result.stdout).toContain("push");
     expect(result.stdout).toContain("users");
     expect(result.stdout).toContain("update");
@@ -80,6 +81,52 @@ describe("built binary help and structure", () => {
     expect(pushResult.stdout).toContain("send");
     expect(pushResult.stdout).toContain("test");
     expect(pushResult.stdout).not.toContain("register-device");
+  });
+
+  test("realtime group help shows health subcommand", () => {
+    const result = runCliBinary(binaryPath, ["realtime", "-h"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("health");
+  });
+});
+
+describe("built binary realtime commands", () => {
+  test("realtime health reports healthy service status", async () => {
+    const server = createServer((request, response) => {
+      expect(request.url).toBe("/healthz");
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(binaryPath, ["realtime", "health"], {
+        env: {
+          COWTAIL_CONFIG_PATH: configPath,
+        },
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim()).toBe(
+        `Cowtail Realtime healthy: http://127.0.0.1:${port}/healthz (200)`,
+      );
+      expect(result.stderr).toBe("");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 });
 
@@ -165,7 +212,67 @@ describe("built binary config and version commands", () => {
     expect(payload.valid).toBe(false);
     expect(payload.checks.health).toBeNull();
     expect(payload.checks.pushAuth).toBeNull();
+    expect(payload.checks.realtime).toBeNull();
     expect(payload.pushBearerToken).toBeUndefined();
+  });
+
+  test("config doctor checks realtime health from the Cowtail base URL origin", async () => {
+    const server = createServer((request, response) => {
+      if (request.url === "/actions/api/health") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            ok: true,
+            cephStatus: "HEALTH_OK",
+            cephMessage: "healthy",
+            storageUsed: 1,
+            storageTotal: 2,
+            storageUnit: "GiB",
+            nodes: [],
+          }),
+        );
+        return;
+      }
+
+      expect(request.url).toBe("/healthz");
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(binaryPath, ["config", "doctor", "--json"], {
+        env: {
+          COWTAIL_CONFIG_PATH: configPath,
+        },
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+
+      const payload = JSON.parse(result.stdout);
+      expect(payload.checks.realtime).toEqual({
+        ok: true,
+        skipped: false,
+        message: `Cowtail Realtime reachable (200)`,
+        url: `http://127.0.0.1:${port}/healthz`,
+        statusCode: 200,
+        body: '{"ok":true}',
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 });
 
