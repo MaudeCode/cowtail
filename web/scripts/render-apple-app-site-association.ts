@@ -3,7 +3,12 @@ import { dirname, join } from "node:path";
 
 const DEFAULT_APP_ID = "TEAMID.com.example.cowtail";
 
-const defaultTemplatePath = join(import.meta.dir, "..", "templates", "apple-app-site-association.template");
+const defaultTemplatePath = join(
+  import.meta.dir,
+  "..",
+  "templates",
+  "apple-app-site-association.template",
+);
 const defaultOutputPaths = [
   join(import.meta.dir, "..", "public", "apple-app-site-association"),
   join(import.meta.dir, "..", "public", ".well-known", "apple-app-site-association"),

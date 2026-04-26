@@ -92,12 +92,21 @@ describe("setup-worktree-local-config.sh", () => {
 
     writeFile(join(repoRoot, "README.md"), "test\n");
     writeFile(join(repoRoot, "web/.env"), "VITE_CONVEX_URL=https://source.test\n");
-    writeFile(join(repoRoot, "script/codex/setup-worktree-local-config.sh"), readFileSync(scriptPath, "utf8"));
+    writeFile(
+      join(repoRoot, "script/codex/setup-worktree-local-config.sh"),
+      readFileSync(scriptPath, "utf8"),
+    );
     writeFile(join(repoRoot, ".githooks/post-checkout"), readFileSync(hookPath, "utf8"));
 
-    expect(run("chmod +x script/codex/setup-worktree-local-config.sh .githooks/post-checkout").status).toBe(0);
+    expect(
+      run("chmod +x script/codex/setup-worktree-local-config.sh .githooks/post-checkout").status,
+    ).toBe(0);
     expect(run("git config core.hooksPath .githooks").status).toBe(0);
-    expect(run("git add README.md web/.env script/codex/setup-worktree-local-config.sh .githooks/post-checkout").status).toBe(0);
+    expect(
+      run(
+        "git add README.md web/.env script/codex/setup-worktree-local-config.sh .githooks/post-checkout",
+      ).status,
+    ).toBe(0);
     expect(run("git commit -q -m init").status).toBe(0);
 
     const addWorktree = run(`git worktree add "${worktreeRoot}" -b hook-test`);

@@ -20,10 +20,10 @@
     "check:protocol": "cd protocol && bun run check",
     "test:openclaw-plugin": "cd openclaw-plugin && bun run test",
     "test:realtime": "cd realtime && bun test",
-    "lint:ts": "oxlint web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src realtime/src openclaw-plugin/src",
-    "lint:ts:fix": "oxlint --fix web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src realtime/src openclaw-plugin/src",
-    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src realtime/src openclaw-plugin/src",
-    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts cli/src cli/tests protocol/src realtime/src openclaw-plugin/src"
+    "lint:ts": "oxlint web cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex",
+    "lint:ts:fix": "oxlint --fix web cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex",
+    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex",
+    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex"
   },
   "devDependencies": {
     "oxfmt": "^0.45.0",

@@ -136,7 +136,9 @@ const convexQueryResponseSchema = z
   .meta({ id: "ConvexQueryResponse" });
 
 const HealthResponse = healthResponseSchema.meta({ id: "HealthResponse" });
-const AuthSessionCreateRequest = authSessionCreateRequestSchema.meta({ id: "AuthSessionCreateRequest" });
+const AuthSessionCreateRequest = authSessionCreateRequestSchema.meta({
+  id: "AuthSessionCreateRequest",
+});
 const AuthSessionCreateResponse = authSessionCreateResponseSchema.meta({
   id: "AuthSessionCreateResponse",
 });
@@ -149,10 +151,9 @@ const NotificationPreferencesUpdateRequest = notificationPreferencesUpdateReques
 const OpenClawDisplayPreferencesResponse = openclawDisplayPreferencesResponseSchema.meta({
   id: "OpenClawDisplayPreferencesResponse",
 });
-const OpenClawDisplayPreferencesUpdateRequest =
-  openclawDisplayPreferencesUpdateRequestSchema.meta({
-    id: "OpenClawDisplayPreferencesUpdateRequest",
-  });
+const OpenClawDisplayPreferencesUpdateRequest = openclawDisplayPreferencesUpdateRequestSchema.meta({
+  id: "OpenClawDisplayPreferencesUpdateRequest",
+});
 const OpenClawThreadListResponse = openclawThreadListResponseSchema.meta({
   id: "OpenClawThreadListResponse",
 });
@@ -282,7 +283,10 @@ registry.registerPath({
     },
   },
   responses: {
-    200: jsonResponse("The updated account notification preferences.", NotificationPreferencesResponse),
+    200: jsonResponse(
+      "The updated account notification preferences.",
+      NotificationPreferencesResponse,
+    ),
   },
 });
 

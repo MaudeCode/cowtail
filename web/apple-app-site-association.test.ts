@@ -34,9 +34,8 @@ describe("apple-app-site-association generation", () => {
       ),
     );
 
-    const { writeAppleAppSiteAssociationFiles } = await import(
-      "./scripts/render-apple-app-site-association"
-    );
+    const { writeAppleAppSiteAssociationFiles } =
+      await import("./scripts/render-apple-app-site-association");
 
     writeAppleAppSiteAssociationFiles({
       templatePath,
