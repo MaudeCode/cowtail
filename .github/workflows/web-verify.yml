@@ -1,0 +1,38 @@
+name: Web Verify
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
+      - "web/**"
+      - ".github/workflows/web-verify.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
+      - "web/**"
+      - ".github/workflows/web-verify.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run fmt:ts:check
+      - run: bun run lint:ts
+      - run: bun test web
+      - run: cd web && bunx tsc -p convex/tsconfig.json --noEmit
+      - run: bun run build:web
