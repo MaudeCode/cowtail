@@ -18,10 +18,10 @@
     "codegen:ios": "bun run ./scripts/generate-ios-openapi.ts"
   },
   "dependencies": {
-    "zod": "^4.1.12"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@asteasolutions/zod-to-openapi": "^8.1.0",
-    "typescript": "^5.9.3"
+    "@asteasolutions/zod-to-openapi": "^8.5.0",
+    "typescript": "^6.0.3"
   }
 }

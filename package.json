@@ -26,7 +26,7 @@
     "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex"
   },
   "devDependencies": {
-    "oxfmt": "^0.45.0",
-    "oxlint": "^1.60.0"
+    "oxfmt": "^0.46.0",
+    "oxlint": "^1.61.0"
   }
 }
