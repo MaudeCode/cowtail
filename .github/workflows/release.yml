@@ -212,13 +212,13 @@ jobs:
 
       - name: Publish OpenClaw plugin to npm
         run: |
-          tarball="$(ls openclaw-plugin-npm-package/*.tgz)"
+          tarball="$(realpath "$(ls openclaw-plugin-npm-package/*.tgz)")"
           echo "Publishing ${tarball}"
           npm publish "${tarball}" --provenance --access public --tag latest
 
       - name: Publish CLI to npm
         run: |
-          tarball="$(ls cli-npm-package/*.tgz)"
+          tarball="$(realpath "$(ls cli-npm-package/*.tgz)")"
           echo "Publishing ${tarball}"
           npm publish "${tarball}" --provenance --access public --tag latest
 
