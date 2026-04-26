@@ -2,6 +2,8 @@
 
 Cowtail Realtime adds a WebSocket service alongside the existing web image and Convex deployment. OpenClaw is the first provider using this channel. This document only covers the repo-owned deployment contract: published artifacts, required runtime configuration, required routing, and deployment verification.
 
+The OpenClaw plugin package has a separate release and configuration contract documented in [`openclaw-plugin-deployment.md`](./openclaw-plugin-deployment.md).
+
 Keep environment-specific names, hostnames, cluster names, filesystem paths, and secret values out of tracked documentation.
 
 ## Published Artifacts
@@ -12,6 +14,7 @@ The release workflows publish:
 
 - Cowtail web image from `web/Dockerfile`;
 - Cowtail realtime image from `realtime/Dockerfile`;
+- OpenClaw plugin npm package from `openclaw-plugin/`;
 - CLI release artifacts.
 
 The Convex deploy workflow deploys functions from `web/`.

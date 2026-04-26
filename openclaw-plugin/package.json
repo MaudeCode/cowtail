@@ -1,12 +1,32 @@
 {
   "name": "@maudecode/openclaw-cowtail",
   "version": "0.1.0",
-  "private": true,
   "description": "Cowtail channel plugin for OpenClaw",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaudeCode/cowtail.git",
+    "directory": "openclaw-plugin"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./setup-entry": "./dist/setup-entry.js",
+    "./openclaw.plugin.json": "./openclaw.plugin.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "openclaw.plugin.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "openclaw": {
-    "extensions": ["./src/index.ts"],
-    "setupEntry": "./src/setup-entry.ts",
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "setupEntry": "./dist/setup-entry.js",
     "channel": {
       "id": "cowtail",
       "label": "Cowtail",
@@ -20,12 +40,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "bun run check && rm -rf dist && bun build ./src/index.ts ./src/setup-entry.ts --outdir dist --target=node --format=esm --external openclaw --external 'openclaw/*'",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "bun test src/*.test.ts"
-  },
-  "dependencies": {
-    "@maudecode/cowtail-protocol": "file:../protocol"
   },
   "peerDependencies": {
     "openclaw": ">=2026.4.21"
@@ -36,6 +53,7 @@
     }
   },
   "devDependencies": {
+    "@maudecode/cowtail-protocol": "file:../protocol",
     "@types/bun": "^1.3.1",
     "openclaw": "2026.4.21",
     "typescript": "^5.9.3"

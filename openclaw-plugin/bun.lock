@@ -4,10 +4,8 @@
   "workspaces": {
     "": {
       "name": "@maudecode/openclaw-cowtail",
-      "dependencies": {
-        "@maudecode/cowtail-protocol": "file:../protocol",
-      },
       "devDependencies": {
+        "@maudecode/cowtail-protocol": "file:../protocol",
         "@types/bun": "^1.3.1",
         "openclaw": "2026.4.21",
         "typescript": "^5.9.3",

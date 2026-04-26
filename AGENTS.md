@@ -41,6 +41,8 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).
 - Example app/Convex env values live in [`web/.env.example`](./web/.env.example).
 - Example container runtime env values live in [`web/.env.container.example`](./web/.env.container.example).
+- Cowtail realtime deployment notes live in [`docs/cowtail-realtime-deployment.md`](./docs/cowtail-realtime-deployment.md).
+- OpenClaw plugin deployment notes live in [`docs/openclaw-plugin-deployment.md`](./docs/openclaw-plugin-deployment.md).
 
 ## Convex Deploy Path
 
@@ -61,9 +63,9 @@ Important implementation detail:
 - `actions/checkout` still keeps `persist-credentials: false` to avoid mutating the repo's auth state during deploy jobs.
 - If Convex deploy starts failing during dependency installation, inspect the root workspace manifests and `bun.lock` before changing package managers or deployment logic.
 
-## Web Deploy Path
+## Release Path
 
-The web app is shipped as a container image.
+The release workflow builds and publishes the repo-owned release artifacts.
 
 - Workflow: [`.github/workflows/release.yml`](./.github/workflows/release.yml)
 - Trigger:
@@ -71,13 +73,14 @@ The web app is shipped as a container image.
 - Runtime:
   - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context
   - builds CLI release binaries from [`cli/`](./cli)
+  - builds and publishes the OpenClaw plugin npm package from [`openclaw-plugin/`](./openclaw-plugin)
   - publishes multi-architecture container images
   - creates a GitHub Release for the tag and attaches the CLI artifacts
   - passes the Git tag into both the web and CLI builds as the canonical release version
 
 Important boundary:
 
-- This repository builds and publishes the web image.
+- This repository builds and publishes the web image, realtime image, CLI archives, and OpenClaw plugin package.
 - The root Bun workspace is intentionally limited to `web/` and `protocol/` so the web container build does not depend on CLI workspace metadata.
 - The actual Kubernetes rollout is managed outside this repo by GitOps.
 - Runtime upstreams and public association identifiers are injected with container env vars instead of being hardcoded in tracked nginx config.
