@@ -10,6 +10,8 @@ struct OpenClawThreadDetailView: View {
     @State private var localErrorMessage: String?
     @State private var isShowingRename = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var composerIsFocused = false
+    @State private var hasDeferredScrollToBottom = false
 
     private let bottomAnchorID = "openclaw-thread-bottom"
 
@@ -59,18 +61,31 @@ struct OpenClawThreadDetailView: View {
                         .padding(.top, CowtailDesignGuide.pageTopPadding)
                         .padding(.bottom, 12)
                     }
+                    .transaction { transaction in
+                        if composerIsFocused {
+                            transaction.animation = nil
+                        }
+                    }
                     .onAppear {
                         scrollToBottom(proxy: proxy, animated: false)
                     }
                     .onChange(of: messages.map(\.id)) { _, _ in
-                        scrollToBottom(proxy: proxy, animated: true)
+                        requestScrollToBottom(proxy: proxy, animated: true)
                     }
                     .onChange(of: messageScrollSignature) { _, _ in
+                        requestScrollToBottom(proxy: proxy, animated: true)
+                    }
+                    .onChange(of: composerIsFocused) { _, isFocused in
+                        guard !isFocused, hasDeferredScrollToBottom else { return }
+                        hasDeferredScrollToBottom = false
                         scrollToBottom(proxy: proxy, animated: true)
                     }
                 }
 
-                OpenClawThreadComposer(canSendReply: canSendReply) { text in
+                OpenClawThreadComposer(
+                    canSendReply: canSendReply,
+                    isFocused: $composerIsFocused
+                ) { text in
                     await sendReply(text: text)
                 }
             }
@@ -244,6 +259,15 @@ struct OpenClawThreadDetailView: View {
         }
     }
 
+    private func requestScrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
+        guard !composerIsFocused else {
+            hasDeferredScrollToBottom = true
+            return
+        }
+
+        scrollToBottom(proxy: proxy, animated: animated)
+    }
+
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
         let action = {
             proxy.scrollTo(bottomAnchorID, anchor: .bottom)
@@ -272,11 +296,13 @@ private struct OpenClawThreadComposer: View {
     @Environment(\.cowtailPalette) private var palette
 
     let canSendReply: Bool
+    @Binding var isFocused: Bool
+
     let sendReply: @MainActor (String) async -> Bool
 
     @State private var replyText = ""
     @State private var isSending = false
-    @FocusState private var isFocused: Bool
+    @FocusState private var fieldIsFocused: Bool
 
     var body: some View {
         VStack(spacing: 8) {
@@ -284,7 +310,7 @@ private struct OpenClawThreadComposer: View {
 
             HStack(alignment: .bottom, spacing: 10) {
                 TextField("Message OpenClaw", text: $replyText, axis: .vertical)
-                    .focused($isFocused)
+                    .focused($fieldIsFocused)
                     .font(.cowtailSans(15, relativeTo: .body))
                     .textInputAutocapitalization(.sentences)
                     .padding(.horizontal, 14)
@@ -292,7 +318,7 @@ private struct OpenClawThreadComposer: View {
                     .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(isFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
+                            .stroke(fieldIsFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
                     )
                     .lineLimit(1...5)
                     .accessibilityIdentifier("field.openclaw.reply")
@@ -319,6 +345,13 @@ private struct OpenClawThreadComposer: View {
             .padding(.bottom, 10)
         }
         .background(.regularMaterial)
+        .onChange(of: fieldIsFocused) { _, newValue in
+            isFocused = newValue
+        }
+        .onChange(of: isFocused) { _, newValue in
+            guard fieldIsFocused != newValue else { return }
+            fieldIsFocused = newValue
+        }
     }
 
     private var trimmedReply: String {
