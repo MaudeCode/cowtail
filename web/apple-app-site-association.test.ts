@@ -24,7 +24,15 @@ describe("apple-app-site-association generation", () => {
             details: [
               {
                 appID: "${UNIVERSAL_LINKS_APP_ID}",
-                paths: ["/", "/roundup", "/roundup/*", "/fixes", "/fixes/*"],
+                paths: [
+                  "/",
+                  "/roundup",
+                  "/roundup/*",
+                  "/openclaw",
+                  "/openclaw/*",
+                  "/fixes",
+                  "/fixes/*",
+                ],
               },
             ],
           },
@@ -49,6 +57,8 @@ describe("apple-app-site-association generation", () => {
     expect(rootOutput).toContain('"appID": "TEAMID.com.example.cowtail"');
     expect(rootOutput).toContain('"/roundup"');
     expect(rootOutput).toContain('"/roundup/*"');
+    expect(rootOutput).toContain('"/openclaw"');
+    expect(rootOutput).toContain('"/openclaw/*"');
     expect(wellKnownOutput).toBe(rootOutput);
   });
 });

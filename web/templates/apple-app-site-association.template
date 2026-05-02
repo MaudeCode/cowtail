@@ -10,6 +10,8 @@
           "/alerts/*",
           "/roundup",
           "/roundup/*",
+          "/openclaw",
+          "/openclaw/*",
           "/fixes",
           "/fixes/*"
         ]
