@@ -7,13 +7,10 @@ struct OpenClawThreadDetailView: View {
 
     let threadID: String
 
-    @State private var replyText = ""
-    @State private var isSending = false
     @State private var localErrorMessage: String?
     @State private var isShowingRename = false
     @State private var isShowingDeleteConfirmation = false
     @State private var shouldFollowLatestMessage = true
-    @FocusState private var composerIsFocused: Bool
 
     private let bottomAnchorID = "openclaw-thread-bottom"
 
@@ -87,7 +84,9 @@ struct OpenClawThreadDetailView: View {
                     }
                 }
 
-                composer
+                OpenClawThreadComposer(canSendReply: canSendReply) { text in
+                    await sendReply(text: text)
+                }
             }
         }
         .accessibilityElement(children: .contain)
@@ -218,13 +217,89 @@ struct OpenClawThreadDetailView: View {
         }
     }
 
-    private var composer: some View {
+    private var canSendReply: Bool {
+        store.connectionState == .connected
+    }
+
+    private var shouldShowConnectionBanner: Bool {
+        store.connectionState != .connected
+    }
+
+    private var connectionMessage: String {
+        switch store.connectionState {
+        case .disconnected:
+            return "OpenClaw is offline."
+        case .signedOut:
+            return "Sign in from Farmhouse to use OpenClaw."
+        case .connecting:
+            return "Connecting to OpenClaw."
+        case .connected:
+            return "Connected."
+        case .reconnecting:
+            return "Reconnecting to OpenClaw."
+        case .failed(let message):
+            return message
+        }
+    }
+
+    @MainActor
+    private func sendReply(text: String) async -> Bool {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, canSendReply else {
+            return false
+        }
+
+        localErrorMessage = nil
+        shouldFollowLatestMessage = true
+        do {
+            try await store.sendReply(threadId: threadID, text: text)
+            return true
+        } catch {
+            localErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
+        let action = {
+            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+        }
+
+        if animated {
+            withAnimation(.easeOut(duration: 0.2), action)
+        } else {
+            action()
+        }
+    }
+
+    private func deleteThread() {
+        Task {
+            do {
+                try await store.deleteThread(threadId: threadID)
+                universalLinkRouter.openClawPath.removeAll()
+            } catch {
+                localErrorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+private struct OpenClawThreadComposer: View {
+    @Environment(\.cowtailPalette) private var palette
+
+    let canSendReply: Bool
+    let sendReply: @MainActor (String) async -> Bool
+
+    @State private var replyText = ""
+    @State private var isSending = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
         VStack(spacing: 8) {
             Divider()
 
             HStack(alignment: .bottom, spacing: 10) {
                 TextField("Message OpenClaw", text: $replyText, axis: .vertical)
-                    .focused($composerIsFocused)
+                    .focused($isFocused)
                     .font(.cowtailSans(15, relativeTo: .body))
                     .textInputAutocapitalization(.sentences)
                     .autocorrectionDisabled()
@@ -234,13 +309,13 @@ struct OpenClawThreadDetailView: View {
                     .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(composerIsFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
+                            .stroke(isFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
                     )
                     .lineLimit(1...5)
                     .accessibilityIdentifier("field.openclaw.reply")
 
                 Button {
-                    sendReply()
+                    sendCurrentReply()
                 } label: {
                     if isSending {
                         ProgressView()
@@ -267,76 +342,21 @@ struct OpenClawThreadDetailView: View {
         replyText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var canSendReply: Bool {
-        store.connectionState == .connected && !isSending
-    }
-
     private var canSendCurrentReply: Bool {
-        canSendReply && !trimmedReply.isEmpty
+        canSendReply && !isSending && !trimmedReply.isEmpty
     }
 
-    private var shouldShowConnectionBanner: Bool {
-        store.connectionState != .connected
-    }
-
-    private var connectionMessage: String {
-        switch store.connectionState {
-        case .disconnected:
-            return "OpenClaw is offline."
-        case .signedOut:
-            return "Sign in from Farmhouse to use OpenClaw."
-        case .connecting:
-            return "Connecting to OpenClaw."
-        case .connected:
-            return "Connected."
-        case .reconnecting:
-            return "Reconnecting to OpenClaw."
-        case .failed(let message):
-            return message
-        }
-    }
-
-    private func sendReply() {
+    private func sendCurrentReply() {
         let text = trimmedReply
-        guard !text.isEmpty, canSendReply else { return }
+        guard canSendCurrentReply else { return }
 
         isSending = true
-        localErrorMessage = nil
-        shouldFollowLatestMessage = true
-        Task {
-            defer {
-                isSending = false
-            }
-
-            do {
-                try await store.sendReply(threadId: threadID, text: text)
+        Task { @MainActor in
+            let didSend = await sendReply(text)
+            if didSend {
                 replyText = ""
-            } catch {
-                localErrorMessage = error.localizedDescription
             }
-        }
-    }
-
-    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
-        let action = {
-            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
-        }
-
-        if animated {
-            withAnimation(.easeOut(duration: 0.2), action)
-        } else {
-            action()
-        }
-    }
-
-    private func deleteThread() {
-        Task {
-            do {
-                try await store.deleteThread(threadId: threadID)
-                universalLinkRouter.openClawPath.removeAll()
-            } catch {
-                localErrorMessage = error.localizedDescription
-            }
+            isSending = false
         }
     }
 }
