@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct OpenClawThreadDetailView: View {
     @Environment(\.cowtailPalette) private var palette
@@ -277,19 +278,21 @@ private struct OpenClawThreadComposer: View {
 
     @State private var replyText = ""
     @State private var isSending = false
-    @FocusState private var isFocused: Bool
+    @State private var isFocused = false
 
     var body: some View {
         VStack(spacing: 8) {
             Divider()
 
             HStack(alignment: .bottom, spacing: 10) {
-                TextField("Message OpenClaw", text: $replyText, axis: .vertical)
-                    .focused($isFocused)
-                    .font(.cowtailSans(15, relativeTo: .body))
-                    .textInputAutocapitalization(.sentences)
-                    .autocorrectionDisabled()
-                    .textContentType(.none)
+                OpenClawComposerTextView(
+                    text: $replyText,
+                    isFocused: $isFocused,
+                    font: OpenClawComposerTextView.defaultFont,
+                    textColor: UIColor(palette.ink),
+                    placeholder: "Message OpenClaw"
+                )
+                    .frame(minHeight: 20, maxHeight: 112)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
                     .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -297,8 +300,6 @@ private struct OpenClawThreadComposer: View {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(isFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
                     )
-                    .lineLimit(1...5)
-                    .accessibilityIdentifier("field.openclaw.reply")
 
                 Button {
                     sendCurrentReply()

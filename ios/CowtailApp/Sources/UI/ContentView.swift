@@ -65,12 +65,6 @@ struct ContentView: View {
         .toolbarBackground(palette.surfaceRaised, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .background {
-            KeyboardInputWarmupView()
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
-                .allowsHitTesting(false)
-        }
         .task {
             await openClawStore.refreshIfPossible()
             await openClawStore.connectForeground()
