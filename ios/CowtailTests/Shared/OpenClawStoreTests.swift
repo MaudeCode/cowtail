@@ -136,6 +136,73 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(store.lastSeenSequence, 8)
     }
 
+    func testMessageEventsMergeActionsAndKeepToolCalls() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+        let message = OpenClawMessage(
+            id: "message-1",
+            threadId: "thread-1",
+            direction: .openClawToUser,
+            authorLabel: "OpenClaw",
+            text: String(repeating: "Replay payload ", count: 500),
+            links: [.init(label: "Runbook", url: "https://example.invalid/runbook")],
+            toolCalls: [
+                OpenClawToolCall(
+                    id: "tool-1",
+                    name: "query_metrics",
+                    args: ["query": .string("rate(http_requests_total[5m])")],
+                    result: .object(["series": .array([.number(1), .number(2), .number(3)])]),
+                    status: .complete,
+                    startedAt: 1777127900000,
+                    completedAt: 1777127950000,
+                    insertedAtContentLength: nil,
+                    contentSnapshotAtStart: nil
+                )
+            ],
+            deliveryState: .sent,
+            createdAt: 1777128000000,
+            updatedAt: 1777128000000
+        )
+        let action = OpenClawAction(
+            id: "action-1",
+            threadId: "thread-1",
+            messageId: "message-1",
+            label: "Approve",
+            kind: "approve",
+            payload: ["mode": .string("read-only")],
+            state: .pending,
+            resultMetadata: nil,
+            createdAt: 1777128010000,
+            updatedAt: 1777128010000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 7,
+                type: "message_created",
+                createdAt: 1777128000000,
+                threadId: "thread-1",
+                messageId: "message-1",
+                thread: OpenClawFixtures.thread,
+                message: message,
+                actions: [action]
+            )
+        )
+
+        let storedMessage = try XCTUnwrap(store.messagesByThreadID["thread-1"]?.first)
+        XCTAssertEqual(storedMessage.id, "message-1")
+        XCTAssertEqual(storedMessage.text, message.text)
+        XCTAssertEqual(storedMessage.links, message.links)
+        XCTAssertEqual(storedMessage.toolCalls, message.toolCalls)
+        XCTAssertEqual(storedMessage.actions, [action])
+        XCTAssertEqual(store.lastSeenSequence, 7)
+    }
+
     func testConnectForegroundDoesNotRestartWhenAlreadyConnected() async {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let realtime = FakeOpenClawRealtime()

@@ -21,4 +21,30 @@ final class OpenClawRealtimeClientTests: XCTestCase {
         XCTAssertEqual(OpenClawRealtimeClient.reconnectDelay(attempt: 4), .seconds(10))
         XCTAssertEqual(OpenClawRealtimeClient.reconnectDelay(attempt: 20), .seconds(10))
     }
+
+    func testDecodeServerMessageDataParsesRealtimeEvents() async throws {
+        let json = """
+        {
+          "sequence": 7,
+          "type": "hello_acknowledged",
+          "createdAt": 1777128000000,
+          "threadId": null,
+          "messageId": null,
+          "thread": null,
+          "message": null,
+          "actions": [],
+          "payload": null,
+          "error": null
+        }
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+
+        let message = try await OpenClawRealtimeClient.decodeServerMessageData(data)
+
+        guard case .event(let event) = message else {
+            return XCTFail("Expected event")
+        }
+        XCTAssertEqual(event.type, "hello_acknowledged")
+        XCTAssertEqual(event.sequence, 7)
+    }
 }

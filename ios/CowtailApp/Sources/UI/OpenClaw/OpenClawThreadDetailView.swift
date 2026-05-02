@@ -66,7 +66,8 @@ struct OpenClawThreadDetailView: View {
                     .onScrollGeometryChange(for: Bool.self) { geometry in
                         let bottomOffset = max(geometry.contentSize.height - geometry.containerSize.height, 0)
                         return bottomOffset - geometry.contentOffset.y <= 96
-                    } action: { _, isNearBottom in
+                    } action: { oldValue, isNearBottom in
+                        guard oldValue != isNearBottom else { return }
                         shouldFollowLatestMessage = isNearBottom
                     }
                     .scrollDismissesKeyboard(.interactively)

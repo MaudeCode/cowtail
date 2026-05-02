@@ -215,15 +215,15 @@ final class OpenClawStore: ObservableObject {
         }
 
         if let message = event.message {
-            try upsertMessage(message, actions: event.actions)
+            upsertMessage(message, actions: event.actions)
         } else {
             for action in event.actions {
-                try upsertAction(action)
+                upsertAction(action)
             }
         }
 
         if let action = event.action {
-            try upsertAction(action)
+            upsertAction(action)
         }
 
         advanceCursor(to: event.sequence)
@@ -292,12 +292,12 @@ final class OpenClawStore: ObservableObject {
         threads = sortedThreads(threads)
     }
 
-    private func upsertMessage(_ message: OpenClawMessage, actions: [OpenClawAction]) throws {
+    private func upsertMessage(_ message: OpenClawMessage, actions: [OpenClawAction]) {
         let existingActions = messagesByThreadID[message.threadId]?
             .first(where: { $0.id == message.id })?
             .actions ?? []
         let mergedActions = mergeActions(existingActions, with: actions)
-        let messageWithActions = try OpenClawMessageWithActions(message: message, actions: mergedActions)
+        let messageWithActions = OpenClawMessageWithActions(message: message, actions: mergedActions)
 
         var messages = messagesByThreadID[message.threadId] ?? []
         if let index = messages.firstIndex(where: { $0.id == message.id }) {
@@ -308,7 +308,7 @@ final class OpenClawStore: ObservableObject {
         messagesByThreadID[message.threadId] = sortedMessages(messages)
     }
 
-    private func upsertAction(_ action: OpenClawAction) throws {
+    private func upsertAction(_ action: OpenClawAction) {
         guard var messages = messagesByThreadID[action.threadId],
               let index = messages.firstIndex(where: { $0.id == action.messageId }) else {
             return
@@ -316,7 +316,7 @@ final class OpenClawStore: ObservableObject {
 
         let existing = messages[index]
         let actions = mergeActions(existing.actions, with: [action])
-        messages[index] = try OpenClawMessageWithActions(message: existing.message, actions: actions)
+        messages[index] = OpenClawMessageWithActions(message: existing.message, actions: actions)
         messagesByThreadID[action.threadId] = sortedMessages(messages)
     }
 
@@ -356,36 +356,17 @@ final class OpenClawStore: ObservableObject {
 }
 
 private extension OpenClawMessageWithActions {
-    init(message: OpenClawMessage, actions: [OpenClawAction]) throws {
-        let data = try JSONEncoder().encode(OpenClawMessageWithActionsPayload(message: message, actions: actions))
-        self = try JSONDecoder().decode(OpenClawMessageWithActions.self, from: data)
-    }
-}
-
-private struct OpenClawMessageWithActionsPayload: Encodable {
-    let id: String
-    let threadId: String
-    let direction: OpenClawMessageDirection
-    let authorLabel: String?
-    let text: String
-    let links: [OpenClawLink]
-    let toolCalls: [OpenClawToolCall]
-    let deliveryState: OpenClawDeliveryState
-    let createdAt: Int64
-    let updatedAt: Int64
-    let actions: [OpenClawAction]
-
     init(message: OpenClawMessage, actions: [OpenClawAction]) {
-        self.id = message.id
-        self.threadId = message.threadId
-        self.direction = message.direction
-        self.authorLabel = message.authorLabel
-        self.text = message.text
-        self.links = message.links
-        self.toolCalls = message.toolCalls
-        self.deliveryState = message.deliveryState
-        self.createdAt = message.createdAt
-        self.updatedAt = message.updatedAt
+        id = message.id
+        threadId = message.threadId
+        direction = message.direction
+        authorLabel = message.authorLabel
+        text = message.text
+        links = message.links
+        toolCalls = message.toolCalls
+        deliveryState = message.deliveryState
+        createdAt = message.createdAt
+        updatedAt = message.updatedAt
         self.actions = actions
     }
 }

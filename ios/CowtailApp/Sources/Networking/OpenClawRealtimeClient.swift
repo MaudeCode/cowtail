@@ -49,7 +49,6 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
     private let url: URL
     private let session: URLSession
     private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "openclawRealtime"
@@ -102,6 +101,21 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
             .seconds(5)
         default:
             .seconds(10)
+        }
+    }
+
+    nonisolated static func decodeServerMessageData(_ data: Data) async throws -> OpenClawServerMessage {
+        let decodeTask = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let message = try JSONDecoder().decode(OpenClawServerMessage.self, from: data)
+            try Task.checkCancellation()
+            return message
+        }
+
+        return try await withTaskCancellationHandler {
+            try await decodeTask.value
+        } onCancel: {
+            decodeTask.cancel()
         }
     }
 
@@ -225,22 +239,8 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
 
     private func receiveLoop(from task: URLSessionWebSocketTask, generation: Int) async throws {
         while isCurrentConnection(generation), !Task.isCancelled {
-            let message = try await task.receive()
-            let data: Data
-
-            switch message {
-            case .data(let value):
-                data = value
-            case .string(let value):
-                guard let encoded = value.data(using: .utf8) else {
-                    throw OpenClawRealtimeClientError.invalidMessage
-                }
-                data = encoded
-            @unknown default:
-                throw OpenClawRealtimeClientError.invalidMessage
-            }
-
-            let decoded = try decoder.decode(OpenClawServerMessage.self, from: data)
+            let data = try Self.data(from: try await task.receive())
+            let decoded = try await Self.decodeServerMessageData(data)
             guard isCurrentConnection(generation) else { return }
             if case .event(let event) = decoded, event.type == "hello_acknowledged" {
                 reconnectAttempt = 0
@@ -255,6 +255,20 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
                 )
             }
             onMessage?(decoded)
+        }
+    }
+
+    nonisolated private static func data(from message: URLSessionWebSocketTask.Message) throws -> Data {
+        switch message {
+        case .data(let value):
+            return value
+        case .string(let value):
+            guard let encoded = value.data(using: .utf8) else {
+                throw OpenClawRealtimeClientError.invalidMessage
+            }
+            return encoded
+        @unknown default:
+            throw OpenClawRealtimeClientError.invalidMessage
         }
     }
 

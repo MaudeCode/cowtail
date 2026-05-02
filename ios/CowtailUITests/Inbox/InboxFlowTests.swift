@@ -56,6 +56,10 @@ final class InboxFlowTests: XCTestCase {
             element(in: app, identifier: "screen.alert-detail").waitForExistence(timeout: 5),
             "Tapping a seeded inbox row should navigate to the alert detail screen."
         )
+        XCTAssertTrue(
+            app.staticTexts["CephHealthWarning"].waitForExistence(timeout: 5),
+            "The routed detail screen should show the tapped preview alert."
+        )
     }
 
     func testMissingAlertDeepLinkShowsUnavailableState() {

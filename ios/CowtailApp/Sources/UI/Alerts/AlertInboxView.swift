@@ -4,6 +4,7 @@ struct AlertInboxView: View {
     @State private var showsAllActionableAlerts = false
     @State private var showsAllRecentActivity = false
     @EnvironmentObject private var store: CowtailStore
+    @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
 
     private var openCount: Int {
         store.alerts.filter { $0.status == .firing }.count
@@ -140,8 +141,10 @@ struct AlertInboxView: View {
             } else {
                 ForEach(visibleActionableAlerts) { alert in
                     InboxAlertNavigationRow(
-                        destination: AlertDetailView(alert: alert),
-                        accessibilityIdentifier: "row.alert.\(alert.id)"
+                        accessibilityIdentifier: "row.alert.\(alert.id)",
+                        action: {
+                            universalLinkRouter.inboxPath = [.alert(alert.id)]
+                        }
                     ) {
                         PrimaryAlertCard(alert: alert)
                     }
@@ -176,8 +179,10 @@ struct AlertInboxView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(visibleRecentActivityAlerts.enumerated()), id: \.element.id) { index, alert in
                         InboxAlertNavigationRow(
-                            destination: AlertDetailView(alert: alert),
-                            accessibilityIdentifier: "row.alert.\(alert.id)"
+                            accessibilityIdentifier: "row.alert.\(alert.id)",
+                            action: {
+                                universalLinkRouter.inboxPath = [.alert(alert.id)]
+                            }
                         ) {
                             CompactActivityRow(alert: alert)
                         }
@@ -219,40 +224,27 @@ struct AlertInboxView: View {
     }
 }
 
-private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
-    @State private var isActive = false
-
-    let destination: Destination
+private struct InboxAlertNavigationRow<Content: View>: View {
     let accessibilityIdentifier: String?
+    let action: () -> Void
     let content: () -> Content
 
     init(
-        destination: Destination,
         accessibilityIdentifier: String? = nil,
+        action: @escaping () -> Void,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        self.destination = destination
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.action = action
         self.content = content
     }
 
     var body: some View {
-        Button {
-            isActive = true
-        } label: {
+        Button(action: action) {
             content()
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
-        // Keep the hidden link wrapper so custom cards do not regain
-        // SwiftUI's default disclosure chevron.
-        .background {
-            // Use navigationDestination(isPresented:) with an invisible view to drive programmatic navigation
-            Color.clear
-                .navigationDestination(isPresented: $isActive) {
-                    destination
-                }
-        }
     }
 }
 
@@ -266,5 +258,6 @@ private struct InboxAlertNavigationRow<Destination: View, Content: View>: View {
                     fixesByAlertID: [:]
                 )
             )
+            .environmentObject(UniversalLinkRouter.shared)
     }
 }
