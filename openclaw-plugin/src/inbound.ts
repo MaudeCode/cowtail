@@ -69,10 +69,18 @@ type CowtailInboundRuntime = {
   };
 };
 type DispatchInboundCore = Parameters<typeof dispatchInboundReplyWithBase>[0]["core"];
-type CowtailInboundClient = Pick<CowtailRealtimeClient, "sendSessionBound" | "sendActionResult">;
+type CowtailInboundClient = Pick<
+  CowtailRealtimeClient,
+  "sendSessionBound" | "sendActionResult" | "sendOpenClawMessage"
+>;
 type CowtailRoute = {
   agentId: string;
   sessionKey: string;
+};
+type CowtailReplyPayload = {
+  text?: string;
+  mediaUrls?: string[];
+  mediaUrl?: string;
 };
 
 const CHANNEL_ID = "cowtail";
@@ -113,15 +121,6 @@ export async function handleCowtailEvent(params: {
         return;
       }
 
-      await dispatchCowtailTextTurn({
-        account,
-        runtime,
-        route,
-        thread,
-        message,
-        ...(logger ? { logger } : {}),
-      });
-
       if (!thread.sessionKey) {
         await client.sendSessionBound({
           type: "openclaw_session_bound",
@@ -129,6 +128,16 @@ export async function handleCowtailEvent(params: {
           sessionKey: route.sessionKey,
         });
       }
+
+      await dispatchCowtailTextTurn({
+        account,
+        client,
+        runtime,
+        route,
+        thread,
+        message,
+        ...(logger ? { logger } : {}),
+      });
       return;
     }
 
@@ -146,6 +155,7 @@ export async function handleCowtailEvent(params: {
 
       await dispatchCowtailTextTurn({
         account,
+        client,
         runtime,
         route: {
           agentId: account.agentId,
@@ -173,6 +183,7 @@ export async function handleCowtailEvent(params: {
       try {
         const dispatchSucceeded = await dispatchCowtailActionTurn({
           account,
+          client,
           runtime,
           route: {
             agentId: account.agentId,
@@ -207,13 +218,14 @@ export async function handleCowtailEvent(params: {
 
 export async function dispatchCowtailTextTurn(params: {
   account: ResolvedCowtailAccount;
+  client: CowtailInboundClient;
   runtime: CowtailInboundRuntime;
   logger?: Logger;
   route: CowtailRoute;
   thread: OpenClawThreadRecord;
   message: OpenClawMessageRecord;
 }): Promise<void> {
-  const { account, runtime, logger, route, thread, message } = params;
+  const { account, client, runtime, logger, route, thread, message } = params;
   const text = message.text;
   const { body, storePath } = buildCowtailInboundBody({
     runtime,
@@ -240,7 +252,13 @@ export async function dispatchCowtailTextTurn(params: {
     storePath,
     ctxPayload,
     core: runtime as unknown as DispatchInboundCore,
-    deliver: async () => undefined,
+    deliver: async (payload) =>
+      deliverCowtailReply({
+        client,
+        route,
+        thread,
+        payload,
+      }),
     onRecordError: (error) => {
       logger?.error?.(`Cowtail inbound session record failed: ${errorMessage(error)}`);
     },
@@ -252,6 +270,7 @@ export async function dispatchCowtailTextTurn(params: {
 
 export async function dispatchCowtailActionTurn(params: {
   account: ResolvedCowtailAccount;
+  client: CowtailInboundClient;
   runtime: CowtailInboundRuntime;
   logger?: Logger;
   route: CowtailRoute;
@@ -260,7 +279,7 @@ export async function dispatchCowtailActionTurn(params: {
   payload: Record<string, unknown>;
   timestamp: number;
 }): Promise<boolean> {
-  const { account, runtime, logger, route, thread, action, payload, timestamp } = params;
+  const { account, client, runtime, logger, route, thread, action, payload, timestamp } = params;
   const text = [
     `Cowtail action selected: ${action.label}`,
     `kind: ${action.kind}`,
@@ -292,7 +311,13 @@ export async function dispatchCowtailActionTurn(params: {
     storePath,
     ctxPayload,
     core: runtime as unknown as DispatchInboundCore,
-    deliver: async () => undefined,
+    deliver: async (replyPayload) =>
+      deliverCowtailReply({
+        client,
+        route,
+        thread,
+        payload: replyPayload,
+      }),
     onRecordError: (error) => {
       logger?.error?.(`Cowtail inbound session record failed: ${errorMessage(error)}`);
     },
@@ -303,6 +328,40 @@ export async function dispatchCowtailActionTurn(params: {
   });
 
   return !dispatchFailed;
+}
+
+async function deliverCowtailReply(params: {
+  client: CowtailInboundClient;
+  route: CowtailRoute;
+  thread: OpenClawThreadRecord;
+  payload: CowtailReplyPayload;
+}): Promise<void> {
+  const text = params.payload.text;
+  if (typeof text !== "string" || !text.trim()) {
+    return;
+  }
+
+  await params.client.sendOpenClawMessage({
+    type: "openclaw_message",
+    sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+    title: params.thread.title,
+    text,
+    authorLabel: "OpenClaw",
+    links: resolveCowtailReplyLinks(params.payload),
+    actions: [],
+  });
+}
+
+function resolveCowtailReplyLinks(payload: CowtailReplyPayload) {
+  const urls = [
+    ...(Array.isArray(payload.mediaUrls) ? payload.mediaUrls : []),
+    ...(typeof payload.mediaUrl === "string" ? [payload.mediaUrl] : []),
+  ].filter((url) => url.trim().length > 0);
+
+  return urls.map((url, index) => ({
+    label: urls.length === 1 ? "Attachment" : `Attachment ${index + 1}`,
+    url,
+  }));
 }
 
 export function buildCowtailInboundBody(params: {

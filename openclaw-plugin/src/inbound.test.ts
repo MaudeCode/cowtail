@@ -93,6 +93,15 @@ type FakeClient = {
     state: "submitted" | "failed" | "expired";
     resultMetadata?: Record<string, unknown>;
   }>;
+  sendOpenClawMessageCalls: Array<{
+    type: "openclaw_message";
+    sessionKey: string;
+    title?: string;
+    text: string;
+    authorLabel?: string;
+    links: Array<{ label: string; url: string }>;
+    actions: [];
+  }>;
   sendSessionBound: (input: {
     type: "openclaw_session_bound";
     threadId: string;
@@ -104,6 +113,15 @@ type FakeClient = {
     state: "submitted" | "failed" | "expired";
     resultMetadata?: Record<string, unknown>;
   }) => Promise<number | undefined>;
+  sendOpenClawMessage: (input: {
+    type: "openclaw_message";
+    sessionKey: string;
+    title?: string;
+    text: string;
+    authorLabel?: string;
+    links: Array<{ label: string; url: string }>;
+    actions: [];
+  }) => Promise<{ requestId: string; sequence: number | undefined }>;
 };
 
 function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): ResolvedCowtailAccount {
@@ -125,10 +143,12 @@ function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): Resolve
 function createClient(): FakeClient {
   const sendSessionBoundCalls: FakeClient["sendSessionBoundCalls"] = [];
   const sendActionResultCalls: FakeClient["sendActionResultCalls"] = [];
+  const sendOpenClawMessageCalls: FakeClient["sendOpenClawMessageCalls"] = [];
 
   return {
     sendSessionBoundCalls,
     sendActionResultCalls,
+    sendOpenClawMessageCalls,
     async sendSessionBound(input) {
       sendSessionBoundCalls.push(input);
       return undefined;
@@ -136,6 +156,10 @@ function createClient(): FakeClient {
     async sendActionResult(input) {
       sendActionResultCalls.push(input);
       return undefined;
+    },
+    async sendOpenClawMessage(input) {
+      sendOpenClawMessageCalls.push(input);
+      return { requestId: "reply-request", sequence: 99 };
     },
   };
 }
@@ -169,6 +193,7 @@ function createRuntime(overrides?: {
     error: Error;
     kind: string;
   };
+  deliverPayload?: Record<string, unknown>;
 }) {
   const cfg: OpenClawConfig = {
     session: {
@@ -237,6 +262,12 @@ function createRuntime(overrides?: {
         },
         async dispatchReplyWithBufferedBlockDispatcher(params) {
           dispatchCalls.push(params);
+          if (overrides?.deliverPayload) {
+            const deliver = params.dispatcherOptions.deliver as
+              | ((payload: Record<string, unknown>) => Promise<void>)
+              | undefined;
+            await deliver?.(overrides.deliverPayload);
+          }
           if (overrides?.dispatchViaOnError) {
             const onError = params.dispatcherOptions.onError as
               | ((err: unknown, info: { kind: string }) => void)
@@ -425,6 +456,64 @@ describe("handleCowtailEvent", () => {
     });
     expect(client.sendSessionBoundCalls).toEqual([]);
     expect(client.sendActionResultCalls).toEqual([]);
+  });
+
+  test("reply delivery is written back to the same Cowtail thread", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliverPayload: {
+        text: "Here is the answer.",
+        mediaUrls: ["https://example.invalid/log.txt"],
+      },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 22,
+      type: "reply_created",
+      createdAt: 1_700_000_000_011,
+      threadId: "thread-22",
+      messageId: "message-22",
+      thread: {
+        id: "thread-22",
+        sessionKey: "session-thread-22",
+        status: "active",
+        targetAgent: "default",
+        title: "Chat thread",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_011,
+      },
+      message: {
+        id: "message-22",
+        threadId: "thread-22",
+        direction: "user_to_openclaw",
+        text: "What is happening?",
+        links: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_011,
+        updatedAt: 1_700_000_000_011,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        sessionKey: "session-thread-22",
+        title: "Chat thread",
+        text: "Here is the answer.",
+        authorLabel: "OpenClaw",
+        links: [{ label: "Attachment", url: "https://example.invalid/log.txt" }],
+        actions: [],
+      },
+    ]);
   });
 
   test("action_submitted dispatches action text into the bound session and records submitted", async () => {
