@@ -10,7 +10,6 @@ struct OpenClawThreadDetailView: View {
     @State private var localErrorMessage: String?
     @State private var isShowingRename = false
     @State private var isShowingDeleteConfirmation = false
-    @State private var shouldFollowLatestMessage = true
 
     private let bottomAnchorID = "openclaw-thread-bottom"
 
@@ -60,27 +59,15 @@ struct OpenClawThreadDetailView: View {
                         .padding(.top, CowtailDesignGuide.pageTopPadding)
                         .padding(.bottom, 12)
                     }
-                    .onScrollGeometryChange(for: Bool.self) { geometry in
-                        let bottomOffset = max(geometry.contentSize.height - geometry.containerSize.height, 0)
-                        return bottomOffset - geometry.contentOffset.y <= 96
-                    } action: { oldValue, isNearBottom in
-                        guard oldValue != isNearBottom else { return }
-                        shouldFollowLatestMessage = isNearBottom
-                    }
                     .scrollDismissesKeyboard(.interactively)
                     .onAppear {
-                        shouldFollowLatestMessage = true
                         scrollToBottom(proxy: proxy, animated: false)
                     }
                     .onChange(of: messages.map(\.id)) { _, _ in
-                        if shouldFollowLatestMessage {
-                            scrollToBottom(proxy: proxy, animated: true)
-                        }
+                        scrollToBottom(proxy: proxy, animated: true)
                     }
                     .onChange(of: messageScrollSignature) { _, _ in
-                        if shouldFollowLatestMessage {
-                            scrollToBottom(proxy: proxy, animated: true)
-                        }
+                        scrollToBottom(proxy: proxy, animated: true)
                     }
                 }
 
@@ -249,7 +236,6 @@ struct OpenClawThreadDetailView: View {
         }
 
         localErrorMessage = nil
-        shouldFollowLatestMessage = true
         do {
             try await store.sendReply(threadId: threadID, text: text)
             return true
