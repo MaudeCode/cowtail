@@ -29,8 +29,11 @@ final class OpenClawSeededRealtime: OpenClawRealtimeConnecting {
     func start(
         sessionToken _: String,
         lastSeenSequence _: Int64?,
+        onConnectionStateChange: @escaping @MainActor (OpenClawRealtimeTransportState) -> Void,
         onMessage _: @escaping @MainActor (OpenClawServerMessage) -> Void
-    ) {}
+    ) {
+        onConnectionStateChange(.connected)
+    }
 
     func stop() {}
 

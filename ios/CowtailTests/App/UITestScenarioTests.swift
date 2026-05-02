@@ -19,6 +19,18 @@ final class UITestScenarioTests: XCTestCase {
     }
 
     @MainActor
+    func testOpenClawThreadURLRoutesToThreadDetail() throws {
+        let router = UniversalLinkRouter.makeForTesting()
+        let url = try XCTUnwrap(URL(string: "https://\(AppConfig.publicSiteHost)/openclaw/threads/thread-1"))
+
+        let handled = router.handle(url)
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(router.selectedTab, .openclaw)
+        XCTAssertEqual(router.openClawPath, [.thread("thread-1")])
+    }
+
+    @MainActor
     func testAppRuntimeSeedsManagersAndStartupTabForUITesting() {
         AppleAccountManager.shared.seedForUITesting(
             signInState: .signedOut,

@@ -14,9 +14,11 @@ struct OpenClawThreadRow: View {
                     .lineLimit(2)
 
                 HStack(spacing: 8) {
-                    CowtailStatusBadge(title: thread.status.displayTitle, tint: thread.status.tint)
+                    if thread.status != .active {
+                        CowtailStatusBadge(title: thread.status.displayTitle, tint: thread.status.tint)
+                    }
 
-                    Text(thread.targetAgent)
+                    Text(activityText)
                         .font(.cowtailSans(12, relativeTo: .caption))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -41,6 +43,12 @@ struct OpenClawThreadRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    private var activityText: String {
+        let timestamp = thread.lastMessageAt ?? thread.updatedAt
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp) / 1_000)
+        return "Updated \(date.formatted(.relative(presentation: .named)))"
     }
 }
 

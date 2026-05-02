@@ -301,11 +301,41 @@ struct OpenClawMarkThreadReadCommand: Codable, Equatable, Sendable {
     let threadId: String
 }
 
+struct OpenClawRenameThreadCommand: Codable, Equatable, Sendable {
+    let requestId: String
+    let threadId: String
+    let title: String
+}
+
+struct OpenClawDeleteThreadCommand: Codable, Equatable, Sendable {
+    let requestId: String
+    let threadId: String
+}
+
 enum OpenClawClientCommand: Encodable, Equatable, Sendable {
     case newThread(OpenClawNewThreadCommand)
     case reply(OpenClawReplyCommand)
     case action(OpenClawActionCommand)
     case markThreadRead(OpenClawMarkThreadReadCommand)
+    case renameThread(OpenClawRenameThreadCommand)
+    case deleteThread(OpenClawDeleteThreadCommand)
+
+    var requestId: String {
+        switch self {
+        case .newThread(let command):
+            return command.requestId
+        case .reply(let command):
+            return command.requestId
+        case .action(let command):
+            return command.requestId
+        case .markThreadRead(let command):
+            return command.requestId
+        case .renameThread(let command):
+            return command.requestId
+        case .deleteThread(let command):
+            return command.requestId
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -337,6 +367,15 @@ enum OpenClawClientCommand: Encodable, Equatable, Sendable {
             try container.encode(command.payload, forKey: .payload)
         case .markThreadRead(let command):
             try container.encode("ios_mark_thread_read", forKey: .type)
+            try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.threadId, forKey: .threadId)
+        case .renameThread(let command):
+            try container.encode("ios_rename_thread", forKey: .type)
+            try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.threadId, forKey: .threadId)
+            try container.encode(command.title, forKey: .title)
+        case .deleteThread(let command):
+            try container.encode("ios_delete_thread", forKey: .type)
             try container.encode(command.requestId, forKey: .requestId)
             try container.encode(command.threadId, forKey: .threadId)
         }

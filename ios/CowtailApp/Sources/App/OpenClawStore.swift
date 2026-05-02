@@ -6,6 +6,7 @@ enum OpenClawConnectionState: Equatable {
     case signedOut
     case connecting
     case connected
+    case reconnecting
     case failed(String)
 }
 
@@ -111,12 +112,18 @@ final class OpenClawStore: ObservableObject {
         }
     }
 
-    func connectForeground() async {
+    func connectForeground(forceRestart: Bool = false) async {
         switch connectionState {
-        case .connecting, .connected:
-            return
+        case .connecting, .connected, .reconnecting:
+            if !forceRestart {
+                return
+            }
         case .disconnected, .signedOut, .failed:
             break
+        }
+
+        if forceRestart {
+            realtime.stop()
         }
 
         connectionGeneration += 1
@@ -137,13 +144,12 @@ final class OpenClawStore: ObservableObject {
 
         realtime.start(
             sessionToken: sessionToken,
-            lastSeenSequence: lastSeenSequence
+            lastSeenSequence: lastSeenSequence,
+            onConnectionStateChange: { [weak self] transportState in
+                self?.handleTransportState(transportState, generation: generation)
+            }
         ) { [weak self] message in
             self?.handle(message)
-        }
-
-        if connectionState == .connecting {
-            connectionState = .connected
         }
     }
 
@@ -151,6 +157,10 @@ final class OpenClawStore: ObservableObject {
         connectionGeneration += 1
         realtime.stop()
         connectionState = .disconnected
+    }
+
+    func reconnectForeground() async {
+        await connectForeground(forceRestart: true)
     }
 
     func sendReply(threadId: String, text: String) async throws {
@@ -179,6 +189,21 @@ final class OpenClawStore: ObservableObject {
 
     func markThreadRead(threadId: String) async throws {
         try await realtime.send(.markThreadRead(.init(
+            requestId: UUID().uuidString,
+            threadId: threadId
+        )))
+    }
+
+    func renameThread(threadId: String, title: String) async throws {
+        try await realtime.send(.renameThread(.init(
+            requestId: UUID().uuidString,
+            threadId: threadId,
+            title: title
+        )))
+    }
+
+    func deleteThread(threadId: String) async throws {
+        try await realtime.send(.deleteThread(.init(
             requestId: UUID().uuidString,
             threadId: threadId
         )))
@@ -218,7 +243,9 @@ final class OpenClawStore: ObservableObject {
 
             case .realtimeError(let error):
                 errorMessage = error.error
-                connectionState = .failed(error.error)
+                if error.requestId == nil {
+                    connectionState = .failed(error.error)
+                }
             }
         } catch {
             logger.error("realtime message handling failed: \(String(describing: error), privacy: .public)")
@@ -226,7 +253,37 @@ final class OpenClawStore: ObservableObject {
         }
     }
 
+    private func handleTransportState(
+        _ transportState: OpenClawRealtimeTransportState,
+        generation: Int
+    ) {
+        guard generation == connectionGeneration else {
+            return
+        }
+
+        switch transportState {
+        case .disconnected:
+            connectionState = .disconnected
+        case .connecting:
+            connectionState = .connecting
+        case .connected:
+            connectionState = .connected
+            errorMessage = nil
+        case .reconnecting:
+            connectionState = .reconnecting
+        case .failed(let message):
+            connectionState = .failed(message)
+            errorMessage = message
+        }
+    }
+
     private func upsertThread(_ thread: OpenClawThread) {
+        if thread.status == .archived {
+            threads.removeAll { $0.id == thread.id }
+            messagesByThreadID.removeValue(forKey: thread.id)
+            return
+        }
+
         if let index = threads.firstIndex(where: { $0.id == thread.id }) {
             threads[index] = thread
         } else {

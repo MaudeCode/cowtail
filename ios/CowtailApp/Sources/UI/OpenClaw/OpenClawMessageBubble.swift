@@ -23,7 +23,7 @@ struct OpenClawMessageBubble: View {
                         .textCase(.uppercase)
                 }
 
-                Text(message.text)
+                Text(messageBody)
                     .font(.cowtailSans(15, relativeTo: .body))
                     .foregroundStyle(isUserMessage ? .white : palette.ink)
                     .textSelection(.enabled)
@@ -62,13 +62,18 @@ struct OpenClawMessageBubble: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(isUserMessage ? Color.clear : palette.border, lineWidth: 1)
             )
-            .frame(maxWidth: 520, alignment: isUserMessage ? .trailing : .leading)
+            .frame(maxWidth: 560, alignment: isUserMessage ? .trailing : .leading)
 
             if !isUserMessage {
                 Spacer(minLength: 36)
             }
         }
         .frame(maxWidth: .infinity, alignment: isUserMessage ? .trailing : .leading)
+    }
+
+    private var messageBody: AttributedString {
+        (try? AttributedString(markdown: message.text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(message.text)
     }
 }
 

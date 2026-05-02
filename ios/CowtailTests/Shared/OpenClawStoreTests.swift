@@ -51,6 +51,91 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(store.threads.first?.id, "thread-1")
     }
 
+    func testRenameAndDeleteUseRealtimeCommands() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        try await store.renameThread(threadId: "thread-1", title: "Better title")
+        try await store.deleteThread(threadId: "thread-1")
+
+        XCTAssertEqual(realtime.sentCommands.count, 2)
+
+        guard case .renameThread(let rename) = realtime.sentCommands[0] else {
+            return XCTFail("Expected rename command")
+        }
+        XCTAssertEqual(rename.threadId, "thread-1")
+        XCTAssertEqual(rename.title, "Better title")
+
+        guard case .deleteThread(let delete) = realtime.sentCommands[1] else {
+            return XCTFail("Expected delete command")
+        }
+        XCTAssertEqual(delete.threadId, "thread-1")
+    }
+
+    func testArchivedThreadEventRemovesThreadAndMessages() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 7,
+                type: "message_created",
+                createdAt: 1777128000000,
+                threadId: "thread-1",
+                messageId: "message-1",
+                thread: OpenClawFixtures.thread,
+                message: OpenClawFixtures.message,
+                action: nil,
+                actions: [],
+                payload: nil,
+                error: nil
+            )
+        )
+
+        let archivedThread = OpenClawThread(
+            id: "thread-1",
+            sessionKey: "cowtail:thread-1",
+            status: .archived,
+            targetAgent: "default",
+            title: "Deploy check",
+            unreadCount: 0,
+            createdAt: 1777127000000,
+            updatedAt: 1777129000000,
+            lastMessageAt: 1777128000000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 8,
+                type: "thread_updated",
+                createdAt: 1777129000000,
+                threadId: "thread-1",
+                messageId: nil,
+                thread: archivedThread,
+                message: nil,
+                action: nil,
+                actions: [],
+                payload: ["deleted": .bool(true)],
+                error: nil
+            )
+        )
+
+        XCTAssertTrue(store.threads.isEmpty)
+        XCTAssertNil(store.messagesByThreadID["thread-1"])
+        XCTAssertEqual(store.lastSeenSequence, 8)
+    }
+
     func testConnectForegroundDoesNotRestartWhenAlreadyConnected() async {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let realtime = FakeOpenClawRealtime()
@@ -105,6 +190,91 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(store.connectionState, .connected)
     }
 
+    func testConnectForegroundWaitsForTransportStateBeforeConnected() async {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime(autoConnect: false)
+        AppSessionManager.shared.seedForUITesting(
+            sessionState: .ready,
+            token: "session-token",
+            userID: "user-1",
+            expiresAt: Date(timeIntervalSinceNow: 3_600),
+            lastError: nil
+        )
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        await store.connectForeground()
+
+        XCTAssertEqual(store.connectionState, .connecting)
+
+        realtime.emit(.connected)
+
+        XCTAssertEqual(store.connectionState, .connected)
+    }
+
+    func testReconnectForegroundRestartsAnExistingConnection() async {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        AppSessionManager.shared.seedForUITesting(
+            sessionState: .ready,
+            token: "session-token",
+            userID: "user-1",
+            expiresAt: Date(timeIntervalSinceNow: 3_600),
+            lastError: nil
+        )
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        await store.connectForeground()
+        realtime.emit(.reconnecting)
+        await store.connectForeground()
+
+        XCTAssertEqual(realtime.startCount, 1)
+        XCTAssertEqual(store.connectionState, .reconnecting)
+
+        await store.reconnectForeground()
+
+        XCTAssertEqual(realtime.stopCount, 1)
+        XCTAssertEqual(realtime.startCount, 2)
+        XCTAssertEqual(store.connectionState, .connected)
+    }
+
+    func testRequestScopedRealtimeErrorDoesNotMarkConnectionFailed() async {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        AppSessionManager.shared.seedForUITesting(
+            sessionState: .ready,
+            token: "session-token",
+            userID: "user-1",
+            expiresAt: Date(timeIntervalSinceNow: 3_600),
+            lastError: nil
+        )
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        await store.connectForeground()
+        realtime.emitMessage(.realtimeError(.init(
+            type: "realtime_error",
+            requestId: "request-1",
+            error: "command_failed"
+        )))
+
+        XCTAssertEqual(store.connectionState, .connected)
+        XCTAssertEqual(store.errorMessage, "command_failed")
+    }
+
     func testConnectForegroundMovesToSignedOutWhenSessionRefreshFails() async {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let realtime = FakeOpenClawRealtime()
@@ -131,22 +301,51 @@ private actor FakeOpenClawAPI: OpenClawAPIClient {
 }
 
 private final class FakeOpenClawRealtime: OpenClawRealtimeConnecting {
+    private let autoConnect: Bool
     private(set) var startCount = 0
     private(set) var stopCount = 0
     private(set) var lastSessionToken: String?
     private(set) var lastSeenSequence: Int64?
+    private var onConnectionStateChange: (@MainActor (OpenClawRealtimeTransportState) -> Void)?
+    private var onMessage: (@MainActor (OpenClawServerMessage) -> Void)?
 
-    func start(sessionToken: String, lastSeenSequence: Int64?, onMessage _: @escaping @MainActor (OpenClawServerMessage) -> Void) {
+    init(autoConnect: Bool = true) {
+        self.autoConnect = autoConnect
+    }
+
+    func start(
+        sessionToken: String,
+        lastSeenSequence: Int64?,
+        onConnectionStateChange: @escaping @MainActor (OpenClawRealtimeTransportState) -> Void,
+        onMessage: @escaping @MainActor (OpenClawServerMessage) -> Void
+    ) {
         startCount += 1
         lastSessionToken = sessionToken
         self.lastSeenSequence = lastSeenSequence
+        self.onConnectionStateChange = onConnectionStateChange
+        self.onMessage = onMessage
+        if autoConnect {
+            onConnectionStateChange(.connected)
+        }
     }
 
     func stop() {
         stopCount += 1
     }
 
-    func send(_ command: OpenClawClientCommand) async throws {}
+    private(set) var sentCommands: [OpenClawClientCommand] = []
+
+    func send(_ command: OpenClawClientCommand) async throws {
+        sentCommands.append(command)
+    }
+
+    func emit(_ state: OpenClawRealtimeTransportState) {
+        onConnectionStateChange?(state)
+    }
+
+    func emitMessage(_ message: OpenClawServerMessage) {
+        onMessage?(message)
+    }
 }
 
 private enum OpenClawFixtures {

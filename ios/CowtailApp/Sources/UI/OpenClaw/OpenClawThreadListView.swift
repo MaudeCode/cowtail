@@ -3,8 +3,11 @@ import SwiftUI
 struct OpenClawThreadListView: View {
     @Environment(\.cowtailPalette) private var palette
     @EnvironmentObject private var store: OpenClawStore
+    @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
 
     @State private var isShowingNewThread = false
+    @State private var renameTarget: OpenClawThread?
+    @State private var deleteTarget: OpenClawThread?
 
     var body: some View {
         CowtailCanvas {
@@ -28,10 +31,29 @@ struct OpenClawThreadListView: View {
                         .listRowBackground(Color.clear)
                 }
 
-                content
-                    .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                if store.connectionState == .signedOut {
+                    signedOutCard
+                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                } else if store.threads.isEmpty {
+                    emptyCard
+                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                } else {
+                    threadSectionHeader
+                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 3, trailing: 14))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+
+                    ForEach(store.threads) { thread in
+                        threadRow(thread)
+                            .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -59,6 +81,21 @@ struct OpenClawThreadListView: View {
             OpenClawNewThreadView()
                 .environmentObject(store)
         }
+        .sheet(item: $renameTarget) { thread in
+            OpenClawRenameThreadView(thread: thread)
+                .environmentObject(store)
+        }
+        .confirmationDialog(
+            "Delete Thread",
+            isPresented: deleteDialogBinding,
+            presenting: deleteTarget
+        ) { thread in
+            Button("Delete Thread", role: .destructive) {
+                delete(thread)
+            }
+        } message: { thread in
+            Text("Delete \"\(thread.title)\" from OpenClaw.")
+        }
         .task {
             await store.refreshIfPossible()
         }
@@ -85,29 +122,46 @@ struct OpenClawThreadListView: View {
         }
     }
 
-    @ViewBuilder
-    private var content: some View {
-        if store.connectionState == .signedOut {
-            signedOutCard
-        } else if store.threads.isEmpty {
-            emptyCard
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(store.threads.enumerated()), id: \.element.id) { index, thread in
-                    NavigationLink(value: OpenClawRoute.thread(thread.id)) {
-                        OpenClawThreadRow(thread: thread)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("row.openclaw.thread.\(thread.id)")
+    private var threadSectionHeader: some View {
+        InboxSectionHeader(title: "Conversations", detail: "\(store.threads.count)")
+    }
 
-                    if index < store.threads.count - 1 {
-                        Divider()
-                            .padding(.leading, 2)
-                    }
-                }
-            }
-            .cowtailCard()
+    private func threadRow(_ thread: OpenClawThread) -> some View {
+        Button {
+            universalLinkRouter.openClawPath = [.thread(thread.id)]
+        } label: {
+            OpenClawThreadRow(thread: thread)
+                .cowtailCard()
         }
+        .buttonStyle(.plain)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                deleteTarget = thread
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+
+            Button {
+                renameTarget = thread
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+            .tint(.blue)
+        }
+        .contextMenu {
+            Button {
+                renameTarget = thread
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                deleteTarget = thread
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .accessibilityIdentifier("row.openclaw.thread.\(thread.id)")
     }
 
     private var signedOutCard: some View {
@@ -143,6 +197,31 @@ struct OpenClawThreadListView: View {
         let trimmed = store.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "OpenClaw" : trimmed
     }
+
+    private var deleteDialogBinding: Binding<Bool> {
+        Binding(
+            get: { deleteTarget != nil },
+            set: { isPresented in
+                if !isPresented {
+                    deleteTarget = nil
+                }
+            }
+        )
+    }
+
+    private func delete(_ thread: OpenClawThread) {
+        Task {
+            do {
+                try await store.deleteThread(threadId: thread.id)
+                if universalLinkRouter.openClawPath == [.thread(thread.id)] {
+                    universalLinkRouter.openClawPath.removeAll()
+                }
+            } catch {
+                store.errorMessage = error.localizedDescription
+            }
+            deleteTarget = nil
+        }
+    }
 }
 
 extension OpenClawConnectionState {
@@ -156,6 +235,8 @@ extension OpenClawConnectionState {
             return "Connecting"
         case .connected:
             return "Connected"
+        case .reconnecting:
+            return "Reconnecting"
         case .failed:
             return "Failed"
         }
@@ -165,7 +246,7 @@ extension OpenClawConnectionState {
         switch self {
         case .disconnected, .signedOut:
             return .gray
-        case .connecting:
+        case .connecting, .reconnecting:
             return .orange
         case .connected:
             return .green
@@ -179,5 +260,6 @@ extension OpenClawConnectionState {
     NavigationStack {
         OpenClawThreadListView()
             .environmentObject(CowtailPreviewFixtures.openClawStore())
+            .environmentObject(UniversalLinkRouter.shared)
     }
 }

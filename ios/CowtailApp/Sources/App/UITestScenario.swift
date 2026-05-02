@@ -254,9 +254,13 @@ private enum SeedFactory {
 
     private static let openClawDefault = UITestScenario.OpenClawSeed(
         displayName: "Maude",
-        threads: [CowtailPreviewFixtures.openClawThread],
+        threads: [CowtailPreviewFixtures.openClawThread, CowtailPreviewFixtures.secondaryOpenClawThread],
         messagesByThreadID: [
-            CowtailPreviewFixtures.openClawThread.id: []
+            CowtailPreviewFixtures.openClawThread.id: [
+                CowtailPreviewFixtures.openClawMessageWithActions,
+                CowtailPreviewFixtures.openClawReplyWithActions,
+            ],
+            CowtailPreviewFixtures.secondaryOpenClawThread.id: []
         ]
     )
 

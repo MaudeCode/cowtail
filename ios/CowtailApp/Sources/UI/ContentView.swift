@@ -74,7 +74,7 @@ struct ContentView: View {
             case .active:
                 Task {
                     await openClawStore.refreshIfPossible()
-                    await openClawStore.connectForeground()
+                    await openClawStore.connectForeground(forceRestart: true)
                 }
             case .background, .inactive:
                 openClawStore.disconnectForeground()

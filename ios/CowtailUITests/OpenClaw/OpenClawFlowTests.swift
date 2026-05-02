@@ -24,6 +24,43 @@ final class OpenClawFlowTests: XCTestCase {
         XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
     }
 
+    func testBackFromThreadDetailReturnsToThreadList() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let firstThreadRow = app.buttons["row.openclaw.thread.preview-thread"]
+        let secondThreadRow = app.buttons["row.openclaw.thread.preview-thread-2"]
+        XCTAssertTrue(firstThreadRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(secondThreadRow.waitForExistence(timeout: 5))
+
+        firstThreadRow.tap()
+        XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        XCTAssertTrue(element(in: app, identifier: "screen.openclaw.threads").waitForExistence(timeout: 5))
+        XCTAssertTrue(firstThreadRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(secondThreadRow.waitForExistence(timeout: 5))
+        XCTAssertFalse(element(in: app, identifier: "screen.openclaw.thread-detail").exists)
+    }
+
+    func testThreadDetailExposesRenameAndDeleteActions() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let previewThreadRow = app.buttons["row.openclaw.thread.preview-thread"]
+        XCTAssertTrue(previewThreadRow.waitForExistence(timeout: 5))
+        previewThreadRow.tap()
+        XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
+
+        app.buttons["button.openclaw.thread-actions"].tap()
+
+        XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Delete"].exists)
+    }
+
     func testSignedOutStateAppears() {
         let app = AppLaunching.configuredApp(scenario: "openclaw_signed_out")
         app.launch()

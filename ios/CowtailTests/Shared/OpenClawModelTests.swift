@@ -58,14 +58,35 @@ final class OpenClawModelTests: XCTestCase {
 
     func testEncodesIosCommands() throws {
         let encoder = JSONEncoder()
-        let command = OpenClawClientCommand.reply(
+        let reply = OpenClawClientCommand.reply(
             .init(requestId: "request-1", threadId: "thread-1", text: "Ship it")
         )
 
-        let object = try JSONSerialization.jsonObject(with: encoder.encode(command)) as? [String: Any]
-        XCTAssertEqual(object?["type"] as? String, "ios_reply")
-        XCTAssertEqual(object?["threadId"] as? String, "thread-1")
-        XCTAssertEqual(object?["text"] as? String, "Ship it")
+        let replyObject = try JSONSerialization.jsonObject(with: encoder.encode(reply)) as? [String: Any]
+        XCTAssertEqual(replyObject?["type"] as? String, "ios_reply")
+        XCTAssertEqual(reply.requestId, "request-1")
+        XCTAssertEqual(replyObject?["requestId"] as? String, "request-1")
+        XCTAssertEqual(replyObject?["threadId"] as? String, "thread-1")
+        XCTAssertEqual(replyObject?["text"] as? String, "Ship it")
+
+        let rename = OpenClawClientCommand.renameThread(
+            .init(requestId: "request-2", threadId: "thread-1", title: "Better title")
+        )
+        let renameObject = try JSONSerialization.jsonObject(with: encoder.encode(rename)) as? [String: Any]
+        XCTAssertEqual(renameObject?["type"] as? String, "ios_rename_thread")
+        XCTAssertEqual(rename.requestId, "request-2")
+        XCTAssertEqual(renameObject?["requestId"] as? String, "request-2")
+        XCTAssertEqual(renameObject?["threadId"] as? String, "thread-1")
+        XCTAssertEqual(renameObject?["title"] as? String, "Better title")
+
+        let delete = OpenClawClientCommand.deleteThread(
+            .init(requestId: "request-3", threadId: "thread-1")
+        )
+        let deleteObject = try JSONSerialization.jsonObject(with: encoder.encode(delete)) as? [String: Any]
+        XCTAssertEqual(deleteObject?["type"] as? String, "ios_delete_thread")
+        XCTAssertEqual(delete.requestId, "request-3")
+        XCTAssertEqual(deleteObject?["requestId"] as? String, "request-3")
+        XCTAssertEqual(deleteObject?["threadId"] as? String, "thread-1")
     }
 
     func testDecodesAckAndRealtimeError() throws {

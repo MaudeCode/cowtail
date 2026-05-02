@@ -60,6 +60,9 @@ final class UniversalLinkRouter: ObservableObject {
             openRoundup(resolveRoundupRoute(from: url))
         case ["fixes"]:
             openInbox()
+        case let components where components.count == 3 && components[0] == "openclaw" && components[1] == "threads":
+            let threadID = components[2]
+            openOpenClawThread(threadID.removingPercentEncoding ?? threadID)
         case let components where components.count == 2 && components[0] == "alerts":
             let alertID = components[1]
             openAlert(alertID.removingPercentEncoding ?? alertID)

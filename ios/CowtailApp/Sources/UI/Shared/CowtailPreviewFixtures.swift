@@ -69,7 +69,7 @@ enum CowtailPreviewFixtures {
 
     static let secondaryOpenClawThread = OpenClawThread(
         id: "preview-thread-2",
-        sessionKey: "preview-session",
+        sessionKey: "preview-session-2",
         status: .pending,
         targetAgent: "networking",
         title: "Check ingress certificate renewal",
@@ -275,10 +275,13 @@ private actor PreviewOpenClawAPI: OpenClawAPIClient {
 @MainActor
 private final class PreviewOpenClawRealtime: OpenClawRealtimeConnecting {
     func start(
-        sessionToken: String,
-        lastSeenSequence: Int64?,
-        onMessage: @escaping @MainActor (OpenClawServerMessage) -> Void
-    ) {}
+        sessionToken _: String,
+        lastSeenSequence _: Int64?,
+        onConnectionStateChange: @escaping @MainActor (OpenClawRealtimeTransportState) -> Void,
+        onMessage _: @escaping @MainActor (OpenClawServerMessage) -> Void
+    ) {
+        onConnectionStateChange(.connected)
+    }
 
     func stop() {}
 
