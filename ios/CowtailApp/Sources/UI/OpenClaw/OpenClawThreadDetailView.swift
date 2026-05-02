@@ -12,6 +12,7 @@ struct OpenClawThreadDetailView: View {
     @State private var localErrorMessage: String?
     @State private var isShowingRename = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var shouldFollowLatestMessage = true
     @FocusState private var composerIsFocused: Bool
 
     private let bottomAnchorID = "openclaw-thread-bottom"
@@ -24,12 +25,16 @@ struct OpenClawThreadDetailView: View {
         store.messagesByThreadID[threadID] ?? []
     }
 
+    private var messageScrollSignature: [String] {
+        messages.map { "\($0.id):\($0.updatedAt):\($0.deliveryState.rawValue):\($0.text.count):\($0.toolCalls.count)" }
+    }
+
     var body: some View {
         CowtailCanvas {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
+                        LazyVStack(alignment: .leading, spacing: 22) {
                             detailHeader
 
                             if shouldShowConnectionBanner {
@@ -58,12 +63,26 @@ struct OpenClawThreadDetailView: View {
                         .padding(.top, CowtailDesignGuide.pageTopPadding)
                         .padding(.bottom, 12)
                     }
+                    .onScrollGeometryChange(for: Bool.self) { geometry in
+                        let bottomOffset = max(geometry.contentSize.height - geometry.containerSize.height, 0)
+                        return bottomOffset - geometry.contentOffset.y <= 96
+                    } action: { _, isNearBottom in
+                        shouldFollowLatestMessage = isNearBottom
+                    }
                     .scrollDismissesKeyboard(.interactively)
                     .onAppear {
+                        shouldFollowLatestMessage = true
                         scrollToBottom(proxy: proxy, animated: false)
                     }
                     .onChange(of: messages.map(\.id)) { _, _ in
-                        scrollToBottom(proxy: proxy, animated: true)
+                        if shouldFollowLatestMessage {
+                            scrollToBottom(proxy: proxy, animated: true)
+                        }
+                    }
+                    .onChange(of: messageScrollSignature) { _, _ in
+                        if shouldFollowLatestMessage {
+                            scrollToBottom(proxy: proxy, animated: true)
+                        }
                     }
                 }
 
@@ -126,25 +145,31 @@ struct OpenClawThreadDetailView: View {
     }
 
     private var detailHeader: some View {
-        CowtailCard {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        CowtailMonoLabel(text: "OpenClaw")
-                        Text(thread?.title ?? "Thread")
-                            .font(.cowtailSans(20, weight: .bold, relativeTo: .title3))
-                            .foregroundStyle(palette.ink)
-                            .lineLimit(3)
-                    }
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(palette.accent.opacity(0.14))
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(palette.accent)
+            }
+            .frame(width: 38, height: 38)
 
-                    Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 4) {
+                CowtailMonoLabel(text: "OpenClaw")
+                Text(thread?.title ?? "Thread")
+                    .font(.cowtailSans(22, weight: .bold, relativeTo: .title3))
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(2)
+            }
 
-                    if let thread {
-                        CowtailStatusBadge(title: thread.status.displayTitle, tint: thread.status.tint)
-                    }
-                }
+            Spacer(minLength: 0)
+
+            if let thread {
+                CowtailStatusBadge(title: thread.status.displayTitle, tint: thread.status.tint)
             }
         }
+        .padding(.top, 2)
     }
 
     private var connectionBanner: some View {
@@ -197,14 +222,14 @@ struct OpenClawThreadDetailView: View {
             Divider()
 
             HStack(alignment: .bottom, spacing: 10) {
-                TextField("Reply", text: $replyText, axis: .vertical)
+                TextField("Message OpenClaw", text: $replyText, axis: .vertical)
                     .focused($composerIsFocused)
                     .font(.cowtailSans(15, relativeTo: .body))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(palette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(composerIsFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
                     )
                     .lineLimit(1...5)
@@ -222,7 +247,7 @@ struct OpenClawThreadDetailView: View {
                     }
                 }
                 .frame(width: 38, height: 38)
-                .background(canSendCurrentReply ? palette.accent : palette.border, in: Circle())
+                .background(canSendCurrentReply ? palette.accent : palette.border, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .foregroundStyle(canSendCurrentReply ? .white : .secondary)
                 .disabled(!canSendCurrentReply)
                 .accessibilityLabel("Send reply")
@@ -231,7 +256,7 @@ struct OpenClawThreadDetailView: View {
             .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
             .padding(.bottom, 10)
         }
-        .background(palette.surfaceRaised)
+        .background(.regularMaterial)
     }
 
     private var trimmedReply: String {
@@ -273,6 +298,7 @@ struct OpenClawThreadDetailView: View {
 
         isSending = true
         localErrorMessage = nil
+        shouldFollowLatestMessage = true
         Task {
             defer {
                 isSending = false

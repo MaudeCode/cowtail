@@ -1,10 +1,12 @@
-import { dispatchInboundReplyWithBase } from "openclaw/plugin-sdk/inbound-reply-dispatch";
+import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { normalizeOutboundReplyPayload } from "openclaw/plugin-sdk/reply-payload";
 import type { PluginRuntime } from "openclaw/plugin-sdk/runtime-store";
 import type {
   OpenClawActionRecord,
   OpenClawEventEnvelope,
   OpenClawMessageRecord,
   OpenClawThreadRecord,
+  OpenClawToolCallRecord,
 } from "@maudecode/cowtail-protocol";
 
 import type { CowtailRealtimeClient } from "./client.js";
@@ -62,16 +64,17 @@ type CowtailInboundRuntime = {
       dispatchReplyWithBufferedBlockDispatcher: (params: {
         ctx: Record<string, unknown>;
         cfg: ReturnType<PluginRuntime["config"]["loadConfig"]>;
-        dispatcherOptions: Record<string, unknown>;
+        dispatcherOptions: {
+          deliver?: (payload: unknown, info?: CowtailReplyDispatchInfo) => Promise<void>;
+        } & Record<string, unknown>;
         replyOptions?: Record<string, unknown>;
       }) => Promise<unknown>;
     };
   };
 };
-type DispatchInboundCore = Parameters<typeof dispatchInboundReplyWithBase>[0]["core"];
 type CowtailInboundClient = Pick<
   CowtailRealtimeClient,
-  "sendSessionBound" | "sendActionResult" | "sendOpenClawMessage"
+  "sendSessionBound" | "sendActionResult" | "sendOpenClawMessage" | "sendOpenClawMessageUpdate"
 >;
 type CowtailRoute = {
   agentId: string;
@@ -81,6 +84,15 @@ type CowtailReplyPayload = {
   text?: string;
   mediaUrls?: string[];
   mediaUrl?: string;
+};
+type CowtailReplyDispatchInfo = {
+  kind?: "tool" | "block" | "final";
+};
+type CowtailReplyStreamState = {
+  messageId?: string;
+  failed?: boolean;
+  text: string;
+  toolCalls: OpenClawToolCallRecord[];
 };
 
 const CHANNEL_ID = "cowtail";
@@ -243,21 +255,26 @@ export async function dispatchCowtailTextTurn(params: {
     body,
     timestamp: message.createdAt,
   });
+  const streamState: CowtailReplyStreamState = { text: "", toolCalls: [] };
 
-  await dispatchInboundReplyWithBase({
+  await recordCowtailInboundSessionAndDispatchReply({
     cfg: runtime.config.loadConfig(),
     channel: CHANNEL_ID,
     accountId: account.accountId,
+    agentId: route.agentId,
     route,
     storePath,
     ctxPayload,
-    core: runtime as unknown as DispatchInboundCore,
-    deliver: async (payload) =>
+    runtime,
+    deliver: async (payload, info, rawPayload) =>
       deliverCowtailReply({
         client,
         route,
         thread,
         payload,
+        rawPayload,
+        info,
+        streamState,
       }),
     onRecordError: (error) => {
       logger?.error?.(`Cowtail inbound session record failed: ${errorMessage(error)}`);
@@ -302,21 +319,26 @@ export async function dispatchCowtailActionTurn(params: {
     timestamp,
   });
   let dispatchFailed = false;
+  const streamState: CowtailReplyStreamState = { text: "", toolCalls: [] };
 
-  await dispatchInboundReplyWithBase({
+  await recordCowtailInboundSessionAndDispatchReply({
     cfg: runtime.config.loadConfig(),
     channel: CHANNEL_ID,
     accountId: account.accountId,
+    agentId: route.agentId,
     route,
     storePath,
     ctxPayload,
-    core: runtime as unknown as DispatchInboundCore,
-    deliver: async (replyPayload) =>
+    runtime,
+    deliver: async (replyPayload, info, rawPayload) =>
       deliverCowtailReply({
         client,
         route,
         thread,
         payload: replyPayload,
+        rawPayload,
+        info,
+        streamState,
       }),
     onRecordError: (error) => {
       logger?.error?.(`Cowtail inbound session record failed: ${errorMessage(error)}`);
@@ -330,14 +352,157 @@ export async function dispatchCowtailActionTurn(params: {
   return !dispatchFailed;
 }
 
+async function recordCowtailInboundSessionAndDispatchReply(params: {
+  cfg: ReturnType<PluginRuntime["config"]["loadConfig"]>;
+  channel: string;
+  accountId: string;
+  agentId: string;
+  route: CowtailRoute;
+  storePath: string;
+  ctxPayload: Record<string, unknown>;
+  runtime: CowtailInboundRuntime;
+  deliver: (
+    payload: CowtailReplyPayload,
+    info?: CowtailReplyDispatchInfo,
+    rawPayload?: unknown,
+  ) => Promise<void>;
+  onRecordError: (error: unknown) => void;
+  onDispatchError: (error: unknown, info: { kind: string }) => void;
+}): Promise<void> {
+  await params.runtime.channel.session.recordInboundSession({
+    storePath: params.storePath,
+    sessionKey:
+      typeof params.ctxPayload.SessionKey === "string"
+        ? params.ctxPayload.SessionKey
+        : params.route.sessionKey,
+    ctx: params.ctxPayload,
+    onRecordError: params.onRecordError,
+  });
+
+  const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
+    cfg: params.cfg,
+    agentId: params.agentId,
+    channel: params.channel,
+    accountId: params.accountId,
+  });
+
+  await params.runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+    ctx: params.ctxPayload,
+    cfg: params.cfg,
+    dispatcherOptions: {
+      ...replyPipeline,
+      deliver: async (payload: unknown, info?: CowtailReplyDispatchInfo) => {
+        try {
+          await params.deliver(normalizeCowtailReplyPayload(payload), info, payload);
+        } catch (error) {
+          params.onDispatchError(error, { kind: info?.kind ?? "final" });
+        }
+      },
+      onError: params.onDispatchError,
+    },
+    replyOptions: {
+      onModelSelected,
+    },
+  });
+}
+
 async function deliverCowtailReply(params: {
   client: CowtailInboundClient;
   route: CowtailRoute;
   thread: OpenClawThreadRecord;
   payload: CowtailReplyPayload;
+  rawPayload?: unknown;
+  info: CowtailReplyDispatchInfo | undefined;
+  streamState: CowtailReplyStreamState;
 }): Promise<void> {
+  if (params.streamState.failed) {
+    return;
+  }
+
   const text = params.payload.text;
+  const kind = params.info?.kind ?? "final";
+  const links = resolveCowtailReplyLinks(params.payload);
+
+  if (kind === "tool") {
+    const { toolCall, summary } = buildCowtailToolCall({
+      payload: params.payload,
+      rawPayload: params.rawPayload,
+      streamState: params.streamState,
+    });
+    params.streamState.toolCalls = [...params.streamState.toolCalls, toolCall];
+    const messageText = params.streamState.text || summary || "Tool activity";
+
+    if (!params.streamState.messageId) {
+      const result = await params.client.sendOpenClawMessage({
+        type: "openclaw_message",
+        sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+        title: params.thread.title,
+        text: messageText,
+        authorLabel: "OpenClaw",
+        links,
+        toolCalls: params.streamState.toolCalls,
+        actions: [],
+        deliveryState: "pending",
+      });
+      params.streamState.messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+      return;
+    }
+
+    await params.client.sendOpenClawMessageUpdate({
+      type: "openclaw_message_update",
+      messageId: params.streamState.messageId,
+      text: messageText,
+      links,
+      toolCalls: params.streamState.toolCalls,
+      deliveryState: "pending",
+    });
+    return;
+  }
+
   if (typeof text !== "string" || !text.trim()) {
+    return;
+  }
+
+  if (kind === "block") {
+    params.streamState.text = appendReplyBlock(params.streamState.text, text);
+    if (!params.streamState.messageId) {
+      const result = await params.client.sendOpenClawMessage({
+        type: "openclaw_message",
+        sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+        title: params.thread.title,
+        text: params.streamState.text,
+        authorLabel: "OpenClaw",
+        links,
+        toolCalls: params.streamState.toolCalls,
+        actions: [],
+        deliveryState: "pending",
+      });
+      params.streamState.messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+      return;
+    }
+
+    await params.client.sendOpenClawMessageUpdate({
+      type: "openclaw_message_update",
+      messageId: params.streamState.messageId,
+      text: params.streamState.text,
+      links,
+      toolCalls: params.streamState.toolCalls,
+      deliveryState: "pending",
+    });
+    return;
+  }
+
+  if (params.streamState.messageId) {
+    params.streamState.text = text;
+    await params.client.sendOpenClawMessageUpdate({
+      type: "openclaw_message_update",
+      messageId: params.streamState.messageId,
+      text,
+      links,
+      toolCalls: params.streamState.toolCalls,
+      actions: [],
+      deliveryState: "sent",
+    });
     return;
   }
 
@@ -347,9 +512,24 @@ async function deliverCowtailReply(params: {
     title: params.thread.title,
     text,
     authorLabel: "OpenClaw",
-    links: resolveCowtailReplyLinks(params.payload),
+    links,
+    toolCalls: params.streamState.toolCalls,
     actions: [],
+    deliveryState: "sent",
   });
+}
+
+function recordCreatedOpenClawMessageId(
+  streamState: CowtailReplyStreamState,
+  result: { payload?: Record<string, unknown> },
+): string {
+  const messageId = result.payload?.messageId;
+  if (typeof messageId === "string" && messageId.trim()) {
+    return messageId;
+  }
+
+  streamState.failed = true;
+  throw new Error("Cowtail realtime ack missing messageId for streamed OpenClaw reply");
 }
 
 function resolveCowtailReplyLinks(payload: CowtailReplyPayload) {
@@ -362,6 +542,131 @@ function resolveCowtailReplyLinks(payload: CowtailReplyPayload) {
     label: urls.length === 1 ? "Attachment" : `Attachment ${index + 1}`,
     url,
   }));
+}
+
+function normalizeCowtailReplyPayload(payload: unknown): CowtailReplyPayload {
+  if (!payload || typeof payload !== "object") {
+    return {};
+  }
+
+  return normalizeOutboundReplyPayload(payload as Record<string, unknown>);
+}
+
+function buildCowtailToolCall(params: {
+  payload: CowtailReplyPayload;
+  rawPayload: unknown;
+  streamState: CowtailReplyStreamState;
+}): { toolCall: OpenClawToolCallRecord; summary?: string } {
+  const rawToolCall = readRawToolCall(params.rawPayload);
+  const summary = resolveToolCallSummary(params.payload, rawToolCall);
+  const index = params.streamState.toolCalls.length + 1;
+
+  const toolCall: OpenClawToolCallRecord = {
+    id: rawToolCall.id ?? `tool-${index}`,
+    name: rawToolCall.name ?? "tool_result",
+    ...(rawToolCall.args ? { args: rawToolCall.args } : {}),
+    result:
+      rawToolCall.result !== undefined
+        ? rawToolCall.result
+        : (params.payload.text ?? params.payload),
+    status: rawToolCall.status ?? "complete",
+    ...(rawToolCall.startedAt !== undefined ? { startedAt: rawToolCall.startedAt } : {}),
+    completedAt: rawToolCall.completedAt ?? Date.now(),
+    insertedAtContentLength: params.streamState.text.length,
+    contentSnapshotAtStart: params.streamState.text,
+  };
+
+  return {
+    toolCall,
+    ...(summary ? { summary } : {}),
+  };
+}
+
+function readRawToolCall(payload: unknown): Partial<OpenClawToolCallRecord> {
+  if (!payload || typeof payload !== "object") {
+    return {};
+  }
+  const candidate = payload as Record<string, unknown>;
+  const channelData = candidate.channelData;
+  const toolCall =
+    channelData && typeof channelData === "object"
+      ? (channelData as Record<string, unknown>).toolCall
+      : undefined;
+  const source =
+    toolCall && typeof toolCall === "object" ? (toolCall as Record<string, unknown>) : candidate;
+
+  const name = readString(source.name) ?? readString(source.toolName) ?? readString(source.tool);
+  const id = readString(source.id) ?? readString(source.toolCallId);
+  const status = readToolCallStatus(source.status);
+  const args = readRecord(source.args) ?? readRecord(source.input);
+  const startedAt = readTimestamp(source.startedAt);
+  const completedAt = readTimestamp(source.completedAt);
+  const insertedAtContentLength = readNonnegativeInteger(source.insertedAtContentLength);
+  const contentSnapshotAtStart = readString(source.contentSnapshotAtStart);
+  const result = source.result ?? source.output;
+
+  return {
+    ...(id ? { id } : {}),
+    ...(name ? { name } : {}),
+    ...(args ? { args } : {}),
+    ...(result !== undefined ? { result } : {}),
+    ...(status ? { status } : {}),
+    ...(startedAt !== undefined ? { startedAt } : {}),
+    ...(completedAt !== undefined ? { completedAt } : {}),
+    ...(insertedAtContentLength !== undefined ? { insertedAtContentLength } : {}),
+    ...(contentSnapshotAtStart !== undefined ? { contentSnapshotAtStart } : {}),
+  };
+}
+
+function resolveToolCallSummary(
+  payload: CowtailReplyPayload,
+  toolCall: Partial<OpenClawToolCallRecord>,
+): string | undefined {
+  if (typeof payload.text === "string" && payload.text.trim()) {
+    return payload.text.trim().split("\n")[0];
+  }
+  if (toolCall.name) {
+    return toolCall.name;
+  }
+  return undefined;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function readToolCallStatus(value: unknown): OpenClawToolCallRecord["status"] | undefined {
+  return value === "pending" || value === "running" || value === "complete" || value === "error"
+    ? value
+    : undefined;
+}
+
+function readTimestamp(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function readNonnegativeInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function appendReplyBlock(current: string, next: string): string {
+  if (!next.trim()) {
+    return current;
+  }
+  if (!current) {
+    return next;
+  }
+  if (next.startsWith(current)) {
+    return next;
+  }
+  return `${current}${next}`;
 }
 
 export function buildCowtailInboundBody(params: {

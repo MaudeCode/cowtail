@@ -231,6 +231,7 @@ describe("CowtailRealtimeClient", () => {
       sessionKey: "session-delayed",
       text: "queued",
       links: [],
+      toolCalls: [],
       actions: [],
     });
 
@@ -315,6 +316,7 @@ describe("CowtailRealtimeClient", () => {
       sessionKey: "session-before-open",
       text: "hello before open",
       links: [],
+      toolCalls: [],
       actions: [],
     });
 
@@ -370,6 +372,7 @@ describe("CowtailRealtimeClient", () => {
       sessionKey: "session-1",
       text: "hello",
       links: [],
+      toolCalls: [],
       actions: [],
     });
 
@@ -532,6 +535,7 @@ describe("CowtailRealtimeClient", () => {
         direction: "user_to_openclaw",
         text: "reply",
         links: [],
+        toolCalls: [],
         deliveryState: "sent",
         createdAt: 456,
         updatedAt: 456,

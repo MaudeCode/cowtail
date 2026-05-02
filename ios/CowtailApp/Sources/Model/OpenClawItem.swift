@@ -24,10 +24,29 @@ enum OpenClawActionState: String, Codable, Equatable, Sendable {
     case expired
 }
 
+enum OpenClawToolCallStatus: String, Codable, Equatable, Sendable {
+    case pending
+    case running
+    case complete
+    case error
+}
+
 struct OpenClawLink: Codable, Equatable, Identifiable, Sendable {
     var id: String { url }
     let label: String
     let url: String
+}
+
+struct OpenClawToolCall: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let args: [String: JSONValue]?
+    let result: JSONValue?
+    let status: OpenClawToolCallStatus
+    let startedAt: Int64?
+    let completedAt: Int64?
+    let insertedAtContentLength: Int?
+    let contentSnapshotAtStart: String?
 }
 
 struct OpenClawThread: Codable, Equatable, Identifiable, Sendable {
@@ -49,6 +68,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     let authorLabel: String?
     let text: String
     let links: [OpenClawLink]
+    let toolCalls: [OpenClawToolCall]
     let deliveryState: OpenClawDeliveryState
     let createdAt: Int64
     let updatedAt: Int64
@@ -60,6 +80,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
         case authorLabel
         case text
         case links
+        case toolCalls
         case deliveryState
         case createdAt
         case updatedAt
@@ -72,6 +93,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
         authorLabel: String?,
         text: String,
         links: [OpenClawLink],
+        toolCalls: [OpenClawToolCall] = [],
         deliveryState: OpenClawDeliveryState,
         createdAt: Int64,
         updatedAt: Int64
@@ -82,6 +104,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
         self.authorLabel = authorLabel
         self.text = text
         self.links = links
+        self.toolCalls = toolCalls
         self.deliveryState = deliveryState
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -95,6 +118,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
         authorLabel = try container.decodeIfPresent(String.self, forKey: .authorLabel)
         text = try container.decode(String.self, forKey: .text)
         links = try container.decodeIfPresent([OpenClawLink].self, forKey: .links) ?? []
+        toolCalls = try container.decodeIfPresent([OpenClawToolCall].self, forKey: .toolCalls) ?? []
         deliveryState = try container.decode(OpenClawDeliveryState.self, forKey: .deliveryState)
         createdAt = try container.decode(Int64.self, forKey: .createdAt)
         updatedAt = try container.decode(Int64.self, forKey: .updatedAt)
@@ -121,6 +145,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
     let authorLabel: String?
     let text: String
     let links: [OpenClawLink]
+    let toolCalls: [OpenClawToolCall]
     let deliveryState: OpenClawDeliveryState
     let createdAt: Int64
     let updatedAt: Int64
@@ -133,6 +158,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
         case authorLabel
         case text
         case links
+        case toolCalls
         case deliveryState
         case createdAt
         case updatedAt
@@ -147,6 +173,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
             authorLabel: authorLabel,
             text: text,
             links: links,
+            toolCalls: toolCalls,
             deliveryState: deliveryState,
             createdAt: createdAt,
             updatedAt: updatedAt
@@ -161,6 +188,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
         authorLabel = try container.decodeIfPresent(String.self, forKey: .authorLabel)
         text = try container.decode(String.self, forKey: .text)
         links = try container.decodeIfPresent([OpenClawLink].self, forKey: .links) ?? []
+        toolCalls = try container.decodeIfPresent([OpenClawToolCall].self, forKey: .toolCalls) ?? []
         deliveryState = try container.decode(OpenClawDeliveryState.self, forKey: .deliveryState)
         createdAt = try container.decode(Int64.self, forKey: .createdAt)
         updatedAt = try container.decode(Int64.self, forKey: .updatedAt)

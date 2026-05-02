@@ -7,6 +7,7 @@ export const openclawEventTypes = [
   "thread_created",
   "thread_updated",
   "message_created",
+  "message_updated",
   "message_acknowledged",
   "reply_created",
   "action_submitted",
@@ -22,12 +23,25 @@ export const openclawTargetAgentSchema = z.literal("default");
 export const openclawMessageDirectionSchema = z.enum(["openclaw_to_user", "user_to_openclaw"]);
 export const openclawDeliveryStateSchema = z.enum(["pending", "sent", "failed"]);
 export const openclawActionStateSchema = z.enum(["pending", "submitted", "failed", "expired"]);
+export const openclawToolCallStatusSchema = z.enum(["pending", "running", "complete", "error"]);
 export const openclawEventTypeSchema = z.enum(openclawEventTypes);
 export const openclawSequenceSchema = z.number().int().nonnegative();
 
 export const openclawLinkSchema = z.object({
   label: nonEmptyStringSchema,
   url: nonEmptyStringSchema,
+});
+
+export const openclawToolCallRecordSchema = z.object({
+  id: nonEmptyStringSchema,
+  name: nonEmptyStringSchema,
+  args: jsonObjectSchema.optional(),
+  result: z.unknown().optional(),
+  status: openclawToolCallStatusSchema,
+  startedAt: timestampSchema.optional(),
+  completedAt: timestampSchema.optional(),
+  insertedAtContentLength: z.number().int().nonnegative().optional(),
+  contentSnapshotAtStart: z.string().optional(),
 });
 
 const openclawPluginClientHelloSchema = z.object({
@@ -68,6 +82,7 @@ export const openclawMessageRecordSchema = z.object({
   authorLabel: nonEmptyStringSchema.optional(),
   text: nonEmptyStringSchema,
   links: z.array(openclawLinkSchema).default([]),
+  toolCalls: z.array(openclawToolCallRecordSchema).default([]),
   deliveryState: openclawDeliveryStateSchema,
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
@@ -124,7 +139,20 @@ export const openclawPluginMessageCommandSchema = z.object({
   text: nonEmptyStringSchema,
   authorLabel: nonEmptyStringSchema.optional(),
   links: z.array(openclawLinkSchema).default([]),
+  toolCalls: z.array(openclawToolCallRecordSchema).default([]),
   actions: z.array(openclawActionDraftSchema).default([]),
+  deliveryState: openclawDeliveryStateSchema.optional(),
+});
+
+export const openclawPluginMessageUpdateCommandSchema = z.object({
+  type: z.literal("openclaw_message_update"),
+  requestId: openclawRequestIdSchema,
+  messageId: nonEmptyStringSchema,
+  text: nonEmptyStringSchema,
+  links: z.array(openclawLinkSchema).optional(),
+  toolCalls: z.array(openclawToolCallRecordSchema).optional(),
+  actions: z.array(openclawActionDraftSchema).optional(),
+  deliveryState: openclawDeliveryStateSchema.optional(),
 });
 
 export const openclawIosNewThreadCommandSchema = z.object({
@@ -184,6 +212,7 @@ export const openclawActionResultCommandSchema = z.object({
 
 export const openclawRealtimeClientMessageSchema = z.discriminatedUnion("type", [
   openclawPluginMessageCommandSchema,
+  openclawPluginMessageUpdateCommandSchema,
   openclawIosNewThreadCommandSchema,
   openclawIosReplyCommandSchema,
   openclawIosActionCommandSchema,
@@ -198,6 +227,7 @@ export const openclawRealtimeAckSchema = z.object({
   type: z.literal("ack"),
   requestId: openclawRequestIdSchema,
   sequence: openclawSequenceSchema.optional(),
+  payload: jsonObjectSchema.optional(),
 });
 
 export const openclawRealtimeErrorSchema = z.object({
@@ -264,13 +294,18 @@ export type OpenClawTargetAgent = z.infer<typeof openclawTargetAgentSchema>;
 export type OpenClawMessageDirection = z.infer<typeof openclawMessageDirectionSchema>;
 export type OpenClawDeliveryState = z.infer<typeof openclawDeliveryStateSchema>;
 export type OpenClawActionState = z.infer<typeof openclawActionStateSchema>;
+export type OpenClawToolCallStatus = z.infer<typeof openclawToolCallStatusSchema>;
 export type OpenClawEventType = z.infer<typeof openclawEventTypeSchema>;
 export type OpenClawLink = z.infer<typeof openclawLinkSchema>;
+export type OpenClawToolCallRecord = z.infer<typeof openclawToolCallRecordSchema>;
 export type OpenClawActionSubmittedEvent = z.infer<typeof openclawActionSubmittedEventSchema>;
 export type OpenClawRequestId = z.infer<typeof openclawRequestIdSchema>;
 export type OpenClawActionDraft = z.infer<typeof openclawActionDraftSchema>;
 export type OpenClawRealtimeClientMessage = z.infer<typeof openclawRealtimeClientMessageSchema>;
 export type OpenClawPluginMessageCommand = z.infer<typeof openclawPluginMessageCommandSchema>;
+export type OpenClawPluginMessageUpdateCommand = z.infer<
+  typeof openclawPluginMessageUpdateCommandSchema
+>;
 export type OpenClawIosNewThreadCommand = z.infer<typeof openclawIosNewThreadCommandSchema>;
 export type OpenClawIosReplyCommand = z.infer<typeof openclawIosReplyCommandSchema>;
 export type OpenClawIosActionCommand = z.infer<typeof openclawIosActionCommandSchema>;

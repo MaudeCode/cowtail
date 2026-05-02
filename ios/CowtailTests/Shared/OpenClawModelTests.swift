@@ -110,4 +110,58 @@ final class OpenClawModelTests: XCTestCase {
             XCTFail("Expected realtime error")
         }
     }
+
+    func testDecodesToolCallsOnMessages() throws {
+        let decoder = JSONDecoder()
+        let event = try decoder.decode(OpenClawServerMessage.self, from: Data("""
+        {
+          "sequence": 4,
+          "type": "message_updated",
+          "createdAt": 1777128000000,
+          "threadId": "thread-1",
+          "messageId": "message-1",
+          "message": {
+            "id": "message-1",
+            "threadId": "thread-1",
+            "direction": "openclaw_to_user",
+            "authorLabel": "OpenClaw",
+            "text": "Checking logs.",
+            "links": [],
+            "toolCalls": [{
+              "id": "preview-tool",
+              "name": "read_file",
+              "args": { "path": "/var/log/app.log" },
+              "result": "deployment complete",
+              "status": "complete",
+              "startedAt": 1777127999000,
+              "completedAt": 1777128000000,
+              "insertedAtContentLength": 9,
+              "contentSnapshotAtStart": "Checking "
+            }],
+            "deliveryState": "sent",
+            "createdAt": 1777127999000,
+            "updatedAt": 1777128000000
+          }
+        }
+        """.utf8))
+
+        guard case .event(let envelope) = event else {
+            return XCTFail("Expected event")
+        }
+
+        let toolCall = try XCTUnwrap(envelope.message?.toolCalls.first)
+        XCTAssertEqual(toolCall.id, "preview-tool")
+        XCTAssertEqual(toolCall.name, "read_file")
+        XCTAssertEqual(toolCall.status, .complete)
+        XCTAssertEqual(toolCall.insertedAtContentLength, 9)
+        XCTAssertEqual(toolCall.args?["path"], .string("/var/log/app.log"))
+        XCTAssertEqual(toolCall.result, .string("deployment complete"))
+    }
+
+    func testPreviewMessageFixturesPreserveToolCalls() throws {
+        let toolCall = try XCTUnwrap(CowtailPreviewFixtures.openClawMessageWithActions.toolCalls.first)
+
+        XCTAssertEqual(toolCall.id, "preview-tool")
+        XCTAssertEqual(toolCall.name, "query_metrics")
+    }
 }

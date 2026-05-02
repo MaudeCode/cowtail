@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 
-import type { OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
+import type { OpenClawEventEnvelope, OpenClawToolCallRecord } from "@maudecode/cowtail-protocol";
 
 import { buildCowtailTarget } from "./session-keys.js";
 import type { ResolvedCowtailAccount } from "./types.js";
@@ -100,7 +100,18 @@ type FakeClient = {
     text: string;
     authorLabel?: string;
     links: Array<{ label: string; url: string }>;
+    toolCalls?: OpenClawToolCallRecord[];
     actions: [];
+    deliveryState?: "pending" | "sent" | "failed";
+  }>;
+  sendOpenClawMessageUpdateCalls: Array<{
+    type: "openclaw_message_update";
+    messageId: string;
+    text: string;
+    links?: Array<{ label: string; url: string }>;
+    toolCalls?: OpenClawToolCallRecord[];
+    actions?: [];
+    deliveryState?: "pending" | "sent" | "failed";
   }>;
   sendSessionBound: (input: {
     type: "openclaw_session_bound";
@@ -120,8 +131,27 @@ type FakeClient = {
     text: string;
     authorLabel?: string;
     links: Array<{ label: string; url: string }>;
+    toolCalls?: OpenClawToolCallRecord[];
     actions: [];
-  }) => Promise<{ requestId: string; sequence: number | undefined }>;
+    deliveryState?: "pending" | "sent" | "failed";
+  }) => Promise<{
+    requestId: string;
+    sequence: number | undefined;
+    payload?: Record<string, unknown>;
+  }>;
+  sendOpenClawMessageUpdate: (input: {
+    type: "openclaw_message_update";
+    messageId: string;
+    text: string;
+    links?: Array<{ label: string; url: string }>;
+    toolCalls?: OpenClawToolCallRecord[];
+    actions?: [];
+    deliveryState?: "pending" | "sent" | "failed";
+  }) => Promise<{
+    requestId: string;
+    sequence: number | undefined;
+    payload?: Record<string, unknown>;
+  }>;
 };
 
 function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): ResolvedCowtailAccount {
@@ -140,15 +170,17 @@ function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): Resolve
   };
 }
 
-function createClient(): FakeClient {
+function createClient(options: { omitCreatedMessageId?: boolean } = {}): FakeClient {
   const sendSessionBoundCalls: FakeClient["sendSessionBoundCalls"] = [];
   const sendActionResultCalls: FakeClient["sendActionResultCalls"] = [];
   const sendOpenClawMessageCalls: FakeClient["sendOpenClawMessageCalls"] = [];
+  const sendOpenClawMessageUpdateCalls: FakeClient["sendOpenClawMessageUpdateCalls"] = [];
 
   return {
     sendSessionBoundCalls,
     sendActionResultCalls,
     sendOpenClawMessageCalls,
+    sendOpenClawMessageUpdateCalls,
     async sendSessionBound(input) {
       sendSessionBoundCalls.push(input);
       return undefined;
@@ -159,7 +191,17 @@ function createClient(): FakeClient {
     },
     async sendOpenClawMessage(input) {
       sendOpenClawMessageCalls.push(input);
-      return { requestId: "reply-request", sequence: 99 };
+      return {
+        requestId: "reply-request",
+        sequence: 99,
+        payload: options.omitCreatedMessageId
+          ? {}
+          : { messageId: `reply-message-${sendOpenClawMessageCalls.length}` },
+      };
+    },
+    async sendOpenClawMessageUpdate(input) {
+      sendOpenClawMessageUpdateCalls.push(input);
+      return { requestId: "reply-update-request", sequence: 100 };
     },
   };
 }
@@ -194,6 +236,10 @@ function createRuntime(overrides?: {
     kind: string;
   };
   deliverPayload?: Record<string, unknown>;
+  deliveries?: Array<{
+    payload: Record<string, unknown>;
+    info?: { kind: "tool" | "block" | "final" };
+  }>;
 }) {
   const cfg: OpenClawConfig = {
     session: {
@@ -262,6 +308,17 @@ function createRuntime(overrides?: {
         },
         async dispatchReplyWithBufferedBlockDispatcher(params) {
           dispatchCalls.push(params);
+          if (overrides?.deliveries) {
+            const deliver = params.dispatcherOptions.deliver as
+              | ((
+                  payload: Record<string, unknown>,
+                  info?: { kind: "tool" | "block" | "final" },
+                ) => Promise<void>)
+              | undefined;
+            for (const delivery of overrides.deliveries) {
+              await deliver?.(delivery.payload, delivery.info);
+            }
+          }
           if (overrides?.deliverPayload) {
             const deliver = params.dispatcherOptions.deliver as
               | ((payload: Record<string, unknown>) => Promise<void>)
@@ -329,6 +386,7 @@ describe("handleCowtailEvent", () => {
         direction: "user_to_openclaw",
         text: "Start here",
         links: [],
+        toolCalls: [],
         deliveryState: "pending",
         createdAt: 1_700_000_000_001,
         updatedAt: 1_700_000_000_001,
@@ -432,6 +490,7 @@ describe("handleCowtailEvent", () => {
         direction: "user_to_openclaw",
         text: "Follow-up",
         links: [],
+        toolCalls: [],
         deliveryState: "pending",
         createdAt: 1_700_000_000_010,
         updatedAt: 1_700_000_000_010,
@@ -489,6 +548,7 @@ describe("handleCowtailEvent", () => {
         direction: "user_to_openclaw",
         text: "What is happening?",
         links: [],
+        toolCalls: [],
         deliveryState: "pending",
         createdAt: 1_700_000_000_011,
         updatedAt: 1_700_000_000_011,
@@ -511,7 +571,311 @@ describe("handleCowtailEvent", () => {
         text: "Here is the answer.",
         authorLabel: "OpenClaw",
         links: [{ label: "Attachment", url: "https://example.invalid/log.txt" }],
+        toolCalls: [],
         actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+  });
+
+  test("block replies stream into one pending Cowtail transcript message", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Checking the deploy" }, info: { kind: "block" } },
+        { payload: { text: " logs now." }, info: { kind: "block" } },
+        { payload: { text: "Checking the deploy logs now." }, info: { kind: "final" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 23,
+      type: "reply_created",
+      createdAt: 1_700_000_000_012,
+      threadId: "thread-23",
+      messageId: "message-23",
+      thread: {
+        id: "thread-23",
+        sessionKey: "session-thread-23",
+        status: "active",
+        targetAgent: "default",
+        title: "Streaming chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_012,
+      },
+      message: {
+        id: "message-23",
+        threadId: "thread-23",
+        direction: "user_to_openclaw",
+        text: "Stream this.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_012,
+        updatedAt: 1_700_000_000_012,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        sessionKey: "session-thread-23",
+        title: "Streaming chat",
+        text: "Checking the deploy",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "pending",
+      },
+    ]);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([
+      {
+        type: "openclaw_message_update",
+        messageId: "reply-message-1",
+        text: "Checking the deploy logs now.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+      },
+      {
+        type: "openclaw_message_update",
+        messageId: "reply-message-1",
+        text: "Checking the deploy logs now.",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+  });
+
+  test("tool deliveries are written as transcript tool calls", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Checking " }, info: { kind: "block" } },
+        {
+          payload: {
+            text: "Read log output",
+            channelData: {
+              toolCall: {
+                id: "call-1",
+                name: "read_file",
+                args: { path: "/var/log/app.log" },
+                result: "log contents",
+                status: "complete",
+                startedAt: 100,
+                completedAt: 125,
+              },
+            },
+          },
+          info: { kind: "tool" },
+        },
+        { payload: { text: "Done." }, info: { kind: "final" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 24,
+      type: "reply_created",
+      createdAt: 1_700_000_000_013,
+      threadId: "thread-24",
+      messageId: "message-24",
+      thread: {
+        id: "thread-24",
+        sessionKey: "session-thread-24",
+        status: "active",
+        targetAgent: "default",
+        title: "Tool chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_013,
+      },
+      message: {
+        id: "message-24",
+        threadId: "thread-24",
+        direction: "user_to_openclaw",
+        text: "Use a tool.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_013,
+        updatedAt: 1_700_000_000_013,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    const expectedToolCall: OpenClawToolCallRecord = {
+      id: "call-1",
+      name: "read_file",
+      args: { path: "/var/log/app.log" },
+      result: "log contents",
+      status: "complete",
+      startedAt: 100,
+      completedAt: 125,
+      insertedAtContentLength: 9,
+      contentSnapshotAtStart: "Checking ",
+    };
+
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        sessionKey: "session-thread-24",
+        title: "Tool chat",
+        text: "Checking ",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "pending",
+      },
+    ]);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([
+      {
+        type: "openclaw_message_update",
+        messageId: "reply-message-1",
+        text: "Checking ",
+        links: [],
+        toolCalls: [expectedToolCall],
+        deliveryState: "pending",
+      },
+      {
+        type: "openclaw_message_update",
+        messageId: "reply-message-1",
+        text: "Done.",
+        links: [],
+        toolCalls: [expectedToolCall],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+  });
+
+  test("streaming replies fail closed when Cowtail omits the created message id", async () => {
+    const client = createClient({ omitCreatedMessageId: true });
+    const { logger, errors } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Checking " }, info: { kind: "block" } },
+        { payload: { text: "logs now" }, info: { kind: "block" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 25,
+      type: "reply_created",
+      createdAt: 1_700_000_000_014,
+      threadId: "thread-25",
+      messageId: "message-25",
+      thread: {
+        id: "thread-25",
+        sessionKey: "session-thread-25",
+        status: "active",
+        targetAgent: "default",
+        title: "Ack chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_014,
+      },
+      message: {
+        id: "message-25",
+        threadId: "thread-25",
+        direction: "user_to_openclaw",
+        text: "Stream.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_014,
+        updatedAt: 1_700_000_000_014,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toHaveLength(1);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
+    expect(errors).toContain(
+      "Cowtail block reply failed: Cowtail realtime ack missing messageId for streamed OpenClaw reply",
+    );
+  });
+
+  test("normalized tool deliveries are labeled as observed tool output", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Checking " }, info: { kind: "block" } },
+        { payload: { text: "Read log output" }, info: { kind: "tool" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 26,
+      type: "reply_created",
+      createdAt: 1_700_000_000_015,
+      threadId: "thread-26",
+      messageId: "message-26",
+      thread: {
+        id: "thread-26",
+        sessionKey: "session-thread-26",
+        status: "active",
+        targetAgent: "default",
+        title: "Fallback tool chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_015,
+      },
+      message: {
+        id: "message-26",
+        threadId: "thread-26",
+        direction: "user_to_openclaw",
+        text: "Use a tool.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_015,
+        updatedAt: 1_700_000_000_015,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageUpdateCalls[0]?.toolCalls).toEqual([
+      {
+        id: "tool-1",
+        name: "tool_result",
+        result: "Read log output",
+        status: "complete",
+        completedAt: expect.any(Number),
+        insertedAtContentLength: 9,
+        contentSnapshotAtStart: "Checking ",
       },
     ]);
   });

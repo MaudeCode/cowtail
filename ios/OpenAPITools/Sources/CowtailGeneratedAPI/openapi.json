@@ -775,6 +775,61 @@
                   },
                   "default": []
                 },
+                "toolCalls": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true
+                        }
+                      },
+                      "result": {
+                        "nullable": true
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "running",
+                          "complete",
+                          "error"
+                        ]
+                      },
+                      "startedAt": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "completedAt": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "insertedAtContentLength": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "contentSnapshotAtStart": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "status"
+                    ]
+                  },
+                  "default": []
+                },
                 "deliveryState": {
                   "type": "string",
                   "enum": [

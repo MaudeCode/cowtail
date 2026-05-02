@@ -3,6 +3,7 @@ import {
   type OpenClawActionResultCommand,
   type OpenClawEventEnvelope,
   type OpenClawPluginMessageCommand,
+  type OpenClawPluginMessageUpdateCommand,
   type OpenClawRealtimeError,
   type OpenClawSessionBoundCommand,
 } from "@maudecode/cowtail-protocol";
@@ -48,6 +49,7 @@ type HandshakeState = {
 export type CowtailCommandResult = {
   requestId: string;
   sequence: number | undefined;
+  payload?: Record<string, unknown>;
 };
 
 export type CowtailRealtimeClientDeps = {
@@ -62,9 +64,14 @@ export type CowtailRealtimeClientDeps = {
 
 export type OpenClawMessageInput = Omit<
   OpenClawPluginMessageCommand,
-  "requestId" | "links" | "actions"
+  "requestId" | "links" | "actions" | "toolCalls"
 > &
-  Partial<Pick<OpenClawPluginMessageCommand, "links" | "actions">>;
+  Partial<Pick<OpenClawPluginMessageCommand, "links" | "actions" | "toolCalls">>;
+export type OpenClawMessageUpdateInput = Omit<
+  OpenClawPluginMessageUpdateCommand,
+  "requestId" | "links" | "actions" | "toolCalls"
+> &
+  Partial<Pick<OpenClawPluginMessageUpdateCommand, "links" | "actions" | "toolCalls">>;
 export type OpenClawSessionBoundInput = Omit<OpenClawSessionBoundCommand, "requestId">;
 export type OpenClawActionResultInput = Omit<OpenClawActionResultCommand, "requestId">;
 
@@ -130,7 +137,18 @@ export class CowtailRealtimeClient {
       ...command,
       requestId: this.#requestIdFactory(),
       links: command.links ?? [],
+      toolCalls: command.toolCalls ?? [],
       actions: command.actions ?? [],
+    });
+  }
+
+  sendOpenClawMessageUpdate(command: OpenClawMessageUpdateInput): Promise<CowtailCommandResult> {
+    return this.#sendCommand({
+      ...command,
+      requestId: this.#requestIdFactory(),
+      ...(command.links ? { links: command.links } : {}),
+      ...(command.toolCalls ? { toolCalls: command.toolCalls } : {}),
+      ...(command.actions ? { actions: command.actions } : {}),
     });
   }
 
@@ -260,7 +278,7 @@ export class CowtailRealtimeClient {
 
     const message = parsed.data;
     if (message.type === "ack") {
-      this.#resolvePendingRequest(message.requestId, message.sequence);
+      this.#resolvePendingRequest(message.requestId, message.sequence, message.payload);
       return;
     }
 
@@ -344,6 +362,7 @@ export class CowtailRealtimeClient {
   async #sendCommand(
     command:
       | OpenClawPluginMessageCommand
+      | OpenClawPluginMessageUpdateCommand
       | OpenClawSessionBoundCommand
       | OpenClawActionResultCommand,
   ): Promise<CowtailCommandResult> {
@@ -376,14 +395,22 @@ export class CowtailRealtimeClient {
     });
   }
 
-  #resolvePendingRequest(requestId: string, sequence: number | undefined): void {
+  #resolvePendingRequest(
+    requestId: string,
+    sequence: number | undefined,
+    payload: Record<string, unknown> | undefined,
+  ): void {
     const pending = this.#pendingRequests.get(requestId);
     if (!pending) {
       return;
     }
 
     this.#pendingRequests.delete(requestId);
-    pending.resolve({ requestId, sequence });
+    pending.resolve({
+      requestId,
+      sequence,
+      ...(payload ? { payload } : {}),
+    });
   }
 
   #rejectPendingRequest(message: OpenClawRealtimeError): void {

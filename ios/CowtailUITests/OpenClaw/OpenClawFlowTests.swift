@@ -61,6 +61,25 @@ final class OpenClawFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete"].exists)
     }
 
+    func testThreadDetailShowsExpandableToolCalls() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let previewThreadRow = app.buttons["row.openclaw.thread.preview-thread"]
+        XCTAssertTrue(previewThreadRow.waitForExistence(timeout: 5))
+        previewThreadRow.tap()
+        XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
+
+        let toolCall = app.buttons["Tool call query_metrics"].firstMatch
+        XCTAssertTrue(toolCall.waitForExistence(timeout: 5))
+        toolCall.tap()
+
+        XCTAssertTrue(app.staticTexts["Input"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Output"].exists)
+        XCTAssertTrue(app.staticTexts["p95 latency is elevated on node-a and node-c."].exists)
+    }
+
     func testSignedOutStateAppears() {
         let app = AppLaunching.configuredApp(scenario: "openclaw_signed_out")
         app.launch()

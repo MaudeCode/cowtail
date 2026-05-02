@@ -36,6 +36,9 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
     command: Parameters<CowtailRealtimeApi["createOpenClawMessage"]>[0];
     resolve: (event: OpenClawEventEnvelope) => void;
   }> = [];
+  public readonly openClawMessageUpdates: Parameters<
+    CowtailRealtimeApi["updateOpenClawMessage"]
+  >[0][] = [];
   public readonly openClawMessages: Parameters<CowtailRealtimeApi["createOpenClawMessage"]>[0][] =
     [];
   public readonly iosThreads: Parameters<CowtailRealtimeApi["createIosThread"]>[0][] = [];
@@ -95,6 +98,11 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
       });
     }
     return this.openClawMessageEvent;
+  }
+
+  async updateOpenClawMessage(command: Parameters<CowtailRealtimeApi["updateOpenClawMessage"]>[0]) {
+    this.openClawMessageUpdates.push(command);
+    return createOpenClawMessageUpdateEvent(12);
   }
 
   async createIosThread(command: Parameters<CowtailRealtimeApi["createIosThread"]>[0]) {
@@ -233,9 +241,28 @@ function createOpenClawMessageEvent(sequence: number): OpenClawEventEnvelope {
       direction: "openclaw_to_user",
       text: "Approve the deploy?",
       links: [],
+      toolCalls: [],
       deliveryState: "sent",
       createdAt: 100,
       updatedAt: 100,
+    },
+  });
+}
+
+function createOpenClawMessageUpdateEvent(sequence: number): OpenClawEventEnvelope {
+  return createEvent(sequence, "message_updated", {
+    threadId: "thread-openclaw",
+    messageId: "message-openclaw",
+    message: {
+      id: "message-openclaw",
+      threadId: "thread-openclaw",
+      direction: "openclaw_to_user",
+      text: "Still checking...",
+      links: [],
+      toolCalls: [],
+      deliveryState: "pending",
+      createdAt: 100,
+      updatedAt: 120,
     },
   });
 }
@@ -250,6 +277,7 @@ function createIosReplyEvent(sequence: number): OpenClawEventEnvelope {
       direction: "user_to_openclaw",
       text: "Ship it",
       links: [],
+      toolCalls: [],
       deliveryState: "sent",
       createdAt: 100,
       updatedAt: 100,
@@ -555,6 +583,7 @@ describe("OpenClawSessionController", () => {
         title: "Deploy",
         text: "Approve the deploy?",
         links: [],
+        toolCalls: [],
         actions: [],
       }),
     );
@@ -567,11 +596,19 @@ describe("OpenClawSessionController", () => {
         title: "Deploy",
         text: "Approve the deploy?",
         links: [],
+        toolCalls: [],
         actions: [],
       },
     ]);
     expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
-    expect(sent(socket)).toEqual([{ type: "ack", requestId: "request-1", sequence: 7 }]);
+    expect(sent(socket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-1",
+        sequence: 7,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
   });
 
   test("does not push when an iOS socket receives an OpenClaw message and sends iOS event before plugin ack", async () => {
@@ -598,7 +635,58 @@ describe("OpenClawSessionController", () => {
     expect(api.validatedSessionIds).toEqual(["session-1"]);
     expect(pushBridge.notifications).toEqual([]);
     expect(sent(iosSocket)).toEqual([api.openClawMessageEvent]);
-    expect(sent(pluginSocket)).toEqual([{ type: "ack", requestId: "request-3", sequence: 7 }]);
+    expect(sent(pluginSocket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-3",
+        sequence: 7,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
+  });
+
+  test("updates OpenClaw messages from authenticated plugins and broadcasts the streamed update to iOS", async () => {
+    const { api, controller, pushBridge } = createController();
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message_update",
+        requestId: "request-update-1",
+        messageId: "message-openclaw",
+        text: "Still checking...",
+        links: [],
+        deliveryState: "pending",
+      }),
+    );
+
+    const updateEvent = createOpenClawMessageUpdateEvent(12);
+    expect(api.openClawMessageUpdates).toEqual([
+      {
+        type: "openclaw_message_update",
+        requestId: "request-update-1",
+        messageId: "message-openclaw",
+        text: "Still checking...",
+        links: [],
+        deliveryState: "pending",
+      },
+    ]);
+    expect(pushBridge.notifications).toEqual([]);
+    expect(sent(iosSocket)).toEqual([updateEvent]);
+    expect(sent(pluginSocket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-update-1",
+        sequence: 12,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
   });
 
   test("prunes an expired receive-only iOS socket before OpenClaw delivery and sends push fallback", async () => {
@@ -629,7 +717,12 @@ describe("OpenClawSessionController", () => {
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
     expect(registry.getClient("ios-1")).toBe(undefined);
     expect(sent(pluginSocket)).toEqual([
-      { type: "ack", requestId: "request-expired-delivery", sequence: 7 },
+      {
+        type: "ack",
+        requestId: "request-expired-delivery",
+        sequence: 7,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
     ]);
   });
 
@@ -661,7 +754,12 @@ describe("OpenClawSessionController", () => {
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
     expect(registry.getClient("ios-1")).toBe(undefined);
     expect(sent(pluginSocket)).toEqual([
-      { type: "ack", requestId: "request-revoked-delivery", sequence: 7 },
+      {
+        type: "ack",
+        requestId: "request-revoked-delivery",
+        sequence: 7,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
     ]);
   });
 
@@ -712,7 +810,14 @@ describe("OpenClawSessionController", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(pushBridge.notifications.length).toBe(1);
-    expect(sent(socket)).toEqual([{ type: "ack", requestId: "request-5", sequence: 7 }]);
+    expect(sent(socket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-5",
+        sequence: 7,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
     expect(socket.closeCalls).toEqual([]);
   });
 
@@ -742,7 +847,14 @@ describe("OpenClawSessionController", () => {
 
     expect(result).toBe("handled");
     expect(pushBridge.notifications.length).toBe(1);
-    expect(sent(socket)).toEqual([{ type: "ack", requestId: "request-6", sequence: 7 }]);
+    expect(sent(socket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-6",
+        sequence: 7,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
 
     pushBridge.releaseHeldNotification?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -792,8 +904,18 @@ describe("OpenClawSessionController", () => {
     await Promise.all([firstMessage, secondMessage]);
 
     expect(sent(socket)).toEqual([
-      { type: "ack", requestId: "request-7", sequence: 10 },
-      { type: "ack", requestId: "request-8", sequence: 11 },
+      {
+        type: "ack",
+        requestId: "request-7",
+        sequence: 10,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+      {
+        type: "ack",
+        requestId: "request-8",
+        sequence: 11,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
     ]);
   });
 

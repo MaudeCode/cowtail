@@ -14,6 +14,7 @@ import {
   openclawRealtimeClientMessageSchema,
   openclawRealtimeServerMessageSchema,
   openclawThreadRecordSchema,
+  openclawToolCallRecordSchema,
 } from "./openclaw.js";
 
 describe("openclaw protocol schemas", () => {
@@ -102,6 +103,32 @@ describe("openclaw protocol schemas", () => {
     expect(envelope.actions).toEqual([action]);
   });
 
+  test("parses OpenClaw tool call records", () => {
+    expect(
+      openclawToolCallRecordSchema.parse({
+        id: "tool-1",
+        name: "read_file",
+        args: { path: "/var/log/app.log" },
+        result: { lines: 20 },
+        status: "complete",
+        startedAt: 100,
+        completedAt: 125,
+        insertedAtContentLength: 12,
+        contentSnapshotAtStart: "Checking logs",
+      }),
+    ).toEqual({
+      id: "tool-1",
+      name: "read_file",
+      args: { path: "/var/log/app.log" },
+      result: { lines: 20 },
+      status: "complete",
+      startedAt: 100,
+      completedAt: 125,
+      insertedAtContentLength: 12,
+      contentSnapshotAtStart: "Checking logs",
+    });
+  });
+
   test("parses action_submitted event with required payload", () => {
     const actionSubmitted = openclawActionSubmittedEventSchema.parse({
       sequence: 11,
@@ -174,6 +201,24 @@ describe("openclaw protocol schemas", () => {
         payload: { decision: "approve" },
       },
     ]);
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "openclaw_message_update",
+        requestId: "request-1b",
+        messageId: "message-1",
+        text: "Streaming reply",
+        links: [],
+        deliveryState: "pending",
+      }),
+    ).toEqual({
+      type: "openclaw_message_update",
+      requestId: "request-1b",
+      messageId: "message-1",
+      text: "Streaming reply",
+      links: [],
+      deliveryState: "pending",
+    });
   });
 
   test("parses realtime iOS commands", () => {
@@ -305,11 +350,13 @@ describe("openclaw protocol schemas", () => {
         type: "ack",
         requestId: "request-7",
         sequence: 42,
+        payload: { threadId: "thread-1", messageId: "message-1" },
       }),
     ).toEqual({
       type: "ack",
       requestId: "request-7",
       sequence: 42,
+      payload: { threadId: "thread-1", messageId: "message-1" },
     });
 
     expect(

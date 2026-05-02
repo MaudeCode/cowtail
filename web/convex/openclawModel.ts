@@ -10,7 +10,9 @@ import type {
   OpenClawTargetAgent,
   OpenClawThreadRecord,
   OpenClawThreadStatus,
+  OpenClawToolCallRecord,
 } from "@maudecode/cowtail-protocol";
+import { openclawToolCallRecordSchema } from "@maudecode/cowtail-protocol";
 
 type MessageLike<IdValue extends string = string> = {
   _id: IdValue;
@@ -38,6 +40,7 @@ type StoredOpenClawMessage = {
   authorLabel?: string;
   text: string;
   links: OpenClawMessageRecord["links"];
+  toolCalls?: OpenClawToolCallRecord[];
   deliveryState: OpenClawDeliveryState;
   createdAt: number;
   updatedAt: number;
@@ -118,6 +121,38 @@ export function validateOpenClawLimit(value: number | undefined): number {
   return value;
 }
 
+export function validateOpenClawToolCalls(value: unknown): OpenClawToolCallRecord[] {
+  return openclawToolCallRecordSchema.array().parse(value);
+}
+
+export function buildOpenClawMessageUpdatePatch({
+  text,
+  links,
+  toolCalls,
+  deliveryState,
+  updatedAt,
+}: {
+  text: string;
+  links?: OpenClawMessageRecord["links"];
+  toolCalls?: unknown;
+  deliveryState?: OpenClawDeliveryState;
+  updatedAt: number;
+}): {
+  text: string;
+  updatedAt: number;
+  links?: OpenClawMessageRecord["links"];
+  toolCalls?: OpenClawToolCallRecord[];
+  deliveryState?: OpenClawDeliveryState;
+} {
+  return {
+    text,
+    updatedAt,
+    ...(links !== undefined ? { links } : {}),
+    ...(toolCalls !== undefined ? { toolCalls: validateOpenClawToolCalls(toolCalls) } : {}),
+    ...(deliveryState !== undefined ? { deliveryState } : {}),
+  };
+}
+
 export function sortOpenClawMessagesAscending<
   IdValue extends string,
   T extends MessageLike<IdValue>,
@@ -160,6 +195,7 @@ export function toOpenClawMessageRecord(message: StoredOpenClawMessage): OpenCla
     direction: message.direction,
     text: message.text,
     links: message.links,
+    toolCalls: message.toolCalls ?? [],
     deliveryState: message.deliveryState,
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,

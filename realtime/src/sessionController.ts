@@ -42,17 +42,17 @@ export function helloAcknowledged(client: RealtimeClient): OpenClawEventEnvelope
   };
 }
 
-export function ack(requestId: string, sequence?: number): OpenClawRealtimeAck {
-  return sequence === undefined
-    ? {
-        type: "ack",
-        requestId,
-      }
-    : {
-        type: "ack",
-        requestId,
-        sequence,
-      };
+export function ack(
+  requestId: string,
+  sequence?: number,
+  payload?: Record<string, unknown>,
+): OpenClawRealtimeAck {
+  return {
+    type: "ack",
+    requestId,
+    ...(sequence === undefined ? {} : { sequence }),
+    ...(payload === undefined ? {} : { payload }),
+  };
 }
 
 export function realtimeError(error: string, requestId?: string): OpenClawRealtimeError {
@@ -232,10 +232,30 @@ export class OpenClawSessionController {
         try {
           const event = await this.#api.createOpenClawMessage(command);
           const delivered = await this.#broadcastToIos(event);
-          if (delivered === 0) {
+          if (delivered === 0 && shouldPushOpenClawMessageEvent(event)) {
             this.#sendPushFallback(event);
           }
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+          );
+        } catch {
+          this.#send(connectionId, realtimeError("command_failed", command.requestId));
+        }
+        break;
+      }
+
+      case "openclaw_message_update": {
+        try {
+          const event = await this.#api.updateOpenClawMessage(command);
+          const delivered = await this.#broadcastToIos(event);
+          if (delivered === 0 && shouldPushOpenClawMessageEvent(event)) {
+            this.#sendPushFallback(event);
+          }
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -444,6 +464,7 @@ function isCommandAllowedForClient(client: RealtimeClient, commandType: string):
   if (client.kind === "openclaw_plugin") {
     return (
       commandType === "openclaw_message" ||
+      commandType === "openclaw_message_update" ||
       commandType === "openclaw_session_bound" ||
       commandType === "openclaw_action_result"
     );
@@ -457,6 +478,21 @@ function isCommandAllowedForClient(client: RealtimeClient, commandType: string):
     commandType === "ios_rename_thread" ||
     commandType === "ios_delete_thread"
   );
+}
+
+function ackPayloadForEvent(event: OpenClawEventEnvelope): Record<string, unknown> | undefined {
+  const payload: Record<string, unknown> = {};
+  if (event.threadId) {
+    payload.threadId = event.threadId;
+  }
+  if (event.messageId) {
+    payload.messageId = event.messageId;
+  }
+  return Object.keys(payload).length === 0 ? undefined : payload;
+}
+
+function shouldPushOpenClawMessageEvent(event: OpenClawEventEnvelope): boolean {
+  return event.message?.direction === "openclaw_to_user" && event.message.deliveryState === "sent";
 }
 
 function getRequestId(value: unknown): string | undefined {

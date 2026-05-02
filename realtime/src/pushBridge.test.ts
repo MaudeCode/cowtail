@@ -26,6 +26,7 @@ function createMessageEvent(): OpenClawEventEnvelope {
       direction: "openclaw_to_user",
       text: "Approve the deploy?",
       links: [],
+      toolCalls: [],
       deliveryState: "sent",
       createdAt: 100,
       updatedAt: 100,

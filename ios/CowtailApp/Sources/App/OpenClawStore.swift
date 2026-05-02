@@ -369,6 +369,7 @@ private struct OpenClawMessageWithActionsPayload: Encodable {
     let authorLabel: String?
     let text: String
     let links: [OpenClawLink]
+    let toolCalls: [OpenClawToolCall]
     let deliveryState: OpenClawDeliveryState
     let createdAt: Int64
     let updatedAt: Int64
@@ -381,6 +382,7 @@ private struct OpenClawMessageWithActionsPayload: Encodable {
         self.authorLabel = message.authorLabel
         self.text = message.text
         self.links = message.links
+        self.toolCalls = message.toolCalls
         self.deliveryState = message.deliveryState
         self.createdAt = message.createdAt
         self.updatedAt = message.updatedAt

@@ -2,6 +2,8 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { openclawEventTypes } from "@maudecode/cowtail-protocol";
 
+import { openclawToolCallsValidator } from "./openclawValidators";
+
 export default defineSchema({
   alerts: defineTable({
     timestamp: v.number(),
@@ -94,6 +96,7 @@ export default defineSchema({
     authorLabel: v.optional(v.string()),
     text: v.string(),
     links: v.array(v.object({ label: v.string(), url: v.string() })),
+    toolCalls: openclawToolCallsValidator,
     deliveryState: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
     createdAt: v.number(),
     updatedAt: v.number(),

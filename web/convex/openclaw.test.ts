@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   buildOpenClawActionResultUpdate,
   buildOpenClawEventPayload,
+  buildOpenClawMessageUpdatePatch,
   applyOpenClawThreadTitlePatch,
   normalizeOpenClawTitle,
   toOpenClawActionRecord,
@@ -11,6 +12,7 @@ import {
   toOpenClawMessageRecord,
   toOpenClawThreadRecord,
   validateOpenClawAfterSequence,
+  validateOpenClawToolCalls,
   validateOpenClawLimit,
   sortOpenClawMessagesAscending,
 } from "./openclawModel";
@@ -209,6 +211,19 @@ describe("OpenClaw Convex model helpers", () => {
       authorLabel: "OpenClaw",
       text: "Approve?",
       links: [{ label: "Run", url: "https://cowtail.example.invalid/runs/1" }],
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "inspect",
+          args: { target: "rollout" },
+          result: "ok",
+          status: "complete",
+          startedAt: 350,
+          completedAt: 375,
+          insertedAtContentLength: 0,
+          contentSnapshotAtStart: "",
+        },
+      ],
       deliveryState: "sent",
       createdAt: 400,
       updatedAt: 500,
@@ -244,6 +259,19 @@ describe("OpenClaw Convex model helpers", () => {
       authorLabel: "OpenClaw",
       text: "Approve?",
       links: [{ label: "Run", url: "https://cowtail.example.invalid/runs/1" }],
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "inspect",
+          args: { target: "rollout" },
+          result: "ok",
+          status: "complete",
+          startedAt: 350,
+          completedAt: 375,
+          insertedAtContentLength: 0,
+          contentSnapshotAtStart: "",
+        },
+      ],
       deliveryState: "sent",
       createdAt: 400,
       updatedAt: 500,
@@ -331,6 +359,84 @@ describe("OpenClaw Convex model helpers", () => {
     });
   });
 
+  test("validates OpenClaw tool calls against protocol constraints", () => {
+    expect(
+      validateOpenClawToolCalls([
+        {
+          id: "tool-1",
+          name: "read_file",
+          args: { path: "/tmp/out.log" },
+          result: "ok",
+          status: "complete",
+          startedAt: 10,
+          completedAt: 12,
+          insertedAtContentLength: 0,
+          contentSnapshotAtStart: "",
+        },
+      ]),
+    ).toEqual([
+      {
+        id: "tool-1",
+        name: "read_file",
+        args: { path: "/tmp/out.log" },
+        result: "ok",
+        status: "complete",
+        startedAt: 10,
+        completedAt: 12,
+        insertedAtContentLength: 0,
+        contentSnapshotAtStart: "",
+      },
+    ]);
+
+    expect(() => {
+      validateOpenClawToolCalls([{ id: "", name: "read_file", status: "complete" }]);
+    }).toThrow();
+    expect(() => {
+      validateOpenClawToolCalls([{ id: "tool-1", name: "", status: "complete" }]);
+    }).toThrow();
+    expect(() => {
+      validateOpenClawToolCalls([
+        { id: "tool-1", name: "read_file", status: "complete", startedAt: 1.5 },
+      ]);
+    }).toThrow();
+    expect(() => {
+      validateOpenClawToolCalls([
+        {
+          id: "tool-1",
+          name: "read_file",
+          status: "complete",
+          insertedAtContentLength: -1,
+        },
+      ]);
+    }).toThrow();
+  });
+
+  test("builds message update patches while preserving explicit empty arrays", () => {
+    expect(
+      buildOpenClawMessageUpdatePatch({
+        text: "Updated",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        updatedAt: 1_777_128_000_000,
+      }),
+    ).toEqual({
+      text: "Updated",
+      links: [],
+      toolCalls: [],
+      deliveryState: "pending",
+      updatedAt: 1_777_128_000_000,
+    });
+
+    expect(() => {
+      buildOpenClawMessageUpdatePatch({
+        text: "Updated",
+        toolCalls: [{ id: "", name: "bad", status: "complete" }],
+        updatedAt: 1_777_128_000_000,
+      });
+    }).toThrow();
+  });
+
   test("hydrates replay events with available records", () => {
     expect(
       toOpenClawEventEnvelope({
@@ -382,6 +488,7 @@ describe("OpenClaw Convex model helpers", () => {
         direction: "openclaw_to_user",
         text: "Approve?",
         links: [],
+        toolCalls: [],
         deliveryState: "sent",
         createdAt: 400,
         updatedAt: 500,
@@ -453,6 +560,7 @@ describe("OpenClaw Convex model helpers", () => {
         direction: "openclaw_to_user",
         text: "Approve?",
         links: [],
+        toolCalls: [],
         deliveryState: "sent",
         createdAt: 400,
         updatedAt: 500,

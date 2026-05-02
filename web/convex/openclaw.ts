@@ -8,14 +8,17 @@ import { requireRealtimeConvexToken } from "./authSessions";
 import {
   applyOpenClawThreadTitlePatch,
   buildOpenClawActionResultUpdate,
+  buildOpenClawMessageUpdatePatch,
   normalizeOpenClawTitle,
   toOpenClawEventEnvelope,
   toOpenClawMessageWithActionsRecord,
   toOpenClawThreadRecord,
   validateOpenClawAfterSequence,
+  validateOpenClawToolCalls,
   validateOpenClawLimit,
   type OpenClawEventPayloadInput,
 } from "./openclawModel";
+import { openclawToolCallsValidator } from "./openclawValidators";
 
 type OpenClawEventInsertArgs = {
   type: OpenClawEventPayloadInput["type"];
@@ -145,6 +148,10 @@ export const createThreadFromOpenClaw = mutation({
     text: v.string(),
     authorLabel: v.optional(v.string()),
     links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
+    toolCalls: openclawToolCallsValidator,
+    deliveryState: v.optional(
+      v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
+    ),
     actions: v.optional(
       v.array(
         v.object({
@@ -159,6 +166,7 @@ export const createThreadFromOpenClaw = mutation({
     requireRealtimeConvexToken(args.serviceToken);
 
     const now = Date.now();
+    const toolCalls = validateOpenClawToolCalls(args.toolCalls ?? []);
     const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
 
     const thread = existingThread
@@ -201,7 +209,8 @@ export const createThreadFromOpenClaw = mutation({
       direction: "openclaw_to_user",
       text: args.text,
       links: args.links ?? [],
-      deliveryState: "sent",
+      toolCalls,
+      deliveryState: args.deliveryState ?? "sent",
       createdAt: now,
       updatedAt: now,
       ...(args.authorLabel ? { authorLabel: args.authorLabel } : {}),
@@ -231,6 +240,93 @@ export const createThreadFromOpenClaw = mutation({
     });
 
     return { threadId: thread, messageId, actionIds, sequence };
+  },
+});
+
+export const updateMessageFromOpenClaw = mutation({
+  args: {
+    serviceToken: v.string(),
+    messageId: v.id("openclawMessages"),
+    text: v.string(),
+    links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
+    toolCalls: openclawToolCallsValidator,
+    deliveryState: v.optional(
+      v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
+    ),
+    actions: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          kind: v.string(),
+          payload: v.record(v.string(), v.any()),
+        }),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new Error(`Message not found: ${args.messageId}`);
+    }
+    if (message.direction !== "openclaw_to_user") {
+      throw new Error(`Message is not an OpenClaw reply: ${args.messageId}`);
+    }
+
+    const thread = await ctx.db.get(message.threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${message.threadId}`);
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(
+      args.messageId,
+      buildOpenClawMessageUpdatePatch({
+        text: args.text,
+        links: args.links,
+        toolCalls: args.toolCalls,
+        deliveryState: args.deliveryState,
+        updatedAt: now,
+      }),
+    );
+
+    await ctx.db.patch(message.threadId, {
+      updatedAt: now,
+      lastMessageAt: now,
+    });
+
+    const actionIds: Array<Id<"openclawActions">> = [];
+    if (args.actions && args.actions.length > 0) {
+      const existingActions = await ctx.db
+        .query("openclawActions")
+        .withIndex("by_message", (q) => q.eq("messageId", args.messageId))
+        .collect();
+
+      if (existingActions.length === 0) {
+        for (const action of args.actions) {
+          const actionId = await ctx.db.insert("openclawActions", {
+            threadId: message.threadId,
+            messageId: args.messageId,
+            label: action.label,
+            kind: action.kind,
+            payload: action.payload,
+            state: "pending",
+            createdAt: now,
+            updatedAt: now,
+          });
+          actionIds.push(actionId);
+        }
+      }
+    }
+
+    const sequence = await insertOpenClawEvent(ctx, {
+      type: "message_updated",
+      threadId: message.threadId,
+      messageId: args.messageId,
+    });
+
+    return { threadId: message.threadId, messageId: args.messageId, actionIds, sequence };
   },
 });
 

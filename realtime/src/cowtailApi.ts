@@ -9,6 +9,7 @@ import type {
   OpenClawIosRenameThreadCommand,
   OpenClawIosReplyCommand,
   OpenClawPluginMessageCommand,
+  OpenClawPluginMessageUpdateCommand,
   OpenClawReplayQuery,
   OpenClawSequence,
   OpenClawSessionBoundCommand,
@@ -21,6 +22,7 @@ type ConvexApiRefs = {
   openclaw: {
     replayEvents: unknown;
     createThreadFromOpenClaw: unknown;
+    updateMessageFromOpenClaw: unknown;
     createPendingThreadFromIos: unknown;
     createReplyFromIos: unknown;
     submitActionFromIos: unknown;
@@ -45,6 +47,9 @@ export interface CowtailRealtimeApi {
   validateAppSession(sessionId: string): Promise<AppSessionValidationResult>;
   replayEvents(afterSequence?: OpenClawSequence): Promise<OpenClawEventEnvelope[]>;
   createOpenClawMessage(command: OpenClawPluginMessageCommand): Promise<OpenClawEventEnvelope>;
+  updateOpenClawMessage(
+    command: OpenClawPluginMessageUpdateCommand,
+  ): Promise<OpenClawEventEnvelope>;
   createIosThread(command: OpenClawIosNewThreadCommand): Promise<OpenClawEventEnvelope>;
   createIosReply(command: OpenClawIosReplyCommand): Promise<OpenClawEventEnvelope>;
   submitIosAction(command: OpenClawIosActionCommand): Promise<OpenClawEventEnvelope>;
@@ -202,10 +207,37 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
         "links",
         command.links,
       ),
-      "actions",
-      command.actions,
+      "toolCalls",
+      command.toolCalls,
     );
+    addDefined(args, "actions", command.actions);
+    addDefined(args, "deliveryState", command.deliveryState);
     const result = await this.convex.mutation(convexApi.openclaw.createThreadFromOpenClaw, args);
+    return await this.eventBySequence(getSequence(result));
+  }
+
+  async updateOpenClawMessage(
+    command: OpenClawPluginMessageUpdateCommand,
+  ): Promise<OpenClawEventEnvelope> {
+    const args = addDefined(
+      addDefined(
+        addDefined(
+          {
+            serviceToken: this.serviceToken,
+            messageId: command.messageId as never,
+            text: command.text,
+          },
+          "links",
+          command.links,
+        ),
+        "actions",
+        command.actions,
+      ),
+      "deliveryState",
+      command.deliveryState,
+    );
+    addDefined(args, "toolCalls", command.toolCalls);
+    const result = await this.convex.mutation(convexApi.openclaw.updateMessageFromOpenClaw, args);
     return await this.eventBySequence(getSequence(result));
   }
 

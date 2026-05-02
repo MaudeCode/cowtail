@@ -91,6 +91,19 @@ enum CowtailPreviewFixtures {
         authorLabel: "OpenClaw",
         text: "Storage latency is elevated on two nodes. I can start with a read-only diagnostic pass.",
         links: [openClawLink],
+        toolCalls: [
+            OpenClawToolCall(
+                id: "preview-tool",
+                name: "query_metrics",
+                args: ["query": .string("storage latency by node")],
+                result: .string("p95 latency is elevated on node-a and node-c."),
+                status: .complete,
+                startedAt: 1_775_000_120_100,
+                completedAt: 1_775_000_120_600,
+                insertedAtContentLength: 0,
+                contentSnapshotAtStart: ""
+            )
+        ],
         deliveryState: .sent,
         createdAt: 1_775_000_120_000,
         updatedAt: 1_775_000_120_000
@@ -106,6 +119,31 @@ enum CowtailPreviewFixtures {
         deliveryState: .sent,
         createdAt: 1_775_000_180_000,
         updatedAt: 1_775_000_180_000
+    )
+
+    static let openClawToolResult = OpenClawMessage(
+        id: "preview-tool-result",
+        threadId: openClawThread.id,
+        direction: .openClawToUser,
+        authorLabel: "OpenClaw",
+        text: "Read-only checks are complete.",
+        links: [],
+        toolCalls: [
+            OpenClawToolCall(
+                id: "preview-tool-result-call",
+                name: "query_metrics",
+                args: ["query": .string("storage latency by node")],
+                result: .string("p95 latency is elevated on node-a and node-c."),
+                status: .complete,
+                startedAt: 1_775_000_220_100,
+                completedAt: 1_775_000_220_600,
+                insertedAtContentLength: 0,
+                contentSnapshotAtStart: ""
+            )
+        ],
+        deliveryState: .sent,
+        createdAt: 1_775_000_220_000,
+        updatedAt: 1_775_000_220_000
     )
 
     static let openClawAction = OpenClawAction(
@@ -129,13 +167,17 @@ enum CowtailPreviewFixtures {
         decodeOpenClawMessageWithActions(openClawReply, actions: [])
     }
 
+    static var openClawToolResultWithActions: OpenClawMessageWithActions {
+        decodeOpenClawMessageWithActions(openClawToolResult, actions: [])
+    }
+
     @MainActor
     static func openClawStore() -> OpenClawStore {
         let api = PreviewOpenClawAPI(
             displayName: "OpenClaw",
             threads: [openClawThread, secondaryOpenClawThread],
             messagesByThreadID: [
-                openClawThread.id: [openClawMessageWithActions, openClawReplyWithActions]
+                openClawThread.id: [openClawMessageWithActions, openClawReplyWithActions, openClawToolResultWithActions]
             ]
         )
         let defaults = UserDefaults(suiteName: "cowtail.openclaw.preview.\(UUID().uuidString)") ?? .standard
@@ -173,6 +215,14 @@ enum CowtailPreviewFixtures {
         ))
         try? store.apply(.init(
             sequence: 4,
+            type: "message_created",
+            createdAt: openClawToolResult.createdAt,
+            threadId: openClawThread.id,
+            messageId: openClawToolResult.id,
+            message: openClawToolResult
+        ))
+        try? store.apply(.init(
+            sequence: 5,
             type: "thread_created",
             createdAt: secondaryOpenClawThread.createdAt,
             threadId: secondaryOpenClawThread.id,
@@ -221,6 +271,7 @@ private struct OpenClawPreviewMessagePayload: Encodable {
     let authorLabel: String?
     let text: String
     let links: [OpenClawLink]
+    let toolCalls: [OpenClawToolCall]
     let deliveryState: OpenClawDeliveryState
     let createdAt: Int64
     let updatedAt: Int64
@@ -233,6 +284,7 @@ private struct OpenClawPreviewMessagePayload: Encodable {
         authorLabel = message.authorLabel
         text = message.text
         links = message.links
+        toolCalls = message.toolCalls
         deliveryState = message.deliveryState
         createdAt = message.createdAt
         updatedAt = message.updatedAt

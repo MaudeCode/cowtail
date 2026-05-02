@@ -259,6 +259,7 @@ private enum SeedFactory {
             CowtailPreviewFixtures.openClawThread.id: [
                 CowtailPreviewFixtures.openClawMessageWithActions,
                 CowtailPreviewFixtures.openClawReplyWithActions,
+                CowtailPreviewFixtures.openClawToolResultWithActions,
             ],
             CowtailPreviewFixtures.secondaryOpenClawThread.id: []
         ]

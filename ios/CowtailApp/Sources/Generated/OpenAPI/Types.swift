@@ -1383,6 +1383,100 @@ internal enum Components {
                 internal typealias LinksPayload = [Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.LinksPayloadPayload]
                 /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/links`.
                 internal var links: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.LinksPayload?
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload`.
+                internal struct ToolCallsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/id`.
+                    internal var id: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/name`.
+                    internal var name: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/args`.
+                    internal struct ArgsPayload: Codable, Hashable, Sendable {
+                        /// A container of undocumented properties.
+                        internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
+                        /// Creates a new `ArgsPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        internal init(from decoder: any Swift.Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        internal func encode(to encoder: any Swift.Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/args`.
+                    internal var args: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ToolCallsPayloadPayload.ArgsPayload?
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/result`.
+                    internal var result: OpenAPIRuntime.OpenAPIValueContainer?
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/status`.
+                    internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case pending = "pending"
+                        case running = "running"
+                        case complete = "complete"
+                        case error = "error"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/status`.
+                    internal var status: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ToolCallsPayloadPayload.StatusPayload
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/startedAt`.
+                    internal var startedAt: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/completedAt`.
+                    internal var completedAt: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/insertedAtContentLength`.
+                    internal var insertedAtContentLength: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/ToolCallsPayload/contentSnapshotAtStart`.
+                    internal var contentSnapshotAtStart: Swift.String?
+                    /// Creates a new `ToolCallsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - id:
+                    ///   - name:
+                    ///   - args:
+                    ///   - result:
+                    ///   - status:
+                    ///   - startedAt:
+                    ///   - completedAt:
+                    ///   - insertedAtContentLength:
+                    ///   - contentSnapshotAtStart:
+                    internal init(
+                        id: Swift.String,
+                        name: Swift.String,
+                        args: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ToolCallsPayloadPayload.ArgsPayload? = nil,
+                        result: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                        status: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ToolCallsPayloadPayload.StatusPayload,
+                        startedAt: Swift.Int? = nil,
+                        completedAt: Swift.Int? = nil,
+                        insertedAtContentLength: Swift.Int? = nil,
+                        contentSnapshotAtStart: Swift.String? = nil
+                    ) {
+                        self.id = id
+                        self.name = name
+                        self.args = args
+                        self.result = result
+                        self.status = status
+                        self.startedAt = startedAt
+                        self.completedAt = completedAt
+                        self.insertedAtContentLength = insertedAtContentLength
+                        self.contentSnapshotAtStart = contentSnapshotAtStart
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case id
+                        case name
+                        case args
+                        case result
+                        case status
+                        case startedAt
+                        case completedAt
+                        case insertedAtContentLength
+                        case contentSnapshotAtStart
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/toolCalls`.
+                internal typealias ToolCallsPayload = [Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ToolCallsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/toolCalls`.
+                internal var toolCalls: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ToolCallsPayload?
                 /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/deliveryState`.
                 internal enum DeliveryStatePayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case pending = "pending"
@@ -1522,6 +1616,7 @@ internal enum Components {
                 ///   - authorLabel:
                 ///   - text:
                 ///   - links:
+                ///   - toolCalls:
                 ///   - deliveryState:
                 ///   - createdAt:
                 ///   - updatedAt:
@@ -1533,6 +1628,7 @@ internal enum Components {
                     authorLabel: Swift.String? = nil,
                     text: Swift.String,
                     links: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.LinksPayload? = nil,
+                    toolCalls: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.ToolCallsPayload? = nil,
                     deliveryState: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.DeliveryStatePayload,
                     createdAt: Swift.Int,
                     updatedAt: Swift.Int,
@@ -1544,6 +1640,7 @@ internal enum Components {
                     self.authorLabel = authorLabel
                     self.text = text
                     self.links = links
+                    self.toolCalls = toolCalls
                     self.deliveryState = deliveryState
                     self.createdAt = createdAt
                     self.updatedAt = updatedAt
@@ -1556,6 +1653,7 @@ internal enum Components {
                     case authorLabel
                     case text
                     case links
+                    case toolCalls
                     case deliveryState
                     case createdAt
                     case updatedAt
