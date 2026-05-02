@@ -24,6 +24,25 @@ final class OpenClawFlowTests: XCTestCase {
         XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
     }
 
+    func testCanFocusAndTypeInThreadComposer() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let previewThreadRow = app.buttons["row.openclaw.thread.preview-thread"]
+        XCTAssertTrue(previewThreadRow.waitForExistence(timeout: 5))
+        previewThreadRow.tap()
+        XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
+
+        let composer = element(in: app, identifier: "field.openclaw.reply")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+
+        composer.tap()
+        composer.typeText("Check rollout")
+
+        XCTAssertTrue(app.buttons["button.openclaw.send-reply"].isEnabled)
+    }
+
     func testBackFromThreadDetailReturnsToThreadList() {
         let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
         app.launch()
