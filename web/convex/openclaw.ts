@@ -99,6 +99,31 @@ async function hydrateOpenClawEvent(ctx: QueryCtx | MutationCtx, event: Doc<"ope
   return toOpenClawEventEnvelope({ event, thread, message, action, actions });
 }
 
+async function listVisibleOpenClawThreads(ctx: QueryCtx, limit: number) {
+  const [activeThreads, pendingThreads] = await Promise.all([
+    ctx.db
+      .query("openclawThreads")
+      .withIndex("by_status_updatedAt", (q) => q.eq("status", "active"))
+      .order("desc")
+      .take(limit),
+    ctx.db
+      .query("openclawThreads")
+      .withIndex("by_status_updatedAt", (q) => q.eq("status", "pending"))
+      .order("desc")
+      .take(limit),
+  ]);
+
+  return [...activeThreads, ...pendingThreads]
+    .sort((left, right) => {
+      if (left.updatedAt !== right.updatedAt) {
+        return right.updatedAt - left.updatedAt;
+      }
+
+      return String(left._id).localeCompare(String(right._id));
+    })
+    .slice(0, limit);
+}
+
 async function getThreadBySessionKey(ctx: MutationCtx, sessionKey: string) {
   const threads = await ctx.db
     .query("openclawThreads")
@@ -235,7 +260,7 @@ export const createPendingThreadFromIos = mutation({
       direction: "user_to_openclaw",
       text: args.text,
       links: [],
-      deliveryState: "pending",
+      deliveryState: "sent",
       createdAt: now,
       updatedAt: now,
     });
@@ -310,7 +335,7 @@ export const createReplyFromIos = mutation({
       direction: "user_to_openclaw",
       text: args.text,
       links: [],
-      deliveryState: "pending",
+      deliveryState: "sent",
       createdAt: now,
       updatedAt: now,
     });
@@ -427,6 +452,67 @@ export const markThreadRead = mutation({
   },
 });
 
+export const renameThreadFromIos = mutation({
+  args: {
+    serviceToken: v.string(),
+    threadId: v.id("openclawThreads"),
+    title: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
+    const now = Date.now();
+
+    const thread = await ctx.db.get(args.threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${args.threadId}`);
+    }
+
+    await ctx.db.patch(args.threadId, {
+      title: normalizeOpenClawTitle(args.title),
+      updatedAt: now,
+    });
+
+    const sequence = await insertOpenClawEvent(ctx, {
+      type: "thread_updated",
+      threadId: args.threadId,
+    });
+
+    return { ok: true, sequence };
+  },
+});
+
+export const deleteThreadFromIos = mutation({
+  args: {
+    serviceToken: v.string(),
+    threadId: v.id("openclawThreads"),
+  },
+  handler: async (ctx, args) => {
+    requireRealtimeConvexToken(args.serviceToken);
+
+    const now = Date.now();
+
+    const thread = await ctx.db.get(args.threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${args.threadId}`);
+    }
+
+    await ctx.db.patch(args.threadId, {
+      status: "archived",
+      unreadCount: 0,
+      updatedAt: now,
+    });
+
+    const sequence = await insertOpenClawEvent(ctx, {
+      type: "thread_updated",
+      threadId: args.threadId,
+      payload: { deleted: true },
+    });
+
+    return { ok: true, sequence };
+  },
+});
+
 export const listThreads = query({
   args: {
     serviceToken: v.string(),
@@ -437,11 +523,7 @@ export const listThreads = query({
 
     const limit = validateOpenClawLimit(args.limit);
 
-    return await ctx.db
-      .query("openclawThreads")
-      .withIndex("by_updatedAt")
-      .order("desc")
-      .take(limit);
+    return await listVisibleOpenClawThreads(ctx, limit);
   },
 });
 
@@ -489,11 +571,7 @@ export const listThreadsForApp = internalQuery({
   },
   handler: async (ctx, args) => {
     const limit = validateOpenClawLimit(args.limit);
-    const threads = await ctx.db
-      .query("openclawThreads")
-      .withIndex("by_updatedAt")
-      .order("desc")
-      .take(limit);
+    const threads = await listVisibleOpenClawThreads(ctx, limit);
 
     return threads.map(toOpenClawThreadRecord);
   },

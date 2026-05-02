@@ -40,6 +40,8 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
     [];
   public readonly iosThreads: Parameters<CowtailRealtimeApi["createIosThread"]>[0][] = [];
   public readonly iosReplies: Parameters<CowtailRealtimeApi["createIosReply"]>[0][] = [];
+  public readonly renamedThreads: Parameters<CowtailRealtimeApi["renameIosThread"]>[0][] = [];
+  public readonly deletedThreads: Parameters<CowtailRealtimeApi["deleteIosThread"]>[0][] = [];
   public appSessionUserId = "owner-user-id";
   public appSessionSessionId = "session-1";
   public appSessionExpiresAt = Date.now() + 60_000;
@@ -117,6 +119,41 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async markThreadRead(command: Parameters<CowtailRealtimeApi["markThreadRead"]>[0]) {
     return createEvent(5, "thread_updated", { threadId: command.threadId });
+  }
+
+  async renameIosThread(command: Parameters<CowtailRealtimeApi["renameIosThread"]>[0]) {
+    this.renamedThreads.push(command);
+    return createEvent(10, "thread_updated", {
+      threadId: command.threadId,
+      thread: {
+        id: command.threadId,
+        sessionKey: "session-1",
+        status: "active",
+        targetAgent: "default",
+        title: command.title,
+        unreadCount: 0,
+        createdAt: 100,
+        updatedAt: 200,
+      },
+    });
+  }
+
+  async deleteIosThread(command: Parameters<CowtailRealtimeApi["deleteIosThread"]>[0]) {
+    this.deletedThreads.push(command);
+    return createEvent(11, "thread_updated", {
+      threadId: command.threadId,
+      thread: {
+        id: command.threadId,
+        sessionKey: "session-1",
+        status: "archived",
+        targetAgent: "default",
+        title: "Deleted thread",
+        unreadCount: 0,
+        createdAt: 100,
+        updatedAt: 200,
+      },
+      payload: { deleted: true },
+    });
   }
 
   async bindThreadSession(command: Parameters<CowtailRealtimeApi["bindThreadSession"]>[0]) {
@@ -793,6 +830,85 @@ describe("OpenClawSessionController", () => {
     expect(sent(iosSocket)).toEqual([
       api.iosReplyEvent,
       { type: "ack", requestId: "request-2", sequence: 9 },
+    ]);
+  });
+
+  test("renames and deletes threads from authenticated iOS clients", async () => {
+    const { api, controller } = createController();
+    const iosSocket = new FakeSocket();
+    await authenticateIos(controller, iosSocket);
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_rename_thread",
+        requestId: "request-rename",
+        threadId: "thread-1",
+        title: "Renamed chat",
+      }),
+    );
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_delete_thread",
+        requestId: "request-delete",
+        threadId: "thread-1",
+      }),
+    );
+
+    expect(api.renamedThreads).toEqual([
+      {
+        type: "ios_rename_thread",
+        requestId: "request-rename",
+        threadId: "thread-1",
+        title: "Renamed chat",
+      },
+    ]);
+    expect(api.deletedThreads).toEqual([
+      {
+        type: "ios_delete_thread",
+        requestId: "request-delete",
+        threadId: "thread-1",
+      },
+    ]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        sequence: 10,
+        type: "thread_updated",
+        createdAt: 110,
+        threadId: "thread-1",
+        thread: {
+          id: "thread-1",
+          sessionKey: "session-1",
+          status: "active",
+          targetAgent: "default",
+          title: "Renamed chat",
+          unreadCount: 0,
+          createdAt: 100,
+          updatedAt: 200,
+        },
+      },
+      { type: "ack", requestId: "request-rename", sequence: 10 },
+      {
+        sequence: 11,
+        type: "thread_updated",
+        createdAt: 111,
+        threadId: "thread-1",
+        thread: {
+          id: "thread-1",
+          sessionKey: "session-1",
+          status: "archived",
+          targetAgent: "default",
+          title: "Deleted thread",
+          unreadCount: 0,
+          createdAt: 100,
+          updatedAt: 200,
+        },
+        payload: { deleted: true },
+      },
+      { type: "ack", requestId: "request-delete", sequence: 11 },
     ]);
   });
 

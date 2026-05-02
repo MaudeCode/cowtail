@@ -1,10 +1,12 @@
 import { ConvexHttpClient } from "convex/browser";
 import type {
   OpenClawActionResultCommand,
+  OpenClawIosDeleteThreadCommand,
   OpenClawEventEnvelope,
   OpenClawIosActionCommand,
   OpenClawIosMarkThreadReadCommand,
   OpenClawIosNewThreadCommand,
+  OpenClawIosRenameThreadCommand,
   OpenClawIosReplyCommand,
   OpenClawPluginMessageCommand,
   OpenClawReplayQuery,
@@ -23,6 +25,8 @@ type ConvexApiRefs = {
     createReplyFromIos: unknown;
     submitActionFromIos: unknown;
     markThreadRead: unknown;
+    renameThreadFromIos: unknown;
+    deleteThreadFromIos: unknown;
     bindThreadSession: unknown;
     recordActionResultFromOpenClaw: unknown;
   };
@@ -45,6 +49,8 @@ export interface CowtailRealtimeApi {
   createIosReply(command: OpenClawIosReplyCommand): Promise<OpenClawEventEnvelope>;
   submitIosAction(command: OpenClawIosActionCommand): Promise<OpenClawEventEnvelope>;
   markThreadRead(command: OpenClawIosMarkThreadReadCommand): Promise<OpenClawEventEnvelope>;
+  renameIosThread(command: OpenClawIosRenameThreadCommand): Promise<OpenClawEventEnvelope>;
+  deleteIosThread(command: OpenClawIosDeleteThreadCommand): Promise<OpenClawEventEnvelope>;
   bindThreadSession(command: OpenClawSessionBoundCommand): Promise<OpenClawEventEnvelope>;
   recordActionResult(command: OpenClawActionResultCommand): Promise<OpenClawEventEnvelope>;
 }
@@ -233,6 +239,23 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async markThreadRead(command: OpenClawIosMarkThreadReadCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.markThreadRead, {
+      serviceToken: this.serviceToken,
+      threadId: command.threadId as never,
+    });
+    return await this.eventBySequence(getSequence(result));
+  }
+
+  async renameIosThread(command: OpenClawIosRenameThreadCommand): Promise<OpenClawEventEnvelope> {
+    const result = await this.convex.mutation(convexApi.openclaw.renameThreadFromIos, {
+      serviceToken: this.serviceToken,
+      threadId: command.threadId as never,
+      title: command.title,
+    });
+    return await this.eventBySequence(getSequence(result));
+  }
+
+  async deleteIosThread(command: OpenClawIosDeleteThreadCommand): Promise<OpenClawEventEnvelope> {
+    const result = await this.convex.mutation(convexApi.openclaw.deleteThreadFromIos, {
       serviceToken: this.serviceToken,
       threadId: command.threadId as never,
     });

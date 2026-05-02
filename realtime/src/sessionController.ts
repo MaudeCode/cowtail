@@ -286,6 +286,28 @@ export class OpenClawSessionController {
         break;
       }
 
+      case "ios_rename_thread": {
+        try {
+          const event = await this.#api.renameIosThread(command);
+          await this.#broadcastToIos(event);
+          this.#send(connectionId, ack(command.requestId, event.sequence));
+        } catch {
+          this.#send(connectionId, realtimeError("command_failed", command.requestId));
+        }
+        break;
+      }
+
+      case "ios_delete_thread": {
+        try {
+          const event = await this.#api.deleteIosThread(command);
+          await this.#broadcastToIos(event);
+          this.#send(connectionId, ack(command.requestId, event.sequence));
+        } catch {
+          this.#send(connectionId, realtimeError("command_failed", command.requestId));
+        }
+        break;
+      }
+
       case "openclaw_session_bound": {
         try {
           const event = await this.#api.bindThreadSession(command);
@@ -431,7 +453,9 @@ function isCommandAllowedForClient(client: RealtimeClient, commandType: string):
     commandType === "ios_new_thread" ||
     commandType === "ios_reply" ||
     commandType === "ios_action" ||
-    commandType === "ios_mark_thread_read"
+    commandType === "ios_mark_thread_read" ||
+    commandType === "ios_rename_thread" ||
+    commandType === "ios_delete_thread"
   );
 }
 

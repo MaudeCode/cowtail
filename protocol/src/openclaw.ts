@@ -154,6 +154,19 @@ export const openclawIosMarkThreadReadCommandSchema = z.object({
   threadId: nonEmptyStringSchema,
 });
 
+export const openclawIosRenameThreadCommandSchema = z.object({
+  type: z.literal("ios_rename_thread"),
+  requestId: openclawRequestIdSchema,
+  threadId: nonEmptyStringSchema,
+  title: nonEmptyStringSchema,
+});
+
+export const openclawIosDeleteThreadCommandSchema = z.object({
+  type: z.literal("ios_delete_thread"),
+  requestId: openclawRequestIdSchema,
+  threadId: nonEmptyStringSchema,
+});
+
 export const openclawSessionBoundCommandSchema = z.object({
   type: z.literal("openclaw_session_bound"),
   requestId: openclawRequestIdSchema,
@@ -175,6 +188,8 @@ export const openclawRealtimeClientMessageSchema = z.discriminatedUnion("type", 
   openclawIosReplyCommandSchema,
   openclawIosActionCommandSchema,
   openclawIosMarkThreadReadCommandSchema,
+  openclawIosRenameThreadCommandSchema,
+  openclawIosDeleteThreadCommandSchema,
   openclawSessionBoundCommandSchema,
   openclawActionResultCommandSchema,
 ]);
@@ -262,6 +277,8 @@ export type OpenClawIosActionCommand = z.infer<typeof openclawIosActionCommandSc
 export type OpenClawIosMarkThreadReadCommand = z.infer<
   typeof openclawIosMarkThreadReadCommandSchema
 >;
+export type OpenClawIosRenameThreadCommand = z.infer<typeof openclawIosRenameThreadCommandSchema>;
+export type OpenClawIosDeleteThreadCommand = z.infer<typeof openclawIosDeleteThreadCommandSchema>;
 export type OpenClawSessionBoundCommand = z.infer<typeof openclawSessionBoundCommandSchema>;
 export type OpenClawActionResultCommand = z.infer<typeof openclawActionResultCommandSchema>;
 export type OpenClawRealtimeAck = z.infer<typeof openclawRealtimeAckSchema>;

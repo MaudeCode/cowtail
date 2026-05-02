@@ -230,6 +230,32 @@ describe("openclaw protocol schemas", () => {
       requestId: "request-4b",
       threadId: "thread-1",
     });
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "ios_rename_thread",
+        requestId: "request-4c",
+        threadId: "thread-1",
+        title: "Better title",
+      }),
+    ).toEqual({
+      type: "ios_rename_thread",
+      requestId: "request-4c",
+      threadId: "thread-1",
+      title: "Better title",
+    });
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "ios_delete_thread",
+        requestId: "request-4d",
+        threadId: "thread-1",
+      }),
+    ).toEqual({
+      type: "ios_delete_thread",
+      requestId: "request-4d",
+      threadId: "thread-1",
+    });
   });
 
   test("parses realtime session binding and action result commands", () => {

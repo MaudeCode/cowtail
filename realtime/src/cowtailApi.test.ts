@@ -194,6 +194,17 @@ describe("ConvexCowtailRealtimeApi", () => {
       requestId: "request-4",
       threadId: "thread-1",
     });
+    await api.renameIosThread({
+      type: "ios_rename_thread",
+      requestId: "request-4a",
+      threadId: "thread-1",
+      title: "Better title",
+    });
+    await api.deleteIosThread({
+      type: "ios_delete_thread",
+      requestId: "request-4b",
+      threadId: "thread-1",
+    });
     await api.bindThreadSession({
       type: "openclaw_session_bound",
       requestId: "request-5",
