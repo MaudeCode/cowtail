@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct OpenClawThreadDetailView: View {
     @Environment(\.cowtailPalette) private var palette
@@ -60,7 +59,6 @@ struct OpenClawThreadDetailView: View {
                         .padding(.top, CowtailDesignGuide.pageTopPadding)
                         .padding(.bottom, 12)
                     }
-                    .scrollDismissesKeyboard(.interactively)
                     .onAppear {
                         scrollToBottom(proxy: proxy, animated: false)
                     }
@@ -278,21 +276,17 @@ private struct OpenClawThreadComposer: View {
 
     @State private var replyText = ""
     @State private var isSending = false
-    @State private var isFocused = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 8) {
             Divider()
 
             HStack(alignment: .bottom, spacing: 10) {
-                OpenClawComposerTextView(
-                    text: $replyText,
-                    isFocused: $isFocused,
-                    font: OpenClawComposerTextView.defaultFont,
-                    textColor: UIColor(palette.ink),
-                    placeholder: "Message OpenClaw"
-                )
-                    .frame(minHeight: 20, maxHeight: 112)
+                TextField("Message OpenClaw", text: $replyText, axis: .vertical)
+                    .focused($isFocused)
+                    .font(.cowtailSans(15, relativeTo: .body))
+                    .textInputAutocapitalization(.sentences)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
                     .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -300,6 +294,8 @@ private struct OpenClawThreadComposer: View {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(isFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
                     )
+                    .lineLimit(1...5)
+                    .accessibilityIdentifier("field.openclaw.reply")
 
                 Button {
                     sendCurrentReply()
