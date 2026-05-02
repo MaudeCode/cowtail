@@ -11,9 +11,7 @@ function asRecord(value: unknown): JsonRecord {
 }
 
 async function readManifest(): Promise<JsonRecord> {
-  const manifestPath = fileURLToPath(
-    new URL("../openclaw.plugin.json", import.meta.url),
-  );
+  const manifestPath = fileURLToPath(new URL("../openclaw.plugin.json", import.meta.url));
   return asRecord(await Bun.file(manifestPath).json());
 }
 
