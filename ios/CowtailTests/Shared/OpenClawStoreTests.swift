@@ -22,6 +22,25 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(store.displayName, "Maude")
     }
 
+    func testUpdateDisplayNameReportsFailureWhenSessionRefreshFails() async {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        defaults.set("Maude", forKey: "openclaw.displayName")
+        AppSessionManager.shared.resetForUITesting()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        let saved = await store.updateDisplayName("Maude Ops")
+
+        XCTAssertFalse(saved)
+        XCTAssertEqual(store.displayName, "Maude")
+        XCTAssertEqual(defaults.string(forKey: "openclaw.displayName"), "Maude")
+        XCTAssertEqual(store.errorMessage, "Sign in from Farmhouse to update OpenClaw settings.")
+    }
+
     func testAppliesEventBeforeAdvancingCursor() throws {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let store = OpenClawStore(
