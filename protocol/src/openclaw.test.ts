@@ -219,6 +219,54 @@ describe("openclaw protocol schemas", () => {
       links: [],
       deliveryState: "pending",
     });
+
+    expect(
+      openclawRealtimeClientMessageSchema.parse({
+        type: "openclaw_message",
+        requestId: "request-tool",
+        sessionKey: "session-1",
+        text: "",
+        toolCalls: [
+          {
+            id: "tool-1",
+            name: "read_file",
+            status: "complete",
+          },
+        ],
+      }),
+    ).toEqual({
+      type: "openclaw_message",
+      requestId: "request-tool",
+      sessionKey: "session-1",
+      text: "",
+      links: [],
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "read_file",
+          status: "complete",
+        },
+      ],
+      actions: [],
+    });
+
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message",
+        requestId: "request-empty",
+        sessionKey: "session-1",
+        text: "",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message_update",
+        requestId: "request-empty-update",
+        messageId: "message-1",
+        text: "",
+      }).success,
+    ).toBe(false);
   });
 
   test("parses realtime iOS commands", () => {
@@ -301,6 +349,15 @@ describe("openclaw protocol schemas", () => {
       requestId: "request-4d",
       threadId: "thread-1",
     });
+
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "ios_reply",
+        requestId: "request-empty",
+        threadId: "thread-1",
+        text: "",
+      }).success,
+    ).toBe(false);
   });
 
   test("parses realtime session binding and action result commands", () => {

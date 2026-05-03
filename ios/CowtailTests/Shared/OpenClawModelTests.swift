@@ -158,6 +158,49 @@ final class OpenClawModelTests: XCTestCase {
         XCTAssertEqual(toolCall.result, .string("deployment complete"))
     }
 
+    func testDecodesToolOnlyMessageWithEmptyText() throws {
+        let decoder = JSONDecoder()
+        let event = try decoder.decode(OpenClawServerMessage.self, from: Data("""
+        {
+          "sequence": 5,
+          "type": "message_created",
+          "createdAt": 1777128000000,
+          "threadId": "thread-1",
+          "messageId": "message-tool-only",
+          "message": {
+            "id": "message-tool-only",
+            "threadId": "thread-1",
+            "direction": "openclaw_to_user",
+            "authorLabel": "OpenClaw",
+            "text": "",
+            "links": [],
+            "toolCalls": [{
+              "id": "call-read",
+              "name": "read_file",
+              "args": { "path": "~/agents/maude/AGENTS.md" },
+              "result": "first lines",
+              "status": "complete",
+              "insertedAtContentLength": 0,
+              "contentSnapshotAtStart": ""
+            }],
+            "deliveryState": "pending",
+            "createdAt": 1777127999000,
+            "updatedAt": 1777128000000
+          }
+        }
+        """.utf8))
+
+        guard case .event(let envelope) = event else {
+            return XCTFail("Expected event")
+        }
+
+        XCTAssertEqual(envelope.message?.text, "")
+        let toolCall = try XCTUnwrap(envelope.message?.toolCalls.first)
+        XCTAssertEqual(toolCall.id, "call-read")
+        XCTAssertEqual(toolCall.name, "read_file")
+        XCTAssertEqual(toolCall.args?["path"], .string("~/agents/maude/AGENTS.md"))
+    }
+
     func testPreviewMessageFixturesPreserveToolCalls() throws {
         let toolCall = try XCTUnwrap(CowtailPreviewFixtures.openClawMessageWithActions.toolCalls.first)
 

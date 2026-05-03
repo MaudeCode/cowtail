@@ -26,6 +26,32 @@ export const openclawActionStateSchema = z.enum(["pending", "submitted", "failed
 export const openclawToolCallStatusSchema = z.enum(["pending", "running", "complete", "error"]);
 export const openclawEventTypeSchema = z.enum(openclawEventTypes);
 export const openclawSequenceSchema = z.number().int().nonnegative();
+export const openclawMessageTextSchema = z.string();
+
+function hasOpenClawRenderableContent(value: {
+  text: string;
+  links?: unknown[];
+  toolCalls?: unknown[];
+  actions?: unknown[];
+}): boolean {
+  return (
+    value.text.trim().length > 0 ||
+    (value.links?.length ?? 0) > 0 ||
+    (value.toolCalls?.length ?? 0) > 0 ||
+    (value.actions?.length ?? 0) > 0
+  );
+}
+
+function requireOpenClawRenderableContent<TSchema extends z.ZodObject>(schema: TSchema): TSchema {
+  return schema.refine(
+    (value) =>
+      hasOpenClawRenderableContent(value as Parameters<typeof hasOpenClawRenderableContent>[0]),
+    {
+      message: "OpenClaw messages require text or renderable content",
+      path: ["text"],
+    },
+  ) as unknown as TSchema;
+}
 
 export const openclawLinkSchema = z.object({
   label: nonEmptyStringSchema,
@@ -75,18 +101,22 @@ export const openclawThreadRecordSchema = z.object({
   lastMessageAt: timestampSchema.optional(),
 });
 
-export const openclawMessageRecordSchema = z.object({
+const openclawMessageRecordBaseSchema = z.object({
   id: nonEmptyStringSchema,
   threadId: nonEmptyStringSchema,
   direction: openclawMessageDirectionSchema,
   authorLabel: nonEmptyStringSchema.optional(),
-  text: nonEmptyStringSchema,
+  text: openclawMessageTextSchema,
   links: z.array(openclawLinkSchema).default([]),
   toolCalls: z.array(openclawToolCallRecordSchema).default([]),
   deliveryState: openclawDeliveryStateSchema,
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });
+
+export const openclawMessageRecordSchema = requireOpenClawRenderableContent(
+  openclawMessageRecordBaseSchema,
+);
 
 export const openclawActionRecordSchema = z.object({
   id: nonEmptyStringSchema,
@@ -131,29 +161,33 @@ export const openclawActionDraftSchema = z.object({
   payload: jsonObjectSchema,
 });
 
-export const openclawPluginMessageCommandSchema = z.object({
-  type: z.literal("openclaw_message"),
-  requestId: openclawRequestIdSchema,
-  sessionKey: nonEmptyStringSchema,
-  title: nonEmptyStringSchema.optional(),
-  text: nonEmptyStringSchema,
-  authorLabel: nonEmptyStringSchema.optional(),
-  links: z.array(openclawLinkSchema).default([]),
-  toolCalls: z.array(openclawToolCallRecordSchema).default([]),
-  actions: z.array(openclawActionDraftSchema).default([]),
-  deliveryState: openclawDeliveryStateSchema.optional(),
-});
+export const openclawPluginMessageCommandSchema = requireOpenClawRenderableContent(
+  z.object({
+    type: z.literal("openclaw_message"),
+    requestId: openclawRequestIdSchema,
+    sessionKey: nonEmptyStringSchema,
+    title: nonEmptyStringSchema.optional(),
+    text: openclawMessageTextSchema,
+    authorLabel: nonEmptyStringSchema.optional(),
+    links: z.array(openclawLinkSchema).default([]),
+    toolCalls: z.array(openclawToolCallRecordSchema).default([]),
+    actions: z.array(openclawActionDraftSchema).default([]),
+    deliveryState: openclawDeliveryStateSchema.optional(),
+  }),
+);
 
-export const openclawPluginMessageUpdateCommandSchema = z.object({
-  type: z.literal("openclaw_message_update"),
-  requestId: openclawRequestIdSchema,
-  messageId: nonEmptyStringSchema,
-  text: nonEmptyStringSchema,
-  links: z.array(openclawLinkSchema).optional(),
-  toolCalls: z.array(openclawToolCallRecordSchema).optional(),
-  actions: z.array(openclawActionDraftSchema).optional(),
-  deliveryState: openclawDeliveryStateSchema.optional(),
-});
+export const openclawPluginMessageUpdateCommandSchema = requireOpenClawRenderableContent(
+  z.object({
+    type: z.literal("openclaw_message_update"),
+    requestId: openclawRequestIdSchema,
+    messageId: nonEmptyStringSchema,
+    text: openclawMessageTextSchema,
+    links: z.array(openclawLinkSchema).optional(),
+    toolCalls: z.array(openclawToolCallRecordSchema).optional(),
+    actions: z.array(openclawActionDraftSchema).optional(),
+    deliveryState: openclawDeliveryStateSchema.optional(),
+  }),
+);
 
 export const openclawIosNewThreadCommandSchema = z.object({
   type: z.literal("ios_new_thread"),
@@ -210,7 +244,7 @@ export const openclawActionResultCommandSchema = z.object({
   resultMetadata: jsonObjectSchema.optional(),
 });
 
-export const openclawRealtimeClientMessageSchema = z.discriminatedUnion("type", [
+export const openclawRealtimeClientMessageSchema = z.union([
   openclawPluginMessageCommandSchema,
   openclawPluginMessageUpdateCommandSchema,
   openclawIosNewThreadCommandSchema,
@@ -259,9 +293,11 @@ export const openclawMessageListResponseSchema = z.object({
   messages: z.array(openclawMessageRecordSchema),
 });
 
-export const openclawMessageWithActionsRecordSchema = openclawMessageRecordSchema.extend({
-  actions: z.array(openclawActionRecordSchema).default([]),
-});
+export const openclawMessageWithActionsRecordSchema = requireOpenClawRenderableContent(
+  openclawMessageRecordBaseSchema.extend({
+    actions: z.array(openclawActionRecordSchema).default([]),
+  }),
+);
 
 export const openclawMessageWithActionsListResponseSchema = z.object({
   ok: z.literal(true),
