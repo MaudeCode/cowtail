@@ -10,23 +10,11 @@ struct OpenClawThreadListView: View {
     @State private var deleteTarget: OpenClawThread?
 
     var body: some View {
-        CowtailCanvas {
+        OpenClawScreen {
             List {
-                header
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: CowtailDesignGuide.pageTopPadding,
-                            leading: 14,
-                            bottom: 5,
-                            trailing: 14
-                        )
-                    )
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-
                 if let errorMessage = store.errorMessage {
                     errorCard(message: errorMessage)
-                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
+                        .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 5, trailing: 14))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }
@@ -43,13 +31,13 @@ struct OpenClawThreadListView: View {
                         .listRowBackground(Color.clear)
                 } else {
                     threadSectionHeader
-                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 3, trailing: 14))
+                        .listRowInsets(EdgeInsets(top: 10, leading: 18, bottom: 2, trailing: 18))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
 
                     ForEach(store.threads) { thread in
                         threadRow(thread)
-                            .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
+                            .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                     }
@@ -62,9 +50,10 @@ struct OpenClawThreadListView: View {
                 await store.refreshIfPossible()
             }
         }
+        .openClawStyle(OpenClawStyle(palette: palette))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.openclaw.threads")
-        .navigationTitle("")
+        .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -101,29 +90,17 @@ struct OpenClawThreadListView: View {
         }
     }
 
-    private var header: some View {
-        CowtailCard {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    CowtailMonoLabel(text: "OpenClaw")
-                    Text(displayName)
-                        .font(.cowtailSans(24, weight: .bold, relativeTo: .title2))
-                        .foregroundStyle(palette.ink)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 0)
-
-                CowtailStatusBadge(
-                    title: store.connectionState.displayTitle,
-                    tint: store.connectionState.tint
-                )
-            }
-        }
-    }
-
     private var threadSectionHeader: some View {
-        InboxSectionHeader(title: "Conversations", detail: "\(store.threads.count)")
+        HStack(spacing: 8) {
+            Text("Conversations")
+                .font(.cowtailSans(12, weight: .semibold, relativeTo: .caption))
+                .foregroundStyle(style.secondaryText)
+                .textCase(.uppercase)
+            Spacer(minLength: 0)
+            Text("\(store.threads.count)")
+                .font(.cowtailMono(11, relativeTo: .caption2))
+                .foregroundStyle(style.secondaryText)
+        }
     }
 
     private func threadRow(_ thread: OpenClawThread) -> some View {
@@ -131,7 +108,6 @@ struct OpenClawThreadListView: View {
             universalLinkRouter.openClawPath = [.thread(thread.id)]
         } label: {
             OpenClawThreadRow(thread: thread)
-                .cowtailCard()
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -165,37 +141,42 @@ struct OpenClawThreadListView: View {
     }
 
     private var signedOutCard: some View {
-        CowtailCard {
-            CowtailSectionHeader(title: "Signed Out")
-            Text("Sign in from Farmhouse to use OpenClaw threads.")
-                .font(.cowtailSans(15, relativeTo: .subheadline))
-                .foregroundStyle(.secondary)
-        }
+        OpenClawInlineBanner(
+            title: "Signed Out",
+            message: "Sign in from Farmhouse to use OpenClaw threads.",
+            tint: store.connectionState.tint,
+            systemImage: "person.crop.circle.badge.exclamationmark"
+        )
         .accessibilityIdentifier("card.openclaw.signed-out")
     }
 
     private var emptyCard: some View {
-        CowtailCard {
-            CowtailSectionHeader(title: "No Threads")
-            Text("Start a thread when you need OpenClaw to help with a cluster task.")
-                .font(.cowtailSans(15, relativeTo: .subheadline))
-                .foregroundStyle(.secondary)
-        }
+        OpenClawInlineBanner(
+            title: "No Threads",
+            message: "Start a thread when you need OpenClaw to help with a cluster task.",
+            tint: style.info,
+            systemImage: "bubble.left.and.bubble.right"
+        )
         .accessibilityIdentifier("card.openclaw.empty")
     }
 
     private func errorCard(message: String) -> some View {
-        CowtailCard {
-            CowtailSectionHeader(title: "OpenClaw Error")
-            Text(message)
-                .font(.cowtailSans(13, relativeTo: .footnote))
-                .foregroundStyle(.red)
-        }
+        OpenClawInlineBanner(
+            title: "OpenClaw Error",
+            message: message,
+            tint: .red,
+            systemImage: "exclamationmark.triangle",
+            messageLineLimit: nil
+        )
     }
 
     private var displayName: String {
         let trimmed = store.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "OpenClaw" : trimmed
+    }
+
+    private var style: OpenClawStyle {
+        OpenClawStyle(palette: palette)
     }
 
     private var deleteDialogBinding: Binding<Bool> {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OpenClawActionButtons: View {
-    @Environment(\.cowtailPalette) private var palette
+    @Environment(\.openClawStyle) private var style
     @EnvironmentObject private var store: OpenClawStore
 
     let actions: [OpenClawAction]
@@ -25,10 +25,20 @@ struct OpenClawActionButtons: View {
                                     .controlSize(.mini)
                             }
                             Text(action.label)
+                                .font(.cowtailSans(13, weight: .semibold, relativeTo: .footnote))
+                                .foregroundStyle(style.accent)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(minHeight: 44)
+                        .background(style.accentSoft, in: RoundedRectangle(cornerRadius: style.controlCornerRadius, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: style.controlCornerRadius, style: .continuous)
+                                .stroke(style.accent.opacity(0.28), lineWidth: 1)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(palette.accent)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(style.accent)
                     .disabled(submittingActionIDs.contains(action.id))
                     .accessibilityIdentifier("button.openclaw.action.\(action.id)")
                 }

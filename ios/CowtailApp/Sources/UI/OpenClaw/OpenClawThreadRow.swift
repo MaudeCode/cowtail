@@ -1,47 +1,60 @@
 import SwiftUI
 
 struct OpenClawThreadRow: View {
-    @Environment(\.cowtailPalette) private var palette
+    @Environment(\.openClawStyle) private var style
 
     let thread: OpenClawThread
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(thread.unreadCount > 0 ? style.accentSoft : style.transcriptHoverSurface)
+                .overlay(Circle().stroke(thread.unreadCount > 0 ? style.accent.opacity(0.28) : style.border.opacity(0.8), lineWidth: 1))
+                .frame(width: style.avatarSize, height: style.avatarSize)
+                .overlay {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(thread.unreadCount > 0 ? style.accent : style.secondaryText)
+                }
+                .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 6) {
-                Text(thread.title)
-                    .font(.cowtailSans(16, weight: .semibold, relativeTo: .headline))
-                    .foregroundStyle(palette.ink)
-                    .lineLimit(2)
-
-                HStack(spacing: 8) {
-                    if thread.status != .active {
-                        CowtailStatusBadge(title: thread.status.displayTitle, tint: thread.status.tint)
-                    }
-
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(thread.title)
+                        .font(.cowtailSans(15, weight: .semibold, relativeTo: .headline))
+                        .foregroundStyle(style.primaryText)
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
                     Text(activityText)
-                        .font(.cowtailSans(12, relativeTo: .caption))
-                        .foregroundStyle(.secondary)
+                        .font(.cowtailSans(11, relativeTo: .caption2))
+                        .foregroundStyle(style.secondaryText)
                         .lineLimit(1)
+                }
+
+                if thread.status != .active {
+                    Text(thread.status.displayTitle)
+                        .font(.cowtailSans(12, weight: .medium, relativeTo: .caption))
+                        .foregroundStyle(style.secondaryText)
                 }
             }
 
-            Spacer(minLength: 0)
-
             if thread.unreadCount > 0 {
-                Text("\(thread.unreadCount)")
-                    .font(.cowtailSans(12, weight: .bold, relativeTo: .caption))
+                Text(unreadCountText)
+                    .font(.cowtailSans(11, weight: .bold, relativeTo: .caption2))
                     .foregroundStyle(.white)
-                    .frame(minWidth: 24, minHeight: 24)
+                    .frame(minWidth: 22, minHeight: 22)
                     .padding(.horizontal, thread.unreadCount > 9 ? 4 : 0)
-                    .background(palette.accent, in: Capsule())
+                    .background(style.accent, in: Capsule())
                     .accessibilityLabel("\(thread.unreadCount) unread")
             }
-
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(style.border.opacity(0.65))
+                .frame(height: 1)
+        }
         .contentShape(Rectangle())
     }
 
@@ -49,6 +62,10 @@ struct OpenClawThreadRow: View {
         let timestamp = thread.lastMessageAt ?? thread.updatedAt
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp) / 1_000)
         return "Updated \(date.formatted(.relative(presentation: .named)))"
+    }
+
+    private var unreadCountText: String {
+        thread.unreadCount > 99 ? "99+" : "\(thread.unreadCount)"
     }
 }
 
@@ -61,17 +78,6 @@ extension OpenClawThreadStatus {
             return "Active"
         case .archived:
             return "Archived"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .pending:
-            return .orange
-        case .active:
-            return .green
-        case .archived:
-            return .gray
         }
     }
 }

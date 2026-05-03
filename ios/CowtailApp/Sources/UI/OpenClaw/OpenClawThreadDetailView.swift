@@ -27,39 +27,43 @@ struct OpenClawThreadDetailView: View {
         messages.map { "\($0.id):\($0.updatedAt):\($0.deliveryState.rawValue):\($0.text.count):\($0.toolCalls.count)" }
     }
 
+    private var style: OpenClawStyle {
+        OpenClawStyle(palette: palette)
+    }
+
     var body: some View {
-        CowtailCanvas {
+        OpenClawScreen {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 22) {
-                            detailHeader
-
-                            if shouldShowConnectionBanner {
-                                connectionBanner
-                            }
-
-                            if let errorMessage = localErrorMessage ?? store.errorMessage {
-                                errorCard(message: errorMessage)
-                            }
-
-                            if messages.isEmpty {
-                                emptyMessagesCard
-                            } else {
-                                ForEach(messages) { message in
-                                    OpenClawMessageBubble(message: message)
-                                        .id(message.id)
-                                        .accessibilityIdentifier("message.openclaw.\(message.id)")
+                    ZStack(alignment: .bottomTrailing) {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: style.transcriptSpacing) {
+                                if shouldShowConnectionBanner {
+                                    connectionBanner
                                 }
-                            }
 
-                            Color.clear
-                                .frame(height: 1)
-                                .id(bottomAnchorID)
+                                if let errorMessage = localErrorMessage ?? store.errorMessage {
+                                    errorCard(message: errorMessage)
+                                }
+
+                                if messages.isEmpty {
+                                    emptyMessagesCard
+                                } else {
+                                    ForEach(messages) { message in
+                                        OpenClawMessageBubble(message: message)
+                                            .id(message.id)
+                                            .accessibilityIdentifier("message.openclaw.\(message.id)")
+                                    }
+                                }
+
+                                Color.clear
+                                    .frame(height: 1)
+                                    .id(bottomAnchorID)
+                            }
+                            .padding(.horizontal, style.transcriptHorizontalPadding)
+                            .padding(.top, 14)
+                            .padding(.bottom, 16)
                         }
-                        .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
-                        .padding(.top, CowtailDesignGuide.pageTopPadding)
-                        .padding(.bottom, 12)
                     }
                     .transaction { transaction in
                         if composerIsFocused {
@@ -90,12 +94,17 @@ struct OpenClawThreadDetailView: View {
                 }
             }
         }
+        .openClawStyle(OpenClawStyle(palette: palette))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.openclaw.thread-detail")
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                threadTitlePill
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
@@ -145,77 +154,64 @@ struct OpenClawThreadDetailView: View {
         }
     }
 
-    private var detailHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(palette.accent.opacity(0.14))
-                Image(systemName: "sparkles")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(palette.accent)
-            }
-            .frame(width: 38, height: 38)
+    private var threadTitlePill: some View {
+        HStack(spacing: 8) {
+            Text(thread?.title ?? "Thread")
+                .font(.cowtailSans(15, weight: .semibold, relativeTo: .headline))
+                .foregroundStyle(style.primaryText)
+                .lineLimit(1)
 
-            VStack(alignment: .leading, spacing: 4) {
-                CowtailMonoLabel(text: "OpenClaw")
-                Text(thread?.title ?? "Thread")
-                    .font(.cowtailSans(22, weight: .bold, relativeTo: .title3))
-                    .foregroundStyle(palette.ink)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-
-            if let thread {
-                CowtailStatusBadge(title: thread.status.displayTitle, tint: thread.status.tint)
-            }
+            Circle()
+                .fill(store.connectionState.tint)
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
         }
-        .padding(.top, 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .frame(maxWidth: 230)
+        .background(style.floatingChromeSurface, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(style.border, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("title.openclaw.thread")
     }
 
     private var connectionBanner: some View {
-        CowtailCard {
-            HStack(spacing: 12) {
-                CowtailStatusBadge(title: store.connectionState.displayTitle, tint: store.connectionState.tint)
-
-                Text(connectionMessage)
-                    .font(.cowtailSans(13, relativeTo: .footnote))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-
-                Spacer(minLength: 0)
-
-                Button {
-                    Task {
-                        await store.reconnectForeground()
-                    }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Reconnect OpenClaw")
-                .accessibilityIdentifier("button.openclaw.reconnect")
+        OpenClawInlineBanner(
+            title: store.connectionState.displayTitle,
+            message: connectionMessage,
+            tint: store.connectionState.tint,
+            systemImage: "wifi.exclamationmark",
+            actionSystemImage: "arrow.clockwise",
+            actionAccessibilityLabel: "Retry OpenClaw connection",
+            actionAccessibilityIdentifier: "button.openclaw.reconnect"
+        ) {
+            Task {
+                await store.reconnectForeground()
             }
         }
         .accessibilityIdentifier("card.openclaw.connection")
     }
 
     private var emptyMessagesCard: some View {
-        CowtailCard {
-            CowtailSectionHeader(title: "No Messages")
-            Text("Messages for this thread have not loaded yet.")
-                .font(.cowtailSans(15, relativeTo: .subheadline))
-                .foregroundStyle(.secondary)
-        }
+        OpenClawInlineBanner(
+            title: "No Messages",
+            message: "Messages for this thread have not loaded yet.",
+            tint: .gray,
+            systemImage: "bubble.left"
+        )
     }
 
     private func errorCard(message: String) -> some View {
-        CowtailCard {
-            CowtailSectionHeader(title: "Thread Error")
-            Text(message)
-                .font(.cowtailSans(13, relativeTo: .footnote))
-                .foregroundStyle(.red)
-        }
+        OpenClawInlineBanner(
+            title: "Thread Error",
+            message: message,
+            tint: .red,
+            systemImage: "exclamationmark.triangle",
+            messageLineLimit: nil
+        )
     }
 
     private var canSendReply: Bool {
@@ -293,7 +289,7 @@ struct OpenClawThreadDetailView: View {
 }
 
 private struct OpenClawThreadComposer: View {
-    @Environment(\.cowtailPalette) private var palette
+    @Environment(\.openClawStyle) private var style
 
     let canSendReply: Bool
     @Binding var isFocused: Bool
@@ -306,45 +302,52 @@ private struct OpenClawThreadComposer: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Divider()
-
             HStack(alignment: .bottom, spacing: 10) {
-                TextField("Message OpenClaw", text: $replyText, axis: .vertical)
+                TextField("Message", text: $replyText, axis: .vertical)
                     .focused($fieldIsFocused)
                     .font(.cowtailSans(15, relativeTo: .body))
                     .textInputAutocapitalization(.sentences)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(fieldIsFocused ? palette.accent.opacity(0.7) : palette.border, lineWidth: 1)
-                    )
-                    .lineLimit(1...5)
+                    .padding(.vertical, 8)
+                    .lineLimit(1...7)
                     .accessibilityIdentifier("field.openclaw.reply")
 
                 Button {
                     sendCurrentReply()
                 } label: {
-                    if isSending {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.up")
-                            .font(.headline.weight(.bold))
+                    ZStack {
+                        RoundedRectangle(cornerRadius: style.controlCornerRadius, style: .continuous)
+                            .fill(canSendCurrentReply ? style.accent : style.border)
+                            .frame(width: style.sendButtonSize, height: style.sendButtonSize)
+
+                        if isSending {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.up")
+                                .font(.headline.weight(.bold))
+                        }
                     }
+                    .frame(width: style.sendTapTargetSize, height: style.sendTapTargetSize)
+                    .contentShape(Rectangle())
                 }
-                .frame(width: 38, height: 38)
-                .background(canSendCurrentReply ? palette.accent : palette.border, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .foregroundStyle(canSendCurrentReply ? .white : .secondary)
+                .foregroundStyle(canSendCurrentReply ? .white : style.secondaryText)
                 .disabled(!canSendCurrentReply)
                 .accessibilityLabel("Send reply")
                 .accessibilityIdentifier("button.openclaw.send-reply")
             }
-            .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
-            .padding(.bottom, 10)
+            .padding(.leading, 14)
+            .padding(.trailing, 6)
+            .padding(.vertical, 6)
+            .background(style.composerSurface, in: RoundedRectangle(cornerRadius: style.composerCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: style.composerCornerRadius, style: .continuous)
+                    .stroke(fieldIsFocused ? style.accent.opacity(0.55) : style.border, lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.24), radius: 18, x: 0, y: 10)
         }
-        .background(.regularMaterial)
+        .padding(.horizontal, style.transcriptHorizontalPadding)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
         .onChange(of: fieldIsFocused) { _, newValue in
             isFocused = newValue
         }

@@ -17,28 +17,29 @@ struct OpenClawNewThreadView: View {
                     VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
                         CowtailPageHeader(title: .title("New OpenClaw Thread"))
 
-                        CowtailCard {
-                            VStack(alignment: .leading, spacing: 12) {
-                                CowtailSectionHeader(title: "Thread")
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Thread")
+                                .font(.cowtailSans(13, weight: .semibold, relativeTo: .footnote))
+                                .foregroundStyle(style.secondaryText)
 
-                                TextField("Title", text: $titleText)
-                                    .textFieldStyle(.roundedBorder)
-                                    .accessibilityIdentifier("field.openclaw.new-thread.title")
+                            TextField("Title", text: $titleText)
+                                .openClawFieldChrome()
+                                .accessibilityIdentifier("field.openclaw.new-thread.title")
 
-                                TextField("Message", text: $messageText, axis: .vertical)
-                                    .textFieldStyle(.roundedBorder)
-                                    .lineLimit(4...10)
-                                    .accessibilityIdentifier("field.openclaw.new-thread.message")
-                            }
+                            TextField("Message", text: $messageText, axis: .vertical)
+                                .openClawFieldChrome()
+                                .lineLimit(4...10)
+                                .accessibilityIdentifier("field.openclaw.new-thread.message")
                         }
 
                         if let errorMessage {
-                            CowtailCard {
-                                CowtailSectionHeader(title: "Send Error")
-                                Text(errorMessage)
-                                    .font(.cowtailSans(13, relativeTo: .footnote))
-                                    .foregroundStyle(.red)
-                            }
+                            OpenClawInlineBanner(
+                                title: "Send Error",
+                                message: errorMessage,
+                                tint: .red,
+                                systemImage: "exclamationmark.triangle",
+                                messageLineLimit: nil
+                            )
                         }
                     }
                     .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
@@ -46,6 +47,7 @@ struct OpenClawNewThreadView: View {
                     .padding(.bottom, 24)
                 }
             }
+            .openClawStyle(OpenClawStyle(palette: palette))
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("sheet.openclaw.new-thread")
             .navigationTitle("")
@@ -77,6 +79,10 @@ struct OpenClawNewThreadView: View {
 
     private var trimmedTitle: String {
         titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var style: OpenClawStyle {
+        OpenClawStyle(palette: palette)
     }
 
     private var trimmedMessage: String {

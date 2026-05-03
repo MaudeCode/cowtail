@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OpenClawMessageBubble: View {
-    @Environment(\.cowtailPalette) private var palette
+    @Environment(\.openClawStyle) private var style
 
     let message: OpenClawMessageWithActions
 
@@ -14,18 +14,12 @@ struct OpenClawMessageBubble: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            speakerMark
-
-            VStack(alignment: .leading, spacing: 12) {
-                header
-
-                content
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 12) {
+            messageContent
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
+        .padding(.vertical, 0)
+        .accessibilityElement(children: .contain)
     }
 
     private var messageBody: AttributedString {
@@ -33,63 +27,67 @@ struct OpenClawMessageBubble: View {
             ?? AttributedString(message.text)
     }
 
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(messageBody)
-                    .font(.cowtailSans(isUserMessage ? 15 : 16, relativeTo: .body))
-                    .foregroundStyle(palette.ink)
-                    .lineSpacing(isUserMessage ? 2 : 4)
-                    .textSelection(.enabled)
+    @ViewBuilder
+    private var messageContent: some View {
+        if isUserMessage {
+            HStack(alignment: .top, spacing: 10) {
+                Spacer(minLength: 42)
+
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text("You")
+                        .font(.cowtailSans(12, weight: .semibold, relativeTo: .caption))
+                        .foregroundStyle(style.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(style.accentSoft, in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(style.accent.opacity(0.20), lineWidth: 1)
+                        }
+
+                    transcriptText
+                    links
+                    OpenClawActionButtons(actions: message.actions)
+                }
+                .padding(.trailing, 10)
+                .frame(maxWidth: 360, alignment: .trailing)
+                .overlay(alignment: .trailing) {
+                    Capsule()
+                        .fill(style.accent.opacity(0.52))
+                        .frame(width: 2)
+                }
             }
+        } else {
+            VStack(alignment: .leading, spacing: 14) {
+                if let statusTitle = message.deliveryState != .sent && !isStreaming ? message.deliveryState.displayTitle : nil {
+                    Text(statusTitle)
+                        .font(.cowtailSans(12, weight: .medium, relativeTo: .caption))
+                        .foregroundStyle(style.secondaryText)
+                }
 
-            toolCalls
+                transcriptText
 
-            if isStreaming {
-                streamingIndicator
+                toolCalls
+
+                if isStreaming {
+                    streamingIndicator
+                }
+
+                links
+                OpenClawActionButtons(actions: message.actions)
             }
-
-            links
-            OpenClawActionButtons(actions: message.actions)
         }
-        .padding(.vertical, isUserMessage ? 12 : 0)
-        .padding(.horizontal, isUserMessage ? 14 : 0)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(rowBackground)
     }
 
-    private var speakerMark: some View {
-        ZStack {
-            Circle()
-                .fill(isUserMessage ? palette.surface : palette.accent.opacity(0.14))
-                .overlay(
-                    Circle()
-                        .stroke(isUserMessage ? palette.border : palette.accent.opacity(0.35), lineWidth: 1)
-                )
-
-            Image(systemName: isUserMessage ? "person.fill" : "sparkles")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(isUserMessage ? .secondary : palette.accent)
-        }
-        .frame(width: 30, height: 30)
-        .accessibilityHidden(true)
-    }
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text(speakerTitle)
-                .font(.cowtailSans(13, weight: .semibold, relativeTo: .footnote))
-                .foregroundStyle(palette.ink)
-
-            Text(message.createdAt.openClawTimestampTitle)
-                .font(.cowtailSans(12, relativeTo: .caption))
-                .foregroundStyle(.secondary)
-
-            if message.deliveryState != .sent && !isStreaming {
-                Text(message.deliveryState.displayTitle)
-                    .font(.cowtailSans(12, weight: .medium, relativeTo: .caption))
-                    .foregroundStyle(.secondary)
-            }
+    @ViewBuilder
+    private var transcriptText: some View {
+        if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Text(messageBody)
+                .font(.cowtailSans(isUserMessage ? 17 : 18, relativeTo: .body))
+                .foregroundStyle(style.primaryText)
+                .lineSpacing(isUserMessage ? 4 : 5)
+                .multilineTextAlignment(isUserMessage ? .trailing : .leading)
+                .textSelection(.enabled)
         }
     }
 
@@ -97,7 +95,6 @@ struct OpenClawMessageBubble: View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(message.toolCalls) { toolCall in
                 OpenClawToolCallCard(toolCall: toolCall)
-                    .accessibilityIdentifier("tool.openclaw.\(toolCall.id)")
             }
         }
     }
@@ -109,49 +106,44 @@ struct OpenClawMessageBubble: View {
                     Link(destination: url) {
                         Label(link.label, systemImage: "arrow.up.right")
                             .font(.cowtailSans(13, weight: .semibold, relativeTo: .footnote))
+                            .foregroundStyle(style.accent)
+                            .lineLimit(1)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(style.transcriptHoverSurface, in: RoundedRectangle(cornerRadius: style.toolNameCornerRadius, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: style.toolNameCornerRadius, style: .continuous)
+                                    .stroke(style.border, lineWidth: 1)
+                            }
                     }
                 } else {
                     Text(link.label)
                         .font(.cowtailSans(13, weight: .semibold, relativeTo: .footnote))
+                        .foregroundStyle(style.secondaryText)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var rowBackground: some View {
-        if isUserMessage {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(palette.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(palette.border, lineWidth: 1)
-                )
-        }
-    }
-
     private var streamingIndicator: some View {
         HStack(spacing: 6) {
+            if message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Thinking")
+                    .font(.cowtailSans(12, relativeTo: .caption))
+                    .foregroundStyle(style.secondaryText)
+            }
             StreamingPulse()
             StreamingPulse(delay: 0.16)
             StreamingPulse(delay: 0.32)
         }
-        .padding(.top, 2)
+        .padding(.top, message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 2)
         .accessibilityLabel("OpenClaw is responding")
-    }
-
-    private var speakerTitle: String {
-        if isUserMessage {
-            return "You"
-        }
-
-        let trimmed = message.authorLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? "OpenClaw" : trimmed
+        .accessibilityIdentifier("indicator.openclaw.responding.\(message.id)")
     }
 }
 
 private struct StreamingPulse: View {
-    @Environment(\.cowtailPalette) private var palette
+    @Environment(\.openClawStyle) private var style
     let delay: Double
     @State private var isOn = false
 
@@ -161,7 +153,7 @@ private struct StreamingPulse: View {
 
     var body: some View {
         Circle()
-            .fill(palette.accent)
+            .fill(style.accent)
             .frame(width: 6, height: 6)
             .opacity(isOn ? 1 : 0.32)
             .animation(.easeInOut(duration: 0.7).delay(delay).repeatForever(autoreverses: true), value: isOn)
@@ -172,7 +164,7 @@ private struct StreamingPulse: View {
 }
 
 private struct OpenClawToolCallCard: View {
-    @Environment(\.cowtailPalette) private var palette
+    @Environment(\.openClawStyle) private var style
     let toolCall: OpenClawToolCall
     @State private var isExpanded = false
 
@@ -188,24 +180,41 @@ private struct OpenClawToolCallCard: View {
 
                     Text(toolCall.name)
                         .font(.cowtailMono(12, weight: .semibold, relativeTo: .caption))
-                        .foregroundStyle(palette.ink)
+                        .foregroundStyle(style.primaryText)
                         .lineLimit(1)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: style.toolNameCornerRadius, style: .continuous)
+                                .fill(style.transcriptHoverSurface)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: style.toolNameCornerRadius, style: .continuous)
+                                .stroke(style.border, lineWidth: 1)
+                        }
 
                     Text(summary)
                         .font(.cowtailSans(12, relativeTo: .caption))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(style.secondaryText)
                         .lineLimit(1)
 
                     Spacer(minLength: 8)
 
+                    if let durationTitle {
+                        Text(durationTitle)
+                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .foregroundStyle(style.secondaryText)
+                            .lineLimit(1)
+                    }
+
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(style.secondaryText)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
                 .contentShape(Rectangle())
                 .padding(.horizontal, 10)
-                .padding(.vertical, 9)
+                .padding(.vertical, 7)
                 .frame(minHeight: 44)
             }
             .buttonStyle(.plain)
@@ -231,19 +240,21 @@ private struct OpenClawToolCallCard: View {
                         )
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.bottom, 10)
+                .padding(10)
+                .background(style.transcriptSecondarySurface)
+                .overlay(alignment: .top) {
+                    OpenClawTranscriptDivider()
+                }
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(palette.surface)
+            RoundedRectangle(cornerRadius: style.toolCornerRadius, style: .continuous)
+                .fill(style.codeBlockSurface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(toolCall.status.borderColor(in: palette), lineWidth: 1)
+            RoundedRectangle(cornerRadius: style.toolCornerRadius, style: .continuous)
+                .stroke(toolCall.status.borderColor(in: style), lineWidth: 1)
         )
-        .accessibilityIdentifier("tool.openclaw.\(toolCall.id)")
     }
 
     private var summary: String {
@@ -260,6 +271,22 @@ private struct OpenClawToolCallCard: View {
         return toolCall.status.displayTitle
     }
 
+    private var durationTitle: String? {
+        guard let startedAt = toolCall.startedAt,
+              let completedAt = toolCall.completedAt,
+              completedAt >= startedAt else {
+            return nil
+        }
+
+        let duration = completedAt - startedAt
+        if duration < 1_000 {
+            return "\(duration) ms"
+        }
+
+        let seconds = Double(duration) / 1_000
+        return seconds.formatted(.number.precision(.fractionLength(1))) + " s"
+    }
+
     @ViewBuilder
     private var statusIcon: some View {
         switch toolCall.status {
@@ -270,12 +297,12 @@ private struct OpenClawToolCallCard: View {
         case .pending:
             Image(systemName: "circle")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(style.secondaryText)
                 .frame(width: 16, height: 16)
         case .complete:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.green)
+                .foregroundStyle(style.success)
                 .frame(width: 16, height: 16)
         case .error:
             Image(systemName: "xmark.circle.fill")
@@ -289,17 +316,17 @@ private struct OpenClawToolCallCard: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
                 .font(.cowtailSans(11, weight: .semibold, relativeTo: .caption2))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(style.secondaryText)
 
             Text(value)
                 .font(.cowtailMono(11, relativeTo: .caption2))
-                .foregroundStyle(palette.ink)
+                .foregroundStyle(style.primaryText)
                 .textSelection(.enabled)
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(palette.ink.opacity(0.04))
+                        .fill(style.transcriptHoverSurface)
                 )
         }
         .accessibilityElement(children: .combine)
@@ -334,24 +361,17 @@ private extension OpenClawToolCallStatus {
         }
     }
 
-    func borderColor(in palette: ThemePalette) -> Color {
+    func borderColor(in style: OpenClawStyle) -> Color {
         switch self {
         case .pending:
-            return palette.border
+            return style.border
         case .running:
-            return palette.accent.opacity(0.45)
+            return style.accent.opacity(0.45)
         case .complete:
-            return palette.border
+            return style.border
         case .error:
             return Color.red.opacity(0.45)
         }
-    }
-}
-
-private extension Int64 {
-    var openClawTimestampTitle: String {
-        let date = Date(timeIntervalSince1970: TimeInterval(self) / 1000)
-        return date.formatted(date: .omitted, time: .shortened)
     }
 }
 

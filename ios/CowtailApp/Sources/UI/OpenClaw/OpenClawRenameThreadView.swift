@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OpenClawRenameThreadView: View {
+    @Environment(\.cowtailPalette) private var palette
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: OpenClawStore
 
@@ -22,24 +23,25 @@ struct OpenClawRenameThreadView: View {
                 VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
                     CowtailPageHeader(title: .title("Rename Thread"))
 
-                    CowtailCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            CowtailSectionHeader(title: "Title")
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Title")
+                            .font(.cowtailSans(13, weight: .semibold, relativeTo: .footnote))
+                            .foregroundStyle(style.secondaryText)
 
-                            TextField("Title", text: $titleText)
-                                .focused($titleIsFocused)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("field.openclaw.rename-thread.title")
-                        }
+                        TextField("Title", text: $titleText)
+                            .focused($titleIsFocused)
+                            .openClawFieldChrome(isFocused: titleIsFocused)
+                            .accessibilityIdentifier("field.openclaw.rename-thread.title")
                     }
 
                     if let errorMessage {
-                        CowtailCard {
-                            CowtailSectionHeader(title: "Rename Error")
-                            Text(errorMessage)
-                                .font(.cowtailSans(13, relativeTo: .footnote))
-                                .foregroundStyle(.red)
-                        }
+                        OpenClawInlineBanner(
+                            title: "Rename Error",
+                            message: errorMessage,
+                            tint: .red,
+                            systemImage: "exclamationmark.triangle",
+                            messageLineLimit: nil
+                        )
                     }
 
                     Spacer(minLength: 0)
@@ -48,6 +50,7 @@ struct OpenClawRenameThreadView: View {
                 .padding(.top, CowtailDesignGuide.pageTopPadding)
                 .padding(.bottom, 24)
             }
+            .openClawStyle(OpenClawStyle(palette: palette))
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("sheet.openclaw.rename-thread")
             .navigationTitle("")
@@ -82,6 +85,10 @@ struct OpenClawRenameThreadView: View {
 
     private var trimmedTitle: String {
         titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var style: OpenClawStyle {
+        OpenClawStyle(palette: palette)
     }
 
     private var canSave: Bool {
