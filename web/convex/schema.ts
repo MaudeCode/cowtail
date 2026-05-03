@@ -135,6 +135,19 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_sequence", ["sequence"]),
 
+  openclawIdempotencyReceipts: defineTable({
+    idempotencyKey: v.string(),
+    commandType: v.string(),
+    commandDigest: v.string(),
+    sequence: v.number(),
+    sessionKey: v.optional(v.string()),
+    threadId: v.optional(v.id("openclawThreads")),
+    messageId: v.optional(v.id("openclawMessages")),
+    actionId: v.optional(v.id("openclawActions")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_idempotencyKey", ["idempotencyKey"]),
+
   openclawState: defineTable({
     key: v.string(),
     nextSequence: v.number(),

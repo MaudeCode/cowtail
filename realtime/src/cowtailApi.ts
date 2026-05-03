@@ -225,6 +225,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
         addDefined(
           {
             serviceToken: this.serviceToken,
+            idempotencyKey: command.idempotencyKey,
             messageId: command.messageId as never,
             text: command.text,
           },
@@ -269,6 +270,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async submitIosAction(command: OpenClawIosActionCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.submitActionFromIos, {
       serviceToken: this.serviceToken,
+      idempotencyKey: command.idempotencyKey,
       actionId: command.actionId as never,
       payload: command.payload,
     });
@@ -278,6 +280,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async markThreadRead(command: OpenClawIosMarkThreadReadCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.markThreadRead, {
       serviceToken: this.serviceToken,
+      idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
     });
     return await this.eventBySequence(getSequence(result));
@@ -286,6 +289,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async renameIosThread(command: OpenClawIosRenameThreadCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.renameThreadFromIos, {
       serviceToken: this.serviceToken,
+      idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
       title: command.title,
     });
@@ -295,6 +299,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async deleteIosThread(command: OpenClawIosDeleteThreadCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.deleteThreadFromIos, {
       serviceToken: this.serviceToken,
+      idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
     });
     return await this.eventBySequence(getSequence(result));
@@ -303,6 +308,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async bindThreadSession(command: OpenClawSessionBoundCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.bindThreadSession, {
       serviceToken: this.serviceToken,
+      idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
       sessionKey: command.sessionKey,
     });
@@ -313,6 +319,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
     const args = addDefined(
       {
         serviceToken: this.serviceToken,
+        idempotencyKey: command.idempotencyKey,
         actionId: command.actionId as never,
         state: command.state,
       },

@@ -179,7 +179,11 @@ function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): Resolve
 }
 
 function createClient(
-  options: { omitCreatedMessageId?: boolean; dropCreatedMessage?: boolean } = {},
+  options: {
+    omitCreatedMessageId?: boolean;
+    dropCreatedMessage?: boolean;
+    duplicateCreatedMessageId?: string;
+  } = {},
 ): FakeClient {
   const sendSessionBoundCalls: FakeClient["sendSessionBoundCalls"] = [];
   const sendActionResultCalls: FakeClient["sendActionResultCalls"] = [];
@@ -204,11 +208,19 @@ function createClient(
       return {
         requestId: "reply-request",
         sequence: 99,
-        payload: options.dropCreatedMessage
-          ? { dropped: true, reason: "thread_archived" }
-          : options.omitCreatedMessageId
-            ? {}
-            : { messageId: `reply-message-${sendOpenClawMessageCalls.length}` },
+        payload:
+          options.duplicateCreatedMessageId !== undefined
+            ? {
+                dropped: true,
+                duplicate: true,
+                reason: "duplicate_idempotency_key",
+                messageId: options.duplicateCreatedMessageId,
+              }
+            : options.dropCreatedMessage
+              ? { dropped: true, reason: "thread_archived" }
+              : options.omitCreatedMessageId
+                ? {}
+                : { messageId: `reply-message-${sendOpenClawMessageCalls.length}` },
       };
     },
     async sendOpenClawMessageUpdate(input) {
@@ -658,6 +670,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([
       {
         type: "openclaw_message_update",
+        idempotencyKey: "cowtail:reply:message-23:update:1",
         messageId: "reply-message-1",
         text: "Checking the deploy logs now.",
         links: [],
@@ -666,6 +679,7 @@ describe("handleCowtailEvent", () => {
       },
       {
         type: "openclaw_message_update",
+        idempotencyKey: "cowtail:reply:message-23:update:2",
         messageId: "reply-message-1",
         text: "Checking the deploy logs now.",
         links: [],
@@ -768,6 +782,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([
       {
         type: "openclaw_message_update",
+        idempotencyKey: "cowtail:reply:message-24:update:1",
         messageId: "reply-message-1",
         text: "Checking ",
         links: [],
@@ -776,6 +791,7 @@ describe("handleCowtailEvent", () => {
       },
       {
         type: "openclaw_message_update",
+        idempotencyKey: "cowtail:reply:message-24:update:2",
         messageId: "reply-message-1",
         text: "Done.",
         links: [],
@@ -888,6 +904,78 @@ describe("handleCowtailEvent", () => {
 
     expect(client.sendOpenClawMessageCalls).toHaveLength(1);
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  test("streaming replies continue when Cowtail acknowledges a duplicate created message", async () => {
+    const client = createClient({ duplicateCreatedMessageId: "reply-message-existing" });
+    const { logger, errors } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Checking " }, info: { kind: "block" } },
+        { payload: { text: "logs now." }, info: { kind: "block" } },
+        { payload: { text: "Checking logs now." }, info: { kind: "final" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 27,
+      type: "reply_created",
+      createdAt: 1_700_000_000_016,
+      threadId: "thread-27",
+      messageId: "message-27",
+      thread: {
+        id: "thread-27",
+        sessionKey: "session-thread-27",
+        status: "active",
+        targetAgent: "default",
+        title: "Duplicate ack chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_016,
+      },
+      message: {
+        id: "message-27",
+        threadId: "thread-27",
+        direction: "user_to_openclaw",
+        text: "Stream.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_016,
+        updatedAt: 1_700_000_000_016,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toHaveLength(1);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([
+      {
+        type: "openclaw_message_update",
+        idempotencyKey: "cowtail:reply:message-27:update:1",
+        messageId: "reply-message-existing",
+        text: "Checking logs now.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+      },
+      {
+        type: "openclaw_message_update",
+        idempotencyKey: "cowtail:reply:message-27:update:2",
+        messageId: "reply-message-existing",
+        text: "Checking logs now.",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
     expect(errors).toEqual([]);
   });
 
@@ -1037,6 +1125,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([
       {
         type: "openclaw_message_update",
+        idempotencyKey: "cowtail:reply:message-27:update:1",
         messageId: "reply-message-1",
         text: "",
         links: [],

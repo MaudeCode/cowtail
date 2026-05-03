@@ -191,7 +191,7 @@ final class OpenClawStore: ObservableObject {
         let requestId = UUID().uuidString
         try await realtime.send(.action(.init(
             requestId: requestId,
-            idempotencyKey: "ios:action:\(requestId)",
+            idempotencyKey: "ios:action:\(actionId)",
             actionId: actionId,
             payload: payload
         )))

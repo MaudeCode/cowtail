@@ -203,6 +203,7 @@ describe("ConvexCowtailRealtimeApi", () => {
         reference: convexApi.openclaw.updateMessageFromOpenClaw,
         args: {
           serviceToken: "realtime-convex-token",
+          idempotencyKey: "cowtail:update:message-1:pending",
           messageId: "message-1",
           text: "Still checking...",
           links: [],
@@ -302,6 +303,9 @@ describe("ConvexCowtailRealtimeApi", () => {
     expect(calls.length > 0).toBe(true);
     for (const call of calls) {
       expect((call.args as { serviceToken?: unknown }).serviceToken).toBe("realtime-convex-token");
+    }
+    for (const call of calls.filter((call) => call.kind === "mutation")) {
+      expect(typeof (call.args as { idempotencyKey?: unknown }).idempotencyKey).toBe("string");
     }
   });
 

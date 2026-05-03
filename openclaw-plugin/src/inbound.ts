@@ -93,6 +93,7 @@ type CowtailReplyStreamState = {
   messageId?: string;
   failed?: boolean;
   completed?: boolean;
+  updateIndex: number;
   text: string;
   links: Array<{ label: string; url: string }>;
   toolCalls: OpenClawToolCallRecord[];
@@ -263,6 +264,7 @@ export async function dispatchCowtailTextTurn(params: {
   });
   const streamState: CowtailReplyStreamState = {
     idempotencyKey: `cowtail:reply:${message.id}`,
+    updateIndex: 0,
     text: "",
     links: [],
     toolCalls: [],
@@ -337,6 +339,7 @@ export async function dispatchCowtailActionTurn(params: {
   let dispatchFailed = false;
   const streamState: CowtailReplyStreamState = {
     idempotencyKey: `cowtail:action:${action.id}`,
+    updateIndex: 0,
     text: "",
     links: [],
     toolCalls: [],
@@ -485,6 +488,7 @@ async function deliverCowtailReply(params: {
 
     await params.client.sendOpenClawMessageUpdate({
       type: "openclaw_message_update",
+      idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
       messageId: params.streamState.messageId,
       text: messageText,
       links,
@@ -523,6 +527,7 @@ async function deliverCowtailReply(params: {
 
     await params.client.sendOpenClawMessageUpdate({
       type: "openclaw_message_update",
+      idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
       messageId: params.streamState.messageId,
       text: params.streamState.text,
       links,
@@ -536,6 +541,7 @@ async function deliverCowtailReply(params: {
     params.streamState.text = text;
     await params.client.sendOpenClawMessageUpdate({
       type: "openclaw_message_update",
+      idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
       messageId: params.streamState.messageId,
       text,
       links,
@@ -577,6 +583,7 @@ async function finalizeCowtailStreamedReply(params: {
 
   await params.client.sendOpenClawMessageUpdate({
     type: "openclaw_message_update",
+    idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
     messageId: params.streamState.messageId,
     text: params.streamState.text,
     links: params.streamState.links,
@@ -592,6 +599,12 @@ function recordCreatedOpenClawMessageId(
   result: { payload?: Record<string, unknown> },
 ): string | undefined {
   if (result.payload?.dropped === true) {
+    if (result.payload.duplicate === true) {
+      const duplicateMessageId = result.payload.messageId;
+      if (typeof duplicateMessageId === "string" && duplicateMessageId.trim()) {
+        return duplicateMessageId;
+      }
+    }
     streamState.failed = true;
     streamState.completed = true;
     return undefined;
@@ -604,6 +617,11 @@ function recordCreatedOpenClawMessageId(
 
   streamState.failed = true;
   throw new Error("Cowtail realtime ack missing messageId for streamed OpenClaw reply");
+}
+
+function nextStreamUpdateIdempotencyKey(streamState: CowtailReplyStreamState): string {
+  streamState.updateIndex += 1;
+  return `${streamState.idempotencyKey}:update:${streamState.updateIndex}`;
 }
 
 function resolveCowtailReplyLinks(payload: CowtailReplyPayload) {

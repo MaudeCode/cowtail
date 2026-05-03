@@ -29,6 +29,16 @@ type OpenClawEventInsertArgs = {
   payload?: Record<string, unknown>;
 };
 
+type IdempotencyReceiptExpectation = {
+  idempotencyKey: string;
+  commandType: string;
+  commandDigest: string;
+  sessionKey?: string;
+  threadId?: Id<"openclawThreads">;
+  messageId?: Id<"openclawMessages">;
+  actionId?: Id<"openclawActions">;
+};
+
 const OPENCLAW_EVENTS_STATE_KEY = "openclaw-events";
 
 async function getUniqueOpenClawStateRow(ctx: MutationCtx) {
@@ -154,6 +164,93 @@ async function getMessageByIdempotencyKey(ctx: MutationCtx, idempotencyKey: stri
   return messages.at(0);
 }
 
+async function getIdempotencyReceipt(ctx: MutationCtx, idempotencyKey: string) {
+  const receipts = await ctx.db
+    .query("openclawIdempotencyReceipts")
+    .withIndex("by_idempotencyKey", (q) => q.eq("idempotencyKey", idempotencyKey))
+    .collect();
+
+  if (receipts.length > 1) {
+    throw new Error(`Duplicate OpenClaw idempotency receipts found for key ${idempotencyKey}`);
+  }
+
+  return receipts.at(0);
+}
+
+async function getDuplicateIdempotencyReceipt(
+  ctx: MutationCtx,
+  expected: IdempotencyReceiptExpectation,
+) {
+  const receipt = await getIdempotencyReceipt(ctx, expected.idempotencyKey);
+  if (!receipt) {
+    return null;
+  }
+
+  assertIdempotencyReceiptMatches(receipt, expected);
+  return receipt;
+}
+
+function assertIdempotencyReceiptMatches(
+  receipt: Doc<"openclawIdempotencyReceipts">,
+  expected: IdempotencyReceiptExpectation,
+): void {
+  if (
+    receipt.commandType !== expected.commandType ||
+    receipt.commandDigest !== expected.commandDigest ||
+    receipt.sessionKey !== expected.sessionKey ||
+    receipt.threadId !== expected.threadId ||
+    receipt.messageId !== expected.messageId ||
+    receipt.actionId !== expected.actionId
+  ) {
+    throw new Error(
+      `Idempotency key ${expected.idempotencyKey} was already used for another command target`,
+    );
+  }
+}
+
+async function insertIdempotencyReceipt(
+  ctx: MutationCtx,
+  expected: IdempotencyReceiptExpectation,
+  sequence: number,
+) {
+  const now = Date.now();
+  await ctx.db.insert("openclawIdempotencyReceipts", {
+    idempotencyKey: expected.idempotencyKey,
+    commandType: expected.commandType,
+    commandDigest: expected.commandDigest,
+    sequence,
+    createdAt: now,
+    updatedAt: now,
+    ...(expected.sessionKey !== undefined ? { sessionKey: expected.sessionKey } : {}),
+    ...(expected.threadId !== undefined ? { threadId: expected.threadId } : {}),
+    ...(expected.messageId !== undefined ? { messageId: expected.messageId } : {}),
+    ...(expected.actionId !== undefined ? { actionId: expected.actionId } : {}),
+  });
+}
+
+function commandDigest(value: unknown): string {
+  return stableJson(value);
+}
+
+function stableJson(value: unknown): string {
+  if (value === undefined) {
+    return "null";
+  }
+
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(",")}]`;
+  }
+
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`)
+    .join(",")}}`;
+}
+
 async function actionIdsForMessage(ctx: MutationCtx, messageId: Id<"openclawMessages">) {
   const actions = await ctx.db
     .query("openclawActions")
@@ -180,6 +277,76 @@ async function acknowledgeDuplicateMessage(ctx: MutationCtx, message: Doc<"openc
     threadId: message.threadId,
     messageId: message._id,
     actionIds: await actionIdsForMessage(ctx, message._id),
+    sequence,
+  };
+}
+
+async function getDuplicateOpenClawMessageForSession(
+  ctx: MutationCtx,
+  idempotencyKey: string,
+  sessionKey: string,
+) {
+  const message = await getMessageByIdempotencyKey(ctx, idempotencyKey);
+  if (!message) {
+    return null;
+  }
+  if (message.direction !== "openclaw_to_user") {
+    throw new Error(
+      `Idempotency key ${idempotencyKey} was already used for another command target`,
+    );
+  }
+
+  const thread = await ctx.db.get(message.threadId);
+  if (!thread || thread.sessionKey !== sessionKey) {
+    throw new Error(
+      `Idempotency key ${idempotencyKey} was already used for another command target`,
+    );
+  }
+
+  return message;
+}
+
+async function getDuplicateIosReplyMessageForThread(
+  ctx: MutationCtx,
+  idempotencyKey: string,
+  threadId: Id<"openclawThreads">,
+) {
+  const message = await getMessageByIdempotencyKey(ctx, idempotencyKey);
+  if (!message) {
+    return null;
+  }
+  if (message.direction !== "user_to_openclaw" || message.threadId !== threadId) {
+    throw new Error(
+      `Idempotency key ${idempotencyKey} was already used for another command target`,
+    );
+  }
+
+  return message;
+}
+
+async function acknowledgeDuplicateReceipt(
+  ctx: MutationCtx,
+  receipt: Doc<"openclawIdempotencyReceipts">,
+) {
+  const sequence = await insertOpenClawEvent(ctx, {
+    type: "message_acknowledged",
+    ...(receipt.threadId !== undefined ? { threadId: receipt.threadId } : {}),
+    ...(receipt.messageId !== undefined ? { messageId: receipt.messageId } : {}),
+    ...(receipt.actionId !== undefined ? { actionId: receipt.actionId } : {}),
+    payload: {
+      dropped: true,
+      duplicate: true,
+      reason: "duplicate_idempotency_key",
+    },
+  });
+
+  return {
+    ok: true,
+    ...(receipt.threadId !== undefined ? { threadId: receipt.threadId } : {}),
+    ...(receipt.messageId !== undefined ? { messageId: receipt.messageId } : {}),
+    ...(receipt.actionId !== undefined ? { actionId: receipt.actionId } : {}),
+    actionIds:
+      receipt.messageId !== undefined ? await actionIdsForMessage(ctx, receipt.messageId) : [],
     sequence,
   };
 }
@@ -212,12 +379,36 @@ export const createThreadFromOpenClaw = mutation({
 
     const now = Date.now();
     const toolCalls = validateOpenClawToolCalls(args.toolCalls ?? []);
-    const idempotentMessage = await getMessageByIdempotencyKey(ctx, args.idempotencyKey);
+    const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "openclaw_message",
+      commandDigest: commandDigest({
+        sessionKey: args.sessionKey,
+        title: args.title,
+        text: args.text,
+        authorLabel: args.authorLabel,
+        links: args.links ?? [],
+        toolCalls,
+        actions: args.actions ?? [],
+        deliveryState: args.deliveryState ?? "sent",
+      }),
+      sessionKey: args.sessionKey,
+      ...(existingThread ? { threadId: existingThread._id } : {}),
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+    }
+
+    const idempotentMessage = await getDuplicateOpenClawMessageForSession(
+      ctx,
+      args.idempotencyKey,
+      args.sessionKey,
+    );
     if (idempotentMessage) {
       return await acknowledgeDuplicateMessage(ctx, idempotentMessage);
     }
-
-    const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
 
     if (existingThread && shouldDropOpenClawReplyForThread(existingThread)) {
       const sequence = await insertOpenClawEvent(ctx, {
@@ -225,6 +416,11 @@ export const createThreadFromOpenClaw = mutation({
         threadId: existingThread._id,
         payload: { dropped: true, reason: "thread_archived" },
       });
+      await insertIdempotencyReceipt(
+        ctx,
+        { ...receiptExpectation, threadId: existingThread._id },
+        sequence,
+      );
 
       return { threadId: existingThread._id, actionIds: [], sequence };
     }
@@ -299,6 +495,11 @@ export const createThreadFromOpenClaw = mutation({
       threadId: thread,
       messageId,
     });
+    await insertIdempotencyReceipt(
+      ctx,
+      { ...receiptExpectation, threadId: thread, messageId },
+      sequence,
+    );
 
     return { threadId: thread, messageId, actionIds, sequence };
   },
@@ -307,6 +508,7 @@ export const createThreadFromOpenClaw = mutation({
 export const updateMessageFromOpenClaw = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     messageId: v.id("openclawMessages"),
     text: v.string(),
     links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
@@ -340,6 +542,25 @@ export const updateMessageFromOpenClaw = mutation({
       throw new Error(`Thread not found: ${message.threadId}`);
     }
 
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "openclaw_message_update",
+      commandDigest: commandDigest({
+        messageId: args.messageId,
+        text: args.text,
+        links: args.links,
+        toolCalls: args.toolCalls ?? [],
+        actions: args.actions ?? [],
+        deliveryState: args.deliveryState,
+      }),
+      threadId: message.threadId,
+      messageId: args.messageId,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+    }
+
     if (shouldDropOpenClawReplyForThread(thread)) {
       const sequence = await insertOpenClawEvent(ctx, {
         type: "message_acknowledged",
@@ -350,6 +571,7 @@ export const updateMessageFromOpenClaw = mutation({
           reason: "thread_archived",
         },
       });
+      await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
       return { threadId: message.threadId, messageId: args.messageId, actionIds: [], sequence };
     }
@@ -400,6 +622,7 @@ export const updateMessageFromOpenClaw = mutation({
       threadId: message.threadId,
       messageId: args.messageId,
     });
+    await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
     return { threadId: message.threadId, messageId: args.messageId, actionIds, sequence };
   },
@@ -416,8 +639,26 @@ export const createPendingThreadFromIos = mutation({
     requireRealtimeConvexToken(args.serviceToken);
 
     const now = Date.now();
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "ios_new_thread",
+      commandDigest: commandDigest({
+        title: args.title,
+        text: args.text,
+      }),
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+    }
+
     const idempotentMessage = await getMessageByIdempotencyKey(ctx, args.idempotencyKey);
     if (idempotentMessage) {
+      if (idempotentMessage.direction !== "user_to_openclaw") {
+        throw new Error(
+          `Idempotency key ${args.idempotencyKey} was already used for another command target`,
+        );
+      }
       return await acknowledgeDuplicateMessage(ctx, idempotentMessage);
     }
 
@@ -448,6 +689,7 @@ export const createPendingThreadFromIos = mutation({
       threadId,
       messageId,
     });
+    await insertIdempotencyReceipt(ctx, { ...receiptExpectation, threadId, messageId }, sequence);
 
     return { threadId, messageId, sequence };
   },
@@ -456,6 +698,7 @@ export const createPendingThreadFromIos = mutation({
 export const bindThreadSession = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     threadId: v.id("openclawThreads"),
     sessionKey: v.string(),
   },
@@ -467,6 +710,21 @@ export const bindThreadSession = mutation({
     const thread = await ctx.db.get(args.threadId);
     if (!thread) {
       throw new Error(`Thread not found: ${args.threadId}`);
+    }
+
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "openclaw_session_bound",
+      commandDigest: commandDigest({
+        threadId: args.threadId,
+        sessionKey: args.sessionKey,
+      }),
+      threadId: args.threadId,
+      sessionKey: args.sessionKey,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
     }
 
     const currentSessionOwner = await getThreadBySessionKey(ctx, args.sessionKey);
@@ -487,6 +745,7 @@ export const bindThreadSession = mutation({
       threadId: args.threadId,
       payload: { sessionKey: args.sessionKey },
     });
+    await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
     return { ok: true, sequence };
   },
@@ -508,7 +767,25 @@ export const createReplyFromIos = mutation({
     }
 
     const now = Date.now();
-    const idempotentMessage = await getMessageByIdempotencyKey(ctx, args.idempotencyKey);
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "ios_reply",
+      commandDigest: commandDigest({
+        threadId: args.threadId,
+        text: args.text,
+      }),
+      threadId: args.threadId,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+    }
+
+    const idempotentMessage = await getDuplicateIosReplyMessageForThread(
+      ctx,
+      args.idempotencyKey,
+      args.threadId,
+    );
     if (idempotentMessage) {
       return await acknowledgeDuplicateMessage(ctx, idempotentMessage);
     }
@@ -535,6 +812,7 @@ export const createReplyFromIos = mutation({
       threadId: args.threadId,
       messageId,
     });
+    await insertIdempotencyReceipt(ctx, { ...receiptExpectation, messageId }, sequence);
 
     return { messageId, sequence };
   },
@@ -543,6 +821,7 @@ export const createReplyFromIos = mutation({
 export const submitActionFromIos = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     actionId: v.id("openclawActions"),
     payload: v.record(v.string(), v.any()),
   },
@@ -552,6 +831,20 @@ export const submitActionFromIos = mutation({
     const action = await ctx.db.get(args.actionId);
     if (!action) {
       throw new Error(`Action not found: ${args.actionId}`);
+    }
+
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "ios_action",
+      commandDigest: commandDigest({
+        payload: args.payload,
+      }),
+      threadId: action.threadId,
+      actionId: args.actionId,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
     }
 
     const now = Date.now();
@@ -568,6 +861,7 @@ export const submitActionFromIos = mutation({
       actionId: args.actionId,
       payload: args.payload,
     });
+    await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
     return { ok: true, sequence };
   },
@@ -576,6 +870,7 @@ export const submitActionFromIos = mutation({
 export const recordActionResultFromOpenClaw = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     actionId: v.id("openclawActions"),
     state: v.union(v.literal("submitted"), v.literal("failed"), v.literal("expired")),
     resultMetadata: v.optional(v.record(v.string(), v.any())),
@@ -586,6 +881,22 @@ export const recordActionResultFromOpenClaw = mutation({
     const action = await ctx.db.get(args.actionId);
     if (!action) {
       throw new Error(`Action not found: ${args.actionId}`);
+    }
+
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "openclaw_action_result",
+      commandDigest: commandDigest({
+        actionId: args.actionId,
+        state: args.state,
+        resultMetadata: args.resultMetadata,
+      }),
+      threadId: action.threadId,
+      actionId: args.actionId,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
     }
 
     const now = Date.now();
@@ -603,6 +914,7 @@ export const recordActionResultFromOpenClaw = mutation({
       actionId: args.actionId,
       payload: eventPayload,
     });
+    await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
     return { ok: true, sequence };
   },
@@ -611,6 +923,7 @@ export const recordActionResultFromOpenClaw = mutation({
 export const markThreadRead = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     threadId: v.id("openclawThreads"),
   },
   handler: async (ctx, args) => {
@@ -623,6 +936,19 @@ export const markThreadRead = mutation({
       throw new Error(`Thread not found: ${args.threadId}`);
     }
 
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "ios_mark_thread_read",
+      commandDigest: commandDigest({
+        threadId: args.threadId,
+      }),
+      threadId: args.threadId,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+    }
+
     await ctx.db.patch(args.threadId, {
       unreadCount: 0,
       updatedAt: now,
@@ -632,6 +958,7 @@ export const markThreadRead = mutation({
       type: "thread_updated",
       threadId: args.threadId,
     });
+    await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
     return { ok: true, sequence };
   },
@@ -640,6 +967,7 @@ export const markThreadRead = mutation({
 export const renameThreadFromIos = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     threadId: v.id("openclawThreads"),
     title: v.string(),
   },
@@ -653,8 +981,23 @@ export const renameThreadFromIos = mutation({
       throw new Error(`Thread not found: ${args.threadId}`);
     }
 
+    const nextTitle = normalizeOpenClawTitle(args.title);
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "ios_rename_thread",
+      commandDigest: commandDigest({
+        threadId: args.threadId,
+        title: nextTitle,
+      }),
+      threadId: args.threadId,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+    }
+
     await ctx.db.patch(args.threadId, {
-      title: normalizeOpenClawTitle(args.title),
+      title: nextTitle,
       updatedAt: now,
     });
 
@@ -662,6 +1005,7 @@ export const renameThreadFromIos = mutation({
       type: "thread_updated",
       threadId: args.threadId,
     });
+    await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
     return { ok: true, sequence };
   },
@@ -670,6 +1014,7 @@ export const renameThreadFromIos = mutation({
 export const deleteThreadFromIos = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     threadId: v.id("openclawThreads"),
   },
   handler: async (ctx, args) => {
@@ -680,6 +1025,19 @@ export const deleteThreadFromIos = mutation({
     const thread = await ctx.db.get(args.threadId);
     if (!thread) {
       throw new Error(`Thread not found: ${args.threadId}`);
+    }
+
+    const receiptExpectation = {
+      idempotencyKey: args.idempotencyKey,
+      commandType: "ios_delete_thread",
+      commandDigest: commandDigest({
+        threadId: args.threadId,
+      }),
+      threadId: args.threadId,
+    };
+    const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
+    if (duplicateReceipt) {
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
     }
 
     await ctx.db.patch(args.threadId, {
@@ -693,6 +1051,7 @@ export const deleteThreadFromIos = mutation({
       threadId: args.threadId,
       payload: { deleted: true },
     });
+    await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
     return { ok: true, sequence };
   },

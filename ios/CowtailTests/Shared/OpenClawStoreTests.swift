@@ -97,6 +97,26 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(delete.threadId, "thread-1")
     }
 
+    func testActionCommandUsesActionScopedIdempotencyKey() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        try await store.submitAction(actionId: "action-1", payload: ["decision": .string("approve")])
+
+        XCTAssertEqual(realtime.sentCommands.count, 1)
+        guard case .action(let action) = realtime.sentCommands[0] else {
+            return XCTFail("Expected action command")
+        }
+        XCTAssertEqual(action.actionId, "action-1")
+        XCTAssertEqual(action.idempotencyKey, "ios:action:action-1")
+    }
+
     func testArchivedThreadEventRemovesThreadAndMessages() throws {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let store = OpenClawStore(
