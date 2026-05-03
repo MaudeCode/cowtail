@@ -199,7 +199,7 @@ describe("cowtailChannelPlugin", () => {
       reactions: false,
       edit: false,
       unsend: false,
-      blockStreaming: false,
+      blockStreaming: true,
     });
   });
 

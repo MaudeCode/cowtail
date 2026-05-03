@@ -431,6 +431,8 @@ describe("handleCowtailEvent", () => {
     ]);
     expect(runtimeState.recordInboundSessionCalls).toHaveLength(1);
     expect(runtimeState.dispatchCalls).toHaveLength(1);
+    expect(runtimeState.dispatchCalls[0]!.replyOptions?.disableBlockStreaming).toBe(false);
+    expect(typeof runtimeState.dispatchCalls[0]!.replyOptions?.onModelSelected).toBe("function");
     expect(runtimeState.dispatchCalls[0]!.ctx).toMatchObject({
       Body: "ENVELOPE:Start here",
       BodyForAgent: "Start here",
@@ -876,6 +878,113 @@ describe("handleCowtailEvent", () => {
         completedAt: expect.any(Number),
         insertedAtContentLength: 9,
         contentSnapshotAtStart: "Checking ",
+      },
+    ]);
+  });
+
+  test("tool-only deliveries create a transcript tool call without summary text", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        {
+          payload: {
+            text: "Read first 5 lines",
+            channelData: {
+              toolCall: {
+                id: "call-read",
+                name: "read_file",
+                args: { path: "~/agents/maude/AGENTS.md" },
+                result: "first lines",
+                status: "complete",
+              },
+            },
+          },
+          info: { kind: "tool" },
+        },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 27,
+      type: "reply_created",
+      createdAt: 1_700_000_000_016,
+      threadId: "thread-27",
+      messageId: "message-27",
+      thread: {
+        id: "thread-27",
+        sessionKey: "session-thread-27",
+        status: "active",
+        targetAgent: "default",
+        title: "Tool-only chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_016,
+      },
+      message: {
+        id: "message-27",
+        threadId: "thread-27",
+        direction: "user_to_openclaw",
+        text: "Use a tool.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_016,
+        updatedAt: 1_700_000_000_016,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        sessionKey: "session-thread-27",
+        title: "Tool-only chat",
+        text: "",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [
+          {
+            id: "call-read",
+            name: "read_file",
+            args: { path: "~/agents/maude/AGENTS.md" },
+            result: "first lines",
+            status: "complete",
+            completedAt: expect.any(Number),
+            insertedAtContentLength: 0,
+            contentSnapshotAtStart: "",
+          },
+        ],
+        actions: [],
+        deliveryState: "pending",
+      },
+    ]);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([
+      {
+        type: "openclaw_message_update",
+        messageId: "reply-message-1",
+        text: "",
+        links: [],
+        toolCalls: [
+          {
+            id: "call-read",
+            name: "read_file",
+            args: { path: "~/agents/maude/AGENTS.md" },
+            result: "first lines",
+            status: "complete",
+            completedAt: expect.any(Number),
+            insertedAtContentLength: 0,
+            contentSnapshotAtStart: "",
+          },
+        ],
+        actions: [],
+        deliveryState: "sent",
       },
     ]);
   });

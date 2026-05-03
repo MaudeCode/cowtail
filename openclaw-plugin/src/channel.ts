@@ -98,7 +98,7 @@ export function createCowtailChannelPlugin(deps: CowtailChannelDeps = defaultDep
         reactions: false,
         edit: false,
         unsend: false,
-        blockStreaming: false,
+        blockStreaming: true,
       },
       setup: {
         applyAccountConfig: ({ cfg }) => cfg,

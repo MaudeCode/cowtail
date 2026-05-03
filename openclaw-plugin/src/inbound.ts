@@ -91,7 +91,9 @@ type CowtailReplyDispatchInfo = {
 type CowtailReplyStreamState = {
   messageId?: string;
   failed?: boolean;
+  completed?: boolean;
   text: string;
+  links: Array<{ label: string; url: string }>;
   toolCalls: OpenClawToolCallRecord[];
 };
 
@@ -255,7 +257,7 @@ export async function dispatchCowtailTextTurn(params: {
     body,
     timestamp: message.createdAt,
   });
-  const streamState: CowtailReplyStreamState = { text: "", toolCalls: [] };
+  const streamState: CowtailReplyStreamState = { text: "", links: [], toolCalls: [] };
 
   await recordCowtailInboundSessionAndDispatchReply({
     cfg: runtime.config.loadConfig(),
@@ -282,6 +284,11 @@ export async function dispatchCowtailTextTurn(params: {
     onDispatchError: (error, info) => {
       logger?.error?.(`Cowtail ${info.kind} reply failed: ${errorMessage(error)}`);
     },
+  });
+
+  await finalizeCowtailStreamedReply({
+    client,
+    streamState,
   });
 }
 
@@ -319,7 +326,7 @@ export async function dispatchCowtailActionTurn(params: {
     timestamp,
   });
   let dispatchFailed = false;
-  const streamState: CowtailReplyStreamState = { text: "", toolCalls: [] };
+  const streamState: CowtailReplyStreamState = { text: "", links: [], toolCalls: [] };
 
   await recordCowtailInboundSessionAndDispatchReply({
     cfg: runtime.config.loadConfig(),
@@ -347,6 +354,11 @@ export async function dispatchCowtailActionTurn(params: {
       dispatchFailed = true;
       logger?.error?.(`Cowtail ${info.kind} reply failed: ${errorMessage(error)}`);
     },
+  });
+
+  await finalizeCowtailStreamedReply({
+    client,
+    streamState,
   });
 
   return !dispatchFailed;
@@ -401,6 +413,7 @@ async function recordCowtailInboundSessionAndDispatchReply(params: {
       onError: params.onDispatchError,
     },
     replyOptions: {
+      disableBlockStreaming: false,
       onModelSelected,
     },
   });
@@ -422,15 +435,18 @@ async function deliverCowtailReply(params: {
   const text = params.payload.text;
   const kind = params.info?.kind ?? "final";
   const links = resolveCowtailReplyLinks(params.payload);
+  if (links.length > 0) {
+    params.streamState.links = links;
+  }
 
   if (kind === "tool") {
-    const { toolCall, summary } = buildCowtailToolCall({
+    const toolCall = buildCowtailToolCall({
       payload: params.payload,
       rawPayload: params.rawPayload,
       streamState: params.streamState,
     });
     params.streamState.toolCalls = [...params.streamState.toolCalls, toolCall];
-    const messageText = params.streamState.text || summary || "Tool activity";
+    const messageText = params.streamState.text;
 
     if (!params.streamState.messageId) {
       const result = await params.client.sendOpenClawMessage({
@@ -503,6 +519,7 @@ async function deliverCowtailReply(params: {
       actions: [],
       deliveryState: "sent",
     });
+    params.streamState.completed = true;
     return;
   }
 
@@ -517,6 +534,32 @@ async function deliverCowtailReply(params: {
     actions: [],
     deliveryState: "sent",
   });
+  params.streamState.completed = true;
+}
+
+async function finalizeCowtailStreamedReply(params: {
+  client: CowtailInboundClient;
+  streamState: CowtailReplyStreamState;
+}): Promise<void> {
+  if (
+    params.streamState.failed ||
+    params.streamState.completed ||
+    !params.streamState.messageId ||
+    (!params.streamState.text.trim() && params.streamState.toolCalls.length === 0)
+  ) {
+    return;
+  }
+
+  await params.client.sendOpenClawMessageUpdate({
+    type: "openclaw_message_update",
+    messageId: params.streamState.messageId,
+    text: params.streamState.text,
+    links: params.streamState.links,
+    toolCalls: params.streamState.toolCalls,
+    actions: [],
+    deliveryState: "sent",
+  });
+  params.streamState.completed = true;
 }
 
 function recordCreatedOpenClawMessageId(
@@ -556,12 +599,11 @@ function buildCowtailToolCall(params: {
   payload: CowtailReplyPayload;
   rawPayload: unknown;
   streamState: CowtailReplyStreamState;
-}): { toolCall: OpenClawToolCallRecord; summary?: string } {
+}): OpenClawToolCallRecord {
   const rawToolCall = readRawToolCall(params.rawPayload);
-  const summary = resolveToolCallSummary(params.payload, rawToolCall);
   const index = params.streamState.toolCalls.length + 1;
 
-  const toolCall: OpenClawToolCallRecord = {
+  return {
     id: rawToolCall.id ?? `tool-${index}`,
     name: rawToolCall.name ?? "tool_result",
     ...(rawToolCall.args ? { args: rawToolCall.args } : {}),
@@ -574,11 +616,6 @@ function buildCowtailToolCall(params: {
     completedAt: rawToolCall.completedAt ?? Date.now(),
     insertedAtContentLength: params.streamState.text.length,
     contentSnapshotAtStart: params.streamState.text,
-  };
-
-  return {
-    toolCall,
-    ...(summary ? { summary } : {}),
   };
 }
 
@@ -616,19 +653,6 @@ function readRawToolCall(payload: unknown): Partial<OpenClawToolCallRecord> {
     ...(insertedAtContentLength !== undefined ? { insertedAtContentLength } : {}),
     ...(contentSnapshotAtStart !== undefined ? { contentSnapshotAtStart } : {}),
   };
-}
-
-function resolveToolCallSummary(
-  payload: CowtailReplyPayload,
-  toolCall: Partial<OpenClawToolCallRecord>,
-): string | undefined {
-  if (typeof payload.text === "string" && payload.text.trim()) {
-    return payload.text.trim().split("\n")[0];
-  }
-  if (toolCall.name) {
-    return toolCall.name;
-  }
-  return undefined;
 }
 
 function readString(value: unknown): string | undefined {
