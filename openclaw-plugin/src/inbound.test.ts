@@ -170,7 +170,9 @@ function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): Resolve
   };
 }
 
-function createClient(options: { omitCreatedMessageId?: boolean } = {}): FakeClient {
+function createClient(
+  options: { omitCreatedMessageId?: boolean; dropCreatedMessage?: boolean } = {},
+): FakeClient {
   const sendSessionBoundCalls: FakeClient["sendSessionBoundCalls"] = [];
   const sendActionResultCalls: FakeClient["sendActionResultCalls"] = [];
   const sendOpenClawMessageCalls: FakeClient["sendOpenClawMessageCalls"] = [];
@@ -194,9 +196,11 @@ function createClient(options: { omitCreatedMessageId?: boolean } = {}): FakeCli
       return {
         requestId: "reply-request",
         sequence: 99,
-        payload: options.omitCreatedMessageId
-          ? {}
-          : { messageId: `reply-message-${sendOpenClawMessageCalls.length}` },
+        payload: options.dropCreatedMessage
+          ? { dropped: true, reason: "thread_archived" }
+          : options.omitCreatedMessageId
+            ? {}
+            : { messageId: `reply-message-${sendOpenClawMessageCalls.length}` },
       };
     },
     async sendOpenClawMessageUpdate(input) {
@@ -821,6 +825,58 @@ describe("handleCowtailEvent", () => {
     expect(errors).toContain(
       "Cowtail block reply failed: Cowtail realtime ack missing messageId for streamed OpenClaw reply",
     );
+  });
+
+  test("streaming replies stop cleanly when Cowtail drops an archived thread reply", async () => {
+    const client = createClient({ dropCreatedMessage: true });
+    const { logger, errors } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Checking " }, info: { kind: "block" } },
+        { payload: { text: "logs now" }, info: { kind: "block" } },
+        { payload: { text: "Done." }, info: { kind: "final" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 26,
+      type: "reply_created",
+      createdAt: 1_700_000_000_015,
+      threadId: "thread-26",
+      messageId: "message-26",
+      thread: {
+        id: "thread-26",
+        sessionKey: "session-thread-26",
+        status: "active",
+        targetAgent: "default",
+        title: "Archived chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_015,
+      },
+      message: {
+        id: "message-26",
+        threadId: "thread-26",
+        direction: "user_to_openclaw",
+        text: "Stream.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_015,
+        updatedAt: 1_700_000_000_015,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toHaveLength(1);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
+    expect(errors).toEqual([]);
   });
 
   test("normalized tool deliveries are labeled as observed tool output", async () => {

@@ -460,7 +460,11 @@ async function deliverCowtailReply(params: {
         actions: [],
         deliveryState: "pending",
       });
-      params.streamState.messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+      const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+      if (!messageId) {
+        return;
+      }
+      params.streamState.messageId = messageId;
       return;
     }
 
@@ -493,7 +497,11 @@ async function deliverCowtailReply(params: {
         actions: [],
         deliveryState: "pending",
       });
-      params.streamState.messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+      const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+      if (!messageId) {
+        return;
+      }
+      params.streamState.messageId = messageId;
       return;
     }
 
@@ -565,7 +573,13 @@ async function finalizeCowtailStreamedReply(params: {
 function recordCreatedOpenClawMessageId(
   streamState: CowtailReplyStreamState,
   result: { payload?: Record<string, unknown> },
-): string {
+): string | undefined {
+  if (result.payload?.dropped === true) {
+    streamState.failed = true;
+    streamState.completed = true;
+    return undefined;
+  }
+
   const messageId = result.payload?.messageId;
   if (typeof messageId === "string" && messageId.trim()) {
     return messageId;
