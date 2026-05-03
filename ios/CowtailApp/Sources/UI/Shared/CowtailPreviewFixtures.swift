@@ -79,9 +79,26 @@ enum CowtailPreviewFixtures {
         lastMessageAt: 1_774_996_180_000
     )
 
+    static let openClawTranscriptThread = OpenClawThread(
+        id: "preview-transcript-thread",
+        sessionKey: "preview-transcript-session",
+        status: .active,
+        targetAgent: "cluster-ops",
+        title: "Cove-style transcript review",
+        unreadCount: 0,
+        createdAt: 1_775_000_300_000,
+        updatedAt: 1_775_000_420_000,
+        lastMessageAt: 1_775_000_420_000
+    )
+
     static let openClawLink = OpenClawLink(
         label: "Runbook",
         url: "https://example.com/runbooks/storage-latency"
+    )
+
+    static let openClawTranscriptLink = OpenClawLink(
+        label: "View node metrics",
+        url: "https://example.com/metrics"
     )
 
     static let openClawMessage = OpenClawMessage(
@@ -159,6 +176,111 @@ enum CowtailPreviewFixtures {
         updatedAt: 1_775_000_121_000
     )
 
+    static let openClawTranscriptAssistantMessage = OpenClawMessage(
+        id: "message-transcript-assistant",
+        threadId: openClawTranscriptThread.id,
+        direction: .openClawToUser,
+        authorLabel: "OpenClaw",
+        text: """
+        I checked the storage latency window and found two useful signals.
+
+        The elevated p95 latency lines up with a short CPU pressure burst, but the placement groups recovered without a persistent error state. I would treat this as watch-worthy rather than immediately actionable.
+        """,
+        links: [openClawTranscriptLink],
+        toolCalls: [
+            OpenClawToolCall(
+                id: "tool-transcript-complete",
+                name: "query_metrics",
+                args: ["query": .string("storage_latency_p95{node=~\"node-a|node-c\"}")],
+                result: .string("p95 latency peaked at 184ms and returned to baseline after 7 minutes."),
+                status: .complete,
+                startedAt: 1_775_000_300_000,
+                completedAt: 1_775_000_301_240,
+                insertedAtContentLength: nil,
+                contentSnapshotAtStart: nil
+            )
+        ],
+        deliveryState: .sent,
+        createdAt: 1_775_000_300_000,
+        updatedAt: 1_775_000_301_240
+    )
+
+    static let openClawTranscriptUserMessage = OpenClawMessage(
+        id: "message-transcript-user",
+        threadId: openClawTranscriptThread.id,
+        direction: .userToOpenClaw,
+        authorLabel: "You",
+        text: "Keep watching it and tell me if it crosses the threshold again.",
+        links: [],
+        toolCalls: [],
+        deliveryState: .sent,
+        createdAt: 1_775_000_360_000,
+        updatedAt: 1_775_000_360_000
+    )
+
+    static let openClawTranscriptRunningToolMessage = OpenClawMessage(
+        id: "message-transcript-running-tool",
+        threadId: openClawTranscriptThread.id,
+        direction: .openClawToUser,
+        authorLabel: "OpenClaw",
+        text: "I am starting a read-only follow-up check.",
+        links: [],
+        toolCalls: [
+            OpenClawToolCall(
+                id: "tool-transcript-running",
+                name: "exec",
+                args: ["command": .string("kubectl top nodes --no-headers")],
+                result: nil,
+                status: .running,
+                startedAt: 1_775_000_390_000,
+                completedAt: nil,
+                insertedAtContentLength: nil,
+                contentSnapshotAtStart: nil
+            )
+        ],
+        deliveryState: .pending,
+        createdAt: 1_775_000_390_000,
+        updatedAt: 1_775_000_390_000
+    )
+
+    static let openClawTranscriptErrorToolMessage = OpenClawMessage(
+        id: "message-transcript-error-tool",
+        threadId: openClawTranscriptThread.id,
+        direction: .openClawToUser,
+        authorLabel: "OpenClaw",
+        text: "One read-only query failed, but the transcript should still show the error compactly.",
+        links: [],
+        toolCalls: [
+            OpenClawToolCall(
+                id: "tool-transcript-error",
+                name: "query_metrics",
+                args: ["query": .string("ceph_pg_degraded")],
+                result: .string("metrics backend timeout"),
+                status: .error,
+                startedAt: 1_775_000_410_000,
+                completedAt: 1_775_000_412_800,
+                insertedAtContentLength: nil,
+                contentSnapshotAtStart: nil
+            )
+        ],
+        deliveryState: .sent,
+        createdAt: 1_775_000_410_000,
+        updatedAt: 1_775_000_412_800
+    )
+
+    static let openClawTranscriptAction = OpenClawAction(
+        id: "preview-transcript-action",
+        threadId: openClawTranscriptThread.id,
+        messageId: openClawTranscriptRunningToolMessage.id,
+        label: "Run read-only check",
+        kind: "diagnostic",
+        payload: ["mode": .string("read-only")],
+        state: .pending,
+        resultMetadata: nil,
+        createdAt: 1_775_000_390_100,
+        updatedAt: 1_775_000_390_100
+    )
+
     static var openClawMessageWithActions: OpenClawMessageWithActions {
         decodeOpenClawMessageWithActions(openClawMessage, actions: [openClawAction])
     }
@@ -171,13 +293,26 @@ enum CowtailPreviewFixtures {
         decodeOpenClawMessageWithActions(openClawToolResult, actions: [])
     }
 
+    static var openClawTranscriptMessagesWithActions: [OpenClawMessageWithActions] {
+        [
+            decodeOpenClawMessageWithActions(openClawTranscriptAssistantMessage, actions: []),
+            decodeOpenClawMessageWithActions(openClawTranscriptUserMessage, actions: []),
+            decodeOpenClawMessageWithActions(openClawTranscriptRunningToolMessage, actions: [openClawTranscriptAction]),
+            decodeOpenClawMessageWithActions(openClawTranscriptErrorToolMessage, actions: [])
+        ]
+    }
+
     @MainActor
     static func openClawStore() -> OpenClawStore {
         let api = PreviewOpenClawAPI(
             displayName: "OpenClaw",
             threads: [openClawThread, secondaryOpenClawThread],
             messagesByThreadID: [
-                openClawThread.id: [openClawMessageWithActions, openClawReplyWithActions, openClawToolResultWithActions]
+                openClawThread.id: [
+                    openClawMessageWithActions,
+                    openClawReplyWithActions,
+                    openClawToolResultWithActions
+                ]
             ]
         )
         let defaults = UserDefaults(suiteName: "cowtail.openclaw.preview.\(UUID().uuidString)") ?? .standard

@@ -22,6 +22,9 @@ final class OpenClawFlowTests: XCTestCase {
         previewThreadRow.tap()
 
         XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
+        let threadTitle = element(in: app, identifier: "title.openclaw.thread")
+        XCTAssertTrue(threadTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(threadTitle.label.contains("Investigate storage latency"))
     }
 
     func testCanFocusAndTypeInThreadComposer() {
@@ -99,6 +102,84 @@ final class OpenClawFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["p95 latency is elevated on node-a and node-c."].exists)
     }
 
+    func testTranscriptShowcaseRendersMessageSequenceAndActions() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_transcript_showcase")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let row = app.buttons["row.openclaw.thread.preview-transcript-thread"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let assistantMessage = element(in: app, identifier: "message.openclaw.message-transcript-assistant")
+        let userMessage = element(in: app, identifier: "message.openclaw.message-transcript-user")
+        let runningToolMessage = element(in: app, identifier: "message.openclaw.message-transcript-running-tool")
+        let errorToolMessage = element(in: app, identifier: "message.openclaw.message-transcript-error-tool")
+
+        XCTAssertTrue(assistantMessage.waitForExistence(timeout: 5))
+        XCTAssertTrue(userMessage.exists)
+        XCTAssertTrue(runningToolMessage.exists)
+        XCTAssertTrue(errorToolMessage.exists)
+        XCTAssertLessThan(assistantMessage.frame.minY, userMessage.frame.minY)
+        XCTAssertLessThan(userMessage.frame.minY, runningToolMessage.frame.minY)
+        XCTAssertLessThan(runningToolMessage.frame.minY, errorToolMessage.frame.minY)
+        XCTAssertTrue(staticText(containing: "I checked the storage latency window", in: app).exists)
+        XCTAssertTrue(staticText(containing: "Keep watching it", in: app).exists)
+        XCTAssertTrue(staticText(containing: "read-only follow-up check", in: app).exists)
+        XCTAssertTrue(staticText(containing: "One read-only query failed", in: app).exists)
+        XCTAssertTrue(app.buttons["button.openclaw.action.preview-transcript-action"].waitForExistence(timeout: 5))
+    }
+
+    func testTranscriptToolCardsExposeStableExpandableDetails() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_transcript_showcase")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let row = app.buttons["row.openclaw.thread.preview-transcript-thread"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let completeTool = app.buttons["tool.openclaw.tool-transcript-complete"].firstMatch
+        XCTAssertTrue(completeTool.waitForExistence(timeout: 5))
+        XCTAssertTrue(completeTool.value as? String == "Complete, collapsed")
+        completeTool.tap()
+        XCTAssertTrue(completeTool.value as? String == "Complete, expanded")
+        XCTAssertTrue(element(in: app, identifier: "tool.openclaw.tool-transcript-complete.input").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(in: app, identifier: "tool.openclaw.tool-transcript-complete.output").exists)
+        XCTAssertTrue(staticText(containing: "storage_latency_p95", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(staticText(containing: "p95 latency peaked at 184ms", in: app).exists)
+
+        let errorTool = app.buttons["tool.openclaw.tool-transcript-error"].firstMatch
+        XCTAssertTrue(errorTool.waitForExistence(timeout: 5))
+        XCTAssertTrue(errorTool.value as? String == "Error, collapsed")
+    }
+
+    func testComposerRemainsUsableAfterTranscriptShowcaseContent() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_transcript_showcase")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let row = app.buttons["row.openclaw.thread.preview-transcript-thread"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let composer = element(in: app, identifier: "field.openclaw.reply")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText("Keep monitoring")
+
+        XCTAssertTrue(app.buttons["button.openclaw.send-reply"].isEnabled)
+    }
+
+    func testEmptyStateAppears() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_empty")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+
+        XCTAssertTrue(element(in: app, identifier: "card.openclaw.empty").waitForExistence(timeout: 5))
+    }
+
     func testSignedOutStateAppears() {
         let app = AppLaunching.configuredApp(scenario: "openclaw_signed_out")
         app.launch()
@@ -110,5 +191,9 @@ final class OpenClawFlowTests: XCTestCase {
 
     private func element(in app: XCUIApplication, identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    private func staticText(containing text: String, in app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 }
