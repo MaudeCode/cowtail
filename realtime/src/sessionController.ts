@@ -76,6 +76,10 @@ export function shouldReplayToClient(
     return true;
   }
 
+  if (event.thread?.status === "archived") {
+    return false;
+  }
+
   return (
     event.type === "thread_created" ||
     event.type === "reply_created" ||
@@ -356,7 +360,9 @@ export class OpenClawSessionController {
   }
 
   async #broadcastToOpenClawAndIos(event: OpenClawEventEnvelope): Promise<void> {
-    this.#registry.broadcastToOpenClaw(event);
+    if (shouldReplayToClient({ kind: "openclaw_plugin" }, event)) {
+      this.#registry.broadcastToOpenClaw(event);
+    }
     await this.#broadcastToIos(event);
   }
 
@@ -487,6 +493,12 @@ function ackPayloadForEvent(event: OpenClawEventEnvelope): Record<string, unknow
   }
   if (event.messageId) {
     payload.messageId = event.messageId;
+  }
+  if (event.payload?.dropped === true) {
+    payload.dropped = true;
+    if (typeof event.payload.reason === "string") {
+      payload.reason = event.payload.reason;
+    }
   }
   return Object.keys(payload).length === 0 ? undefined : payload;
 }

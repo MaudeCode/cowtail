@@ -10,6 +10,7 @@ import {
   buildOpenClawActionResultUpdate,
   buildOpenClawMessageUpdatePatch,
   normalizeOpenClawTitle,
+  shouldDropOpenClawReplyForThread,
   toOpenClawEventEnvelope,
   toOpenClawMessageWithActionsRecord,
   toOpenClawThreadRecord,
@@ -169,6 +170,16 @@ export const createThreadFromOpenClaw = mutation({
     const toolCalls = validateOpenClawToolCalls(args.toolCalls ?? []);
     const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
 
+    if (existingThread && shouldDropOpenClawReplyForThread(existingThread)) {
+      const sequence = await insertOpenClawEvent(ctx, {
+        type: "message_acknowledged",
+        threadId: existingThread._id,
+        payload: { dropped: true, reason: "thread_archived" },
+      });
+
+      return { threadId: existingThread._id, actionIds: [], sequence };
+    }
+
     const thread = existingThread
       ? await (async () => {
           const threadPatch: {
@@ -277,6 +288,20 @@ export const updateMessageFromOpenClaw = mutation({
     const thread = await ctx.db.get(message.threadId);
     if (!thread) {
       throw new Error(`Thread not found: ${message.threadId}`);
+    }
+
+    if (shouldDropOpenClawReplyForThread(thread)) {
+      const sequence = await insertOpenClawEvent(ctx, {
+        type: "message_acknowledged",
+        threadId: message.threadId,
+        messageId: args.messageId,
+        payload: {
+          dropped: true,
+          reason: "thread_archived",
+        },
+      });
+
+      return { threadId: message.threadId, messageId: args.messageId, actionIds: [], sequence };
     }
 
     const now = Date.now();

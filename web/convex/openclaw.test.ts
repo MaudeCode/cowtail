@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
+import { createThreadFromOpenClaw, updateMessageFromOpenClaw } from "./openclaw";
 import {
   buildOpenClawActionResultUpdate,
   buildOpenClawEventPayload,
   buildOpenClawMessageUpdatePatch,
   applyOpenClawThreadTitlePatch,
   normalizeOpenClawTitle,
+  shouldDropOpenClawReplyForThread,
   toOpenClawActionRecord,
   toOpenClawEventEnvelope,
   toOpenClawMessageWithActionsRecord,
@@ -19,15 +21,79 @@ import {
 import { parseOpenClawListLimit, requireOpenClawOwner } from "./http";
 
 const originalOpenClawOwnerUserId = process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
+const originalRealtimeConvexToken = process.env.COWTAIL_REALTIME_CONVEX_TOKEN;
 
 afterEach(() => {
   if (originalOpenClawOwnerUserId === undefined) {
     delete process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
-    return;
+  } else {
+    process.env.COWTAIL_OPENCLAW_OWNER_USER_ID = originalOpenClawOwnerUserId;
   }
 
-  process.env.COWTAIL_OPENCLAW_OWNER_USER_ID = originalOpenClawOwnerUserId;
+  if (originalRealtimeConvexToken === undefined) {
+    delete process.env.COWTAIL_REALTIME_CONVEX_TOKEN;
+  } else {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = originalRealtimeConvexToken;
+  }
 });
+
+type ConvexFunctionForTest = {
+  _handler: (ctx: unknown, args: Record<string, unknown>) => Promise<unknown>;
+};
+
+function convexHandler(fn: unknown) {
+  return (fn as ConvexFunctionForTest)._handler;
+}
+
+function createArchivedDropMutationCtx(options: {
+  existingThread?: Record<string, unknown>;
+  message?: Record<string, unknown>;
+}) {
+  const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+  const patches: Array<{ id: string; value: Record<string, unknown> }> = [];
+  const queryCalls: string[] = [];
+  const getCalls: string[] = [];
+
+  const ctx = {
+    db: {
+      query: (table: string) => {
+        queryCalls.push(table);
+        return {
+          withIndex: () => ({
+            collect: async () => {
+              if (table === "openclawThreads") {
+                return options.existingThread ? [options.existingThread] : [];
+              }
+              if (table === "openclawState") {
+                return [];
+              }
+              return [];
+            },
+          }),
+        };
+      },
+      get: async (id: string) => {
+        getCalls.push(id);
+        if (options.message && id === options.message._id) {
+          return options.message;
+        }
+        if (options.existingThread && id === options.existingThread._id) {
+          return options.existingThread;
+        }
+        return null;
+      },
+      insert: async (table: string, value: Record<string, unknown>) => {
+        inserts.push({ table, value });
+        return `${table}-id`;
+      },
+      patch: async (id: string, value: Record<string, unknown>) => {
+        patches.push({ id, value });
+      },
+    },
+  };
+
+  return { ctx, getCalls, inserts, patches, queryCalls };
+}
 
 describe("OpenClaw Convex model helpers", () => {
   test("normalizes blank titles to Main", () => {
@@ -435,6 +501,138 @@ describe("OpenClaw Convex model helpers", () => {
         updatedAt: 1_777_128_000_000,
       });
     }).toThrow();
+  });
+
+  test("drops OpenClaw replies targeting archived threads", () => {
+    expect(
+      shouldDropOpenClawReplyForThread({
+        status: "archived",
+      }),
+    ).toBe(true);
+    expect(
+      shouldDropOpenClawReplyForThread({
+        status: "active",
+      }),
+    ).toBe(false);
+    expect(shouldDropOpenClawReplyForThread(null)).toBe(false);
+  });
+
+  test("createThreadFromOpenClaw acknowledges and does not write messages for archived threads", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const archivedThread = {
+      _id: "thread-archived",
+      sessionKey: "session-archived",
+      status: "archived",
+      targetAgent: "default",
+      title: "Archived thread",
+      unreadCount: 0,
+      createdAt: 100,
+      updatedAt: 200,
+    };
+    const { ctx, inserts, patches } = createArchivedDropMutationCtx({
+      existingThread: archivedThread,
+    });
+
+    const result = await convexHandler(createThreadFromOpenClaw)(ctx, {
+      serviceToken: "realtime-convex-token",
+      sessionKey: "session-archived",
+      text: "Should be dropped",
+      toolCalls: [],
+      actions: [],
+    });
+
+    expect(result).toEqual({
+      threadId: "thread-archived",
+      actionIds: [],
+      sequence: 1,
+    });
+    expect(inserts).toEqual([
+      {
+        table: "openclawState",
+        value: {
+          key: "openclaw-events",
+          nextSequence: 2,
+          updatedAt: expect.any(Number),
+        },
+      },
+      {
+        table: "openclawEvents",
+        value: {
+          type: "message_acknowledged",
+          sequence: 1,
+          createdAt: expect.any(Number),
+          threadId: "thread-archived",
+          payload: { dropped: true, reason: "thread_archived" },
+        },
+      },
+    ]);
+    expect(patches).toEqual([]);
+  });
+
+  test("updateMessageFromOpenClaw acknowledges archived drops with top-level message id", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const archivedThread = {
+      _id: "thread-archived",
+      sessionKey: "session-archived",
+      status: "archived",
+      targetAgent: "default",
+      title: "Archived thread",
+      unreadCount: 0,
+      createdAt: 100,
+      updatedAt: 200,
+    };
+    const message = {
+      _id: "message-archived",
+      threadId: "thread-archived",
+      direction: "openclaw_to_user",
+      text: "Existing reply",
+      links: [],
+      toolCalls: [],
+      deliveryState: "pending",
+      createdAt: 150,
+      updatedAt: 150,
+    };
+    const { ctx, inserts, patches } = createArchivedDropMutationCtx({
+      existingThread: archivedThread,
+      message,
+    });
+
+    const result = await convexHandler(updateMessageFromOpenClaw)(ctx, {
+      serviceToken: "realtime-convex-token",
+      messageId: "message-archived",
+      text: "Should be dropped",
+      toolCalls: [],
+      actions: [],
+    });
+
+    expect(result).toEqual({
+      threadId: "thread-archived",
+      messageId: "message-archived",
+      actionIds: [],
+      sequence: 1,
+    });
+    expect(inserts).toEqual([
+      {
+        table: "openclawState",
+        value: {
+          key: "openclaw-events",
+          nextSequence: 2,
+          updatedAt: expect.any(Number),
+        },
+      },
+      {
+        table: "openclawEvents",
+        value: {
+          type: "message_acknowledged",
+          sequence: 1,
+          createdAt: expect.any(Number),
+          threadId: "thread-archived",
+          messageId: "message-archived",
+          payload: { dropped: true, reason: "thread_archived" },
+        },
+      },
+    ]);
+    expect(patches).toEqual([]);
   });
 
   test("hydrates replay events with available records", () => {

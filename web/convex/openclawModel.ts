@@ -125,6 +125,12 @@ export function validateOpenClawToolCalls(value: unknown): OpenClawToolCallRecor
   return openclawToolCallRecordSchema.array().parse(value);
 }
 
+export function shouldDropOpenClawReplyForThread(
+  thread: { status: OpenClawThreadStatus } | null | undefined,
+): boolean {
+  return thread?.status === "archived";
+}
+
 export function buildOpenClawMessageUpdatePatch({
   text,
   links,
