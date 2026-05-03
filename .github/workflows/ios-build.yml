@@ -1,0 +1,248 @@
+name: iOS Build
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: 0.0.0
+      build_number:
+        required: false
+        type: string
+        default: ""
+      upload_artifacts:
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: App marketing version, with or without a leading v.
+        required: false
+        type: string
+        default: 0.0.0
+      build_number:
+        description: App build number. Defaults to the GitHub run number.
+        required: false
+        type: string
+        default: ""
+      upload_artifacts:
+        description: Upload the exported IPA and symbols as workflow artifacts.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iOS App
+    if: >
+      github.event_name != 'workflow_dispatch' ||
+      (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
+    runs-on: maude-mac
+    env:
+      IOS_BUILD_DIR: build/ios
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install workspace dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Resolve build version
+        run: |
+          version_input="${{ inputs.version }}"
+          build_number_input="${{ inputs.build_number }}"
+
+          marketing_version="${version_input#v}"
+          if ! [[ "${marketing_version}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "Invalid iOS marketing version: ${version_input}" >&2
+            exit 1
+          fi
+
+          build_number="${build_number_input:-${GITHUB_RUN_NUMBER}}"
+          if ! [[ "${build_number}" =~ ^[0-9]+$ ]]; then
+            echo "Invalid iOS build number: ${build_number}" >&2
+            exit 1
+          fi
+
+          echo "COWTAIL_IOS_MARKETING_VERSION=${marketing_version}" >> "${GITHUB_ENV}"
+          echo "COWTAIL_IOS_BUILD_NUMBER=${build_number}" >> "${GITHUB_ENV}"
+
+      - name: Write iOS project env
+        env:
+          IOS_PROJECT_SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const examplePath = "ios/Config/project.env.example";
+          const outputPath = "ios/Config/project.env";
+          const secrets = JSON.parse(process.env.IOS_PROJECT_SECRETS_JSON || "{}");
+          const example = fs.readFileSync(examplePath, "utf8");
+
+          const keys = [...example.matchAll(/^([A-Z0-9_]+)=/gm)].map((match) => match[1]);
+          const missing = keys.filter((key) => !secrets[key]);
+
+          if (missing.length > 0) {
+            console.error(`Missing iOS project secrets: ${missing.join(", ")}`);
+            process.exit(1);
+          }
+
+          fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+          fs.writeFileSync(
+            outputPath,
+            keys.map((key) => `${key}=${secrets[key]}`).join("\n") + "\n",
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Generate iOS project
+        working-directory: ios
+        run: ./generate.sh
+
+      - name: Install Apple signing intermediates
+        run: |
+          for certificate in \
+            /Applications/Xcode.app/Contents/SharedFrameworks/DVTFoundation.framework/Versions/A/Resources/AppleWWDRCA-2030.cer \
+            /Applications/Xcode.app/Contents/SharedFrameworks/DVTFoundation.framework/Versions/A/Resources/AppleWWDRCAG6.cer
+          do
+            if [ -f "${certificate}" ]; then
+              security import "${certificate}" -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || true
+            fi
+          done
+
+      - name: Import iOS distribution certificate
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+
+      - name: Download iOS App Store profile
+        id: provisioning-profiles
+        uses: apple-actions/download-provisioning-profiles@v6
+        with:
+          bundle-id: ${{ secrets.COWTAIL_PRODUCT_BUNDLE_IDENTIFIER }}
+          profile-type: IOS_APP_STORE
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+
+      - name: Resolve iOS signing settings
+        env:
+          IOS_PROFILES_JSON: ${{ steps.provisioning-profiles.outputs.profiles }}
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const profiles = JSON.parse(process.env.IOS_PROFILES_JSON || "[]");
+          const profile = profiles.find((item) => item.type === "IOS_APP_STORE") || profiles[0];
+
+          if (!profile?.name) {
+            console.error("No iOS App Store provisioning profile was downloaded.");
+            process.exit(1);
+          }
+
+          fs.appendFileSync(process.env.GITHUB_ENV, `IOS_PROVISIONING_PROFILE_SPECIFIER=${profile.name}\n`);
+          if (profile.udid) {
+            fs.appendFileSync(process.env.GITHUB_ENV, `IOS_PROVISIONING_PROFILE_UUID=${profile.udid}\n`);
+          }
+          NODE
+
+      - name: Archive iOS app
+        working-directory: ios
+        run: |
+          set -a
+          . Config/project.env
+          set +a
+
+          rm -rf "${IOS_BUILD_DIR}"
+          mkdir -p "${IOS_BUILD_DIR}"
+
+          xcodebuild archive \
+            -project Cowtail.xcodeproj \
+            -scheme Cowtail \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "${IOS_BUILD_DIR}/Cowtail.xcarchive" \
+            MARKETING_VERSION="${COWTAIL_IOS_MARKETING_VERSION}" \
+            CURRENT_PROJECT_VERSION="${COWTAIL_IOS_BUILD_NUMBER}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="${COWTAIL_DEVELOPMENT_TEAM}" \
+            PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_SPECIFIER}" \
+            -quiet
+
+      - name: Write export options
+        working-directory: ios
+        run: |
+          set -a
+          . Config/project.env
+          set +a
+
+          cat > "${IOS_BUILD_DIR}/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>destination</key>
+            <string>export</string>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${COWTAIL_PRODUCT_BUNDLE_IDENTIFIER}</key>
+              <string>${IOS_PROVISIONING_PROFILE_SPECIFIER}</string>
+            </dict>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>teamID</key>
+            <string>${COWTAIL_DEVELOPMENT_TEAM}</string>
+            <key>testFlightInternalTestingOnly</key>
+            <true/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Export iOS IPA
+        working-directory: ios
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "${IOS_BUILD_DIR}/Cowtail.xcarchive" \
+            -exportPath "${IOS_BUILD_DIR}/export" \
+            -exportOptionsPlist "${IOS_BUILD_DIR}/ExportOptions.plist" \
+            -quiet
+
+      - name: Upload iOS IPA
+        if: ${{ inputs.upload_artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-ipa
+          path: ios/build/ios/export/*.ipa
+          retention-days: 7
+
+      - name: Upload iOS symbols
+        if: ${{ inputs.upload_artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-dsyms
+          path: ios/build/ios/Cowtail.xcarchive/dSYMs
+          retention-days: 7
+
+      - name: Remove iOS project env
+        if: always()
+        run: rm -f ios/Config/project.env

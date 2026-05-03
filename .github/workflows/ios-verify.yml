@@ -1,0 +1,50 @@
+name: iOS Verify
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-build.yml"
+      - ".github/workflows/ios-verify.yml"
+      - ".github/workflows/release.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-build.yml"
+      - ".github/workflows/ios-verify.yml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: iOS Verify
+    if: >
+      github.event_name == 'push' ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
+      )
+    runs-on: maude-mac
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run SwiftLint
+        working-directory: ios
+        run: swiftlint lint --strict
+
+      - name: Run SwiftFmt
+        working-directory: ios
+        run: swiftformat --lint .

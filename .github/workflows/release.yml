@@ -23,6 +23,9 @@ jobs:
   openclaw-plugin-verify:
     uses: ./.github/workflows/openclaw-plugin-verify.yml
 
+  ios-verify:
+    uses: ./.github/workflows/ios-verify.yml
+
   cli-verify:
     uses: ./.github/workflows/cli-verify.yml
     with:
@@ -34,6 +37,7 @@ jobs:
       - web-verify
       - realtime-verify
       - openclaw-plugin-verify
+      - ios-verify
       - cli-verify
     uses: ./.github/workflows/docker-build.yml
     with:
@@ -45,6 +49,7 @@ jobs:
       - web-verify
       - realtime-verify
       - openclaw-plugin-verify
+      - ios-verify
       - cli-verify
     uses: ./.github/workflows/docker-build.yml
     with:
@@ -59,6 +64,7 @@ jobs:
       - web-verify
       - realtime-verify
       - openclaw-plugin-verify
+      - ios-verify
       - cli-verify
     uses: ./.github/workflows/cli-build.yml
     with:
@@ -70,6 +76,7 @@ jobs:
       - web-verify
       - realtime-verify
       - openclaw-plugin-verify
+      - ios-verify
       - cli-verify
     uses: ./.github/workflows/openclaw-plugin-build.yml
     with:
@@ -83,6 +90,7 @@ jobs:
       - web-verify
       - realtime-verify
       - openclaw-plugin-verify
+      - ios-verify
       - cli-verify
       - web-docker-build
       - realtime-docker-build

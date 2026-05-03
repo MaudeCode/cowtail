@@ -37,8 +37,8 @@ targets:
       path: CowtailApp/Resources/Info.plist
       properties:
         CFBundleDisplayName: Cowtail
-        CFBundleShortVersionString: 0.1.0
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CowtailPublicSiteURL: $(COWTAIL_PUBLIC_SITE_URL)
         CowtailConvexQueryURL: $(COWTAIL_CONVEX_QUERY_URL)
         CowtailHealthSummaryURL: $(COWTAIL_HEALTH_SUMMARY_URL)
