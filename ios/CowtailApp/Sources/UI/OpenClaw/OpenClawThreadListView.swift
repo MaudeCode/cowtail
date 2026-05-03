@@ -12,6 +12,18 @@ struct OpenClawThreadListView: View {
     var body: some View {
         OpenClawScreen {
             List {
+                pageHeader
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: CowtailDesignGuide.pageTopPadding,
+                            leading: CowtailDesignGuide.pageHorizontalPadding,
+                            bottom: 8,
+                            trailing: CowtailDesignGuide.pageHorizontalPadding
+                        )
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+
                 if let errorMessage = store.errorMessage {
                     errorCard(message: errorMessage)
                         .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 5, trailing: 14))
@@ -53,19 +65,7 @@ struct OpenClawThreadListView: View {
         .openClawStyle(OpenClawStyle(palette: palette))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.openclaw.threads")
-        .navigationTitle(displayName)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isShowingNewThread = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("New OpenClaw thread")
-                .accessibilityIdentifier("button.openclaw.new-thread")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isShowingNewThread) {
             OpenClawNewThreadView()
                 .environmentObject(store)
@@ -87,6 +87,27 @@ struct OpenClawThreadListView: View {
         }
         .task {
             await store.refreshIfPossible()
+        }
+    }
+
+    private var pageHeader: some View {
+        CowtailPageHeader(title: headerTitle) {
+            Button {
+                isShowingNewThread = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 42, height: 42)
+                    .background(style.elevatedSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(style.border, lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(style.primaryText)
+            .accessibilityLabel("New OpenClaw thread")
+            .accessibilityIdentifier("button.openclaw.new-thread")
         }
     }
 
@@ -173,6 +194,19 @@ struct OpenClawThreadListView: View {
     private var displayName: String {
         let trimmed = store.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "OpenClaw" : trimmed
+    }
+
+    private var headerDisplayName: String {
+        displayName.uppercased()
+    }
+
+    private var headerTitle: CowtailPageHeaderTitle {
+        let words = headerDisplayName.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard words.count == 2 else {
+            return .title(headerDisplayName)
+        }
+
+        return .split(leading: words[0], trailing: words[1])
     }
 
     private var style: OpenClawStyle {

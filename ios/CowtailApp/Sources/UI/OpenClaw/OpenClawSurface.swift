@@ -5,8 +5,7 @@ struct OpenClawScreen<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        ZStack {
-            style.canvas.ignoresSafeArea()
+        CowtailCanvas {
             content()
         }
         .font(.cowtailSans(15, relativeTo: .body))
