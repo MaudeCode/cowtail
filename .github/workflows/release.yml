@@ -82,6 +82,19 @@ jobs:
     with:
       version: ${{ github.ref_name }}
 
+  ios-build:
+    needs:
+      - global-verify
+      - web-verify
+      - realtime-verify
+      - openclaw-plugin-verify
+      - ios-verify
+      - cli-verify
+    uses: ./.github/workflows/ios-build.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
+
   validate:
     name: Validate Artifacts
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -96,6 +109,7 @@ jobs:
       - realtime-docker-build
       - cli-build
       - openclaw-plugin-build
+      - ios-build
     steps:
       - name: Download web Docker amd64
         uses: actions/download-artifact@v8
@@ -139,6 +153,25 @@ jobs:
           name: openclaw-plugin-npm-package
           path: openclaw-plugin-npm-package
 
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v8
+        with:
+          name: ios-ipa
+          path: ios-ipa
+
+      - name: Resolve iOS IPA path
+        id: ios-ipa
+        run: |
+          ipa_path="$(find ios-ipa -maxdepth 1 -name '*.ipa' -type f | head -n 1)"
+          test -n "${ipa_path}"
+          echo "path=${ipa_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download iOS symbols
+        uses: actions/download-artifact@v8
+        with:
+          name: ios-dsyms
+          path: ios-dsyms
+
       - name: Verify artifacts exist
         run: |
           test -s docker-amd64/image.tar
@@ -151,6 +184,8 @@ jobs:
           test -s cli-release/cowtail-linux-x64.tar.gz
           test -s cli-npm-package/*.tgz
           test -s openclaw-plugin-npm-package/*.tgz
+          test -s ios-ipa/*.ipa
+          test -d ios-dsyms
           tar -tf docker-amd64/image.tar > /dev/null
           tar -tf docker-arm64/image.tar > /dev/null
           tar -tf realtime-docker-amd64/image.tar > /dev/null
@@ -212,6 +247,31 @@ jobs:
         with:
           name: openclaw-plugin-npm-package
           path: openclaw-plugin-npm-package
+
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v8
+        with:
+          name: ios-ipa
+          path: ios-ipa
+
+      - name: Resolve iOS IPA path
+        id: ios-ipa
+        run: |
+          ipa_path="$(find ios-ipa -maxdepth 1 -name '*.ipa' -type f | head -n 1)"
+          test -n "${ipa_path}"
+          echo "path=${ipa_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload iOS app to TestFlight
+        uses: apple-actions/upload-testflight-build@v4
+        with:
+          app-path: ${{ steps.ios-ipa.outputs.path }}
+          app-type: ios
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          uses-non-exempt-encryption: "false"
+          wait-for-processing: "true"
+          backend: AppStoreAPI
 
       - uses: actions/setup-node@v6
         with:
