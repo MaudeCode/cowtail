@@ -79,9 +79,11 @@ final class OpenClawStore: ObservableObject {
         }
     }
 
-    func updateDisplayName(_ displayName: String) async {
+    @discardableResult
+    func updateDisplayName(_ displayName: String) async -> Bool {
         guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
-            return
+            errorMessage = "Sign in from Farmhouse to update OpenClaw settings."
+            return false
         }
 
         do {
@@ -89,10 +91,12 @@ final class OpenClawStore: ObservableObject {
             self.displayName = updated
             defaults.set(updated, forKey: Self.displayNameKey)
             errorMessage = nil
+            return true
         } catch {
-            guard !NetworkErrorClassifier.isCancellation(error) else { return }
+            guard !NetworkErrorClassifier.isCancellation(error) else { return false }
             logger.error("display name update failed: \(String(describing: error), privacy: .public)")
             errorMessage = error.localizedDescription
+            return false
         }
     }
 

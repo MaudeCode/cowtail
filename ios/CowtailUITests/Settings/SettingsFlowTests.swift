@@ -92,6 +92,77 @@ final class SettingsFlowTests: XCTestCase {
         )
     }
 
+    func testOpenClawNameCanBeUpdatedFromFarmhouseSettings() {
+        let app = AppLaunching.configuredApp(
+            scenario: "notifications_ready",
+            startTab: "farmhouse"
+        )
+
+        app.launch()
+
+        let displayNameField = app.textFields["field.farmhouse.openclaw-name"]
+        XCTAssertTrue(
+            displayNameField.waitForExistence(timeout: 5),
+            "The farmhouse settings screen should expose the OpenClaw display name field."
+        )
+        XCTAssertEqual(displayNameField.value as? String, "Maude")
+        XCTAssertEqual(displayNameField.label, "OpenClaw name")
+
+        displayNameField.tap()
+        displayNameField.typeText(" Ops")
+
+        let saveButton = app.buttons["button.farmhouse.openclaw-name.save"]
+        XCTAssertTrue(
+            saveButton.waitForExistence(timeout: 5),
+            "The farmhouse settings screen should expose a save action for the OpenClaw display name."
+        )
+        XCTAssertTrue(saveButton.isEnabled)
+
+        saveButton.tap()
+
+        XCTAssertTrue(
+            element(in: app, identifier: "text.farmhouse.openclaw-name.status").waitForExistence(timeout: 5),
+            "Saving the OpenClaw display name should show a saved status."
+        )
+        XCTAssertTrue(
+            app.tabBars.buttons["Maude Ops"].waitForExistence(timeout: 5),
+            "Saving the OpenClaw display name should update the OpenClaw tab label."
+        )
+    }
+
+    func testFailedOpenClawNameSavePreservesDraft() {
+        let app = AppLaunching.configuredApp(
+            scenario: "openclaw_signed_out",
+            startTab: "farmhouse"
+        )
+
+        app.launch()
+
+        let displayNameField = app.textFields["field.farmhouse.openclaw-name"]
+        XCTAssertTrue(
+            displayNameField.waitForExistence(timeout: 5),
+            "The farmhouse settings screen should expose the OpenClaw display name field."
+        )
+        XCTAssertEqual(displayNameField.value as? String, "OpenClaw")
+
+        displayNameField.tap()
+        displayNameField.typeText(" Assistant")
+
+        let saveButton = app.buttons["button.farmhouse.openclaw-name.save"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
+        saveButton.tap()
+
+        XCTAssertTrue(
+            element(in: app, identifier: "text.farmhouse.openclaw-name.status").waitForExistence(timeout: 5),
+            "A failed OpenClaw display name save should show an error status."
+        )
+        XCTAssertEqual(
+            displayNameField.value as? String,
+            "OpenClaw Assistant",
+            "A failed OpenClaw display name save should keep the attempted name available for retry."
+        )
+    }
+
     func testNotificationsNeedsAppleShowsAppleSignInAction() {
         let app = AppLaunching.configuredApp(
             scenario: "notifications_needs_apple",

@@ -6,7 +6,12 @@ struct FarmhouseView: View {
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
+    @EnvironmentObject private var openClawStore: OpenClawStore
     @EnvironmentObject private var themeSettings: ThemeSettings
+    @FocusState private var openClawNameIsFocused: Bool
+    @State private var openClawDisplayNameDraft = ""
+    @State private var openClawNameIsSaving = false
+    @State private var openClawNameStatus: String?
 
     var body: some View {
         CowtailCanvas {
@@ -24,6 +29,13 @@ struct FarmhouseView: View {
         }
         .accessibilityIdentifier("screen.farmhouse")
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear {
+            syncOpenClawDisplayNameDraft()
+        }
+        .onChange(of: openClawStore.displayName) {
+            guard !openClawNameIsFocused, !openClawNameIsSaving else { return }
+            syncOpenClawDisplayNameDraft(clearStatus: false)
+        }
         .task {
             await appleAccountManager.refreshCredentialState()
             await notificationManager.refreshAuthorizationStatus()
@@ -75,6 +87,10 @@ struct FarmhouseView: View {
     private var preferencesCard: some View {
         CowtailCard {
             CowtailSectionHeader(title: "Preferences")
+            openClawNameSettings
+
+            Divider()
+
             VStack(alignment: .leading, spacing: 8) {
                 CowtailMonoLabel(text: "Theme", tint: palette.ink)
 
@@ -117,6 +133,58 @@ struct FarmhouseView: View {
         }
     }
 
+    private var openClawNameSettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CowtailMonoLabel(text: "OpenClaw name", tint: palette.ink)
+
+            HStack(spacing: 10) {
+                TextField("OpenClaw", text: $openClawDisplayNameDraft)
+                    .textInputAutocapitalization(.words)
+                    .disableAutocorrection(true)
+                    .focused($openClawNameIsFocused)
+                    .submitLabel(.done)
+                    .font(.cowtailSans(15, relativeTo: .subheadline))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        palette.surfaceRaised,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(palette.border, lineWidth: 1)
+                    )
+                    .accessibilityIdentifier("field.farmhouse.openclaw-name")
+                    .accessibilityLabel("OpenClaw name")
+                    .onSubmit {
+                        saveOpenClawDisplayName()
+                    }
+
+                Button {
+                    saveOpenClawDisplayName()
+                } label: {
+                    if openClawNameIsSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Save")
+                            .font(.cowtailSans(14, weight: .semibold, relativeTo: .callout))
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSaveOpenClawDisplayName)
+                .accessibilityIdentifier("button.farmhouse.openclaw-name.save")
+            }
+
+            if let openClawNameStatus {
+                Text(openClawNameStatus)
+                    .font(.cowtailSans(12, relativeTo: .caption))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("text.farmhouse.openclaw-name.status")
+            }
+        }
+    }
+
     private var endpointsCard: some View {
         CowtailCard {
             CowtailSectionHeader(title: "Links")
@@ -138,6 +206,44 @@ struct FarmhouseView: View {
             .font(.cowtailSans(15, relativeTo: .subheadline))
         }
     }
+
+    private var effectiveOpenClawDisplayName: String {
+        let displayName = openClawStore.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return displayName.isEmpty ? "OpenClaw" : displayName
+    }
+
+    private var trimmedOpenClawDisplayNameDraft: String {
+        openClawDisplayNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSaveOpenClawDisplayName: Bool {
+        !openClawNameIsSaving
+            && !trimmedOpenClawDisplayNameDraft.isEmpty
+            && trimmedOpenClawDisplayNameDraft != effectiveOpenClawDisplayName
+    }
+
+    private func syncOpenClawDisplayNameDraft(clearStatus: Bool = true) {
+        openClawDisplayNameDraft = effectiveOpenClawDisplayName
+        if clearStatus {
+            openClawNameStatus = nil
+        }
+    }
+
+    private func saveOpenClawDisplayName() {
+        guard canSaveOpenClawDisplayName else { return }
+
+        let displayName = trimmedOpenClawDisplayNameDraft
+        openClawNameIsFocused = false
+        openClawNameIsSaving = true
+        openClawNameStatus = nil
+
+        Task {
+            let saved = await openClawStore.updateDisplayName(displayName)
+            openClawDisplayNameDraft = saved ? effectiveOpenClawDisplayName : displayName
+            openClawNameStatus = saved ? "Saved" : openClawStore.errorMessage ?? "Unable to save name."
+            openClawNameIsSaving = false
+        }
+    }
 }
 
 #Preview {
@@ -146,6 +252,7 @@ struct FarmhouseView: View {
             .environmentObject(AppleAccountManager.shared)
             .environmentObject(AppSessionManager.shared)
             .environmentObject(NotificationManager.shared)
+            .environmentObject(CowtailPreviewFixtures.openClawStore())
             .environmentObject(ThemeSettings())
     }
 }
