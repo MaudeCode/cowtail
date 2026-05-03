@@ -98,11 +98,13 @@ export default defineSchema({
     links: v.array(v.object({ label: v.string(), url: v.string() })),
     toolCalls: openclawToolCallsValidator,
     deliveryState: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
+    idempotencyKey: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_thread_createdAt", ["threadId", "createdAt"])
-    .index("by_createdAt", ["createdAt"]),
+    .index("by_createdAt", ["createdAt"])
+    .index("by_idempotencyKey", ["idempotencyKey"]),
 
   openclawActions: defineTable({
     threadId: v.id("openclawThreads"),

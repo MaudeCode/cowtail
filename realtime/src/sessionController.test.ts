@@ -579,6 +579,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "ios_reply",
         requestId: "request-2",
+        idempotencyKey: "ios:reply:request-2",
         threadId: "thread-1",
         text: "Ship it",
       }),
@@ -601,6 +602,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-1",
+        idempotencyKey: "cowtail:reply:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -614,6 +616,7 @@ describe("OpenClawSessionController", () => {
       {
         type: "openclaw_message",
         requestId: "request-1",
+        idempotencyKey: "cowtail:reply:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -647,6 +650,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-3",
+        idempotencyKey: "cowtail:reply:request-3",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -682,6 +686,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-dropped-create",
+        idempotencyKey: "cowtail:reply:request-dropped-create",
         sessionKey: "session-archived",
         text: "This should be dropped",
         links: [],
@@ -704,6 +709,48 @@ describe("OpenClawSessionController", () => {
     ]);
   });
 
+  test("does not push archived OpenClaw message envelopes", async () => {
+    const { api, controller, pushBridge } = createController();
+    api.openClawMessageEvent = createOpenClawMessageEvent(16);
+    api.openClawMessageEvent.thread = {
+      id: "thread-openclaw",
+      sessionKey: "session-archived",
+      status: "archived",
+      targetAgent: "default",
+      title: "Deleted thread",
+      unreadCount: 0,
+      createdAt: 100,
+      updatedAt: 160,
+      lastMessageAt: 160,
+    };
+    const socket = new FakeSocket();
+    await authenticatePlugin(controller, socket);
+    socket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message",
+        requestId: "request-archived-envelope",
+        idempotencyKey: "cowtail:reply:request-archived-envelope",
+        sessionKey: "session-archived",
+        text: "Old reply from a deleted thread",
+        links: [],
+        actions: [],
+      }),
+    );
+
+    expect(pushBridge.notifications).toEqual([]);
+    expect(sent(socket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-archived-envelope",
+        sequence: 16,
+        payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
+  });
+
   test("updates OpenClaw messages from authenticated plugins and broadcasts the streamed update to iOS", async () => {
     const { api, controller, pushBridge } = createController();
     const pluginSocket = new FakeSocket();
@@ -718,6 +765,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message_update",
         requestId: "request-update-1",
+        idempotencyKey: "cowtail:update:message-openclaw:pending",
         messageId: "message-openclaw",
         text: "Still checking...",
         links: [],
@@ -730,6 +778,7 @@ describe("OpenClawSessionController", () => {
       {
         type: "openclaw_message_update",
         requestId: "request-update-1",
+        idempotencyKey: "cowtail:update:message-openclaw:pending",
         messageId: "message-openclaw",
         text: "Still checking...",
         links: [],
@@ -764,6 +813,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message_update",
         requestId: "request-dropped-update",
+        idempotencyKey: "cowtail:update:message-archived:dropped",
         messageId: "message-archived",
         text: "This should be dropped",
         links: [],
@@ -802,6 +852,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-expired-delivery",
+        idempotencyKey: "cowtail:reply:request-expired-delivery",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -839,6 +890,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-revoked-delivery",
+        idempotencyKey: "cowtail:reply:request-revoked-delivery",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -873,6 +925,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-4",
+        idempotencyKey: "cowtail:reply:request-4",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -898,6 +951,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-5",
+        idempotencyKey: "cowtail:reply:request-5",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -933,6 +987,7 @@ describe("OpenClawSessionController", () => {
           JSON.stringify({
             type: "openclaw_message",
             requestId: "request-6",
+            idempotencyKey: "cowtail:reply:request-6",
             sessionKey: "session-1",
             text: "Approve the deploy?",
             links: [],
@@ -970,6 +1025,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-7",
+        idempotencyKey: "cowtail:reply:request-7",
         sessionKey: "session-1",
         text: "first",
         links: [],
@@ -981,6 +1037,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "openclaw_message",
         requestId: "request-8",
+        idempotencyKey: "cowtail:reply:request-8",
         sessionKey: "session-1",
         text: "second",
         links: [],
@@ -1031,6 +1088,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "ios_reply",
         requestId: "request-2",
+        idempotencyKey: "ios:reply:request-2",
         threadId: "thread-1",
         text: "Ship it",
       }),
@@ -1042,6 +1100,7 @@ describe("OpenClawSessionController", () => {
       {
         type: "ios_reply",
         requestId: "request-2",
+        idempotencyKey: "ios:reply:request-2",
         threadId: "thread-1",
         text: "Ship it",
       },
@@ -1092,6 +1151,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "ios_reply",
         requestId: "request-archived-reply",
+        idempotencyKey: "ios:reply:request-archived-reply",
         threadId: "thread-archived",
         text: "Stale reply",
       }),
@@ -1115,6 +1175,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "ios_rename_thread",
         requestId: "request-rename",
+        idempotencyKey: "ios:rename:request-rename",
         threadId: "thread-1",
         title: "Renamed chat",
       }),
@@ -1125,6 +1186,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "ios_delete_thread",
         requestId: "request-delete",
+        idempotencyKey: "ios:delete:request-delete",
         threadId: "thread-1",
       }),
     );
@@ -1133,6 +1195,7 @@ describe("OpenClawSessionController", () => {
       {
         type: "ios_rename_thread",
         requestId: "request-rename",
+        idempotencyKey: "ios:rename:request-rename",
         threadId: "thread-1",
         title: "Renamed chat",
       },
@@ -1141,6 +1204,7 @@ describe("OpenClawSessionController", () => {
       {
         type: "ios_delete_thread",
         requestId: "request-delete",
+        idempotencyKey: "ios:delete:request-delete",
         threadId: "thread-1",
       },
     ]);
@@ -1195,6 +1259,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "ios_new_thread",
         requestId: "request-expired",
+        idempotencyKey: "ios:new-thread:request-expired",
         text: "Start thread",
       }),
     );
@@ -1220,6 +1285,7 @@ describe("OpenClawSessionController", () => {
       JSON.stringify({
         type: "ios_reply",
         requestId: "request-revoked",
+        idempotencyKey: "ios:reply:request-revoked",
         threadId: "thread-1",
         text: "Ship it",
       }),

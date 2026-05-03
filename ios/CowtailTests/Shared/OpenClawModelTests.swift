@@ -59,33 +59,36 @@ final class OpenClawModelTests: XCTestCase {
     func testEncodesIosCommands() throws {
         let encoder = JSONEncoder()
         let reply = OpenClawClientCommand.reply(
-            .init(requestId: "request-1", threadId: "thread-1", text: "Ship it")
+            .init(requestId: "request-1", idempotencyKey: "ios:reply:request-1", threadId: "thread-1", text: "Ship it")
         )
 
         let replyObject = try JSONSerialization.jsonObject(with: encoder.encode(reply)) as? [String: Any]
         XCTAssertEqual(replyObject?["type"] as? String, "ios_reply")
         XCTAssertEqual(reply.requestId, "request-1")
         XCTAssertEqual(replyObject?["requestId"] as? String, "request-1")
+        XCTAssertEqual(replyObject?["idempotencyKey"] as? String, "ios:reply:request-1")
         XCTAssertEqual(replyObject?["threadId"] as? String, "thread-1")
         XCTAssertEqual(replyObject?["text"] as? String, "Ship it")
 
         let rename = OpenClawClientCommand.renameThread(
-            .init(requestId: "request-2", threadId: "thread-1", title: "Better title")
+            .init(requestId: "request-2", idempotencyKey: "ios:rename:request-2", threadId: "thread-1", title: "Better title")
         )
         let renameObject = try JSONSerialization.jsonObject(with: encoder.encode(rename)) as? [String: Any]
         XCTAssertEqual(renameObject?["type"] as? String, "ios_rename_thread")
         XCTAssertEqual(rename.requestId, "request-2")
         XCTAssertEqual(renameObject?["requestId"] as? String, "request-2")
+        XCTAssertEqual(renameObject?["idempotencyKey"] as? String, "ios:rename:request-2")
         XCTAssertEqual(renameObject?["threadId"] as? String, "thread-1")
         XCTAssertEqual(renameObject?["title"] as? String, "Better title")
 
         let delete = OpenClawClientCommand.deleteThread(
-            .init(requestId: "request-3", threadId: "thread-1")
+            .init(requestId: "request-3", idempotencyKey: "ios:delete:request-3", threadId: "thread-1")
         )
         let deleteObject = try JSONSerialization.jsonObject(with: encoder.encode(delete)) as? [String: Any]
         XCTAssertEqual(deleteObject?["type"] as? String, "ios_delete_thread")
         XCTAssertEqual(delete.requestId, "request-3")
         XCTAssertEqual(deleteObject?["requestId"] as? String, "request-3")
+        XCTAssertEqual(deleteObject?["idempotencyKey"] as? String, "ios:delete:request-3")
         XCTAssertEqual(deleteObject?["threadId"] as? String, "thread-1")
     }
 

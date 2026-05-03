@@ -84,17 +84,20 @@ type FakeRuntime = {
 type FakeClient = {
   sendSessionBoundCalls: Array<{
     type: "openclaw_session_bound";
+    idempotencyKey?: string;
     threadId: string;
     sessionKey: string;
   }>;
   sendActionResultCalls: Array<{
     type: "openclaw_action_result";
+    idempotencyKey?: string;
     actionId: string;
     state: "submitted" | "failed" | "expired";
     resultMetadata?: Record<string, unknown>;
   }>;
   sendOpenClawMessageCalls: Array<{
     type: "openclaw_message";
+    idempotencyKey?: string;
     sessionKey: string;
     title?: string;
     text: string;
@@ -106,6 +109,7 @@ type FakeClient = {
   }>;
   sendOpenClawMessageUpdateCalls: Array<{
     type: "openclaw_message_update";
+    idempotencyKey?: string;
     messageId: string;
     text: string;
     links?: Array<{ label: string; url: string }>;
@@ -115,17 +119,20 @@ type FakeClient = {
   }>;
   sendSessionBound: (input: {
     type: "openclaw_session_bound";
+    idempotencyKey?: string;
     threadId: string;
     sessionKey: string;
   }) => Promise<number | undefined>;
   sendActionResult: (input: {
     type: "openclaw_action_result";
+    idempotencyKey?: string;
     actionId: string;
     state: "submitted" | "failed" | "expired";
     resultMetadata?: Record<string, unknown>;
   }) => Promise<number | undefined>;
   sendOpenClawMessage: (input: {
     type: "openclaw_message";
+    idempotencyKey?: string;
     sessionKey: string;
     title?: string;
     text: string;
@@ -141,6 +148,7 @@ type FakeClient = {
   }>;
   sendOpenClawMessageUpdate: (input: {
     type: "openclaw_message_update";
+    idempotencyKey?: string;
     messageId: string;
     text: string;
     links?: Array<{ label: string; url: string }>;
@@ -463,6 +471,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendSessionBoundCalls).toEqual([
       {
         type: "openclaw_session_bound",
+        idempotencyKey: "cowtail:session-bound:thread-1",
         threadId: "thread-1",
         sessionKey: "session-thread-created",
       },
@@ -572,6 +581,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendOpenClawMessageCalls).toEqual([
       {
         type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-22",
         sessionKey: "session-thread-22",
         title: "Chat thread",
         text: "Here is the answer.",
@@ -634,6 +644,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendOpenClawMessageCalls).toEqual([
       {
         type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-23",
         sessionKey: "session-thread-23",
         title: "Streaming chat",
         text: "Checking the deploy",
@@ -743,6 +754,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendOpenClawMessageCalls).toEqual([
       {
         type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-24",
         sessionKey: "session-thread-24",
         title: "Tool chat",
         text: "Checking ",
@@ -1000,6 +1012,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendOpenClawMessageCalls).toEqual([
       {
         type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-27",
         sessionKey: "session-thread-27",
         title: "Tool-only chat",
         text: "",
@@ -1104,6 +1117,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendActionResultCalls).toEqual([
       {
         type: "openclaw_action_result",
+        idempotencyKey: "cowtail:action-result:action-1:submitted",
         actionId: "action-1",
         state: "submitted",
       },
@@ -1159,6 +1173,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendActionResultCalls).toEqual([
       {
         type: "openclaw_action_result",
+        idempotencyKey: "cowtail:action-result:action-2:failed",
         actionId: "action-2",
         state: "failed",
       },
@@ -1218,6 +1233,7 @@ describe("handleCowtailEvent", () => {
     expect(client.sendActionResultCalls).toEqual([
       {
         type: "openclaw_action_result",
+        idempotencyKey: "cowtail:action-result:action-5:failed",
         actionId: "action-5",
         state: "failed",
       },

@@ -155,6 +155,75 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(store.lastSeenSequence, 8)
     }
 
+    func testArchivedMessageReplayDoesNotRecreateDeletedThreadMessages() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 7,
+                type: "message_created",
+                createdAt: 1777128000000,
+                threadId: "thread-1",
+                messageId: "message-1",
+                thread: OpenClawFixtures.thread,
+                message: OpenClawFixtures.message,
+                action: nil,
+                actions: [],
+                payload: nil,
+                error: nil
+            )
+        )
+
+        let archivedThread = OpenClawThread(
+            id: "thread-1",
+            sessionKey: "cowtail:thread-1",
+            status: .archived,
+            targetAgent: "default",
+            title: "Deploy check",
+            unreadCount: 0,
+            createdAt: 1777127000000,
+            updatedAt: 1777129000000,
+            lastMessageAt: 1777128000000
+        )
+        let replayedMessage = OpenClawMessage(
+            id: "message-2",
+            threadId: "thread-1",
+            direction: .openClawToUser,
+            authorLabel: "OpenClaw",
+            text: "Old reply from a deleted thread",
+            links: [],
+            deliveryState: .sent,
+            createdAt: 1777128100000,
+            updatedAt: 1777128100000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 9,
+                type: "message_created",
+                createdAt: 1777129100000,
+                threadId: "thread-1",
+                messageId: "message-2",
+                thread: archivedThread,
+                message: replayedMessage,
+                action: nil,
+                actions: [],
+                payload: nil,
+                error: nil
+            )
+        )
+
+        XCTAssertTrue(store.threads.isEmpty)
+        XCTAssertNil(store.messagesByThreadID["thread-1"])
+        XCTAssertEqual(store.lastSeenSequence, 9)
+    }
+
     func testMessageEventsMergeActionsAndKeepToolCalls() throws {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let store = OpenClawStore(

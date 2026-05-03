@@ -129,6 +129,7 @@ describe("ConvexCowtailRealtimeApi", () => {
     const event = await api.createOpenClawMessage({
       type: "openclaw_message",
       requestId: "request-1",
+      idempotencyKey: "cowtail:reply:message-1",
       sessionKey: "session-1",
       title: "Deploy",
       text: "Approve the deploy?",
@@ -142,6 +143,7 @@ describe("ConvexCowtailRealtimeApi", () => {
         reference: convexApi.openclaw.createThreadFromOpenClaw,
         args: {
           sessionKey: "session-1",
+          idempotencyKey: "cowtail:reply:message-1",
           title: "Deploy",
           text: "Approve the deploy?",
           links: [],
@@ -188,6 +190,7 @@ describe("ConvexCowtailRealtimeApi", () => {
     const event = await api.updateOpenClawMessage({
       type: "openclaw_message_update",
       requestId: "request-update-1",
+      idempotencyKey: "cowtail:update:message-1:pending",
       messageId: "message-1",
       text: "Still checking...",
       links: [],
@@ -236,51 +239,60 @@ describe("ConvexCowtailRealtimeApi", () => {
     await api.createIosThread({
       type: "ios_new_thread",
       requestId: "request-1",
+      idempotencyKey: "ios:new-thread:request-1",
       text: "Start thread",
     });
     await api.createIosReply({
       type: "ios_reply",
       requestId: "request-2",
+      idempotencyKey: "ios:reply:request-2",
       threadId: "thread-1",
       text: "Reply",
     });
     await api.submitIosAction({
       type: "ios_action",
       requestId: "request-3",
+      idempotencyKey: "ios:action:request-3",
       actionId: "action-1",
       payload: { decision: "approve" },
     });
     await api.markThreadRead({
       type: "ios_mark_thread_read",
       requestId: "request-4",
+      idempotencyKey: "ios:mark-read:request-4",
       threadId: "thread-1",
     });
     await api.renameIosThread({
       type: "ios_rename_thread",
       requestId: "request-4a",
+      idempotencyKey: "ios:rename:request-4a",
       threadId: "thread-1",
       title: "Better title",
     });
     await api.deleteIosThread({
       type: "ios_delete_thread",
       requestId: "request-4b",
+      idempotencyKey: "ios:delete:request-4b",
       threadId: "thread-1",
     });
     await api.bindThreadSession({
       type: "openclaw_session_bound",
       requestId: "request-5",
+      idempotencyKey: "cowtail:session-bound:thread-1",
       threadId: "thread-1",
       sessionKey: "session-1",
     });
     await api.recordActionResult({
       type: "openclaw_action_result",
       requestId: "request-6",
+      idempotencyKey: "cowtail:action-result:action-1:submitted",
       actionId: "action-1",
       state: "submitted",
     });
     await api.updateOpenClawMessage({
       type: "openclaw_message_update",
       requestId: "request-7",
+      idempotencyKey: "cowtail:update:message-1:sent",
       messageId: "message-1",
       text: "Still checking...",
       links: [],
@@ -309,6 +321,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       await api.createOpenClawMessage({
         type: "openclaw_message",
         requestId: "request-1",
+        idempotencyKey: "cowtail:reply:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -342,6 +355,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       await api.createOpenClawMessage({
         type: "openclaw_message",
         requestId: "request-1",
+        idempotencyKey: "cowtail:reply:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",

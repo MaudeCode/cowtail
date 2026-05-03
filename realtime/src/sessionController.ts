@@ -496,6 +496,9 @@ function ackPayloadForEvent(event: OpenClawEventEnvelope): Record<string, unknow
   }
   if (event.payload?.dropped === true) {
     payload.dropped = true;
+    if (event.payload.duplicate === true) {
+      payload.duplicate = true;
+    }
     if (typeof event.payload.reason === "string") {
       payload.reason = event.payload.reason;
     }
@@ -504,6 +507,10 @@ function ackPayloadForEvent(event: OpenClawEventEnvelope): Record<string, unknow
 }
 
 function shouldPushOpenClawMessageEvent(event: OpenClawEventEnvelope): boolean {
+  if (event.payload?.dropped === true || event.thread?.status === "archived") {
+    return false;
+  }
+
   return event.message?.direction === "openclaw_to_user" && event.message.deliveryState === "sent";
 }
 

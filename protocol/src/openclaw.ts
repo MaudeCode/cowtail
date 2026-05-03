@@ -154,6 +154,7 @@ export const openclawActionSubmittedEventSchema = openclawEventEnvelopeSchema.ex
 });
 
 export const openclawRequestIdSchema = nonEmptyStringSchema;
+export const openclawIdempotencyKeySchema = nonEmptyStringSchema;
 
 export const openclawActionDraftSchema = z.object({
   label: nonEmptyStringSchema,
@@ -165,6 +166,7 @@ export const openclawPluginMessageCommandSchema = requireOpenClawRenderableConte
   z.object({
     type: z.literal("openclaw_message"),
     requestId: openclawRequestIdSchema,
+    idempotencyKey: openclawIdempotencyKeySchema,
     sessionKey: nonEmptyStringSchema,
     title: nonEmptyStringSchema.optional(),
     text: openclawMessageTextSchema,
@@ -180,6 +182,7 @@ export const openclawPluginMessageUpdateCommandSchema = requireOpenClawRenderabl
   z.object({
     type: z.literal("openclaw_message_update"),
     requestId: openclawRequestIdSchema,
+    idempotencyKey: openclawIdempotencyKeySchema,
     messageId: nonEmptyStringSchema,
     text: openclawMessageTextSchema,
     links: z.array(openclawLinkSchema).optional(),
@@ -192,6 +195,7 @@ export const openclawPluginMessageUpdateCommandSchema = requireOpenClawRenderabl
 export const openclawIosNewThreadCommandSchema = z.object({
   type: z.literal("ios_new_thread"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   title: nonEmptyStringSchema.optional(),
   text: nonEmptyStringSchema,
 });
@@ -199,6 +203,7 @@ export const openclawIosNewThreadCommandSchema = z.object({
 export const openclawIosReplyCommandSchema = z.object({
   type: z.literal("ios_reply"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   threadId: nonEmptyStringSchema,
   text: nonEmptyStringSchema,
 });
@@ -206,6 +211,7 @@ export const openclawIosReplyCommandSchema = z.object({
 export const openclawIosActionCommandSchema = z.object({
   type: z.literal("ios_action"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   actionId: nonEmptyStringSchema,
   payload: jsonObjectSchema,
 });
@@ -213,12 +219,14 @@ export const openclawIosActionCommandSchema = z.object({
 export const openclawIosMarkThreadReadCommandSchema = z.object({
   type: z.literal("ios_mark_thread_read"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   threadId: nonEmptyStringSchema,
 });
 
 export const openclawIosRenameThreadCommandSchema = z.object({
   type: z.literal("ios_rename_thread"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   threadId: nonEmptyStringSchema,
   title: nonEmptyStringSchema,
 });
@@ -226,12 +234,14 @@ export const openclawIosRenameThreadCommandSchema = z.object({
 export const openclawIosDeleteThreadCommandSchema = z.object({
   type: z.literal("ios_delete_thread"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   threadId: nonEmptyStringSchema,
 });
 
 export const openclawSessionBoundCommandSchema = z.object({
   type: z.literal("openclaw_session_bound"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   threadId: nonEmptyStringSchema,
   sessionKey: nonEmptyStringSchema,
 });
@@ -239,6 +249,7 @@ export const openclawSessionBoundCommandSchema = z.object({
 export const openclawActionResultCommandSchema = z.object({
   type: z.literal("openclaw_action_result"),
   requestId: openclawRequestIdSchema,
+  idempotencyKey: openclawIdempotencyKeySchema,
   actionId: nonEmptyStringSchema,
   state: z.enum(["submitted", "failed", "expired"]),
   resultMetadata: jsonObjectSchema.optional(),

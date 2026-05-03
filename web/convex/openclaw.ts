@@ -141,10 +141,54 @@ async function getThreadBySessionKey(ctx: MutationCtx, sessionKey: string) {
   return threads.at(0);
 }
 
+async function getMessageByIdempotencyKey(ctx: MutationCtx, idempotencyKey: string) {
+  const messages = await ctx.db
+    .query("openclawMessages")
+    .withIndex("by_idempotencyKey", (q) => q.eq("idempotencyKey", idempotencyKey))
+    .collect();
+
+  if (messages.length > 1) {
+    throw new Error(`Duplicate OpenClaw messages found for idempotency key ${idempotencyKey}`);
+  }
+
+  return messages.at(0);
+}
+
+async function actionIdsForMessage(ctx: MutationCtx, messageId: Id<"openclawMessages">) {
+  const actions = await ctx.db
+    .query("openclawActions")
+    .withIndex("by_message", (q) => q.eq("messageId", messageId))
+    .order("asc")
+    .collect();
+
+  return actions.map((action) => action._id);
+}
+
+async function acknowledgeDuplicateMessage(ctx: MutationCtx, message: Doc<"openclawMessages">) {
+  const sequence = await insertOpenClawEvent(ctx, {
+    type: "message_acknowledged",
+    threadId: message.threadId,
+    messageId: message._id,
+    payload: {
+      dropped: true,
+      duplicate: true,
+      reason: "duplicate_idempotency_key",
+    },
+  });
+
+  return {
+    threadId: message.threadId,
+    messageId: message._id,
+    actionIds: await actionIdsForMessage(ctx, message._id),
+    sequence,
+  };
+}
+
 export const createThreadFromOpenClaw = mutation({
   args: {
     serviceToken: v.string(),
     sessionKey: v.string(),
+    idempotencyKey: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
     authorLabel: v.optional(v.string()),
@@ -168,6 +212,11 @@ export const createThreadFromOpenClaw = mutation({
 
     const now = Date.now();
     const toolCalls = validateOpenClawToolCalls(args.toolCalls ?? []);
+    const idempotentMessage = await getMessageByIdempotencyKey(ctx, args.idempotencyKey);
+    if (idempotentMessage) {
+      return await acknowledgeDuplicateMessage(ctx, idempotentMessage);
+    }
+
     const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
 
     if (existingThread && shouldDropOpenClawReplyForThread(existingThread)) {
@@ -222,6 +271,7 @@ export const createThreadFromOpenClaw = mutation({
       links: args.links ?? [],
       toolCalls,
       deliveryState: args.deliveryState ?? "sent",
+      idempotencyKey: args.idempotencyKey,
       createdAt: now,
       updatedAt: now,
       ...(args.authorLabel ? { authorLabel: args.authorLabel } : {}),
@@ -358,6 +408,7 @@ export const updateMessageFromOpenClaw = mutation({
 export const createPendingThreadFromIos = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
   },
@@ -365,6 +416,10 @@ export const createPendingThreadFromIos = mutation({
     requireRealtimeConvexToken(args.serviceToken);
 
     const now = Date.now();
+    const idempotentMessage = await getMessageByIdempotencyKey(ctx, args.idempotencyKey);
+    if (idempotentMessage) {
+      return await acknowledgeDuplicateMessage(ctx, idempotentMessage);
+    }
 
     const threadId = await ctx.db.insert("openclawThreads", {
       title: normalizeOpenClawTitle(args.title),
@@ -381,7 +436,9 @@ export const createPendingThreadFromIos = mutation({
       direction: "user_to_openclaw",
       text: args.text,
       links: [],
+      toolCalls: [],
       deliveryState: "sent",
+      idempotencyKey: args.idempotencyKey,
       createdAt: now,
       updatedAt: now,
     });
@@ -438,6 +495,7 @@ export const bindThreadSession = mutation({
 export const createReplyFromIos = mutation({
   args: {
     serviceToken: v.string(),
+    idempotencyKey: v.string(),
     threadId: v.id("openclawThreads"),
     text: v.string(),
   },
@@ -450,13 +508,19 @@ export const createReplyFromIos = mutation({
     }
 
     const now = Date.now();
+    const idempotentMessage = await getMessageByIdempotencyKey(ctx, args.idempotencyKey);
+    if (idempotentMessage) {
+      return await acknowledgeDuplicateMessage(ctx, idempotentMessage);
+    }
 
     const messageId = await ctx.db.insert("openclawMessages", {
       threadId: args.threadId,
       direction: "user_to_openclaw",
       text: args.text,
       links: [],
+      toolCalls: [],
       deliveryState: "sent",
+      idempotencyKey: args.idempotencyKey,
       createdAt: now,
       updatedAt: now,
     });

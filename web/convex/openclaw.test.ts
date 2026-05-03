@@ -48,6 +48,7 @@ function convexHandler(fn: unknown) {
 function createArchivedDropMutationCtx(options: {
   existingThread?: Record<string, unknown>;
   message?: Record<string, unknown>;
+  idempotentMessage?: Record<string, unknown>;
 }) {
   const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
   const patches: Array<{ id: string; value: Record<string, unknown> }> = [];
@@ -60,9 +61,15 @@ function createArchivedDropMutationCtx(options: {
         queryCalls.push(table);
         return {
           withIndex: () => ({
+            order: () => ({
+              collect: async () => [],
+            }),
             collect: async () => {
               if (table === "openclawThreads") {
                 return options.existingThread ? [options.existingThread] : [];
+              }
+              if (table === "openclawMessages") {
+                return options.idempotentMessage ? [options.idempotentMessage] : [];
               }
               if (table === "openclawState") {
                 return [];
@@ -563,6 +570,78 @@ describe("OpenClaw Convex model helpers", () => {
           createdAt: expect.any(Number),
           threadId: "thread-archived",
           payload: { dropped: true, reason: "thread_archived" },
+        },
+      },
+    ]);
+    expect(patches).toEqual([]);
+  });
+
+  test("createThreadFromOpenClaw acknowledges duplicate idempotency keys without writing messages", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const activeThread = {
+      _id: "thread-active",
+      sessionKey: "session-active",
+      status: "active",
+      targetAgent: "default",
+      title: "Active thread",
+      unreadCount: 1,
+      createdAt: 100,
+      updatedAt: 200,
+    };
+    const existingMessage = {
+      _id: "message-existing",
+      threadId: "thread-active",
+      direction: "openclaw_to_user",
+      text: "Existing reply",
+      links: [],
+      toolCalls: [],
+      deliveryState: "sent",
+      idempotencyKey: "cowtail:reply:message-1",
+      createdAt: 150,
+      updatedAt: 150,
+    };
+    const { ctx, inserts, patches } = createArchivedDropMutationCtx({
+      existingThread: activeThread,
+      idempotentMessage: existingMessage,
+    });
+
+    const result = await convexHandler(createThreadFromOpenClaw)(ctx, {
+      serviceToken: "realtime-convex-token",
+      sessionKey: "session-active",
+      idempotencyKey: "cowtail:reply:message-1",
+      text: "Existing reply",
+      toolCalls: [],
+      actions: [],
+    });
+
+    expect(result).toEqual({
+      threadId: "thread-active",
+      messageId: "message-existing",
+      actionIds: [],
+      sequence: 1,
+    });
+    expect(inserts).toEqual([
+      {
+        table: "openclawState",
+        value: {
+          key: "openclaw-events",
+          nextSequence: 2,
+          updatedAt: expect.any(Number),
+        },
+      },
+      {
+        table: "openclawEvents",
+        value: {
+          type: "message_acknowledged",
+          sequence: 1,
+          createdAt: expect.any(Number),
+          threadId: "thread-active",
+          messageId: "message-existing",
+          payload: {
+            dropped: true,
+            duplicate: true,
+            reason: "duplicate_idempotency_key",
+          },
         },
       },
     ]);

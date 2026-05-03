@@ -64,16 +64,26 @@ export type CowtailRealtimeClientDeps = {
 
 export type OpenClawMessageInput = Omit<
   OpenClawPluginMessageCommand,
-  "requestId" | "links" | "actions" | "toolCalls"
+  "requestId" | "idempotencyKey" | "links" | "actions" | "toolCalls"
 > &
-  Partial<Pick<OpenClawPluginMessageCommand, "links" | "actions" | "toolCalls">>;
+  Partial<Pick<OpenClawPluginMessageCommand, "idempotencyKey" | "links" | "actions" | "toolCalls">>;
 export type OpenClawMessageUpdateInput = Omit<
   OpenClawPluginMessageUpdateCommand,
-  "requestId" | "links" | "actions" | "toolCalls"
+  "requestId" | "idempotencyKey" | "links" | "actions" | "toolCalls"
 > &
-  Partial<Pick<OpenClawPluginMessageUpdateCommand, "links" | "actions" | "toolCalls">>;
-export type OpenClawSessionBoundInput = Omit<OpenClawSessionBoundCommand, "requestId">;
-export type OpenClawActionResultInput = Omit<OpenClawActionResultCommand, "requestId">;
+  Partial<
+    Pick<OpenClawPluginMessageUpdateCommand, "idempotencyKey" | "links" | "actions" | "toolCalls">
+  >;
+export type OpenClawSessionBoundInput = Omit<
+  OpenClawSessionBoundCommand,
+  "requestId" | "idempotencyKey"
+> &
+  Partial<Pick<OpenClawSessionBoundCommand, "idempotencyKey">>;
+export type OpenClawActionResultInput = Omit<
+  OpenClawActionResultCommand,
+  "requestId" | "idempotencyKey"
+> &
+  Partial<Pick<OpenClawActionResultCommand, "idempotencyKey">>;
 
 function defaultWebSocketFactory(url: string): WebSocketLike {
   return new WebSocket(url) as WebSocketLike;
@@ -133,9 +143,11 @@ export class CowtailRealtimeClient {
   }
 
   sendOpenClawMessage(command: OpenClawMessageInput): Promise<CowtailCommandResult> {
+    const requestId = this.#requestIdFactory();
     return this.#sendCommand({
       ...command,
-      requestId: this.#requestIdFactory(),
+      requestId,
+      idempotencyKey: command.idempotencyKey ?? `cowtail:request:${requestId}`,
       links: command.links ?? [],
       toolCalls: command.toolCalls ?? [],
       actions: command.actions ?? [],
@@ -143,9 +155,11 @@ export class CowtailRealtimeClient {
   }
 
   sendOpenClawMessageUpdate(command: OpenClawMessageUpdateInput): Promise<CowtailCommandResult> {
+    const requestId = this.#requestIdFactory();
     return this.#sendCommand({
       ...command,
-      requestId: this.#requestIdFactory(),
+      requestId,
+      idempotencyKey: command.idempotencyKey ?? `cowtail:request:${requestId}`,
       ...(command.links ? { links: command.links } : {}),
       ...(command.toolCalls ? { toolCalls: command.toolCalls } : {}),
       ...(command.actions ? { actions: command.actions } : {}),
@@ -153,16 +167,20 @@ export class CowtailRealtimeClient {
   }
 
   sendSessionBound(command: OpenClawSessionBoundInput): Promise<number | undefined> {
+    const requestId = this.#requestIdFactory();
     return this.#sendCommand({
       ...command,
-      requestId: this.#requestIdFactory(),
+      requestId,
+      idempotencyKey: command.idempotencyKey ?? `cowtail:request:${requestId}`,
     }).then((result) => result.sequence);
   }
 
   sendActionResult(command: OpenClawActionResultInput): Promise<number | undefined> {
+    const requestId = this.#requestIdFactory();
     return this.#sendCommand({
       ...command,
-      requestId: this.#requestIdFactory(),
+      requestId,
+      idempotencyKey: command.idempotencyKey ?? `cowtail:request:${requestId}`,
     }).then((result) => result.sequence);
   }
 

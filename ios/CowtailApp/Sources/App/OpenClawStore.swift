@@ -168,47 +168,59 @@ final class OpenClawStore: ObservableObject {
     }
 
     func sendReply(threadId: String, text: String) async throws {
+        let requestId = UUID().uuidString
         try await realtime.send(.reply(.init(
-            requestId: UUID().uuidString,
+            requestId: requestId,
+            idempotencyKey: "ios:reply:\(requestId)",
             threadId: threadId,
             text: text
         )))
     }
 
     func createThread(title: String?, text: String) async throws {
+        let requestId = UUID().uuidString
         try await realtime.send(.newThread(.init(
-            requestId: UUID().uuidString,
+            requestId: requestId,
+            idempotencyKey: "ios:new-thread:\(requestId)",
             title: title,
             text: text
         )))
     }
 
     func submitAction(actionId: String, payload: [String: JSONValue]) async throws {
+        let requestId = UUID().uuidString
         try await realtime.send(.action(.init(
-            requestId: UUID().uuidString,
+            requestId: requestId,
+            idempotencyKey: "ios:action:\(requestId)",
             actionId: actionId,
             payload: payload
         )))
     }
 
     func markThreadRead(threadId: String) async throws {
+        let requestId = UUID().uuidString
         try await realtime.send(.markThreadRead(.init(
-            requestId: UUID().uuidString,
+            requestId: requestId,
+            idempotencyKey: "ios:mark-read:\(requestId)",
             threadId: threadId
         )))
     }
 
     func renameThread(threadId: String, title: String) async throws {
+        let requestId = UUID().uuidString
         try await realtime.send(.renameThread(.init(
-            requestId: UUID().uuidString,
+            requestId: requestId,
+            idempotencyKey: "ios:rename:\(requestId)",
             threadId: threadId,
             title: title
         )))
     }
 
     func deleteThread(threadId: String) async throws {
+        let requestId = UUID().uuidString
         try await realtime.send(.deleteThread(.init(
-            requestId: UUID().uuidString,
+            requestId: requestId,
+            idempotencyKey: "ios:delete:\(requestId)",
             threadId: threadId
         )))
     }
@@ -216,6 +228,10 @@ final class OpenClawStore: ObservableObject {
     func apply(_ event: OpenClawEventEnvelope) throws {
         if let thread = event.thread {
             upsertThread(thread)
+            if thread.status == .archived {
+                advanceCursor(to: event.sequence)
+                return
+            }
         }
 
         if let message = event.message {

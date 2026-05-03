@@ -228,6 +228,7 @@ describe("CowtailRealtimeClient", () => {
     expect(JSON.parse(sockets[0]!.sent[1]!)).toEqual({
       type: "openclaw_message",
       requestId: "request-delayed",
+      idempotencyKey: "cowtail:request:request-delayed",
       sessionKey: "session-delayed",
       text: "queued",
       links: [],
@@ -313,6 +314,7 @@ describe("CowtailRealtimeClient", () => {
     expect(JSON.parse(socket.sent[1]!)).toEqual({
       type: "openclaw_message",
       requestId: "request-before-open",
+      idempotencyKey: "cowtail:request:request-before-open",
       sessionKey: "session-before-open",
       text: "hello before open",
       links: [],
@@ -369,6 +371,7 @@ describe("CowtailRealtimeClient", () => {
     expect(JSON.parse(sockets[0]!.sent[1]!)).toEqual({
       type: "openclaw_message",
       requestId: "request-1",
+      idempotencyKey: "cowtail:request:request-1",
       sessionKey: "session-1",
       text: "hello",
       links: [],

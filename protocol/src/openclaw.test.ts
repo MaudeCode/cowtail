@@ -175,6 +175,7 @@ describe("openclaw protocol schemas", () => {
     const parsed = openclawRealtimeClientMessageSchema.parse({
       type: "openclaw_message",
       requestId: "request-1",
+      idempotencyKey: "cowtail:reply:message-1",
       sessionKey: "session-1",
       title: "Deploy approval",
       text: "Approve production deploy?",
@@ -194,6 +195,7 @@ describe("openclaw protocol schemas", () => {
     }
 
     expect(parsed.type).toBe("openclaw_message");
+    expect(parsed.idempotencyKey).toBe("cowtail:reply:message-1");
     expect(parsed.actions).toEqual([
       {
         label: "Approve",
@@ -206,6 +208,7 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "openclaw_message_update",
         requestId: "request-1b",
+        idempotencyKey: "cowtail:update:message-1:sent",
         messageId: "message-1",
         text: "Streaming reply",
         links: [],
@@ -214,6 +217,7 @@ describe("openclaw protocol schemas", () => {
     ).toEqual({
       type: "openclaw_message_update",
       requestId: "request-1b",
+      idempotencyKey: "cowtail:update:message-1:sent",
       messageId: "message-1",
       text: "Streaming reply",
       links: [],
@@ -224,6 +228,7 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "openclaw_message",
         requestId: "request-tool",
+        idempotencyKey: "cowtail:reply:message-tool",
         sessionKey: "session-1",
         text: "",
         toolCalls: [
@@ -237,6 +242,7 @@ describe("openclaw protocol schemas", () => {
     ).toEqual({
       type: "openclaw_message",
       requestId: "request-tool",
+      idempotencyKey: "cowtail:reply:message-tool",
       sessionKey: "session-1",
       text: "",
       links: [],
@@ -274,12 +280,14 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "ios_new_thread",
         requestId: "request-2",
+        idempotencyKey: "ios:new-thread:request-2",
         title: "Check backup",
         text: "Can you inspect the latest backup?",
       }),
     ).toEqual({
       type: "ios_new_thread",
       requestId: "request-2",
+      idempotencyKey: "ios:new-thread:request-2",
       title: "Check backup",
       text: "Can you inspect the latest backup?",
     });
@@ -288,12 +296,14 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "ios_reply",
         requestId: "request-3",
+        idempotencyKey: "ios:reply:request-3",
         threadId: "thread-1",
         text: "Run it now.",
       }),
     ).toEqual({
       type: "ios_reply",
       requestId: "request-3",
+      idempotencyKey: "ios:reply:request-3",
       threadId: "thread-1",
       text: "Run it now.",
     });
@@ -302,12 +312,14 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "ios_action",
         requestId: "request-4",
+        idempotencyKey: "ios:action:request-4",
         actionId: "action-1",
         payload: { decision: "approve" },
       }),
     ).toEqual({
       type: "ios_action",
       requestId: "request-4",
+      idempotencyKey: "ios:action:request-4",
       actionId: "action-1",
       payload: { decision: "approve" },
     });
@@ -316,11 +328,13 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "ios_mark_thread_read",
         requestId: "request-4b",
+        idempotencyKey: "ios:mark-read:request-4b",
         threadId: "thread-1",
       }),
     ).toEqual({
       type: "ios_mark_thread_read",
       requestId: "request-4b",
+      idempotencyKey: "ios:mark-read:request-4b",
       threadId: "thread-1",
     });
 
@@ -328,12 +342,14 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "ios_rename_thread",
         requestId: "request-4c",
+        idempotencyKey: "ios:rename:request-4c",
         threadId: "thread-1",
         title: "Better title",
       }),
     ).toEqual({
       type: "ios_rename_thread",
       requestId: "request-4c",
+      idempotencyKey: "ios:rename:request-4c",
       threadId: "thread-1",
       title: "Better title",
     });
@@ -342,11 +358,13 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "ios_delete_thread",
         requestId: "request-4d",
+        idempotencyKey: "ios:delete:request-4d",
         threadId: "thread-1",
       }),
     ).toEqual({
       type: "ios_delete_thread",
       requestId: "request-4d",
+      idempotencyKey: "ios:delete:request-4d",
       threadId: "thread-1",
     });
 
@@ -365,12 +383,14 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "openclaw_session_bound",
         requestId: "request-5",
+        idempotencyKey: "cowtail:session-bound:thread-1",
         threadId: "thread-1",
         sessionKey: "session-1",
       }),
     ).toEqual({
       type: "openclaw_session_bound",
       requestId: "request-5",
+      idempotencyKey: "cowtail:session-bound:thread-1",
       threadId: "thread-1",
       sessionKey: "session-1",
     });
@@ -379,6 +399,7 @@ describe("openclaw protocol schemas", () => {
       openclawRealtimeClientMessageSchema.parse({
         type: "openclaw_action_result",
         requestId: "request-6",
+        idempotencyKey: "cowtail:action-result:action-1:submitted",
         actionId: "action-1",
         state: "submitted",
         resultMetadata: { accepted: true },
@@ -386,6 +407,7 @@ describe("openclaw protocol schemas", () => {
     ).toEqual({
       type: "openclaw_action_result",
       requestId: "request-6",
+      idempotencyKey: "cowtail:action-result:action-1:submitted",
       actionId: "action-1",
       state: "submitted",
       resultMetadata: { accepted: true },

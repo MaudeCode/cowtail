@@ -89,6 +89,7 @@ type CowtailReplyDispatchInfo = {
   kind?: "tool" | "block" | "final";
 };
 type CowtailReplyStreamState = {
+  idempotencyKey: string;
   messageId?: string;
   failed?: boolean;
   completed?: boolean;
@@ -138,6 +139,7 @@ export async function handleCowtailEvent(params: {
       if (!thread.sessionKey) {
         await client.sendSessionBound({
           type: "openclaw_session_bound",
+          idempotencyKey: `cowtail:session-bound:${thread.id}`,
           threadId: thread.id,
           sessionKey: route.sessionKey,
         });
@@ -211,6 +213,7 @@ export async function handleCowtailEvent(params: {
         });
         await client.sendActionResult({
           type: "openclaw_action_result",
+          idempotencyKey: `cowtail:action-result:${action.id}:${dispatchSucceeded ? "submitted" : "failed"}`,
           actionId: action.id,
           state: dispatchSucceeded ? "submitted" : "failed",
         });
@@ -218,6 +221,7 @@ export async function handleCowtailEvent(params: {
         logger?.error?.(`Cowtail action dispatch failed: ${errorMessage(error)}`);
         await client.sendActionResult({
           type: "openclaw_action_result",
+          idempotencyKey: `cowtail:action-result:${action.id}:failed`,
           actionId: action.id,
           state: "failed",
         });
@@ -257,7 +261,12 @@ export async function dispatchCowtailTextTurn(params: {
     body,
     timestamp: message.createdAt,
   });
-  const streamState: CowtailReplyStreamState = { text: "", links: [], toolCalls: [] };
+  const streamState: CowtailReplyStreamState = {
+    idempotencyKey: `cowtail:reply:${message.id}`,
+    text: "",
+    links: [],
+    toolCalls: [],
+  };
 
   await recordCowtailInboundSessionAndDispatchReply({
     cfg: runtime.config.loadConfig(),
@@ -326,7 +335,12 @@ export async function dispatchCowtailActionTurn(params: {
     timestamp,
   });
   let dispatchFailed = false;
-  const streamState: CowtailReplyStreamState = { text: "", links: [], toolCalls: [] };
+  const streamState: CowtailReplyStreamState = {
+    idempotencyKey: `cowtail:action:${action.id}`,
+    text: "",
+    links: [],
+    toolCalls: [],
+  };
 
   await recordCowtailInboundSessionAndDispatchReply({
     cfg: runtime.config.loadConfig(),
@@ -451,6 +465,7 @@ async function deliverCowtailReply(params: {
     if (!params.streamState.messageId) {
       const result = await params.client.sendOpenClawMessage({
         type: "openclaw_message",
+        idempotencyKey: params.streamState.idempotencyKey,
         sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
         title: params.thread.title,
         text: messageText,
@@ -488,6 +503,7 @@ async function deliverCowtailReply(params: {
     if (!params.streamState.messageId) {
       const result = await params.client.sendOpenClawMessage({
         type: "openclaw_message",
+        idempotencyKey: params.streamState.idempotencyKey,
         sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
         title: params.thread.title,
         text: params.streamState.text,
@@ -533,6 +549,7 @@ async function deliverCowtailReply(params: {
 
   await params.client.sendOpenClawMessage({
     type: "openclaw_message",
+    idempotencyKey: params.streamState.idempotencyKey,
     sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
     title: params.thread.title,
     text,

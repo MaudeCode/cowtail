@@ -308,35 +308,41 @@ enum OpenClawServerMessage: Decodable, Equatable, Sendable {
 
 struct OpenClawNewThreadCommand: Codable, Equatable, Sendable {
     let requestId: String
+    let idempotencyKey: String
     let title: String?
     let text: String
 }
 
 struct OpenClawReplyCommand: Codable, Equatable, Sendable {
     let requestId: String
+    let idempotencyKey: String
     let threadId: String
     let text: String
 }
 
 struct OpenClawActionCommand: Codable, Equatable, Sendable {
     let requestId: String
+    let idempotencyKey: String
     let actionId: String
     let payload: [String: JSONValue]
 }
 
 struct OpenClawMarkThreadReadCommand: Codable, Equatable, Sendable {
     let requestId: String
+    let idempotencyKey: String
     let threadId: String
 }
 
 struct OpenClawRenameThreadCommand: Codable, Equatable, Sendable {
     let requestId: String
+    let idempotencyKey: String
     let threadId: String
     let title: String
 }
 
 struct OpenClawDeleteThreadCommand: Codable, Equatable, Sendable {
     let requestId: String
+    let idempotencyKey: String
     let threadId: String
 }
 
@@ -368,6 +374,7 @@ enum OpenClawClientCommand: Encodable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case type
         case requestId
+        case idempotencyKey
         case title
         case text
         case threadId
@@ -381,30 +388,36 @@ enum OpenClawClientCommand: Encodable, Equatable, Sendable {
         case .newThread(let command):
             try container.encode("ios_new_thread", forKey: .type)
             try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.idempotencyKey, forKey: .idempotencyKey)
             try container.encodeIfPresent(command.title, forKey: .title)
             try container.encode(command.text, forKey: .text)
         case .reply(let command):
             try container.encode("ios_reply", forKey: .type)
             try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.idempotencyKey, forKey: .idempotencyKey)
             try container.encode(command.threadId, forKey: .threadId)
             try container.encode(command.text, forKey: .text)
         case .action(let command):
             try container.encode("ios_action", forKey: .type)
             try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.idempotencyKey, forKey: .idempotencyKey)
             try container.encode(command.actionId, forKey: .actionId)
             try container.encode(command.payload, forKey: .payload)
         case .markThreadRead(let command):
             try container.encode("ios_mark_thread_read", forKey: .type)
             try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.idempotencyKey, forKey: .idempotencyKey)
             try container.encode(command.threadId, forKey: .threadId)
         case .renameThread(let command):
             try container.encode("ios_rename_thread", forKey: .type)
             try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.idempotencyKey, forKey: .idempotencyKey)
             try container.encode(command.threadId, forKey: .threadId)
             try container.encode(command.title, forKey: .title)
         case .deleteThread(let command):
             try container.encode("ios_delete_thread", forKey: .type)
             try container.encode(command.requestId, forKey: .requestId)
+            try container.encode(command.idempotencyKey, forKey: .idempotencyKey)
             try container.encode(command.threadId, forKey: .threadId)
         }
     }

@@ -196,6 +196,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
             {
               serviceToken: this.serviceToken,
               sessionKey: command.sessionKey,
+              idempotencyKey: command.idempotencyKey,
               text: command.text,
             },
             "title",
@@ -243,7 +244,11 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async createIosThread(command: OpenClawIosNewThreadCommand): Promise<OpenClawEventEnvelope> {
     const args = addDefined(
-      { serviceToken: this.serviceToken, text: command.text },
+      {
+        serviceToken: this.serviceToken,
+        idempotencyKey: command.idempotencyKey,
+        text: command.text,
+      },
       "title",
       command.title,
     );
@@ -254,6 +259,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async createIosReply(command: OpenClawIosReplyCommand): Promise<OpenClawEventEnvelope> {
     const result = await this.convex.mutation(convexApi.openclaw.createReplyFromIos, {
       serviceToken: this.serviceToken,
+      idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
       text: command.text,
     });
