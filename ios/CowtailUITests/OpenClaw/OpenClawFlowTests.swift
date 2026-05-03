@@ -43,7 +43,12 @@ final class OpenClawFlowTests: XCTestCase {
         composer.tap()
         composer.typeText("Check rollout")
 
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["button.openclaw.send-reply"].isEnabled)
+
+        element(in: app, identifier: "message.openclaw.preview-message").tap()
+
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2))
     }
 
     func testBackFromThreadDetailReturnsToThreadList() {

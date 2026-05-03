@@ -64,6 +64,13 @@ struct OpenClawThreadDetailView: View {
                             .padding(.top, 14)
                             .padding(.bottom, 16)
                         }
+                        .contentShape(Rectangle())
+                        .simultaneousGesture(
+                            TapGesture().onEnded {
+                                composerIsFocused = false
+                            }
+                        )
+                        .scrollDismissesKeyboard(.interactively)
                     }
                     .transaction { transaction in
                         if composerIsFocused {
@@ -302,14 +309,24 @@ private struct OpenClawThreadComposer: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("Message", text: $replyText, axis: .vertical)
-                    .focused($fieldIsFocused)
-                    .font(.cowtailSans(15, relativeTo: .body))
-                    .textInputAutocapitalization(.sentences)
-                    .padding(.vertical, 8)
-                    .lineLimit(1...7)
-                    .accessibilityIdentifier("field.openclaw.reply")
+            HStack(alignment: .center, spacing: 10) {
+                ZStack(alignment: .leading) {
+                    if replyText.isEmpty {
+                        Text("Message")
+                            .font(.cowtailSans(15, relativeTo: .body))
+                            .foregroundStyle(style.secondaryText.opacity(0.72))
+                            .allowsHitTesting(false)
+                    }
+
+                    TextField("", text: $replyText, axis: .vertical)
+                        .focused($fieldIsFocused)
+                        .font(.cowtailSans(15, relativeTo: .body))
+                        .textInputAutocapitalization(.sentences)
+                        .lineLimit(1...7)
+                        .accessibilityLabel("Message")
+                        .accessibilityIdentifier("field.openclaw.reply")
+                }
+                .frame(minHeight: style.sendTapTargetSize, alignment: .center)
 
                 Button {
                     sendCurrentReply()
