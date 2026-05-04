@@ -193,61 +193,13 @@ jobs:
           tar -tzf cli-npm-package/*.tgz > /dev/null
           tar -tzf openclaw-plugin-npm-package/*.tgz > /dev/null
 
-  publish:
-    name: Publish
+  publish-ios:
+    name: Publish iOS App
     runs-on: ubuntu-latest
     needs: [validate]
     permissions:
-      contents: write
-      packages: write
-      id-token: write
+      contents: read
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Download web Docker amd64
-        uses: actions/download-artifact@v8
-        with:
-          name: docker-amd64
-          path: docker-amd64
-
-      - name: Download web Docker arm64
-        uses: actions/download-artifact@v8
-        with:
-          name: docker-arm64
-          path: docker-arm64
-
-      - name: Download realtime Docker amd64
-        uses: actions/download-artifact@v8
-        with:
-          name: realtime-docker-amd64
-          path: realtime-docker-amd64
-
-      - name: Download realtime Docker arm64
-        uses: actions/download-artifact@v8
-        with:
-          name: realtime-docker-arm64
-          path: realtime-docker-arm64
-
-      - name: Download CLI release artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: cli-release
-          path: cli-release
-
-      - name: Download CLI npm package
-        uses: actions/download-artifact@v8
-        with:
-          name: cli-npm-package
-          path: cli-npm-package
-
-      - name: Download OpenClaw plugin npm package
-        uses: actions/download-artifact@v8
-        with:
-          name: openclaw-plugin-npm-package
-          path: openclaw-plugin-npm-package
-
       - name: Download iOS IPA
         uses: actions/download-artifact@v8
         with:
@@ -273,23 +225,111 @@ jobs:
           wait-for-processing: "true"
           backend: AppStoreAPI
 
+  publish-npm:
+    name: Publish ${{ matrix.name }} to npm
+    runs-on: ubuntu-latest
+    needs: [validate]
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: CLI
+            artifact: cli-npm-package
+            path: cli-npm-package
+          - name: OpenClaw plugin
+            artifact: openclaw-plugin-npm-package
+            path: openclaw-plugin-npm-package
+    steps:
+      - uses: actions/checkout@v6
+
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Publish OpenClaw plugin to npm
+      - name: Download npm package
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+
+      - name: Publish npm package
         run: |
-          tarball="$(realpath "$(ls openclaw-plugin-npm-package/*.tgz)")"
+          tarball="$(realpath "$(ls "${{ matrix.path }}"/*.tgz)")"
           echo "Publishing ${tarball}"
           npm publish "${tarball}" --provenance --access public --tag latest
 
-      - name: Publish CLI to npm
-        run: |
-          tarball="$(realpath "$(ls cli-npm-package/*.tgz)")"
-          echo "Publishing ${tarball}"
-          npm publish "${tarball}" --provenance --access public --tag latest
+  publish-images:
+    name: Publish ${{ matrix.name }} Image (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    needs: [validate]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: Web
+            artifact_prefix: docker
+            image_name: maudecode/cowtail
+            arch: amd64
+          - name: Realtime
+            artifact_prefix: realtime-docker
+            image_name: maudecode/cowtail-realtime
+            arch: amd64
+          - name: Web
+            artifact_prefix: docker
+            image_name: maudecode/cowtail
+            arch: arm64
+          - name: Realtime
+            artifact_prefix: realtime-docker
+            image_name: maudecode/cowtail-realtime
+            arch: arm64
+    steps:
+      - name: Download image
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact_prefix }}-${{ matrix.arch }}
+          path: ${{ matrix.artifact_prefix }}-${{ matrix.arch }}
 
+      - name: Log in to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load and push architecture image
+        run: |
+          artifact_dir="${{ matrix.artifact_prefix }}-${{ matrix.arch }}"
+          load_output="$(docker load -i "${artifact_dir}/image.tar")"
+          printf '%s\n' "$load_output"
+          image_ref="$(printf '%s\n' "$load_output" | awk -F': ' '/Loaded image/{ref=$2} END{print ref}')"
+          test -n "$image_ref"
+          tag="${{ env.REGISTRY }}/${{ matrix.image_name }}:${{ matrix.arch }}-${{ github.ref_name }}"
+          docker tag "$image_ref" "$tag"
+          docker push "$tag"
+
+  publish-image-manifests:
+    name: Publish ${{ matrix.name }} Image Manifest
+    runs-on: ubuntu-latest
+    needs: [publish-images]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: Web
+            image_name: maudecode/cowtail
+          - name: Realtime
+            image_name: maudecode/cowtail-realtime
+    steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -300,61 +340,55 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract web metadata
-        id: meta-web
+      - name: Extract image metadata
+        id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ matrix.image_name }}
           tags: |
             type=match,pattern=v(.*),group=1
             type=raw,value=latest
 
-      - name: Extract realtime metadata
-        id: meta-realtime
-        uses: docker/metadata-action@v6
+      - name: Create and push multi-arch manifest
+        run: |
+          printf '%s\n' '${{ steps.meta.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
+            test -n "$tag"
+            docker buildx imagetools create -t "$tag" \
+              ${{ env.REGISTRY }}/${{ matrix.image_name }}:amd64-${{ github.ref_name }} \
+              ${{ env.REGISTRY }}/${{ matrix.image_name }}:arm64-${{ github.ref_name }}
+          done
+
+  publish-github-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - publish-ios
+      - publish-npm
+      - publish-image-manifests
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}
-          tags: |
-            type=match,pattern=v(.*),group=1
-            type=raw,value=latest
+          fetch-depth: 0
 
-      - name: Load and push architecture images
-        run: |
-          load_and_push() {
-            artifact_dir="$1"
-            image_name="$2"
-            arch="$3"
-            load_output="$(docker load -i "${artifact_dir}/image.tar")"
-            printf '%s\n' "$load_output"
-            image_ref="$(printf '%s\n' "$load_output" | awk -F': ' '/Loaded image/{ref=$2} END{print ref}')"
-            test -n "$image_ref"
-            tag="${{ env.REGISTRY }}/${image_name}:${arch}-${{ github.ref_name }}"
-            docker tag "$image_ref" "$tag"
-            docker push "$tag"
-          }
+      - name: Download CLI release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: cli-release
+          path: cli-release
 
-          load_and_push docker-amd64 "${{ env.WEB_IMAGE_NAME }}" amd64
-          load_and_push docker-arm64 "${{ env.WEB_IMAGE_NAME }}" arm64
-          load_and_push realtime-docker-amd64 "${{ env.REALTIME_IMAGE_NAME }}" amd64
-          load_and_push realtime-docker-arm64 "${{ env.REALTIME_IMAGE_NAME }}" arm64
+      - name: Download CLI npm package
+        uses: actions/download-artifact@v8
+        with:
+          name: cli-npm-package
+          path: cli-npm-package
 
-      - name: Create and push web multi-arch manifest
-        run: |
-          printf '%s\n' '${{ steps.meta-web.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
-            test -n "$tag"
-            docker buildx imagetools create -t "$tag" \
-              ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:amd64-${{ github.ref_name }} \
-              ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:arm64-${{ github.ref_name }}
-          done
-
-      - name: Create and push realtime multi-arch manifest
-        run: |
-          printf '%s\n' '${{ steps.meta-realtime.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
-            test -n "$tag"
-            docker buildx imagetools create -t "$tag" \
-              ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}:amd64-${{ github.ref_name }} \
-              ${{ env.REGISTRY }}/${{ env.REALTIME_IMAGE_NAME }}:arm64-${{ github.ref_name }}
-          done
+      - name: Download OpenClaw plugin npm package
+        uses: actions/download-artifact@v8
+        with:
+          name: openclaw-plugin-npm-package
+          path: openclaw-plugin-npm-package
 
       - name: Generate CLI checksums
         run: |
@@ -376,6 +410,6 @@ jobs:
 
   deploy-convex:
     name: Deploy Convex
-    needs: [publish]
+    needs: [publish-github-release]
     uses: ./.github/workflows/convex-deploy.yml
     secrets: inherit
