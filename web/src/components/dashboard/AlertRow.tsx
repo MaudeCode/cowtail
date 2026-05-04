@@ -29,7 +29,7 @@ export default function AlertRow({ alert, showDetail = false, onToggle }: AlertR
       {/* Desktop row */}
       <button
         type="button"
-        className={`grid grid-cols-[120px_1fr_80px_110px] gap-3 py-3.5 pl-5 border-b items-center text-[0.85rem] max-lg:hidden ${
+        className={`grid w-full grid-cols-[120px_1fr_80px_110px] gap-3 py-3.5 pl-5 border-b items-center text-left text-[0.85rem] max-lg:hidden ${
           onToggle
             ? "cursor-pointer hover:bg-[rgba(184,36,44,0.04)] transition-[background] duration-100"
             : ""
@@ -61,7 +61,7 @@ export default function AlertRow({ alert, showDetail = false, onToggle }: AlertR
       {/* Mobile row */}
       <button
         type="button"
-        className={`hidden max-lg:block py-3 px-3 pl-5 border-b ${
+        className={`hidden w-full text-left max-lg:block py-3 px-3 pl-5 border-b ${
           onToggle
             ? "cursor-pointer hover:bg-[rgba(184,36,44,0.04)] transition-[background] duration-100"
             : ""

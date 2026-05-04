@@ -67,7 +67,7 @@ function sortGroups(groups: AlertGroup[], field: SortField, dir: SortDir): Alert
   });
 }
 
-const cols = "grid grid-cols-[120px_1fr_80px_110px] gap-3";
+const cols = "grid w-full grid-cols-[120px_1fr_80px_110px] gap-3";
 
 interface AlertGroupRowProps {
   group: AlertGroup;
@@ -97,7 +97,7 @@ function AlertGroupRow({
       {/* Desktop row */}
       <button
         type="button"
-        className={`${cols} py-3.5 border-b cursor-pointer transition-[background] duration-100 items-center text-[0.85rem] hover:bg-[rgba(184,36,44,0.04)] max-lg:hidden ${
+        className={`${cols} py-3.5 border-b cursor-pointer transition-[background] duration-100 items-center text-left text-[0.85rem] hover:bg-[rgba(184,36,44,0.04)] max-lg:hidden ${
           isExpanded ? "border-b-accent bg-surface" : "border-b-gray-100"
         }`}
         onClick={() => onToggleGroup(group.alertName)}
@@ -133,7 +133,7 @@ function AlertGroupRow({
       {/* Mobile card */}
       <button
         type="button"
-        className={`hidden max-lg:block py-3 px-3 border-b cursor-pointer transition-[background] duration-100 hover:bg-[rgba(184,36,44,0.04)] ${
+        className={`hidden w-full text-left max-lg:block py-3 px-3 border-b cursor-pointer transition-[background] duration-100 hover:bg-[rgba(184,36,44,0.04)] ${
           isExpanded ? "border-b-accent bg-surface" : "border-b-gray-100"
         }`}
         onClick={() => onToggleGroup(group.alertName)}
