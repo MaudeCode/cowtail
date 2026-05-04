@@ -32,6 +32,7 @@ final class OpenClawStore: ObservableObject {
         category: "openclawStore"
     )
     private var connectionGeneration = 0
+    private var liveStreamIdsByThreadID: [String: String] = [:]
 
     private static let displayNameKey = "openclaw.displayName"
     private static let lastSeenSequenceKey = "openclaw.lastSeenSequence"
@@ -249,6 +250,47 @@ final class OpenClawStore: ObservableObject {
         advanceCursor(to: event.sequence)
     }
 
+    func applyStreamSnapshot(_ snapshot: OpenClawStreamSnapshot) {
+        var messages = messagesByThreadID[snapshot.threadId] ?? []
+        let hasExistingStreamMessage = messages.contains { $0.id == snapshot.streamId }
+
+        if snapshot.isFinal,
+           liveStreamIdsByThreadID[snapshot.threadId] != snapshot.streamId,
+           !hasExistingStreamMessage {
+            return
+        }
+
+        if let existingStreamId = liveStreamIdsByThreadID[snapshot.threadId],
+           existingStreamId != snapshot.streamId {
+            messages.removeAll { $0.id == existingStreamId }
+        }
+
+        liveStreamIdsByThreadID[snapshot.threadId] = snapshot.streamId
+
+        let createdAt = messages.first(where: { $0.id == snapshot.streamId })?.createdAt ?? snapshot.updatedAt
+
+        let message = OpenClawMessage(
+            id: snapshot.streamId,
+            threadId: snapshot.threadId,
+            direction: .openClawToUser,
+            authorLabel: "OpenClaw",
+            text: snapshot.text,
+            links: snapshot.links,
+            toolCalls: snapshot.toolCalls,
+            deliveryState: snapshot.isFinal ? .sent : .pending,
+            createdAt: createdAt,
+            updatedAt: snapshot.updatedAt
+        )
+        let messageWithActions = OpenClawMessageWithActions(message: message, actions: [])
+
+        if let index = messages.firstIndex(where: { $0.id == snapshot.streamId }) {
+            messages[index] = messageWithActions
+        } else {
+            messages.append(messageWithActions)
+        }
+        messagesByThreadID[snapshot.threadId] = sortedMessages(messages)
+    }
+
     private func handle(_ message: OpenClawServerMessage) {
         do {
             switch message {
@@ -266,6 +308,9 @@ final class OpenClawStore: ObservableObject {
                 if error.requestId == nil {
                     connectionState = .failed(error.error)
                 }
+
+            case .streamSnapshot(let snapshot):
+                applyStreamSnapshot(snapshot)
             }
         } catch {
             logger.error("realtime message handling failed: \(String(describing: error), privacy: .public)")
@@ -301,6 +346,7 @@ final class OpenClawStore: ObservableObject {
         if thread.status == .archived {
             threads.removeAll { $0.id == thread.id }
             messagesByThreadID.removeValue(forKey: thread.id)
+            liveStreamIdsByThreadID.removeValue(forKey: thread.id)
             return
         }
 
@@ -313,6 +359,11 @@ final class OpenClawStore: ObservableObject {
     }
 
     private func upsertMessage(_ message: OpenClawMessage, actions: [OpenClawAction]) {
+        if message.direction == .openClawToUser,
+           let liveStreamId = liveStreamIdsByThreadID.removeValue(forKey: message.threadId) {
+            messagesByThreadID[message.threadId]?.removeAll { $0.id == liveStreamId }
+        }
+
         let existingActions = messagesByThreadID[message.threadId]?
             .first(where: { $0.id == message.id })?
             .actions ?? []

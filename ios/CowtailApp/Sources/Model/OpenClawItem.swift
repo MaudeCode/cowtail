@@ -282,10 +282,50 @@ struct OpenClawRealtimeError: Codable, Equatable, Sendable {
     let error: String
 }
 
+struct OpenClawStreamSnapshot: Codable, Equatable, Sendable {
+    let type: String
+    let streamId: String
+    let sessionKey: String
+    let threadId: String
+    let text: String
+    let links: [OpenClawLink]
+    let toolCalls: [OpenClawToolCall]
+    let isFinal: Bool
+    let updatedAt: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case streamId
+        case sessionKey
+        case threadId
+        case text
+        case links
+        case toolCalls
+        case isFinal
+        case updatedAt
+    }
+}
+
+extension OpenClawStreamSnapshot {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        streamId = try container.decode(String.self, forKey: .streamId)
+        sessionKey = try container.decode(String.self, forKey: .sessionKey)
+        threadId = try container.decode(String.self, forKey: .threadId)
+        text = try container.decode(String.self, forKey: .text)
+        links = try container.decodeIfPresent([OpenClawLink].self, forKey: .links) ?? []
+        toolCalls = try container.decodeIfPresent([OpenClawToolCall].self, forKey: .toolCalls) ?? []
+        isFinal = try container.decode(Bool.self, forKey: .isFinal)
+        updatedAt = try container.decode(Int64.self, forKey: .updatedAt)
+    }
+}
+
 enum OpenClawServerMessage: Decodable, Equatable, Sendable {
     case event(OpenClawEventEnvelope)
     case ack(OpenClawAck)
     case realtimeError(OpenClawRealtimeError)
+    case streamSnapshot(OpenClawStreamSnapshot)
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -300,6 +340,8 @@ enum OpenClawServerMessage: Decodable, Equatable, Sendable {
             self = .ack(try OpenClawAck(from: decoder))
         case "realtime_error":
             self = .realtimeError(try OpenClawRealtimeError(from: decoder))
+        case "openclaw_message_stream_snapshot":
+            self = .streamSnapshot(try OpenClawStreamSnapshot(from: decoder))
         default:
             self = .event(try OpenClawEventEnvelope(from: decoder))
         }

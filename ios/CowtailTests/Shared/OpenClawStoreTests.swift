@@ -311,6 +311,316 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(store.lastSeenSequence, 7)
     }
 
+    func testStreamSnapshotCreatesPendingMessageAndDurableAssistantMessageReconcilesIt() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+        let runningToolCall = OpenClawToolCall(
+            id: "tool-1",
+            name: "read_file",
+            args: ["path": .string("/var/log/app.log")],
+            result: nil,
+            status: .running,
+            startedAt: 1777127999000,
+            completedAt: nil,
+            insertedAtContentLength: 9,
+            contentSnapshotAtStart: "Checking "
+        )
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Checking logs.",
+            links: [.init(label: "Runbook", url: "https://example.invalid/runbook")],
+            toolCalls: [runningToolCall],
+            isFinal: false,
+            updatedAt: 1777128000000
+        ))
+
+        let pendingMessage = try XCTUnwrap(store.messagesByThreadID["thread-1"]?.first)
+        XCTAssertEqual(pendingMessage.id, "stream-message-1")
+        XCTAssertEqual(pendingMessage.direction, .openClawToUser)
+        XCTAssertEqual(pendingMessage.authorLabel, "OpenClaw")
+        XCTAssertEqual(pendingMessage.text, "Checking logs.")
+        XCTAssertEqual(pendingMessage.links, [.init(label: "Runbook", url: "https://example.invalid/runbook")])
+        XCTAssertEqual(pendingMessage.toolCalls, [runningToolCall])
+        XCTAssertEqual(pendingMessage.deliveryState, .pending)
+        XCTAssertEqual(pendingMessage.createdAt, 1777128000000)
+        XCTAssertEqual(pendingMessage.updatedAt, 1777128000000)
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Checked the logs.",
+            links: [],
+            toolCalls: [runningToolCall],
+            isFinal: true,
+            updatedAt: 1777128040000
+        ))
+
+        let finalStreamMessage = try XCTUnwrap(store.messagesByThreadID["thread-1"]?.first)
+        XCTAssertEqual(finalStreamMessage.id, "stream-message-1")
+        XCTAssertEqual(finalStreamMessage.text, "Checked the logs.")
+        XCTAssertEqual(finalStreamMessage.deliveryState, .sent)
+        XCTAssertEqual(finalStreamMessage.updatedAt, 1777128040000)
+
+        let durableMessage = OpenClawMessage(
+            id: "message-1",
+            threadId: "thread-1",
+            direction: .openClawToUser,
+            authorLabel: "OpenClaw",
+            text: "Checked the logs.",
+            links: [],
+            toolCalls: [
+                OpenClawToolCall(
+                    id: "tool-1",
+                    name: "read_file",
+                    args: ["path": .string("/var/log/app.log")],
+                    result: .string("ok"),
+                    status: .complete,
+                    startedAt: 1777127999000,
+                    completedAt: 1777128050000,
+                    insertedAtContentLength: 9,
+                    contentSnapshotAtStart: "Checking "
+                )
+            ],
+            deliveryState: .sent,
+            createdAt: 1777128050000,
+            updatedAt: 1777128050000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 8,
+                type: "message_created",
+                createdAt: 1777128050000,
+                threadId: "thread-1",
+                messageId: "message-1",
+                message: durableMessage
+            )
+        )
+
+        let messages = try XCTUnwrap(store.messagesByThreadID["thread-1"])
+        XCTAssertEqual(messages.map(\.id), ["message-1"])
+        XCTAssertEqual(messages.first?.text, "Checked the logs.")
+        XCTAssertEqual(messages.first?.deliveryState, .sent)
+    }
+
+    func testLateFinalStreamSnapshotAfterDurableAssistantMessageDoesNotRecreatePlaceholder() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Checking logs.",
+            links: [],
+            toolCalls: [],
+            isFinal: false,
+            updatedAt: 1777128000000
+        ))
+
+        let durableMessage = OpenClawMessage(
+            id: "message-1",
+            threadId: "thread-1",
+            direction: .openClawToUser,
+            authorLabel: "OpenClaw",
+            text: "Checked the logs.",
+            links: [],
+            deliveryState: .sent,
+            createdAt: 1777128050000,
+            updatedAt: 1777128050000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 8,
+                type: "message_created",
+                createdAt: 1777128050000,
+                threadId: "thread-1",
+                messageId: "message-1",
+                message: durableMessage
+            )
+        )
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Checked the logs.",
+            links: [],
+            toolCalls: [],
+            isFinal: true,
+            updatedAt: 1777128040000
+        ))
+
+        let messages = try XCTUnwrap(store.messagesByThreadID["thread-1"])
+        XCTAssertEqual(messages.map(\.id), ["message-1"])
+        XCTAssertEqual(messages.first?.text, "Checked the logs.")
+        XCTAssertEqual(messages.first?.deliveryState, .sent)
+    }
+
+    func testDurableUserMessageDoesNotRemoveStreamPlaceholder() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Working.",
+            links: [],
+            toolCalls: [],
+            isFinal: false,
+            updatedAt: 1777128000000
+        ))
+
+        let userMessage = OpenClawMessage(
+            id: "message-user",
+            threadId: "thread-1",
+            direction: .userToOpenClaw,
+            authorLabel: nil,
+            text: "Any update?",
+            links: [],
+            deliveryState: .sent,
+            createdAt: 1777128010000,
+            updatedAt: 1777128010000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 8,
+                type: "message_created",
+                createdAt: 1777128010000,
+                threadId: "thread-1",
+                messageId: "message-user",
+                message: userMessage
+            )
+        )
+
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.map(\.id), ["stream-message-1", "message-user"])
+    }
+
+    func testStreamSnapshotUpdatesPreservePlaceholderOrderingAroundUserMessages() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Working.",
+            links: [],
+            toolCalls: [],
+            isFinal: false,
+            updatedAt: 1777128000000
+        ))
+
+        let userMessage = OpenClawMessage(
+            id: "message-user",
+            threadId: "thread-1",
+            direction: .userToOpenClaw,
+            authorLabel: nil,
+            text: "Any update?",
+            links: [],
+            deliveryState: .sent,
+            createdAt: 1777128010000,
+            updatedAt: 1777128010000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 8,
+                type: "message_created",
+                createdAt: 1777128010000,
+                threadId: "thread-1",
+                messageId: "message-user",
+                message: userMessage
+            )
+        )
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Still working.",
+            links: [.init(label: "Runbook", url: "https://example.invalid/runbook")],
+            toolCalls: [],
+            isFinal: false,
+            updatedAt: 1777128020000
+        ))
+
+        let messages = try XCTUnwrap(store.messagesByThreadID["thread-1"])
+        XCTAssertEqual(messages.map(\.id), ["stream-message-1", "message-user"])
+        XCTAssertEqual(messages.first?.createdAt, 1777128000000)
+        XCTAssertEqual(messages.first?.updatedAt, 1777128020000)
+        XCTAssertEqual(messages.first?.text, "Still working.")
+        XCTAssertEqual(messages.first?.links, [.init(label: "Runbook", url: "https://example.invalid/runbook")])
+    }
+
+    func testHandleRoutesStreamSnapshotsFromRealtime() async {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        AppSessionManager.shared.seedForUITesting(
+            sessionState: .ready,
+            token: "session-token",
+            userID: "user-1",
+            expiresAt: Date(timeIntervalSinceNow: 3_600),
+            lastError: nil
+        )
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        await store.connectForeground()
+        realtime.emitMessage(.streamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Live update.",
+            links: [],
+            toolCalls: [],
+            isFinal: false,
+            updatedAt: 1777128000000
+        )))
+
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.text, "Live update.")
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.deliveryState, .pending)
+    }
+
     func testConnectForegroundDoesNotRestartWhenAlreadyConnected() async {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let realtime = FakeOpenClawRealtime()

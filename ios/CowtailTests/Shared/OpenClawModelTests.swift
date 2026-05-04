@@ -252,6 +252,82 @@ final class OpenClawModelTests: XCTestCase {
         }
     }
 
+    func testDecodesStreamSnapshotWithRunningToolCall() throws {
+        let decoder = JSONDecoder()
+        let message = try decoder.decode(OpenClawServerMessage.self, from: Data("""
+        {
+          "type": "openclaw_message_stream_snapshot",
+          "streamId": "stream-message-1",
+          "sessionKey": "session-1",
+          "threadId": "thread-1",
+          "text": "Checking logs.",
+          "links": [{
+            "label": "Runbook",
+            "url": "https://example.invalid/runbook"
+          }],
+          "toolCalls": [{
+            "id": "call-read",
+            "name": "read_file",
+            "args": { "path": "/var/log/app.log" },
+            "status": "running",
+            "startedAt": 1777127999000,
+            "insertedAtContentLength": 9,
+            "contentSnapshotAtStart": "Checking "
+          }],
+          "isFinal": false,
+          "updatedAt": 1777128000000
+        }
+        """.utf8))
+
+        let expectedSnapshot = OpenClawStreamSnapshot(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Checking logs.",
+            links: [.init(label: "Runbook", url: "https://example.invalid/runbook")],
+            toolCalls: [
+                OpenClawToolCall(
+                    id: "call-read",
+                    name: "read_file",
+                    args: ["path": .string("/var/log/app.log")],
+                    result: nil,
+                    status: .running,
+                    startedAt: 1777127999000,
+                    completedAt: nil,
+                    insertedAtContentLength: 9,
+                    contentSnapshotAtStart: "Checking "
+                )
+            ],
+            isFinal: false,
+            updatedAt: 1777128000000
+        )
+
+        XCTAssertEqual(message, .streamSnapshot(expectedSnapshot))
+    }
+
+    func testDecodesStreamSnapshotWithOmittedArrayFields() throws {
+        let decoder = JSONDecoder()
+        let message = try decoder.decode(OpenClawServerMessage.self, from: Data("""
+        {
+          "type": "openclaw_message_stream_snapshot",
+          "streamId": "stream-message-1",
+          "sessionKey": "session-1",
+          "threadId": "thread-1",
+          "text": "Checking logs.",
+          "isFinal": false,
+          "updatedAt": 1777128000000
+        }
+        """.utf8))
+
+        guard case .streamSnapshot(let snapshot) = message else {
+            return XCTFail("Expected stream snapshot")
+        }
+
+        XCTAssertEqual(snapshot.links, [])
+        XCTAssertEqual(snapshot.toolCalls, [])
+    }
+
     func testDecodesToolCallsOnMessages() throws {
         let decoder = JSONDecoder()
         let event = try decoder.decode(OpenClawServerMessage.self, from: Data("""
