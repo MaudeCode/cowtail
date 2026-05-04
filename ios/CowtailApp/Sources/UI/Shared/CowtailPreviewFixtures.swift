@@ -91,6 +91,18 @@ enum CowtailPreviewFixtures {
         lastMessageAt: 1_775_000_420_000
     )
 
+    static let openClawAutoscrollThread = OpenClawThread(
+        id: "preview-autoscroll-thread",
+        sessionKey: "preview-autoscroll-session",
+        status: .active,
+        targetAgent: "cluster-ops",
+        title: "Autoscroll regression transcript",
+        unreadCount: 0,
+        createdAt: 1_775_000_500_000,
+        updatedAt: 1_775_000_620_000,
+        lastMessageAt: 1_775_000_620_000
+    )
+
     static let openClawLink = OpenClawLink(
         label: "Runbook",
         url: "https://example.com/runbooks/storage-latency"
@@ -300,6 +312,31 @@ enum CowtailPreviewFixtures {
             decodeOpenClawMessageWithActions(openClawTranscriptRunningToolMessage, actions: [openClawTranscriptAction]),
             decodeOpenClawMessageWithActions(openClawTranscriptErrorToolMessage, actions: [])
         ]
+    }
+
+    static var openClawAutoscrollMessagesWithActions: [OpenClawMessageWithActions] {
+        (1...24).map { index in
+            let paddedIndex = String(format: "%02d", index)
+            return decodeOpenClawMessageWithActions(
+                OpenClawMessage(
+                    id: "message-autoscroll-\(paddedIndex)",
+                    threadId: openClawAutoscrollThread.id,
+                    direction: index.isMultiple(of: 2) ? .userToOpenClaw : .openClawToUser,
+                    authorLabel: index.isMultiple(of: 2) ? "You" : "OpenClaw",
+                    text: """
+                    Autoscroll checkpoint \(paddedIndex)
+
+                    This seeded message keeps the OpenClaw transcript tall enough for pinned-scroll UI testing.
+                    """,
+                    links: [],
+                    toolCalls: [],
+                    deliveryState: .sent,
+                    createdAt: 1_775_000_500_000 + Int64(index * 1_000),
+                    updatedAt: 1_775_000_500_000 + Int64(index * 1_000)
+                ),
+                actions: []
+            )
+        }
     }
 
     @MainActor

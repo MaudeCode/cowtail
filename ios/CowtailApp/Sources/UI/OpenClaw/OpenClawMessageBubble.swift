@@ -22,9 +22,8 @@ struct OpenClawMessageBubble: View {
         .accessibilityElement(children: .contain)
     }
 
-    private var messageBody: AttributedString {
-        (try? AttributedString(markdown: message.text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-            ?? AttributedString(message.text)
+    private var assistantBlocks: [IdentifiedOpenClawMessageRenderBlock] {
+        OpenClawMessageRenderPlan.identifiedBlocks(for: message)
     }
 
     @ViewBuilder
@@ -45,7 +44,7 @@ struct OpenClawMessageBubble: View {
                                 .stroke(style.accent.opacity(0.20), lineWidth: 1)
                         }
 
-                    transcriptText
+                    transcriptText(message.text)
                     links
                     OpenClawActionButtons(actions: message.actions)
                 }
@@ -65,9 +64,14 @@ struct OpenClawMessageBubble: View {
                         .foregroundStyle(style.secondaryText)
                 }
 
-                transcriptText
-
-                toolCalls
+                ForEach(assistantBlocks) { block in
+                    switch block.content {
+                    case .text(let text):
+                        transcriptText(text)
+                    case .tool(let toolCall):
+                        OpenClawToolCallCard(toolCall: toolCall)
+                    }
+                }
 
                 if isStreaming {
                     streamingIndicator
@@ -80,9 +84,9 @@ struct OpenClawMessageBubble: View {
     }
 
     @ViewBuilder
-    private var transcriptText: some View {
-        if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Text(messageBody)
+    private func transcriptText(_ text: String) -> some View {
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Text(attributedText(text))
                 .font(.cowtailSans(isUserMessage ? 17 : 18, relativeTo: .body))
                 .foregroundStyle(style.primaryText)
                 .lineSpacing(isUserMessage ? 4 : 5)
@@ -91,12 +95,9 @@ struct OpenClawMessageBubble: View {
         }
     }
 
-    private var toolCalls: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(message.toolCalls) { toolCall in
-                OpenClawToolCallCard(toolCall: toolCall)
-            }
-        }
+    private func attributedText(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(text)
     }
 
     private var links: some View {
@@ -139,6 +140,135 @@ struct OpenClawMessageBubble: View {
         .padding(.top, message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 2)
         .accessibilityLabel("OpenClaw is responding")
         .accessibilityIdentifier("indicator.openclaw.responding.\(message.id)")
+    }
+}
+
+enum OpenClawMessageRenderBlock: Equatable {
+    case text(String)
+    case tool(OpenClawToolCall)
+}
+
+struct IdentifiedOpenClawMessageRenderBlock: Equatable, Identifiable {
+    let id: String
+    let content: OpenClawMessageRenderBlock
+}
+
+extension OpenClawMessageRenderBlock {
+    var renderIdentityComponent: String {
+        switch self {
+        case .text(let text):
+            return "text:\(text.utf16.count)"
+        case .tool(let toolCall):
+            return "tool:\(toolCall.id)"
+        }
+    }
+}
+
+enum OpenClawMessageRenderPlan {
+    static func identifiedBlocks(for message: OpenClawMessageWithActions) -> [IdentifiedOpenClawMessageRenderBlock] {
+        blocks(for: message).enumerated().map { index, block in
+            IdentifiedOpenClawMessageRenderBlock(
+                id: "\(index):\(block.renderIdentityComponent)",
+                content: block
+            )
+        }
+    }
+
+    static func blocks(for message: OpenClawMessageWithActions) -> [OpenClawMessageRenderBlock] {
+        guard message.direction == .openClawToUser else {
+            return fallbackBlocks(text: message.text, toolCalls: message.toolCalls)
+        }
+
+        guard let placements = orderedPlacements(for: message.toolCalls, in: message.text) else {
+            return fallbackBlocks(text: message.text, toolCalls: message.toolCalls)
+        }
+
+        var blocks: [OpenClawMessageRenderBlock] = []
+        var textCursor = 0
+        for placement in placements {
+            appendText(from: textCursor, to: placement.utf16Offset, in: message.text, to: &blocks)
+            blocks.append(.tool(placement.toolCall))
+            textCursor = placement.utf16Offset
+        }
+        appendText(from: textCursor, to: message.text.utf16.count, in: message.text, to: &blocks)
+        return blocks
+    }
+
+    private static func orderedPlacements(
+        for toolCalls: [OpenClawToolCall],
+        in text: String
+    ) -> [ToolPlacement]? {
+        var placements: [ToolPlacement] = []
+        placements.reserveCapacity(toolCalls.count)
+
+        for (index, toolCall) in toolCalls.enumerated() {
+            guard let utf16Offset = toolCall.insertedAtContentLength,
+                  let snapshot = toolCall.contentSnapshotAtStart,
+                  utf16Offset >= 0,
+                  utf16Offset <= text.utf16.count,
+                  snapshot.utf16.count == utf16Offset,
+                  text.hasPrefix(snapshot),
+                  text.utf16Index(offsetBy: utf16Offset) != nil else {
+                return nil
+            }
+
+            placements.append(ToolPlacement(toolCall: toolCall, utf16Offset: utf16Offset, sourceIndex: index))
+        }
+
+        return placements.sorted {
+            if $0.utf16Offset == $1.utf16Offset {
+                return $0.sourceIndex < $1.sourceIndex
+            }
+            return $0.utf16Offset < $1.utf16Offset
+        }
+    }
+
+    private static func fallbackBlocks(
+        text: String,
+        toolCalls: [OpenClawToolCall]
+    ) -> [OpenClawMessageRenderBlock] {
+        var blocks: [OpenClawMessageRenderBlock] = []
+        appendWholeText(text, to: &blocks)
+        blocks.append(contentsOf: toolCalls.map(OpenClawMessageRenderBlock.tool))
+        return blocks
+    }
+
+    private static func appendText(
+        from startOffset: Int,
+        to endOffset: Int,
+        in text: String,
+        to blocks: inout [OpenClawMessageRenderBlock]
+    ) {
+        guard startOffset < endOffset,
+              let startIndex = text.utf16Index(offsetBy: startOffset),
+              let endIndex = text.utf16Index(offsetBy: endOffset) else {
+            return
+        }
+
+        appendWholeText(String(text[startIndex..<endIndex]), to: &blocks)
+    }
+
+    private static func appendWholeText(
+        _ text: String,
+        to blocks: inout [OpenClawMessageRenderBlock]
+    ) {
+        guard !text.isEmpty else { return }
+        blocks.append(.text(text))
+    }
+
+    private struct ToolPlacement {
+        let toolCall: OpenClawToolCall
+        let utf16Offset: Int
+        let sourceIndex: Int
+    }
+}
+
+private extension String {
+    func utf16Index(offsetBy offset: Int) -> String.Index? {
+        guard let utf16Index = utf16.index(utf16.startIndex, offsetBy: offset, limitedBy: utf16.endIndex) else {
+            return nil
+        }
+        return String.Index(utf16Index, within: self)
     }
 }
 

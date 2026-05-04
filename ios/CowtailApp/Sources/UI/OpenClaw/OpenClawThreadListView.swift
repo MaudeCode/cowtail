@@ -11,56 +11,7 @@ struct OpenClawThreadListView: View {
 
     var body: some View {
         OpenClawScreen {
-            List {
-                pageHeader
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: CowtailDesignGuide.pageTopPadding,
-                            leading: CowtailDesignGuide.pageHorizontalPadding,
-                            bottom: 8,
-                            trailing: CowtailDesignGuide.pageHorizontalPadding
-                        )
-                    )
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-
-                if let errorMessage = store.errorMessage {
-                    errorCard(message: errorMessage)
-                        .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 5, trailing: 14))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                }
-
-                if store.connectionState == .signedOut {
-                    signedOutCard
-                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                } else if store.threads.isEmpty {
-                    emptyCard
-                        .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                } else {
-                    threadSectionHeader
-                        .listRowInsets(EdgeInsets(top: 10, leading: 18, bottom: 2, trailing: 18))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-
-                    ForEach(store.threads) { thread in
-                        threadRow(thread)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color.clear)
-            .refreshable {
-                await store.refreshIfPossible()
-            }
+            threadList
         }
         .openClawStyle(OpenClawStyle(palette: palette))
         .accessibilityElement(children: .contain)
@@ -74,18 +25,77 @@ struct OpenClawThreadListView: View {
             OpenClawRenameThreadView(thread: thread)
                 .environmentObject(store)
         }
-        .confirmationDialog(
+        .alert(
             "Delete Thread",
-            isPresented: deleteDialogBinding,
+            isPresented: deleteConfirmationPresented,
             presenting: deleteTarget
         ) { thread in
             Button("Delete Thread", role: .destructive) {
                 delete(thread)
             }
+            .accessibilityIdentifier("button.openclaw.thread-delete.confirm.\(thread.id)")
+
+            Button("Cancel", role: .cancel) {
+                deleteTarget = nil
+            }
+            .accessibilityIdentifier("button.openclaw.thread-delete.cancel.\(thread.id)")
         } message: { thread in
             Text("Delete \"\(thread.title)\" from OpenClaw.")
         }
         .task {
+            await store.refreshIfPossible()
+        }
+    }
+
+    private var threadList: some View {
+        List {
+            pageHeader
+                .listRowInsets(
+                    EdgeInsets(
+                        top: CowtailDesignGuide.pageTopPadding,
+                        leading: CowtailDesignGuide.pageHorizontalPadding,
+                        bottom: 8,
+                        trailing: CowtailDesignGuide.pageHorizontalPadding
+                    )
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+            if let errorMessage = store.errorMessage {
+                errorCard(message: errorMessage)
+                    .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 5, trailing: 14))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+
+            if store.connectionState == .signedOut {
+                signedOutCard
+                    .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } else if store.threads.isEmpty {
+                emptyCard
+                    .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } else {
+                threadSectionHeader
+                    .listRowInsets(EdgeInsets(top: 10, leading: 18, bottom: 2, trailing: 18))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+
+                ForEach(store.threads) { thread in
+                    threadRow(thread)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
+        .refreshable {
             await store.refreshIfPossible()
         }
     }
@@ -213,7 +223,7 @@ struct OpenClawThreadListView: View {
         OpenClawStyle(palette: palette)
     }
 
-    private var deleteDialogBinding: Binding<Bool> {
+    private var deleteConfirmationPresented: Binding<Bool> {
         Binding(
             get: { deleteTarget != nil },
             set: { isPresented in

@@ -88,6 +88,47 @@ final class OpenClawFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["Delete"].exists)
     }
 
+    func testThreadListDeleteConfirmationCanConfirmSelectedRow() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
+        XCUIDevice.shared.orientation = .portrait
+        addTeardownBlock {
+            XCUIDevice.shared.orientation = .portrait
+        }
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let previewThreadRow = app.buttons["row.openclaw.thread.preview-thread"]
+        XCTAssertTrue(previewThreadRow.waitForExistence(timeout: 5))
+
+        openDeleteConfirmation(for: previewThreadRow, in: app)
+        XCTAssertTrue(app.alerts["Delete Thread"].waitForExistence(timeout: 5))
+        let confirmButton = app.buttons["button.openclaw.thread-delete.confirm.preview-thread"].firstMatch
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewThreadRow.exists)
+        confirmButton.tap()
+
+        XCTAssertFalse(previewThreadRow.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["row.openclaw.thread.preview-thread-2"].exists)
+    }
+
+    func testThreadListDeleteConfirmationUsesCenteredAlertInLandscape() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        addTeardownBlock {
+            XCUIDevice.shared.orientation = .portrait
+        }
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let previewThreadRow = app.buttons["row.openclaw.thread.preview-thread"]
+        XCTAssertTrue(previewThreadRow.waitForExistence(timeout: 5))
+
+        openDeleteConfirmation(for: previewThreadRow, in: app)
+        XCTAssertTrue(app.alerts["Delete Thread"].waitForExistence(timeout: 5))
+        let confirmButton = app.buttons["button.openclaw.thread-delete.confirm.preview-thread"].firstMatch
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5))
+    }
+
     func testThreadDetailShowsExpandableToolCalls() {
         let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
         app.launch()
@@ -133,6 +174,58 @@ final class OpenClawFlowTests: XCTestCase {
         XCTAssertTrue(staticText(containing: "read-only follow-up check", in: app).exists)
         XCTAssertTrue(staticText(containing: "One read-only query failed", in: app).exists)
         XCTAssertTrue(app.buttons["button.openclaw.action.preview-transcript-action"].waitForExistence(timeout: 5))
+    }
+
+    func testThreadDetailPausesAutoscrollUntilScrollToBottomButtonIsTapped() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_autoscroll")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let row = app.buttons["row.openclaw.thread.preview-autoscroll-thread"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let lastSeededMessage = element(in: app, identifier: "message.openclaw.message-autoscroll-24")
+        XCTAssertTrue(lastSeededMessage.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["button.openclaw.scroll-to-bottom"].exists)
+
+        dragTranscriptTowardOlderMessages(in: app)
+        let scrollToBottomButton = app.buttons["button.openclaw.scroll-to-bottom"]
+        XCTAssertTrue(scrollToBottomButton.waitForExistence(timeout: 5))
+
+        let composer = element(in: app, identifier: "field.openclaw.reply")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText("new pinned-scroll check")
+        app.buttons["button.openclaw.send-reply"].tap()
+
+        let realtimeReply = staticText(containing: "Seeded OpenClaw response: new pinned-scroll check", in: app)
+        XCTAssertFalse(realtimeReply.waitForExistence(timeout: 2))
+        XCTAssertTrue(scrollToBottomButton.waitForExistence(timeout: 5))
+
+        scrollToBottomButton.tap()
+        XCTAssertTrue(realtimeReply.waitForExistence(timeout: 5))
+    }
+
+    func testThreadDetailKeepsBottomVisibleWhenComposerFocuses() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_autoscroll")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        let row = app.buttons["row.openclaw.thread.preview-autoscroll-thread"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let lastSeededMessage = element(in: app, identifier: "message.openclaw.message-autoscroll-24")
+        XCTAssertTrue(lastSeededMessage.waitForExistence(timeout: 5))
+
+        let composer = element(in: app, identifier: "field.openclaw.reply")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+
+        XCTAssertLessThan(lastSeededMessage.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        XCTAssertFalse(app.buttons["button.openclaw.scroll-to-bottom"].exists)
     }
 
     func testTranscriptToolCardsExposeStableExpandableDetails() {
@@ -200,5 +293,21 @@ final class OpenClawFlowTests: XCTestCase {
 
     private func staticText(containing text: String, in app: XCUIApplication) -> XCUIElement {
         app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    private func openDeleteConfirmation(for row: XCUIElement, in app: XCUIApplication) {
+        row.swipeLeft()
+        let deleteAction = app.buttons["Delete"].firstMatch
+        XCTAssertTrue(deleteAction.waitForExistence(timeout: 5))
+        deleteAction.tap()
+    }
+
+    private func dragTranscriptTowardOlderMessages(in app: XCUIApplication) {
+        let transcript = app.scrollViews["scroll.openclaw.transcript"]
+        XCTAssertTrue(transcript.waitForExistence(timeout: 5))
+
+        for _ in 0..<3 {
+            transcript.swipeDown()
+        }
     }
 }

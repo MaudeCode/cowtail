@@ -17,6 +17,7 @@ struct UITestScenario {
         case notificationsSyncError = "notifications_sync_error"
         case openClawPopulated = "openclaw_populated"
         case openClawTranscriptShowcase = "openclaw_transcript_showcase"
+        case openClawAutoscroll = "openclaw_autoscroll"
         case openClawEmpty = "openclaw_empty"
         case openClawSignedOut = "openclaw_signed_out"
     }
@@ -384,6 +385,17 @@ private enum SeedFactory {
                     threads: [CowtailPreviewFixtures.openClawTranscriptThread],
                     messagesByThreadID: [
                         CowtailPreviewFixtures.openClawTranscriptThread.id: CowtailPreviewFixtures.openClawTranscriptMessagesWithActions
+                    ]
+                )
+            )
+
+        case .openClawAutoscroll:
+            return seed(
+                openClaw: .init(
+                    displayName: "Maude",
+                    threads: [CowtailPreviewFixtures.openClawAutoscrollThread],
+                    messagesByThreadID: [
+                        CowtailPreviewFixtures.openClawAutoscrollThread.id: CowtailPreviewFixtures.openClawAutoscrollMessagesWithActions
                     ]
                 )
             )
