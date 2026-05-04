@@ -797,6 +797,225 @@ describe("OpenClawSessionController", () => {
     ]);
   });
 
+  test("broadcasts OpenClaw stream snapshots from plugins to iOS only without persistence or push fallback", async () => {
+    const { api, controller, pushBridge } = createController();
+    const pluginSocket = new FakeSocket();
+    const pluginObserverSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticatePlugin(controller, pluginObserverSocket, "plugin-2");
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    pluginObserverSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-1",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }),
+    );
+
+    const snapshot = {
+      type: "openclaw_message_stream_snapshot",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "Partial text",
+      links: [],
+      toolCalls: [],
+      isFinal: false,
+      updatedAt: 1777939200000,
+    };
+    expect(api.openClawMessages).toEqual([]);
+    expect(api.openClawMessageUpdates).toEqual([]);
+    expect(api.validatedSessionIds).toEqual(["session-1"]);
+    expect(pushBridge.notifications).toEqual([]);
+    expect(sent(iosSocket)).toEqual([snapshot]);
+    expect(sent(pluginObserverSocket)).toEqual([]);
+    expect(sent(pluginSocket)).toEqual([{ type: "ack", requestId: "stream-request-1" }]);
+  });
+
+  test("skips cached-expired iOS sockets for stream snapshots before validating sessions", async () => {
+    const { api, controller, registry } = createController();
+    api.appSessionExpiresAt = 0;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-expired",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }),
+    );
+
+    expect(api.validatedSessionIds).toEqual([]);
+    expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
+    expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
+    expect(registry.getClient("ios-1")).toBe(undefined);
+    expect(sent(pluginSocket)).toEqual([{ type: "ack", requestId: "stream-request-expired" }]);
+  });
+
+  test("rejects revoked but unexpired iOS sockets before stream snapshot delivery", async () => {
+    const { api, controller, registry } = createController();
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    api.appSessionValidationOk = false;
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-revoked",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }),
+    );
+
+    expect(api.validatedSessionIds).toEqual(["session-1"]);
+    expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
+    expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
+    expect(registry.getClient("ios-1")).toBe(undefined);
+    expect(sent(pluginSocket)).toEqual([{ type: "ack", requestId: "stream-request-revoked" }]);
+  });
+
+  test("reuses recent iOS session validation for repeated stream snapshots", async () => {
+    const { api, controller } = createController();
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-cache-1",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }),
+    );
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-cache-2",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text updated",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200100,
+      }),
+    );
+
+    expect(api.validatedSessionIds).toEqual(["session-1"]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        type: "openclaw_message_stream_snapshot",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      },
+      {
+        type: "openclaw_message_stream_snapshot",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text updated",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200100,
+      },
+    ]);
+    expect(sent(pluginSocket)).toEqual([
+      { type: "ack", requestId: "stream-request-cache-1" },
+      { type: "ack", requestId: "stream-request-cache-2" },
+    ]);
+  });
+
+  test("rejects iOS attempts to send OpenClaw stream snapshots", async () => {
+    const { api, controller, pushBridge } = createController();
+    const iosSocket = new FakeSocket();
+    await authenticateIos(controller, iosSocket);
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-2",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Partial text",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }),
+    );
+
+    expect(api.openClawMessages).toEqual([]);
+    expect(api.openClawMessageUpdates).toEqual([]);
+    expect(pushBridge.notifications).toEqual([]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        type: "realtime_error",
+        requestId: "stream-request-2",
+        error: "command_not_allowed",
+      },
+    ]);
+  });
+
   test("acks dropped archived OpenClaw updates with message id and drop metadata", async () => {
     const { api, controller, pushBridge } = createController();
     api.openClawMessageUpdateEvent = createEvent(13, "message_acknowledged", {

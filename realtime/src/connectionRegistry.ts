@@ -1,5 +1,8 @@
-import type { OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
-import type { OpenClawRealtimeServerMessage } from "@maudecode/cowtail-protocol";
+import type {
+  OpenClawEventEnvelope,
+  OpenClawMessageStreamSnapshotServerMessage,
+  OpenClawRealtimeServerMessage,
+} from "@maudecode/cowtail-protocol";
 
 import type { RealtimeClient } from "./auth";
 
@@ -13,6 +16,10 @@ type ConnectionEntry = {
   socket: RealtimeSocket;
   client: RealtimeClient;
 };
+
+type IosRealtimeBroadcastMessage =
+  | OpenClawEventEnvelope
+  | OpenClawMessageStreamSnapshotServerMessage;
 
 const OPEN_SOCKET_STATE = 1;
 export class RealtimeConnectionRegistry {
@@ -43,16 +50,19 @@ export class RealtimeConnectionRegistry {
     return this.#sendEntry(connectionId, entry, JSON.stringify(value));
   }
 
-  broadcastToIos(event: OpenClawEventEnvelope): number {
-    return this.#broadcast((client) => client.kind === "ios", event);
+  broadcastToIos(message: IosRealtimeBroadcastMessage): number {
+    return this.#broadcast((client) => client.kind === "ios", message);
   }
 
   broadcastToOpenClaw(event: OpenClawEventEnvelope): number {
     return this.#broadcast((client) => client.kind === "openclaw_plugin", event);
   }
 
-  #broadcast(predicate: (client: RealtimeClient) => boolean, event: OpenClawEventEnvelope): number {
-    const message = JSON.stringify(event);
+  #broadcast(
+    predicate: (client: RealtimeClient) => boolean,
+    value: OpenClawRealtimeServerMessage,
+  ): number {
+    const message = JSON.stringify(value);
     let deliveries = 0;
 
     for (const [connectionId, entry] of this.#connections) {

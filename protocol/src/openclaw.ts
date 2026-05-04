@@ -192,6 +192,26 @@ export const openclawPluginMessageUpdateCommandSchema = requireOpenClawRenderabl
   }),
 );
 
+const openclawMessageStreamSnapshotCommandBaseSchema = z.object({
+  type: z.literal("openclaw_message_stream_snapshot"),
+  requestId: openclawRequestIdSchema,
+  streamId: nonEmptyStringSchema,
+  sessionKey: nonEmptyStringSchema,
+  threadId: nonEmptyStringSchema,
+  text: openclawMessageTextSchema,
+  links: z.array(openclawLinkSchema).default([]),
+  toolCalls: z.array(openclawToolCallRecordSchema).default([]),
+  isFinal: z.boolean(),
+  updatedAt: timestampSchema,
+});
+
+export const openclawMessageStreamSnapshotCommandSchema = requireOpenClawRenderableContent(
+  openclawMessageStreamSnapshotCommandBaseSchema,
+);
+export const openclawMessageStreamSnapshotServerMessageSchema = requireOpenClawRenderableContent(
+  openclawMessageStreamSnapshotCommandBaseSchema.omit({ requestId: true }),
+);
+
 export const openclawIosNewThreadCommandSchema = z.object({
   type: z.literal("ios_new_thread"),
   requestId: openclawRequestIdSchema,
@@ -258,6 +278,7 @@ export const openclawActionResultCommandSchema = z.object({
 export const openclawRealtimeClientMessageSchema = z.union([
   openclawPluginMessageCommandSchema,
   openclawPluginMessageUpdateCommandSchema,
+  openclawMessageStreamSnapshotCommandSchema,
   openclawIosNewThreadCommandSchema,
   openclawIosReplyCommandSchema,
   openclawIosActionCommandSchema,
@@ -283,6 +304,7 @@ export const openclawRealtimeErrorSchema = z.object({
 
 export const openclawRealtimeServerMessageSchema = z.union([
   openclawEventEnvelopeSchema,
+  openclawMessageStreamSnapshotServerMessageSchema,
   openclawRealtimeAckSchema,
   openclawRealtimeErrorSchema,
 ]);
@@ -352,6 +374,12 @@ export type OpenClawRealtimeClientMessage = z.infer<typeof openclawRealtimeClien
 export type OpenClawPluginMessageCommand = z.infer<typeof openclawPluginMessageCommandSchema>;
 export type OpenClawPluginMessageUpdateCommand = z.infer<
   typeof openclawPluginMessageUpdateCommandSchema
+>;
+export type OpenClawMessageStreamSnapshotCommand = z.infer<
+  typeof openclawMessageStreamSnapshotCommandSchema
+>;
+export type OpenClawMessageStreamSnapshotServerMessage = z.infer<
+  typeof openclawMessageStreamSnapshotServerMessageSchema
 >;
 export type OpenClawIosNewThreadCommand = z.infer<typeof openclawIosNewThreadCommandSchema>;
 export type OpenClawIosReplyCommand = z.infer<typeof openclawIosReplyCommandSchema>;

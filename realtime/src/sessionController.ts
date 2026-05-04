@@ -1,6 +1,7 @@
 import {
   openclawRealtimeClientMessageSchema,
   type OpenClawEventEnvelope,
+  type OpenClawMessageStreamSnapshotServerMessage,
   type OpenClawRealtimeAck,
   type OpenClawRealtimeError,
   type OpenClawRealtimeServerMessage,
@@ -24,6 +25,15 @@ type AttachedConnection = {
   socket: RealtimeSocket;
   client?: RealtimeClient;
 };
+
+type IosSnapshotSessionValidation = {
+  sessionId: string;
+  userId: string;
+  validatedAt: number;
+  expiresAt: number;
+};
+
+const IOS_SNAPSHOT_SESSION_VALIDATION_TTL_MS = 1_000;
 
 export function helloAcknowledged(client: RealtimeClient): OpenClawEventEnvelope {
   const payload: Record<string, string> = {
@@ -95,6 +105,7 @@ export class OpenClawSessionController {
   readonly #pushBridge: OpenClawPushBridge;
   readonly #connections = new Map<string, AttachedConnection>();
   readonly #messageQueues = new Map<string, Promise<void>>();
+  readonly #iosSnapshotSessionValidations = new Map<string, IosSnapshotSessionValidation>();
 
   constructor(deps: OpenClawSessionControllerDeps) {
     this.#bridgeToken = deps.bridgeToken;
@@ -109,6 +120,7 @@ export class OpenClawSessionController {
   }
 
   detach(connectionId: string): void {
+    this.#iosSnapshotSessionValidations.delete(connectionId);
     this.#connections.delete(connectionId);
     this.#registry.remove(connectionId);
     this.#messageQueues.delete(connectionId);
@@ -266,6 +278,23 @@ export class OpenClawSessionController {
         break;
       }
 
+      case "openclaw_message_stream_snapshot": {
+        const snapshot = {
+          type: "openclaw_message_stream_snapshot",
+          streamId: command.streamId,
+          sessionKey: command.sessionKey,
+          threadId: command.threadId,
+          text: command.text,
+          links: command.links,
+          toolCalls: command.toolCalls,
+          isFinal: command.isFinal,
+          updatedAt: command.updatedAt,
+        } satisfies OpenClawMessageStreamSnapshotServerMessage;
+        await this.#broadcastTransientSnapshotToIos(snapshot);
+        this.#send(connectionId, ack(command.requestId));
+        break;
+      }
+
       case "ios_new_thread": {
         try {
           const event = await this.#api.createIosThread(command);
@@ -366,9 +395,18 @@ export class OpenClawSessionController {
     await this.#broadcastToIos(event);
   }
 
-  async #broadcastToIos(event: OpenClawEventEnvelope): Promise<number> {
+  async #broadcastToIos(
+    event: OpenClawEventEnvelope | OpenClawMessageStreamSnapshotServerMessage,
+  ): Promise<number> {
     await this.#pruneInvalidIosDeliverySessions();
     return this.#registry.broadcastToIos(event);
+  }
+
+  async #broadcastTransientSnapshotToIos(
+    snapshot: OpenClawMessageStreamSnapshotServerMessage,
+  ): Promise<number> {
+    await this.#pruneInvalidIosSnapshotDeliverySessions();
+    return this.#registry.broadcastToIos(snapshot);
   }
 
   #send(connectionId: string, message: OpenClawRealtimeServerMessage): boolean {
@@ -427,6 +465,59 @@ export class OpenClawSessionController {
     }
   }
 
+  async #pruneInvalidIosSnapshotDeliverySessions(): Promise<void> {
+    for (const [connectionId, connection] of Array.from(this.#connections)) {
+      const { client } = connection;
+      if (client?.kind !== "ios") {
+        continue;
+      }
+
+      const sessionIsValid = await this.#validateIosSessionForSnapshotDelivery(
+        connectionId,
+        client,
+      );
+      if (!sessionIsValid) {
+        this.#rejectIosSession(connectionId);
+      }
+    }
+  }
+
+  async #validateIosSessionForSnapshotDelivery(
+    connectionId: string,
+    client: Extract<RealtimeClient, { kind: "ios" }>,
+  ): Promise<boolean> {
+    const now = Date.now();
+    if (now >= client.expiresAt) {
+      this.#iosSnapshotSessionValidations.delete(connectionId);
+      return false;
+    }
+
+    const cachedValidation = this.#iosSnapshotSessionValidations.get(connectionId);
+    if (
+      cachedValidation &&
+      cachedValidation.sessionId === client.sessionId &&
+      cachedValidation.userId === client.userId &&
+      now - cachedValidation.validatedAt < IOS_SNAPSHOT_SESSION_VALIDATION_TTL_MS &&
+      now < cachedValidation.expiresAt
+    ) {
+      return true;
+    }
+
+    const sessionIsValid = await this.#validateIosSession(client);
+    if (!sessionIsValid) {
+      this.#iosSnapshotSessionValidations.delete(connectionId);
+      return false;
+    }
+
+    this.#iosSnapshotSessionValidations.set(connectionId, {
+      sessionId: client.sessionId,
+      userId: client.userId,
+      validatedAt: Date.now(),
+      expiresAt: client.expiresAt,
+    });
+    return true;
+  }
+
   async #validateIosSession(client: Extract<RealtimeClient, { kind: "ios" }>): Promise<boolean> {
     if (Date.now() >= client.expiresAt) {
       return false;
@@ -472,7 +563,8 @@ function isCommandAllowedForClient(client: RealtimeClient, commandType: string):
       commandType === "openclaw_message" ||
       commandType === "openclaw_message_update" ||
       commandType === "openclaw_session_bound" ||
-      commandType === "openclaw_action_result"
+      commandType === "openclaw_action_result" ||
+      commandType === "openclaw_message_stream_snapshot"
     );
   }
 

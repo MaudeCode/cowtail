@@ -275,6 +275,163 @@ describe("openclaw protocol schemas", () => {
     ).toBe(false);
   });
 
+  test("parses realtime-only OpenClaw stream snapshot commands and server messages", () => {
+    const command = openclawRealtimeClientMessageSchema.parse({
+      type: "openclaw_message_stream_snapshot",
+      requestId: "stream-request-1",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "Hello from the live stream",
+      isFinal: false,
+      updatedAt: 1777939200000,
+    });
+
+    expect(command).toEqual({
+      type: "openclaw_message_stream_snapshot",
+      requestId: "stream-request-1",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "Hello from the live stream",
+      links: [],
+      toolCalls: [],
+      isFinal: false,
+      updatedAt: 1777939200000,
+    });
+
+    const serverMessage = openclawRealtimeServerMessageSchema.parse({
+      type: "openclaw_message_stream_snapshot",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "Hello from the live stream",
+      links: [],
+      toolCalls: [],
+      isFinal: false,
+      updatedAt: 1777939200000,
+    });
+
+    expect(serverMessage).toEqual({
+      type: "openclaw_message_stream_snapshot",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "Hello from the live stream",
+      links: [],
+      toolCalls: [],
+      isFinal: false,
+      updatedAt: 1777939200000,
+    });
+  });
+
+  test("parses tool-call-only OpenClaw stream snapshots with default links", () => {
+    const parsed = openclawRealtimeClientMessageSchema.parse({
+      type: "openclaw_message_stream_snapshot",
+      requestId: "stream-request-tool",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "",
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "read_file",
+          status: "running",
+          insertedAtContentLength: 0,
+        },
+      ],
+      isFinal: false,
+      updatedAt: 1777939200001,
+    });
+
+    const serverParsed = openclawRealtimeServerMessageSchema.parse({
+      type: "openclaw_message_stream_snapshot",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "",
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "read_file",
+          status: "running",
+          insertedAtContentLength: 0,
+        },
+      ],
+      isFinal: false,
+      updatedAt: 1777939200001,
+    });
+
+    expect(parsed).toEqual({
+      type: "openclaw_message_stream_snapshot",
+      requestId: "stream-request-tool",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "",
+      links: [],
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "read_file",
+          status: "running",
+          insertedAtContentLength: 0,
+        },
+      ],
+      isFinal: false,
+      updatedAt: 1777939200001,
+    });
+    expect(serverParsed).toEqual({
+      type: "openclaw_message_stream_snapshot",
+      streamId: "stream-message-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "",
+      links: [],
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "read_file",
+          status: "running",
+          insertedAtContentLength: 0,
+        },
+      ],
+      isFinal: false,
+      updatedAt: 1777939200001,
+    });
+  });
+
+  test("rejects blank OpenClaw stream snapshots", () => {
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-blank",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }).success,
+    ).toBe(false);
+    expect(
+      openclawRealtimeServerMessageSchema.safeParse({
+        type: "openclaw_message_stream_snapshot",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "",
+        links: [],
+        toolCalls: [],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }).success,
+    ).toBe(false);
+  });
+
   test("parses realtime iOS commands", () => {
     expect(
       openclawRealtimeClientMessageSchema.parse({
