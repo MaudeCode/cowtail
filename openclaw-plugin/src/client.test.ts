@@ -334,6 +334,97 @@ describe("CowtailRealtimeClient", () => {
     });
   });
 
+  test("sends stream snapshots after handshake without waiting for realtime ack", async () => {
+    const sockets: FakeWebSocket[] = [];
+    const cursor = createDeferred<number | undefined>();
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: () => cursor.promise,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      requestIdFactory: () => "stream-request-1",
+      webSocketFactory: (url) => {
+        const socket = new FakeWebSocket(url);
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    client.start();
+    sockets[0]!.open();
+
+    let resolved = false;
+    const pending = client
+      .sendOpenClawStreamSnapshot({
+        type: "openclaw_message_stream_snapshot",
+        streamId: "stream-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Live reply",
+        links: [
+          {
+            label: "Cowtail",
+            url: "https://cowtail.example.invalid/thread/thread-1",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-1",
+            name: "read_file",
+            status: "running",
+            insertedAtContentLength: 0,
+          },
+        ],
+        isFinal: false,
+        updatedAt: 1777939200000,
+      })
+      .then(() => {
+        resolved = true;
+      });
+
+    await flushMicrotasks();
+    expect(sockets[0]!.sent).toHaveLength(0);
+    expect(resolved).toBe(false);
+
+    cursor.resolve(undefined);
+    await flushMicrotasks();
+
+    expect(JSON.parse(sockets[0]!.sent[0]!)).toEqual({
+      protocolVersion: 1,
+      clientKind: "openclaw_plugin",
+      token: "bridge-token",
+    });
+    expect(JSON.parse(sockets[0]!.sent[1]!)).toEqual({
+      type: "openclaw_message_stream_snapshot",
+      requestId: "stream-request-1",
+      streamId: "stream-1",
+      sessionKey: "session-1",
+      threadId: "thread-1",
+      text: "Live reply",
+      links: [
+        {
+          label: "Cowtail",
+          url: "https://cowtail.example.invalid/thread/thread-1",
+        },
+      ],
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "read_file",
+          status: "running",
+          insertedAtContentLength: 0,
+        },
+      ],
+      isFinal: false,
+      updatedAt: 1777939200000,
+    });
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(resolved).toBe(true);
+  });
+
   test("resolves command promises when matching ack arrives", async () => {
     const sockets: FakeWebSocket[] = [];
     const client = new CowtailRealtimeClient({
@@ -563,6 +654,42 @@ describe("CowtailRealtimeClient", () => {
     await flushMicrotasks();
 
     expect(events).toEqual([event]);
+  });
+
+  test("ignores inbound stream snapshots without dispatching or persisting sequence", async () => {
+    const writeCalls: number[] = [];
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async (sequence) => {
+          writeCalls.push(sequence);
+        },
+      },
+      onEvent: () => {
+        throw new Error("onEvent should not run");
+      },
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    socket.open();
+    await flushMicrotasks();
+    socket.message({
+      type: "openclaw_message_stream_snapshot",
+      streamId: "stream-ignored",
+      sessionKey: "session-ignored",
+      threadId: "thread-ignored",
+      text: "transient",
+      links: [],
+      toolCalls: [],
+      isFinal: false,
+      updatedAt: 1777939200000,
+    });
+    await flushMicrotasks();
+
+    expect(writeCalls).toEqual([]);
   });
 
   test("logs and ignores malformed server messages", async () => {

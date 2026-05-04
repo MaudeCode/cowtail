@@ -2,6 +2,7 @@ import {
   openclawRealtimeServerMessageSchema,
   type OpenClawActionResultCommand,
   type OpenClawEventEnvelope,
+  type OpenClawMessageStreamSnapshotCommand,
   type OpenClawPluginMessageCommand,
   type OpenClawPluginMessageUpdateCommand,
   type OpenClawRealtimeError,
@@ -84,6 +85,10 @@ export type OpenClawActionResultInput = Omit<
   "requestId" | "idempotencyKey"
 > &
   Partial<Pick<OpenClawActionResultCommand, "idempotencyKey">>;
+export type OpenClawMessageStreamSnapshotInput = Omit<
+  OpenClawMessageStreamSnapshotCommand,
+  "requestId"
+>;
 
 function defaultWebSocketFactory(url: string): WebSocketLike {
   return new WebSocket(url) as WebSocketLike;
@@ -182,6 +187,13 @@ export class CowtailRealtimeClient {
       requestId,
       idempotencyKey: command.idempotencyKey ?? `cowtail:request:${requestId}`,
     }).then((result) => result.sequence);
+  }
+
+  sendOpenClawStreamSnapshot(command: OpenClawMessageStreamSnapshotInput): Promise<void> {
+    return this.#sendTransientCommand({
+      ...command,
+      requestId: this.#requestIdFactory(),
+    });
   }
 
   #connect(): void {
@@ -305,6 +317,10 @@ export class CowtailRealtimeClient {
       return;
     }
 
+    if (message.type === "openclaw_message_stream_snapshot") {
+      return;
+    }
+
     await this.#onEvent(message);
     await this.#stateStore.writeLastSeenSequence(message.sequence);
   }
@@ -411,6 +427,28 @@ export class CowtailRealtimeClient {
         reject(error instanceof Error ? error : new Error("Cowtail websocket send failed"));
       }
     });
+  }
+
+  async #sendTransientCommand(command: OpenClawMessageStreamSnapshotCommand): Promise<void> {
+    const socket = this.#socket;
+    const handshake = this.#handshake;
+    if (!socket || !handshake) {
+      throw new Error("Cowtail websocket is disconnected");
+    }
+
+    await handshake.promise;
+
+    const currentSocket = this.#socket;
+    if (
+      !currentSocket ||
+      socket !== currentSocket ||
+      handshake !== this.#handshake ||
+      !this.#isSocketOpen(currentSocket)
+    ) {
+      throw new Error("Cowtail websocket is disconnected");
+    }
+
+    currentSocket.send(JSON.stringify(command));
   }
 
   #resolvePendingRequest(

@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 
-import type { OpenClawEventEnvelope, OpenClawToolCallRecord } from "@maudecode/cowtail-protocol";
+import type {
+  OpenClawEventEnvelope,
+  OpenClawMessageStreamSnapshotCommand,
+  OpenClawToolCallRecord,
+} from "@maudecode/cowtail-protocol";
 
 import { buildCowtailTarget } from "./session-keys.js";
 import type { ResolvedCowtailAccount } from "./types.js";
@@ -82,6 +86,7 @@ type FakeRuntime = {
 };
 
 type FakeClient = {
+  callOrder: string[];
   sendSessionBoundCalls: Array<{
     type: "openclaw_session_bound";
     idempotencyKey?: string;
@@ -117,6 +122,7 @@ type FakeClient = {
     actions?: [];
     deliveryState?: "pending" | "sent" | "failed";
   }>;
+  sendOpenClawStreamSnapshotCalls: Array<Omit<OpenClawMessageStreamSnapshotCommand, "requestId">>;
   sendSessionBound: (input: {
     type: "openclaw_session_bound";
     idempotencyKey?: string;
@@ -160,6 +166,9 @@ type FakeClient = {
     sequence: number | undefined;
     payload?: Record<string, unknown>;
   }>;
+  sendOpenClawStreamSnapshot: (
+    input: Omit<OpenClawMessageStreamSnapshotCommand, "requestId">,
+  ) => Promise<void>;
 };
 
 function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): ResolvedCowtailAccount {
@@ -183,28 +192,41 @@ function createClient(
     omitCreatedMessageId?: boolean;
     dropCreatedMessage?: boolean;
     duplicateCreatedMessageId?: string;
+    rejectOpenClawMessage?: Error;
+    rejectOpenClawMessageUpdate?: Error;
+    rejectStreamSnapshot?: Error;
   } = {},
 ): FakeClient {
+  const callOrder: string[] = [];
   const sendSessionBoundCalls: FakeClient["sendSessionBoundCalls"] = [];
   const sendActionResultCalls: FakeClient["sendActionResultCalls"] = [];
   const sendOpenClawMessageCalls: FakeClient["sendOpenClawMessageCalls"] = [];
   const sendOpenClawMessageUpdateCalls: FakeClient["sendOpenClawMessageUpdateCalls"] = [];
+  const sendOpenClawStreamSnapshotCalls: FakeClient["sendOpenClawStreamSnapshotCalls"] = [];
 
   return {
+    callOrder,
     sendSessionBoundCalls,
     sendActionResultCalls,
     sendOpenClawMessageCalls,
     sendOpenClawMessageUpdateCalls,
+    sendOpenClawStreamSnapshotCalls,
     async sendSessionBound(input) {
+      callOrder.push("session-bound");
       sendSessionBoundCalls.push(input);
       return undefined;
     },
     async sendActionResult(input) {
+      callOrder.push("action-result");
       sendActionResultCalls.push(input);
       return undefined;
     },
     async sendOpenClawMessage(input) {
+      callOrder.push("message");
       sendOpenClawMessageCalls.push(input);
+      if (options.rejectOpenClawMessage) {
+        throw options.rejectOpenClawMessage;
+      }
       return {
         requestId: "reply-request",
         sequence: 99,
@@ -224,8 +246,19 @@ function createClient(
       };
     },
     async sendOpenClawMessageUpdate(input) {
+      callOrder.push("message-update");
       sendOpenClawMessageUpdateCalls.push(input);
+      if (options.rejectOpenClawMessageUpdate) {
+        throw options.rejectOpenClawMessageUpdate;
+      }
       return { requestId: "reply-update-request", sequence: 100 };
+    },
+    async sendOpenClawStreamSnapshot(input) {
+      callOrder.push("stream-snapshot");
+      sendOpenClawStreamSnapshotCalls.push(structuredClone(input));
+      if (options.rejectStreamSnapshot) {
+        throw options.rejectStreamSnapshot;
+      }
     },
   };
 }
@@ -259,6 +292,13 @@ function createRuntime(overrides?: {
     error: Error;
     kind: string;
   };
+  onPartialReplies?: Array<{ text: string }>;
+  toolStarts?: Array<Record<string, unknown>>;
+  itemEvents?: Array<Record<string, unknown>>;
+  commandOutputs?: Array<Record<string, unknown>>;
+  patchSummaries?: Array<Record<string, unknown>>;
+  approvalEvents?: Array<Record<string, unknown>>;
+  toolResults?: Array<Record<string, unknown>>;
   deliverPayload?: Record<string, unknown>;
   deliveries?: Array<{
     payload: Record<string, unknown>;
@@ -332,6 +372,50 @@ function createRuntime(overrides?: {
         },
         async dispatchReplyWithBufferedBlockDispatcher(params) {
           dispatchCalls.push(params);
+          const onPartialReply = params.replyOptions?.onPartialReply as
+            | ((payload: Record<string, unknown>) => Promise<void> | void)
+            | undefined;
+          const onToolStart = params.replyOptions?.onToolStart as
+            | ((payload: Record<string, unknown>) => Promise<void> | void)
+            | undefined;
+          const onItemEvent = params.replyOptions?.onItemEvent as
+            | ((payload: Record<string, unknown>) => Promise<void> | void)
+            | undefined;
+          const onCommandOutput = params.replyOptions?.onCommandOutput as
+            | ((payload: Record<string, unknown>) => Promise<void> | void)
+            | undefined;
+          const onPatchSummary = params.replyOptions?.onPatchSummary as
+            | ((payload: Record<string, unknown>) => Promise<void> | void)
+            | undefined;
+          const onApprovalEvent = params.replyOptions?.onApprovalEvent as
+            | ((payload: Record<string, unknown>) => Promise<void> | void)
+            | undefined;
+          const onToolResult = params.replyOptions?.onToolResult as
+            | ((payload: Record<string, unknown>) => Promise<void> | void)
+            | undefined;
+
+          for (const partial of overrides?.onPartialReplies ?? []) {
+            await onPartialReply?.(partial);
+          }
+          for (const toolStart of overrides?.toolStarts ?? []) {
+            await onToolStart?.(toolStart);
+          }
+          for (const itemEvent of overrides?.itemEvents ?? []) {
+            await onItemEvent?.(itemEvent);
+          }
+          for (const commandOutput of overrides?.commandOutputs ?? []) {
+            await onCommandOutput?.(commandOutput);
+          }
+          for (const patchSummary of overrides?.patchSummaries ?? []) {
+            await onPatchSummary?.(patchSummary);
+          }
+          for (const approvalEvent of overrides?.approvalEvents ?? []) {
+            await onApprovalEvent?.(approvalEvent);
+          }
+          for (const toolResult of overrides?.toolResults ?? []) {
+            await onToolResult?.(toolResult);
+          }
+
           if (overrides?.deliveries) {
             const deliver = params.dispatcherOptions.deliver as
               | ((
@@ -690,6 +774,205 @@ describe("handleCowtailEvent", () => {
     ]);
   });
 
+  test("partial replies produce transient snapshots before durable final delivery", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      onPartialReplies: [{ text: "Hel" }, { text: "Hello!" }],
+      deliverPayload: { text: "Hello!" },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 28,
+      type: "reply_created",
+      createdAt: 1_700_000_000_017,
+      threadId: "thread-28",
+      messageId: "message-28",
+      thread: {
+        id: "thread-28",
+        sessionKey: "session-thread-28",
+        status: "active",
+        targetAgent: "default",
+        title: "Partial stream chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_017,
+      },
+      message: {
+        id: "message-28",
+        threadId: "thread-28",
+        direction: "user_to_openclaw",
+        text: "Stream partials.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_017,
+        updatedAt: 1_700_000_000_017,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.callOrder.slice(0, 4)).toEqual([
+      "stream-snapshot",
+      "stream-snapshot",
+      "message",
+      "stream-snapshot",
+    ]);
+    expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.text)).toEqual([
+      "Hel",
+      "Hello!",
+      "Hello!",
+    ]);
+    expect(client.sendOpenClawStreamSnapshotCalls[0]).toMatchObject({
+      type: "openclaw_message_stream_snapshot",
+      streamId: "cowtail:stream:message-28",
+      sessionKey: "session-thread-28",
+      threadId: "thread-28",
+      text: "Hel",
+      links: [],
+      toolCalls: [],
+      isFinal: false,
+    });
+    expect(client.sendOpenClawStreamSnapshotCalls[2]).toMatchObject({
+      text: "Hello!",
+      isFinal: true,
+    });
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-28",
+        sessionKey: "session-thread-28",
+        title: "Partial stream chat",
+        text: "Hello!",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+  });
+
+  test("durable create failure does not emit a final transient snapshot", async () => {
+    const client = createClient({ rejectOpenClawMessage: new Error("durable create failed") });
+    const { logger, errors } = createLogger();
+    const runtimeState = createRuntime({
+      onPartialReplies: [{ text: "Draft reply" }],
+      deliverPayload: { text: "Final reply" },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 32,
+      type: "reply_created",
+      createdAt: 1_700_000_000_021,
+      threadId: "thread-32",
+      messageId: "message-32",
+      thread: {
+        id: "thread-32",
+        sessionKey: "session-thread-32",
+        status: "active",
+        targetAgent: "default",
+        title: "Create failure chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_021,
+      },
+      message: {
+        id: "message-32",
+        threadId: "thread-32",
+        direction: "user_to_openclaw",
+        text: "Stream partials.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_021,
+        updatedAt: 1_700_000_000_021,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toHaveLength(1);
+    expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.isFinal)).toEqual([
+      false,
+    ]);
+    expect(errors).toContain("Cowtail final reply failed: durable create failed");
+  });
+
+  test("durable update failure does not emit a final transient snapshot", async () => {
+    const client = createClient({
+      rejectOpenClawMessageUpdate: new Error("durable update failed"),
+    });
+    const { logger, errors } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Draft reply" }, info: { kind: "block" } },
+        { payload: { text: "Final reply" }, info: { kind: "final" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 34,
+      type: "reply_created",
+      createdAt: 1_700_000_000_023,
+      threadId: "thread-34",
+      messageId: "message-34",
+      thread: {
+        id: "thread-34",
+        sessionKey: "session-thread-34",
+        status: "active",
+        targetAgent: "default",
+        title: "Update failure chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_023,
+      },
+      message: {
+        id: "message-34",
+        threadId: "thread-34",
+        direction: "user_to_openclaw",
+        text: "Stream partials.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_023,
+        updatedAt: 1_700_000_000_023,
+      },
+    };
+
+    let thrownError: unknown;
+    try {
+      await handleCowtailEvent({
+        event,
+        account: createAccount(),
+        client,
+        runtime: runtimeState.runtime,
+        logger,
+      });
+    } catch (error) {
+      thrownError = error;
+    }
+
+    expect(thrownError).toBeInstanceOf(Error);
+    expect((thrownError as Error).message).toBe("durable update failed");
+    expect(client.sendOpenClawMessageCalls).toHaveLength(1);
+    expect(client.sendOpenClawMessageUpdateCalls).toHaveLength(2);
+    expect(client.sendOpenClawStreamSnapshotCalls.every((snapshot) => !snapshot.isFinal)).toBe(
+      true,
+    );
+    expect(errors).toContain("Cowtail final reply failed: durable update failed");
+  });
+
   test("tool deliveries are written as transcript tool calls", async () => {
     const client = createClient();
     const { logger } = createLogger();
@@ -802,6 +1085,338 @@ describe("handleCowtailEvent", () => {
     ]);
   });
 
+  test("durable tool deliveries produce live snapshots immediately", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        {
+          payload: {
+            text: "Read package.json",
+            channelData: {
+              toolCall: {
+                id: "tool-live-1",
+                name: "read_file",
+                status: "running",
+                args: { path: "package.json" },
+              },
+            },
+          },
+          info: { kind: "tool" },
+        },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 29,
+      type: "reply_created",
+      createdAt: 1_700_000_000_018,
+      threadId: "thread-29",
+      messageId: "message-29",
+      thread: {
+        id: "thread-29",
+        sessionKey: "session-thread-29",
+        status: "active",
+        targetAgent: "default",
+        title: "Live tool chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_018,
+      },
+      message: {
+        id: "message-29",
+        threadId: "thread-29",
+        direction: "user_to_openclaw",
+        text: "Use a tool.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_018,
+        updatedAt: 1_700_000_000_018,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.callOrder[0]).toBe("stream-snapshot");
+    expect(client.callOrder[1]).toBe("message");
+    expect(client.sendOpenClawStreamSnapshotCalls[0]).toMatchObject({
+      streamId: "cowtail:stream:message-29",
+      sessionKey: "session-thread-29",
+      threadId: "thread-29",
+      text: "",
+      isFinal: false,
+      toolCalls: [
+        expect.objectContaining({
+          id: "tool-live-1",
+          name: "read_file",
+          args: { path: "package.json" },
+          status: "running",
+        }),
+      ],
+    });
+  });
+
+  test("OpenClaw progress hooks produce live tool call snapshots", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      toolStarts: [{ name: "shell", phase: "start" }],
+      itemEvents: [
+        {
+          itemId: "tool-call-1",
+          kind: "tool",
+          name: "read_file",
+          title: "Read file",
+          phase: "start",
+          status: "running",
+        },
+      ],
+      commandOutputs: [
+        {
+          itemId: "tool-call-1",
+          toolCallId: "tool-call-1",
+          name: "read_file",
+          output: "first chunk",
+          status: "running",
+        },
+      ],
+      patchSummaries: [
+        {
+          itemId: "tool-call-1",
+          toolCallId: "tool-call-1",
+          name: "read_file",
+          added: ["src/new.ts"],
+          modified: ["src/existing.ts"],
+          summary: "updated files",
+        },
+      ],
+      approvalEvents: [
+        {
+          itemId: "approval-1",
+          toolCallId: "approval-1",
+          command: "git status",
+          status: "pending",
+          message: "approval requested",
+        },
+      ],
+      toolResults: [
+        {
+          itemId: "tool-call-1",
+          toolCallId: "tool-call-1",
+          name: "read_file",
+          text: "tool finished",
+        },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 30,
+      type: "reply_created",
+      createdAt: 1_700_000_000_019,
+      threadId: "thread-30",
+      messageId: "message-30",
+      thread: {
+        id: "thread-30",
+        sessionKey: "session-thread-30",
+        status: "active",
+        targetAgent: "default",
+        title: "Tool progress chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_019,
+      },
+      message: {
+        id: "message-30",
+        threadId: "thread-30",
+        direction: "user_to_openclaw",
+        text: "Use tools.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_019,
+        updatedAt: 1_700_000_000_019,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawStreamSnapshotCalls).toHaveLength(5);
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.flatMap((snapshot) =>
+        snapshot.toolCalls.map((toolCall) => toolCall.id),
+      ),
+    ).not.toContain("tool-1");
+    expect(client.sendOpenClawStreamSnapshotCalls[0]?.toolCalls).toContainEqual(
+      expect.objectContaining({
+        id: "tool-call-1",
+        name: "read_file",
+        status: "running",
+      }),
+    );
+    expect(client.sendOpenClawStreamSnapshotCalls[1]?.toolCalls).toContainEqual(
+      expect.objectContaining({
+        id: "tool-call-1",
+        result: "first chunk",
+        status: "running",
+      }),
+    );
+    expect(client.sendOpenClawStreamSnapshotCalls[2]?.toolCalls).toContainEqual(
+      expect.objectContaining({
+        id: "tool-call-1",
+        result: "updated files",
+      }),
+    );
+    expect(client.sendOpenClawStreamSnapshotCalls[3]?.toolCalls).toContainEqual(
+      expect.objectContaining({
+        id: "approval-1",
+        name: "git status",
+        result: "approval requested",
+        status: "pending",
+      }),
+    );
+    expect(client.sendOpenClawStreamSnapshotCalls[4]?.toolCalls).toContainEqual(
+      expect.objectContaining({
+        id: "tool-call-1",
+        result: "tool finished",
+        status: "complete",
+      }),
+    );
+  });
+
+  test("OpenClaw item events use progressText as live tool call result", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      itemEvents: [
+        {
+          itemId: "tool-progress-1",
+          name: "search",
+          status: "running",
+          progressText: "Searching repo files",
+        },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 33,
+      type: "reply_created",
+      createdAt: 1_700_000_000_022,
+      threadId: "thread-33",
+      messageId: "message-33",
+      thread: {
+        id: "thread-33",
+        sessionKey: "session-thread-33",
+        status: "active",
+        targetAgent: "default",
+        title: "Progress text chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_022,
+      },
+      message: {
+        id: "message-33",
+        threadId: "thread-33",
+        direction: "user_to_openclaw",
+        text: "Use tools.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_022,
+        updatedAt: 1_700_000_000_022,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawStreamSnapshotCalls).toHaveLength(1);
+    expect(client.sendOpenClawStreamSnapshotCalls[0]?.toolCalls).toContainEqual(
+      expect.objectContaining({
+        id: "tool-progress-1",
+        result: "Searching repo files",
+        status: "running",
+      }),
+    );
+  });
+
+  test("rejected transient snapshots warn without failing durable final delivery", async () => {
+    const client = createClient({ rejectStreamSnapshot: new Error("stream down") });
+    const { logger, warnings } = createLogger();
+    const runtimeState = createRuntime({
+      onPartialReplies: [{ text: "Live text" }],
+      deliverPayload: { text: "Live text final" },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 31,
+      type: "reply_created",
+      createdAt: 1_700_000_000_020,
+      threadId: "thread-31",
+      messageId: "message-31",
+      thread: {
+        id: "thread-31",
+        sessionKey: "session-thread-31",
+        status: "active",
+        targetAgent: "default",
+        title: "Rejected snapshot chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_020,
+      },
+      message: {
+        id: "message-31",
+        threadId: "thread-31",
+        direction: "user_to_openclaw",
+        text: "Stream partials.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_020,
+        updatedAt: 1_700_000_000_020,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(client.sendOpenClawStreamSnapshotCalls).toHaveLength(2);
+    expect(warnings).toContain("Cowtail stream snapshot send failed: stream down");
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-31",
+        sessionKey: "session-thread-31",
+        title: "Rejected snapshot chat",
+        text: "Live text final",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+  });
+
   test("streaming replies fail closed when Cowtail omits the created message id", async () => {
     const client = createClient({ omitCreatedMessageId: true });
     const { logger, errors } = createLogger();
@@ -850,6 +1465,9 @@ describe("handleCowtailEvent", () => {
 
     expect(client.sendOpenClawMessageCalls).toHaveLength(1);
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
+    expect(client.sendOpenClawStreamSnapshotCalls.every((snapshot) => !snapshot.isFinal)).toBe(
+      true,
+    );
     expect(errors).toContain(
       "Cowtail block reply failed: Cowtail realtime ack missing messageId for streamed OpenClaw reply",
     );
@@ -904,6 +1522,9 @@ describe("handleCowtailEvent", () => {
 
     expect(client.sendOpenClawMessageCalls).toHaveLength(1);
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
+    expect(client.sendOpenClawStreamSnapshotCalls.every((snapshot) => !snapshot.isFinal)).toBe(
+      true,
+    );
     expect(errors).toEqual([]);
   });
 
