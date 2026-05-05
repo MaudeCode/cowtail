@@ -331,6 +331,30 @@ final class OpenClawModelTests: XCTestCase {
         XCTAssertEqual(snapshot.toolCalls, [])
     }
 
+    func testStreamSnapshotDecodeRequiresSnapshotSequence() {
+        let decoder = JSONDecoder()
+
+        XCTAssertThrowsError(try decoder.decode(OpenClawServerMessage.self, from: Data("""
+        {
+          "type": "openclaw_message_stream_snapshot",
+          "streamId": "stream-message-1",
+          "sessionKey": "session-1",
+          "threadId": "thread-1",
+          "text": "Checking logs.",
+          "links": [],
+          "toolCalls": [],
+          "isFinal": false,
+          "updatedAt": 1777128000000
+        }
+        """.utf8))) { error in
+            guard case DecodingError.keyNotFound(let key, _) = error else {
+                return XCTFail("Expected missing snapshotSequence decode error, got \(error)")
+            }
+
+            XCTAssertEqual(key.stringValue, "snapshotSequence")
+        }
+    }
+
     func testDecodesToolCallsOnMessages() throws {
         let decoder = JSONDecoder()
         let event = try decoder.decode(OpenClawServerMessage.self, from: Data("""

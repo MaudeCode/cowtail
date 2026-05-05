@@ -197,10 +197,10 @@ function assertIdempotencyReceiptMatches(
   if (
     receipt.commandType !== expected.commandType ||
     receipt.commandDigest !== expected.commandDigest ||
-    receipt.sessionKey !== expected.sessionKey ||
-    receipt.threadId !== expected.threadId ||
-    receipt.messageId !== expected.messageId ||
-    receipt.actionId !== expected.actionId
+    (expected.sessionKey !== undefined && receipt.sessionKey !== expected.sessionKey) ||
+    (expected.threadId !== undefined && receipt.threadId !== expected.threadId) ||
+    (expected.messageId !== undefined && receipt.messageId !== expected.messageId) ||
+    (expected.actionId !== undefined && receipt.actionId !== expected.actionId)
   ) {
     throw new Error(
       `Idempotency key ${expected.idempotencyKey} was already used for another command target`,
@@ -390,7 +390,7 @@ export const createThreadFromOpenClaw = mutation({
     authorLabel: v.optional(v.string()),
     links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     toolCalls: openclawToolCallsValidator,
-    streamId: v.optional(v.string()),
+    streamId: v.string(),
     payload: v.optional(v.record(v.string(), v.any())),
     deliveryState: v.optional(
       v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
@@ -424,6 +424,7 @@ export const createThreadFromOpenClaw = mutation({
         toolCalls,
         actions: args.actions ?? [],
         deliveryState: args.deliveryState ?? "sent",
+        streamId: args.streamId,
       }),
       sessionKey: args.sessionKey,
       ...(existingThread ? { threadId: existingThread._id } : {}),
@@ -439,7 +440,9 @@ export const createThreadFromOpenClaw = mutation({
       args.sessionKey,
     );
     if (idempotentMessage) {
-      return await acknowledgeDuplicateMessage(ctx, idempotentMessage, eventPayload);
+      throw new Error(
+        `Idempotency key ${args.idempotencyKey} was already used for another command target`,
+      );
     }
 
     if (existingThread && shouldDropOpenClawReplyForThread(existingThread)) {
@@ -546,7 +549,7 @@ export const updateMessageFromOpenClaw = mutation({
     text: v.string(),
     links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     toolCalls: openclawToolCallsValidator,
-    streamId: v.optional(v.string()),
+    streamId: v.string(),
     payload: v.optional(v.record(v.string(), v.any())),
     deliveryState: v.optional(
       v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
@@ -588,6 +591,7 @@ export const updateMessageFromOpenClaw = mutation({
         toolCalls: args.toolCalls ?? [],
         actions: args.actions ?? [],
         deliveryState: args.deliveryState,
+        streamId: args.streamId,
       }),
       threadId: message.threadId,
       messageId: args.messageId,

@@ -828,7 +828,7 @@ describe("handleCowtailEvent", () => {
     ]);
   });
 
-  test("durable create failure does not emit a final transient snapshot", async () => {
+  test("durable create failure closes an emitted transient snapshot", async () => {
     const client = createClient({ rejectOpenClawMessage: new Error("durable create failed") });
     const { logger, errors } = createLogger();
     const runtimeState = createRuntime({
@@ -873,10 +873,76 @@ describe("handleCowtailEvent", () => {
     });
 
     expect(client.sendOpenClawMessageCalls).toHaveLength(1);
-    expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.isFinal)).toEqual([
-      false,
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.map((snapshot) => ({
+        text: snapshot.text,
+        isFinal: snapshot.isFinal,
+      })),
+    ).toEqual([
+      { text: "Draft reply", isFinal: false },
+      { text: "Final reply", isFinal: true },
     ]);
     expect(errors).toContain("Cowtail final reply failed: durable create failed");
+  });
+
+  test("block durable create failure closes the first streamed snapshot", async () => {
+    const client = createClient({ rejectOpenClawMessage: new Error("durable create failed") });
+    const { logger, errors } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Checking logs" }, info: { kind: "block" } },
+        { payload: { text: " now" }, info: { kind: "block" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 33,
+      type: "reply_created",
+      createdAt: 1_700_000_000_022,
+      threadId: "thread-33",
+      messageId: "message-33",
+      thread: {
+        id: "thread-33",
+        sessionKey: "session-thread-33",
+        status: "active",
+        targetAgent: "default",
+        title: "Block create failure chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_022,
+      },
+      message: {
+        id: "message-33",
+        threadId: "thread-33",
+        direction: "user_to_openclaw",
+        text: "Stream blocks.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_022,
+        updatedAt: 1_700_000_000_022,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toHaveLength(1);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.map((snapshot) => ({
+        text: snapshot.text,
+        isFinal: snapshot.isFinal,
+      })),
+    ).toEqual([
+      { text: "Checking logs", isFinal: false },
+      { text: "Checking logs", isFinal: true },
+    ]);
+    expect(errors).toContain("Cowtail block reply failed: durable create failed");
   });
 
   test("durable update failure does not emit a final transient snapshot", async () => {
@@ -1513,9 +1579,15 @@ describe("handleCowtailEvent", () => {
 
     expect(client.sendOpenClawMessageCalls).toHaveLength(1);
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
-    expect(client.sendOpenClawStreamSnapshotCalls.every((snapshot) => !snapshot.isFinal)).toBe(
-      true,
-    );
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.map((snapshot) => ({
+        text: snapshot.text,
+        isFinal: snapshot.isFinal,
+      })),
+    ).toEqual([
+      { text: "Checking ", isFinal: false },
+      { text: "Checking ", isFinal: true },
+    ]);
     expect(errors).toContain(
       "Cowtail block reply failed: Cowtail realtime ack missing messageId for streamed OpenClaw reply",
     );
@@ -1570,9 +1642,15 @@ describe("handleCowtailEvent", () => {
 
     expect(client.sendOpenClawMessageCalls).toHaveLength(1);
     expect(client.sendOpenClawMessageUpdateCalls).toEqual([]);
-    expect(client.sendOpenClawStreamSnapshotCalls.every((snapshot) => !snapshot.isFinal)).toBe(
-      true,
-    );
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.map((snapshot) => ({
+        text: snapshot.text,
+        isFinal: snapshot.isFinal,
+      })),
+    ).toEqual([
+      { text: "Checking ", isFinal: false },
+      { text: "Checking ", isFinal: true },
+    ]);
     expect(errors).toEqual([]);
   });
 

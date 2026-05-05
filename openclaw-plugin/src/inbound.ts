@@ -590,25 +590,31 @@ async function deliverCowtailReply(params: {
     });
 
     if (!params.streamState.messageId) {
-      const result = await params.client.sendOpenClawMessage({
-        type: "openclaw_message",
-        idempotencyKey: params.streamState.idempotencyKey,
-        streamId: params.streamState.streamId,
-        sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
-        title: params.thread.title,
-        text: messageText,
-        authorLabel: "OpenClaw",
-        links,
-        toolCalls: params.streamState.toolCalls,
-        actions: [],
-        deliveryState: "pending",
-      });
-      const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
-      if (!messageId) {
+      try {
+        const result = await params.client.sendOpenClawMessage({
+          type: "openclaw_message",
+          idempotencyKey: params.streamState.idempotencyKey,
+          streamId: params.streamState.streamId,
+          sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+          title: params.thread.title,
+          text: messageText,
+          authorLabel: "OpenClaw",
+          links,
+          toolCalls: params.streamState.toolCalls,
+          actions: [],
+          deliveryState: "pending",
+        });
+        const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+        if (!messageId) {
+          failCowtailStreamBeforeDurableCreate(params);
+          return;
+        }
+        params.streamState.messageId = messageId;
         return;
+      } catch (error) {
+        failCowtailStreamBeforeDurableCreate(params);
+        throw error;
       }
-      params.streamState.messageId = messageId;
-      return;
     }
 
     await params.client.sendOpenClawMessageUpdate({
@@ -641,25 +647,31 @@ async function deliverCowtailReply(params: {
       updatedAt: Date.now(),
     });
     if (!params.streamState.messageId) {
-      const result = await params.client.sendOpenClawMessage({
-        type: "openclaw_message",
-        idempotencyKey: params.streamState.idempotencyKey,
-        streamId: params.streamState.streamId,
-        sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
-        title: params.thread.title,
-        text: params.streamState.text,
-        authorLabel: "OpenClaw",
-        links,
-        toolCalls: params.streamState.toolCalls,
-        actions: [],
-        deliveryState: "pending",
-      });
-      const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
-      if (!messageId) {
+      try {
+        const result = await params.client.sendOpenClawMessage({
+          type: "openclaw_message",
+          idempotencyKey: params.streamState.idempotencyKey,
+          streamId: params.streamState.streamId,
+          sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+          title: params.thread.title,
+          text: params.streamState.text,
+          authorLabel: "OpenClaw",
+          links,
+          toolCalls: params.streamState.toolCalls,
+          actions: [],
+          deliveryState: "pending",
+        });
+        const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+        if (!messageId) {
+          failCowtailStreamBeforeDurableCreate(params);
+          return;
+        }
+        params.streamState.messageId = messageId;
         return;
+      } catch (error) {
+        failCowtailStreamBeforeDurableCreate(params);
+        throw error;
       }
-      params.streamState.messageId = messageId;
-      return;
     }
 
     await params.client.sendOpenClawMessageUpdate({
@@ -703,24 +715,30 @@ async function deliverCowtailReply(params: {
   }
 
   params.streamState.text = text;
-  const result = await params.client.sendOpenClawMessage({
-    type: "openclaw_message",
-    idempotencyKey: params.streamState.idempotencyKey,
-    streamId: params.streamState.streamId,
-    sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
-    title: params.thread.title,
-    text,
-    authorLabel: "OpenClaw",
-    links,
-    toolCalls: params.streamState.toolCalls,
-    actions: [],
-    deliveryState: "sent",
-  });
-  const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
-  if (!messageId) {
-    return;
+  try {
+    const result = await params.client.sendOpenClawMessage({
+      type: "openclaw_message",
+      idempotencyKey: params.streamState.idempotencyKey,
+      streamId: params.streamState.streamId,
+      sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+      title: params.thread.title,
+      text,
+      authorLabel: "OpenClaw",
+      links,
+      toolCalls: params.streamState.toolCalls,
+      actions: [],
+      deliveryState: "sent",
+    });
+    const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+    if (!messageId) {
+      failCowtailStreamBeforeDurableCreate(params);
+      return;
+    }
+    params.streamState.messageId = messageId;
+  } catch (error) {
+    failCowtailStreamBeforeDurableCreate(params);
+    throw error;
   }
-  params.streamState.messageId = messageId;
   emitCowtailStreamSnapshot({
     client: params.client,
     logger: params.logger,
@@ -878,9 +896,10 @@ function emitCowtailStreamSnapshot(params: {
   text: string;
   isFinal: boolean;
   updatedAt: number;
+  allowFailed?: boolean;
 }): void {
   if (
-    params.streamState.failed ||
+    (params.streamState.failed && params.allowFailed !== true) ||
     (!params.text.trim() &&
       params.streamState.links.length === 0 &&
       params.streamState.toolCalls.length === 0)
@@ -909,6 +928,33 @@ function emitCowtailStreamSnapshot(params: {
     .catch((error) => {
       params.logger?.warn?.(`Cowtail stream snapshot send failed: ${errorMessage(error)}`);
     });
+}
+
+function failCowtailStreamBeforeDurableCreate(params: {
+  client: CowtailInboundClient;
+  logger?: Logger | undefined;
+  route: CowtailRoute;
+  thread: OpenClawThreadRecord;
+  streamState: CowtailReplyStreamState;
+}): void {
+  if (!params.streamState.messageId && params.streamState.snapshotSequence > 0) {
+    const text = params.streamState.text.trim()
+      ? params.streamState.text
+      : currentLiveCowtailStreamText(params.streamState);
+    emitCowtailStreamSnapshot({
+      client: params.client,
+      logger: params.logger,
+      route: params.route,
+      thread: params.thread,
+      streamState: params.streamState,
+      text,
+      isFinal: true,
+      updatedAt: Date.now(),
+      allowFailed: true,
+    });
+  }
+  params.streamState.failed = true;
+  params.streamState.completed = true;
 }
 
 function currentLiveCowtailStreamText(streamState: CowtailReplyStreamState): string {

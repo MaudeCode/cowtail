@@ -479,6 +479,7 @@ final class OpenClawStore: ObservableObject {
         retiredStreamIds.insert(streamId)
         retiredStreamIdsByThreadID[threadId] = retiredStreamIds
         lastSnapshotCursorByStreamID.removeValue(forKey: streamId)
+        durableMessageIdsByStreamID.removeValue(forKey: streamId)
     }
 
     private func advanceCursor(to sequence: Int64) {

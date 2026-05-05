@@ -281,6 +281,28 @@ describe("openclaw protocol schemas", () => {
     ).toBe(false);
   });
 
+  test("rejects realtime OpenClaw plugin messages missing streamId", () => {
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message",
+        requestId: "request-missing-stream",
+        idempotencyKey: "cowtail:reply:missing-stream",
+        sessionKey: "session-1",
+        text: "Nonblank message content",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message_update",
+        requestId: "request-missing-update-stream",
+        idempotencyKey: "cowtail:update:missing-stream",
+        messageId: "message-1",
+        text: "Nonblank update content",
+      }).success,
+    ).toBe(false);
+  });
+
   test("parses realtime-only OpenClaw stream snapshot commands and server messages", () => {
     const command = openclawRealtimeClientMessageSchema.parse({
       type: "openclaw_message_stream_snapshot",
@@ -333,6 +355,33 @@ describe("openclaw protocol schemas", () => {
       snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
+  });
+
+  test("rejects OpenClaw stream snapshots missing snapshotSequence", () => {
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-missing-sequence",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Hello from the live stream",
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      openclawRealtimeServerMessageSchema.safeParse({
+        type: "openclaw_message_stream_snapshot",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Hello from the live stream",
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }).success,
+    ).toBe(false);
   });
 
   test("parses tool-call-only OpenClaw stream snapshots with default links", () => {

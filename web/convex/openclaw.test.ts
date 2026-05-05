@@ -49,6 +49,17 @@ function convexHandler(fn: unknown) {
   return (fn as ConvexFunctionForTest)._handler;
 }
 
+function expectRequiredConvexArg(fn: unknown, argName: string) {
+  const exportedArgs = (fn as { exportArgs: () => string }).exportArgs();
+  const args = JSON.parse(exportedArgs) as {
+    type: string;
+    value: Record<string, { optional: boolean }>;
+  };
+
+  expect(args.type).toBe("object");
+  expect(args.value[argName]?.optional).toBe(false);
+}
+
 function createArchivedDropMutationCtx(options: {
   existingThread?: Record<string, unknown>;
   message?: Record<string, unknown>;
@@ -618,6 +629,56 @@ describe("OpenClaw Convex model helpers", () => {
     });
   });
 
+  test("createThreadFromOpenClaw requires streamId in the Convex validator", () => {
+    expectRequiredConvexArg(createThreadFromOpenClaw, "streamId");
+  });
+
+  test("createThreadFromOpenClaw rejects duplicate idempotency keys with mismatched stream IDs", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const activeThread = {
+      _id: "thread-active",
+      sessionKey: "session-active",
+      status: "active",
+      targetAgent: "default",
+      title: "Active thread",
+      unreadCount: 1,
+      createdAt: 100,
+      updatedAt: 200,
+    };
+    const { ctx, inserts, patches } = createArchivedDropMutationCtx({
+      existingThread: activeThread,
+      idempotencyReceipt: {
+        _id: "receipt-create",
+        idempotencyKey: "cowtail:reply:message-1",
+        commandType: "openclaw_message",
+        sessionKey: "session-active",
+        threadId: "thread-active",
+        messageId: "message-existing",
+        sequence: 8,
+        commandDigest:
+          '{"actions":[],"authorLabel":null,"deliveryState":"sent","links":[],"sessionKey":"session-active","streamId":"cowtail:stream:original-create","text":"Existing reply","title":null,"toolCalls":[]}',
+        createdAt: 150,
+        updatedAt: 150,
+      },
+    });
+
+    await expect(
+      convexHandler(createThreadFromOpenClaw)(ctx, {
+        serviceToken: "realtime-convex-token",
+        sessionKey: "session-active",
+        idempotencyKey: "cowtail:reply:message-1",
+        streamId: "cowtail:stream:mismatched-create",
+        text: "Existing reply",
+        toolCalls: [],
+        actions: [],
+      }),
+    ).rejects.toThrow(
+      "Idempotency key cowtail:reply:message-1 was already used for another command target",
+    );
+    expect(inserts).toEqual([]);
+    expect(patches).toEqual([]);
+  });
+
   test("createThreadFromOpenClaw acknowledges duplicate idempotency keys without writing messages", async () => {
     process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
     const activeThread = {
@@ -645,6 +706,19 @@ describe("OpenClaw Convex model helpers", () => {
     const { ctx, inserts, patches } = createArchivedDropMutationCtx({
       existingThread: activeThread,
       idempotentMessage: existingMessage,
+      idempotencyReceipt: {
+        _id: "receipt-create",
+        idempotencyKey: "cowtail:reply:message-1",
+        commandType: "openclaw_message",
+        sessionKey: "session-active",
+        threadId: "thread-active",
+        messageId: "message-existing",
+        sequence: 8,
+        commandDigest:
+          '{"actions":[],"authorLabel":null,"deliveryState":"sent","links":[],"sessionKey":"session-active","streamId":"cowtail:stream:duplicate-create","text":"Existing reply","title":null,"toolCalls":[]}',
+        createdAt: 150,
+        updatedAt: 150,
+      },
     });
 
     const result = await convexHandler(createThreadFromOpenClaw)(ctx, {
@@ -658,6 +732,7 @@ describe("OpenClaw Convex model helpers", () => {
     });
 
     expect(result).toEqual({
+      ok: true,
       threadId: "thread-active",
       messageId: "message-existing",
       actionIds: [],
@@ -811,6 +886,10 @@ describe("OpenClaw Convex model helpers", () => {
         payload: { streamId: "cowtail:stream:update-streamed" },
       },
     });
+  });
+
+  test("updateMessageFromOpenClaw requires streamId in the Convex validator", () => {
+    expectRequiredConvexArg(updateMessageFromOpenClaw, "streamId");
   });
 
   test("hydrates replay events with available records", () => {
@@ -991,6 +1070,7 @@ describe("OpenClaw Convex model helpers", () => {
         serviceToken: "realtime-convex-token",
         sessionKey: "session-active",
         idempotencyKey: "cowtail:reply:message-1",
+        streamId: "cowtail:stream:message-1",
         text: "Existing reply",
         toolCalls: [],
         actions: [],
@@ -1092,7 +1172,7 @@ describe("OpenClaw Convex model helpers", () => {
         messageId: "message-existing",
         sequence: 8,
         commandDigest:
-          '{"actions":[],"deliveryState":"pending","links":[],"messageId":"message-existing","text":"Existing reply","toolCalls":[]}',
+          '{"actions":[],"deliveryState":"pending","links":[],"messageId":"message-existing","streamId":"cowtail:stream:duplicate-update","text":"Existing reply","toolCalls":[]}',
         createdAt: 150,
         updatedAt: 150,
       },
@@ -1134,5 +1214,64 @@ describe("OpenClaw Convex model helpers", () => {
         },
       },
     });
+  });
+
+  test("updateMessageFromOpenClaw rejects duplicate idempotency keys with mismatched stream IDs", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const thread = {
+      _id: "thread-active",
+      sessionKey: "session-active",
+      status: "active",
+      targetAgent: "default",
+      title: "Active thread",
+      unreadCount: 0,
+      createdAt: 100,
+      updatedAt: 150,
+    };
+    const message = {
+      _id: "message-existing",
+      threadId: "thread-active",
+      direction: "openclaw_to_user",
+      text: "Existing reply",
+      links: [],
+      toolCalls: [],
+      deliveryState: "pending",
+      createdAt: 150,
+      updatedAt: 150,
+    };
+    const { ctx, inserts, patches } = createArchivedDropMutationCtx({
+      existingThread: thread,
+      message,
+      idempotencyReceipt: {
+        _id: "receipt-update",
+        idempotencyKey: "cowtail:reply:message-1:update:1",
+        commandType: "openclaw_message_update",
+        threadId: "thread-active",
+        messageId: "message-existing",
+        sequence: 8,
+        commandDigest:
+          '{"actions":[],"deliveryState":"pending","links":[],"messageId":"message-existing","streamId":"cowtail:stream:original-update","text":"Existing reply","toolCalls":[]}',
+        createdAt: 150,
+        updatedAt: 150,
+      },
+    });
+
+    await expect(
+      convexHandler(updateMessageFromOpenClaw)(ctx, {
+        serviceToken: "realtime-convex-token",
+        idempotencyKey: "cowtail:reply:message-1:update:1",
+        streamId: "cowtail:stream:mismatched-update",
+        messageId: "message-existing",
+        text: "Existing reply",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "pending",
+      }),
+    ).rejects.toThrow(
+      "Idempotency key cowtail:reply:message-1:update:1 was already used for another command target",
+    );
+    expect(inserts).toEqual([]);
+    expect(patches).toEqual([]);
   });
 });
