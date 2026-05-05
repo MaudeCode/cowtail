@@ -117,6 +117,78 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(action.idempotencyKey, "ios:action:action-1")
     }
 
+    func testMarkThreadReadIfUnreadSendsCommandForUnreadThread() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 7,
+                type: "message_created",
+                createdAt: 1777128000000,
+                threadId: "thread-1",
+                messageId: "message-1",
+                thread: OpenClawFixtures.thread,
+                message: OpenClawFixtures.message,
+                action: nil,
+                actions: [],
+                payload: nil,
+                error: nil
+            )
+        )
+
+        try await store.markThreadReadIfUnread(threadId: "thread-1")
+
+        XCTAssertEqual(realtime.sentCommands.count, 1)
+        guard case .markThreadRead(let markRead) = realtime.sentCommands[0] else {
+            return XCTFail("Expected mark-read command")
+        }
+        XCTAssertEqual(markRead.threadId, "thread-1")
+    }
+
+    func testMarkThreadReadIfUnreadSkipsAlreadyReadThread() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        let readThread = OpenClawThread(
+            id: "thread-1",
+            sessionKey: "cowtail:thread-1",
+            status: .active,
+            targetAgent: "default",
+            title: "Deploy check",
+            unreadCount: 0,
+            createdAt: 1777127000000,
+            updatedAt: 1777128000000,
+            lastMessageAt: 1777128000000
+        )
+
+        try store.apply(
+            OpenClawEventEnvelope(
+                sequence: 7,
+                type: "thread_updated",
+                createdAt: 1777128000000,
+                threadId: "thread-1",
+                thread: readThread
+            )
+        )
+
+        try await store.markThreadReadIfUnread(threadId: "thread-1")
+
+        XCTAssertTrue(realtime.sentCommands.isEmpty)
+    }
+
     func testArchivedThreadEventRemovesThreadAndMessages() throws {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let store = OpenClawStore(

@@ -207,6 +207,14 @@ final class OpenClawStore: ObservableObject {
         )))
     }
 
+    func markThreadReadIfUnread(threadId: String) async throws {
+        guard threads.first(where: { $0.id == threadId })?.unreadCount ?? 0 > 0 else {
+            return
+        }
+
+        try await markThreadRead(threadId: threadId)
+    }
+
     func renameThread(threadId: String, title: String) async throws {
         let requestId = UUID().uuidString
         try await realtime.send(.renameThread(.init(
