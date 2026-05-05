@@ -412,6 +412,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [.init(label: "Runbook", url: "https://example.invalid/runbook")],
             toolCalls: [runningToolCall],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128000000
         ))
 
@@ -435,6 +436,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [runningToolCall],
             isFinal: true,
+            snapshotSequence: 1,
             updatedAt: 1777128040000
         ))
 
@@ -504,6 +506,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128000000
         ))
 
@@ -539,6 +542,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [],
             isFinal: true,
+            snapshotSequence: 1,
             updatedAt: 1777128040000
         ))
 
@@ -566,6 +570,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128000000
         ))
 
@@ -601,6 +606,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128040000
         ))
 
@@ -956,6 +962,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [firstToolCall, secondToolCall],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128003000
         ))
 
@@ -968,6 +975,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [firstToolCall],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128001000
         ))
 
@@ -977,7 +985,7 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(message.updatedAt, 1777128003000)
     }
 
-    func testUnsequencedStreamSnapshotDoesNotRegressSequencedSnapshot() throws {
+    func testOlderSequencedStreamSnapshotDoesNotRegressNewerSnapshot() throws {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let store = OpenClawStore(
             api: FakeOpenClawAPI(),
@@ -1004,10 +1012,11 @@ final class OpenClawStoreTests: XCTestCase {
             streamId: "stream-message-1",
             sessionKey: "session-1",
             threadId: "thread-1",
-            text: "Legacy update.",
+            text: "Older sequence.",
             links: [],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777129000000
         ))
 
@@ -1074,6 +1083,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128000000
         ))
 
@@ -1121,6 +1131,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128000000
         ))
 
@@ -1156,6 +1167,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [.init(label: "Runbook", url: "https://example.invalid/runbook")],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128020000
         ))
 
@@ -1194,6 +1206,7 @@ final class OpenClawStoreTests: XCTestCase {
             links: [],
             toolCalls: [],
             isFinal: false,
+            snapshotSequence: 1,
             updatedAt: 1777128000000
         )))
 

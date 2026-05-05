@@ -539,7 +539,7 @@ private extension OpenClawDeliveryState {
 }
 
 private struct StreamSnapshotCursor {
-    let snapshotSequence: Int64?
+    let snapshotSequence: Int64
     let updatedAt: Int64
 
     init(_ snapshot: OpenClawStreamSnapshot) {
@@ -548,15 +548,9 @@ private struct StreamSnapshotCursor {
     }
 
     func isOlder(than other: StreamSnapshotCursor) -> Bool {
-        switch (snapshotSequence, other.snapshotSequence) {
-        case let (current?, previous?):
-            return current < previous
-        case (nil, _?):
-            return true
-        case (_?, nil):
-            return false
-        case (nil, nil):
+        if snapshotSequence == other.snapshotSequence {
             return updatedAt < other.updatedAt
         }
+        return snapshotSequence < other.snapshotSequence
     }
 }

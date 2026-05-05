@@ -65,9 +65,14 @@ export type CowtailRealtimeClientDeps = {
 
 export type OpenClawMessageInput = Omit<
   OpenClawPluginMessageCommand,
-  "requestId" | "idempotencyKey" | "links" | "actions" | "toolCalls"
+  "requestId" | "idempotencyKey" | "links" | "actions" | "toolCalls" | "streamId"
 > &
-  Partial<Pick<OpenClawPluginMessageCommand, "idempotencyKey" | "links" | "actions" | "toolCalls">>;
+  Partial<
+    Pick<
+      OpenClawPluginMessageCommand,
+      "idempotencyKey" | "links" | "actions" | "toolCalls" | "streamId"
+    >
+  >;
 export type OpenClawMessageUpdateInput = Omit<
   OpenClawPluginMessageUpdateCommand,
   "requestId" | "idempotencyKey" | "links" | "actions" | "toolCalls"
@@ -153,6 +158,7 @@ export class CowtailRealtimeClient {
       ...command,
       requestId,
       idempotencyKey: command.idempotencyKey ?? `cowtail:request:${requestId}`,
+      streamId: command.streamId ?? `cowtail:request:${requestId}`,
       links: command.links ?? [],
       toolCalls: command.toolCalls ?? [],
       actions: command.actions ?? [],

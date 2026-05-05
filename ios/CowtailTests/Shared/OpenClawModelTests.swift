@@ -318,6 +318,7 @@ final class OpenClawModelTests: XCTestCase {
           "threadId": "thread-1",
           "text": "Checking logs.",
           "isFinal": false,
+          "snapshotSequence": 1,
           "updatedAt": 1777128000000
         }
         """.utf8))

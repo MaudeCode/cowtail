@@ -229,6 +229,7 @@ describe("CowtailRealtimeClient", () => {
       type: "openclaw_message",
       requestId: "request-delayed",
       idempotencyKey: "cowtail:request:request-delayed",
+      streamId: "cowtail:request:request-delayed",
       sessionKey: "session-delayed",
       text: "queued",
       links: [],
@@ -315,6 +316,7 @@ describe("CowtailRealtimeClient", () => {
       type: "openclaw_message",
       requestId: "request-before-open",
       idempotencyKey: "cowtail:request:request-before-open",
+      streamId: "cowtail:request:request-before-open",
       sessionKey: "session-before-open",
       text: "hello before open",
       links: [],
@@ -378,6 +380,7 @@ describe("CowtailRealtimeClient", () => {
           },
         ],
         isFinal: false,
+        snapshotSequence: 1,
         updatedAt: 1777939200000,
       })
       .then(() => {
@@ -418,6 +421,7 @@ describe("CowtailRealtimeClient", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -463,6 +467,7 @@ describe("CowtailRealtimeClient", () => {
       type: "openclaw_message",
       requestId: "request-1",
       idempotencyKey: "cowtail:request:request-1",
+      streamId: "cowtail:request:request-1",
       sessionKey: "session-1",
       text: "hello",
       links: [],
@@ -685,6 +690,7 @@ describe("CowtailRealtimeClient", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
     await flushMicrotasks();

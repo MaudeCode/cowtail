@@ -620,6 +620,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-1",
         idempotencyKey: "cowtail:reply:request-1",
+        streamId: "cowtail:stream:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -634,6 +635,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-1",
         idempotencyKey: "cowtail:reply:request-1",
+        streamId: "cowtail:stream:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -642,7 +644,9 @@ describe("OpenClawSessionController", () => {
         actions: [],
       },
     ]);
-    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(pushBridge.notifications).toEqual([
+      withPersistedStreamId(api.openClawMessageEvent, "cowtail:stream:request-1"),
+    ]);
     expect(sent(socket)).toEqual([
       {
         type: "ack",
@@ -770,6 +774,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-archived-envelope",
         idempotencyKey: "cowtail:reply:request-archived-envelope",
+        streamId: "cowtail:stream:request-archived-envelope",
         sessionKey: "session-archived",
         text: "Old reply from a deleted thread",
         links: [],
@@ -912,6 +917,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -945,6 +951,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -1049,6 +1056,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -1136,6 +1144,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-expired-delivery",
         idempotencyKey: "cowtail:reply:request-expired-delivery",
+        streamId: "cowtail:stream:request-expired-delivery",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1144,7 +1153,12 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(api.validatedSessionIds).toEqual([]);
-    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(pushBridge.notifications).toEqual([
+      withPersistedStreamId(
+        api.openClawMessageEvent,
+        "cowtail:stream:request-expired-delivery",
+      ),
+    ]);
     expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
     expect(registry.getClient("ios-1")).toBe(undefined);
@@ -1174,6 +1188,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-revoked-delivery",
         idempotencyKey: "cowtail:reply:request-revoked-delivery",
+        streamId: "cowtail:stream:request-revoked-delivery",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1182,7 +1197,12 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(api.validatedSessionIds).toEqual(["session-1"]);
-    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(pushBridge.notifications).toEqual([
+      withPersistedStreamId(
+        api.openClawMessageEvent,
+        "cowtail:stream:request-revoked-delivery",
+      ),
+    ]);
     expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
     expect(registry.getClient("ios-1")).toBe(undefined);
@@ -1209,6 +1229,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-4",
         idempotencyKey: "cowtail:reply:request-4",
+        streamId: "cowtail:stream:request-4",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1235,6 +1256,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-5",
         idempotencyKey: "cowtail:reply:request-5",
+        streamId: "cowtail:stream:request-5",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1271,6 +1293,7 @@ describe("OpenClawSessionController", () => {
             type: "openclaw_message",
             requestId: "request-6",
             idempotencyKey: "cowtail:reply:request-6",
+            streamId: "cowtail:stream:request-6",
             sessionKey: "session-1",
             text: "Approve the deploy?",
             links: [],
@@ -1309,6 +1332,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-7",
         idempotencyKey: "cowtail:reply:request-7",
+        streamId: "cowtail:stream:request-7",
         sessionKey: "session-1",
         text: "first",
         links: [],
@@ -1321,6 +1345,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-8",
         idempotencyKey: "cowtail:reply:request-8",
+        streamId: "cowtail:stream:request-8",
         sessionKey: "session-1",
         text: "second",
         links: [],

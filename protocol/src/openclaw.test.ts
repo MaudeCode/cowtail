@@ -233,6 +233,7 @@ describe("openclaw protocol schemas", () => {
         type: "openclaw_message",
         requestId: "request-tool",
         idempotencyKey: "cowtail:reply:message-tool",
+        streamId: "cowtail:stream:message-tool",
         sessionKey: "session-1",
         text: "",
         toolCalls: [
@@ -247,6 +248,7 @@ describe("openclaw protocol schemas", () => {
       type: "openclaw_message",
       requestId: "request-tool",
       idempotencyKey: "cowtail:reply:message-tool",
+      streamId: "cowtail:stream:message-tool",
       sessionKey: "session-1",
       text: "",
       links: [],
@@ -350,6 +352,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
 
@@ -368,6 +371,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
 
@@ -388,6 +392,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
     expect(serverParsed).toEqual({
@@ -406,6 +411,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
   });

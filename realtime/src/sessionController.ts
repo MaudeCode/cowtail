@@ -288,9 +288,7 @@ export class OpenClawSessionController {
           links: command.links,
           toolCalls: command.toolCalls,
           isFinal: command.isFinal,
-          ...(command.snapshotSequence !== undefined
-            ? { snapshotSequence: command.snapshotSequence }
-            : {}),
+          snapshotSequence: command.snapshotSequence,
           updatedAt: command.updatedAt,
         } satisfies OpenClawMessageStreamSnapshotServerMessage;
         await this.#broadcastTransientSnapshotToIos(snapshot);

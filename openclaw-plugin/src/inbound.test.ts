@@ -4,6 +4,8 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import type {
   OpenClawEventEnvelope,
   OpenClawMessageStreamSnapshotCommand,
+  OpenClawPluginMessageCommand,
+  OpenClawPluginMessageUpdateCommand,
   OpenClawToolCallRecord,
 } from "@maudecode/cowtail-protocol";
 
@@ -100,30 +102,8 @@ type FakeClient = {
     state: "submitted" | "failed" | "expired";
     resultMetadata?: Record<string, unknown>;
   }>;
-  sendOpenClawMessageCalls: Array<{
-    type: "openclaw_message";
-    idempotencyKey?: string;
-    streamId?: string;
-    sessionKey: string;
-    title?: string;
-    text: string;
-    authorLabel?: string;
-    links: Array<{ label: string; url: string }>;
-    toolCalls?: OpenClawToolCallRecord[];
-    actions: [];
-    deliveryState?: "pending" | "sent" | "failed";
-  }>;
-  sendOpenClawMessageUpdateCalls: Array<{
-    type: "openclaw_message_update";
-    idempotencyKey?: string;
-    streamId?: string;
-    messageId: string;
-    text: string;
-    links?: Array<{ label: string; url: string }>;
-    toolCalls?: OpenClawToolCallRecord[];
-    actions?: [];
-    deliveryState?: "pending" | "sent" | "failed";
-  }>;
+  sendOpenClawMessageCalls: Array<Omit<OpenClawPluginMessageCommand, "requestId">>;
+  sendOpenClawMessageUpdateCalls: Array<Omit<OpenClawPluginMessageUpdateCommand, "requestId">>;
   sendOpenClawStreamSnapshotCalls: Array<Omit<OpenClawMessageStreamSnapshotCommand, "requestId">>;
   sendSessionBound: (input: {
     type: "openclaw_session_bound";
@@ -138,34 +118,14 @@ type FakeClient = {
     state: "submitted" | "failed" | "expired";
     resultMetadata?: Record<string, unknown>;
   }) => Promise<number | undefined>;
-  sendOpenClawMessage: (input: {
-    type: "openclaw_message";
-    idempotencyKey?: string;
-    streamId?: string;
-    sessionKey: string;
-    title?: string;
-    text: string;
-    authorLabel?: string;
-    links: Array<{ label: string; url: string }>;
-    toolCalls?: OpenClawToolCallRecord[];
-    actions: [];
-    deliveryState?: "pending" | "sent" | "failed";
-  }) => Promise<{
+  sendOpenClawMessage: (input: Omit<OpenClawPluginMessageCommand, "requestId">) => Promise<{
     requestId: string;
     sequence: number | undefined;
     payload?: Record<string, unknown>;
   }>;
-  sendOpenClawMessageUpdate: (input: {
-    type: "openclaw_message_update";
-    idempotencyKey?: string;
-    streamId?: string;
-    messageId: string;
-    text: string;
-    links?: Array<{ label: string; url: string }>;
-    toolCalls?: OpenClawToolCallRecord[];
-    actions?: [];
-    deliveryState?: "pending" | "sent" | "failed";
-  }) => Promise<{
+  sendOpenClawMessageUpdate: (
+    input: Omit<OpenClawPluginMessageUpdateCommand, "requestId">,
+  ) => Promise<{
     requestId: string;
     sequence: number | undefined;
     payload?: Record<string, unknown>;
