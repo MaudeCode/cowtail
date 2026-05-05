@@ -111,7 +111,10 @@ describe("ConvexCowtailRealtimeApi", () => {
   });
 
   test("createOpenClawMessage returns the hydrated replay event for the created sequence", async () => {
-    const replayEvent = createReplayEvent(7);
+    const replayEvent = {
+      ...createReplayEvent(7),
+      payload: { streamId: "cowtail:stream:message-1" },
+    };
     const mutations: Array<{ reference: unknown; args: unknown }> = [];
     const queries: Array<{ reference: unknown; args: unknown }> = [];
     const convex: ConvexLike = {
@@ -135,6 +138,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       text: "Approve the deploy?",
       links: [],
       toolCalls: [],
+      streamId: "cowtail:stream:message-1",
       actions: [],
     });
 
@@ -148,6 +152,7 @@ describe("ConvexCowtailRealtimeApi", () => {
           text: "Approve the deploy?",
           links: [],
           toolCalls: [],
+          streamId: "cowtail:stream:message-1",
           actions: [],
           serviceToken: "realtime-convex-token",
         },
@@ -167,6 +172,7 @@ describe("ConvexCowtailRealtimeApi", () => {
     const replayEvent: OpenClawEventEnvelope = {
       ...createReplayEvent(8),
       type: "message_updated",
+      payload: { streamId: "cowtail:stream:message-1" },
       message: {
         ...createReplayEvent(8).message!,
         text: "Still checking...",
@@ -195,6 +201,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       text: "Still checking...",
       links: [],
       toolCalls: [],
+      streamId: "cowtail:stream:message-1",
       deliveryState: "pending",
     });
 
@@ -208,6 +215,7 @@ describe("ConvexCowtailRealtimeApi", () => {
           text: "Still checking...",
           links: [],
           toolCalls: [],
+          streamId: "cowtail:stream:message-1",
           deliveryState: "pending",
         },
       },

@@ -213,6 +213,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
     );
     addDefined(args, "actions", command.actions);
     addDefined(args, "deliveryState", command.deliveryState);
+    addDefined(args, "streamId", command.streamId);
     const result = await this.convex.mutation(convexApi.openclaw.createThreadFromOpenClaw, args);
     return await this.eventBySequence(getSequence(result));
   }
@@ -239,6 +240,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
       command.deliveryState,
     );
     addDefined(args, "toolCalls", command.toolCalls);
+    addDefined(args, "streamId", command.streamId);
     const result = await this.convex.mutation(convexApi.openclaw.updateMessageFromOpenClaw, args);
     return await this.eventBySequence(getSequence(result));
   }

@@ -98,12 +98,12 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
         this.heldOpenClawMessages.push({ command, resolve });
       });
     }
-    return this.openClawMessageEvent;
+    return withPersistedStreamId(this.openClawMessageEvent, command.streamId);
   }
 
   async updateOpenClawMessage(command: Parameters<CowtailRealtimeApi["updateOpenClawMessage"]>[0]) {
     this.openClawMessageUpdates.push(command);
-    return this.openClawMessageUpdateEvent;
+    return withPersistedStreamId(this.openClawMessageUpdateEvent, command.streamId);
   }
 
   async createIosThread(command: Parameters<CowtailRealtimeApi["createIosThread"]>[0]) {
@@ -217,6 +217,23 @@ function createController() {
 
 function sent(socket: FakeSocket): unknown[] {
   return socket.sentMessages.map((message) => JSON.parse(message));
+}
+
+function withPersistedStreamId(
+  event: OpenClawEventEnvelope,
+  streamId: string | undefined,
+): OpenClawEventEnvelope {
+  if (streamId === undefined) {
+    return event;
+  }
+
+  return {
+    ...event,
+    payload: {
+      ...(event.payload ?? {}),
+      streamId,
+    },
+  };
 }
 
 function createEvent(
@@ -457,7 +474,7 @@ describe("OpenClawSessionController", () => {
     api.replayEventsResult = [
       createEvent(2, "thread_created"),
       createEvent(3, "thread_updated"),
-      createEvent(4, "message_created"),
+      createEvent(4, "message_created", { payload: { streamId: "cowtail:stream:replay-4" } }),
       createEvent(5, "reply_created"),
       createEvent(6, "action_submitted"),
       createEvent(7, "action_result"),
@@ -651,6 +668,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-3",
         idempotencyKey: "cowtail:reply:request-3",
+        streamId: "cowtail:stream:request-3",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -660,7 +678,12 @@ describe("OpenClawSessionController", () => {
 
     expect(api.validatedSessionIds).toEqual(["session-1"]);
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(iosSocket)).toEqual([api.openClawMessageEvent]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...api.openClawMessageEvent,
+        payload: { streamId: "cowtail:stream:request-3" },
+      },
+    ]);
     expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
@@ -677,9 +700,12 @@ describe("OpenClawSessionController", () => {
       threadId: "thread-archived",
       payload: { dropped: true, reason: "thread_archived" },
     });
-    const socket = new FakeSocket();
-    await authenticatePlugin(controller, socket);
-    socket.sentMessages.length = 0;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
 
     await controller.handleRawMessage(
       "plugin-1",
@@ -687,6 +713,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-dropped-create",
         idempotencyKey: "cowtail:reply:request-dropped-create",
+        streamId: "cowtail:stream:request-dropped-create",
         sessionKey: "session-archived",
         text: "This should be dropped",
         links: [],
@@ -695,7 +722,17 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(socket)).toEqual([
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...api.openClawMessageEvent,
+        payload: {
+          dropped: true,
+          reason: "thread_archived",
+          streamId: "cowtail:stream:request-dropped-create",
+        },
+      },
+    ]);
+    expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
         requestId: "request-dropped-create",
@@ -766,6 +803,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message_update",
         requestId: "request-update-1",
         idempotencyKey: "cowtail:update:message-openclaw:pending",
+        streamId: "cowtail:stream:message-openclaw",
         messageId: "message-openclaw",
         text: "Still checking...",
         links: [],
@@ -779,6 +817,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message_update",
         requestId: "request-update-1",
         idempotencyKey: "cowtail:update:message-openclaw:pending",
+        streamId: "cowtail:stream:message-openclaw",
         messageId: "message-openclaw",
         text: "Still checking...",
         links: [],
@@ -786,7 +825,12 @@ describe("OpenClawSessionController", () => {
       },
     ]);
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(iosSocket)).toEqual([updateEvent]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...updateEvent,
+        payload: { streamId: "cowtail:stream:message-openclaw" },
+      },
+    ]);
     expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
@@ -820,6 +864,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -833,6 +878,7 @@ describe("OpenClawSessionController", () => {
       text: "Partial text",
       links: [],
       toolCalls: [],
+      snapshotSequence: 1,
       isFinal: false,
       updatedAt: 1777939200000,
     };
@@ -931,6 +977,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -946,6 +993,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text updated",
         links: [],
         toolCalls: [],
+        snapshotSequence: 2,
         isFinal: false,
         updatedAt: 1777939200100,
       }),
@@ -961,6 +1009,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       },
@@ -972,6 +1021,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text updated",
         links: [],
         toolCalls: [],
+        snapshotSequence: 2,
         isFinal: false,
         updatedAt: 1777939200100,
       },
@@ -1023,9 +1073,12 @@ describe("OpenClawSessionController", () => {
       messageId: "message-archived",
       payload: { dropped: true, reason: "thread_archived" },
     });
-    const socket = new FakeSocket();
-    await authenticatePlugin(controller, socket);
-    socket.sentMessages.length = 0;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
 
     await controller.handleRawMessage(
       "plugin-1",
@@ -1033,6 +1086,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message_update",
         requestId: "request-dropped-update",
         idempotencyKey: "cowtail:update:message-archived:dropped",
+        streamId: "cowtail:stream:message-archived",
         messageId: "message-archived",
         text: "This should be dropped",
         links: [],
@@ -1041,7 +1095,17 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(socket)).toEqual([
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...api.openClawMessageUpdateEvent,
+        payload: {
+          dropped: true,
+          reason: "thread_archived",
+          streamId: "cowtail:stream:message-archived",
+        },
+      },
+    ]);
+    expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
         requestId: "request-dropped-update",
