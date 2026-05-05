@@ -175,6 +175,7 @@ export const openclawPluginMessageCommandSchema = requireOpenClawRenderableConte
     toolCalls: z.array(openclawToolCallRecordSchema).default([]),
     actions: z.array(openclawActionDraftSchema).default([]),
     deliveryState: openclawDeliveryStateSchema.optional(),
+    streamId: nonEmptyStringSchema.optional(),
   }),
 );
 
@@ -189,6 +190,7 @@ export const openclawPluginMessageUpdateCommandSchema = requireOpenClawRenderabl
     toolCalls: z.array(openclawToolCallRecordSchema).optional(),
     actions: z.array(openclawActionDraftSchema).optional(),
     deliveryState: openclawDeliveryStateSchema.optional(),
+    streamId: nonEmptyStringSchema.optional(),
   }),
 );
 
@@ -202,6 +204,7 @@ const openclawMessageStreamSnapshotCommandBaseSchema = z.object({
   links: z.array(openclawLinkSchema).default([]),
   toolCalls: z.array(openclawToolCallRecordSchema).default([]),
   isFinal: z.boolean(),
+  snapshotSequence: z.number().int().nonnegative().optional(),
   updatedAt: timestampSchema,
 });
 

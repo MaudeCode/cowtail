@@ -180,6 +180,7 @@ describe("openclaw protocol schemas", () => {
       title: "Deploy approval",
       text: "Approve production deploy?",
       authorLabel: "OpenClaw",
+      streamId: "cowtail:stream:message-1",
       links: [{ label: "Run", url: "https://cowtail.example.invalid/runs/1" }],
       actions: [
         {
@@ -196,6 +197,7 @@ describe("openclaw protocol schemas", () => {
 
     expect(parsed.type).toBe("openclaw_message");
     expect(parsed.idempotencyKey).toBe("cowtail:reply:message-1");
+    expect(parsed.streamId).toBe("cowtail:stream:message-1");
     expect(parsed.actions).toEqual([
       {
         label: "Approve",
@@ -211,6 +213,7 @@ describe("openclaw protocol schemas", () => {
         idempotencyKey: "cowtail:update:message-1:sent",
         messageId: "message-1",
         text: "Streaming reply",
+        streamId: "cowtail:stream:message-1",
         links: [],
         deliveryState: "pending",
       }),
@@ -220,6 +223,7 @@ describe("openclaw protocol schemas", () => {
       idempotencyKey: "cowtail:update:message-1:sent",
       messageId: "message-1",
       text: "Streaming reply",
+      streamId: "cowtail:stream:message-1",
       links: [],
       deliveryState: "pending",
     });
@@ -284,6 +288,7 @@ describe("openclaw protocol schemas", () => {
       threadId: "thread-1",
       text: "Hello from the live stream",
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -297,6 +302,7 @@ describe("openclaw protocol schemas", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -309,6 +315,7 @@ describe("openclaw protocol schemas", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -321,6 +328,7 @@ describe("openclaw protocol schemas", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
   });
