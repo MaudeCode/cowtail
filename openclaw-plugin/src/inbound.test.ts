@@ -103,6 +103,7 @@ type FakeClient = {
   sendOpenClawMessageCalls: Array<{
     type: "openclaw_message";
     idempotencyKey?: string;
+    streamId?: string;
     sessionKey: string;
     title?: string;
     text: string;
@@ -115,6 +116,7 @@ type FakeClient = {
   sendOpenClawMessageUpdateCalls: Array<{
     type: "openclaw_message_update";
     idempotencyKey?: string;
+    streamId?: string;
     messageId: string;
     text: string;
     links?: Array<{ label: string; url: string }>;
@@ -139,6 +141,7 @@ type FakeClient = {
   sendOpenClawMessage: (input: {
     type: "openclaw_message";
     idempotencyKey?: string;
+    streamId?: string;
     sessionKey: string;
     title?: string;
     text: string;
@@ -155,6 +158,7 @@ type FakeClient = {
   sendOpenClawMessageUpdate: (input: {
     type: "openclaw_message_update";
     idempotencyKey?: string;
+    streamId?: string;
     messageId: string;
     text: string;
     links?: Array<{ label: string; url: string }>;
@@ -678,6 +682,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message",
         idempotencyKey: "cowtail:reply:message-22",
+        streamId: "cowtail:stream:message-22",
         sessionKey: "session-thread-22",
         title: "Chat thread",
         text: "Here is the answer.",
@@ -741,6 +746,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message",
         idempotencyKey: "cowtail:reply:message-23",
+        streamId: "cowtail:stream:message-23",
         sessionKey: "session-thread-23",
         title: "Streaming chat",
         text: "Checking the deploy",
@@ -755,6 +761,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message_update",
         idempotencyKey: "cowtail:reply:message-23:update:1",
+        streamId: "cowtail:stream:message-23",
         messageId: "reply-message-1",
         text: "Checking the deploy logs now.",
         links: [],
@@ -764,6 +771,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message_update",
         idempotencyKey: "cowtail:reply:message-23:update:2",
+        streamId: "cowtail:stream:message-23",
         messageId: "reply-message-1",
         text: "Checking the deploy logs now.",
         links: [],
@@ -847,6 +855,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message",
         idempotencyKey: "cowtail:reply:message-28",
+        streamId: "cowtail:stream:message-28",
         sessionKey: "session-thread-28",
         title: "Partial stream chat",
         text: "Hello!",
@@ -1052,6 +1061,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message",
         idempotencyKey: "cowtail:reply:message-24",
+        streamId: "cowtail:stream:message-24",
         sessionKey: "session-thread-24",
         title: "Tool chat",
         text: "Checking ",
@@ -1066,6 +1076,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message_update",
         idempotencyKey: "cowtail:reply:message-24:update:1",
+        streamId: "cowtail:stream:message-24",
         messageId: "reply-message-1",
         text: "Checking ",
         links: [],
@@ -1075,6 +1086,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message_update",
         idempotencyKey: "cowtail:reply:message-24:update:2",
+        streamId: "cowtail:stream:message-24",
         messageId: "reply-message-1",
         text: "Done.",
         links: [],
@@ -1294,6 +1306,81 @@ describe("handleCowtailEvent", () => {
     );
   });
 
+  test("OpenClaw progress snapshots carry monotonically increasing stream order", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      itemEvents: [
+        {
+          itemId: "tool-call-1",
+          name: "read_file",
+          status: "running",
+        },
+        {
+          itemId: "tool-call-2",
+          name: "rg",
+          status: "running",
+        },
+      ],
+      commandOutputs: [
+        {
+          itemId: "tool-call-1",
+          toolCallId: "tool-call-1",
+          name: "read_file",
+          output: "read complete",
+          status: "complete",
+        },
+        {
+          itemId: "tool-call-2",
+          toolCallId: "tool-call-2",
+          name: "rg",
+          output: "search complete",
+          status: "complete",
+        },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 31,
+      type: "reply_created",
+      createdAt: 1_700_000_000_031,
+      threadId: "thread-31",
+      messageId: "message-31",
+      thread: {
+        id: "thread-31",
+        sessionKey: "session-thread-31",
+        status: "active",
+        targetAgent: "default",
+        title: "Tool order chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_031,
+      },
+      message: {
+        id: "message-31",
+        threadId: "thread-31",
+        direction: "user_to_openclaw",
+        text: "Use tools.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_031,
+        updatedAt: 1_700_000_000_031,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.snapshotSequence),
+    ).toEqual([1, 2, 3, 4]);
+  });
+
   test("OpenClaw item events use progressText as live tool call result", async () => {
     const client = createClient();
     const { logger } = createLogger();
@@ -1405,6 +1492,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message",
         idempotencyKey: "cowtail:reply:message-31",
+        streamId: "cowtail:stream:message-31",
         sessionKey: "session-thread-31",
         title: "Rejected snapshot chat",
         text: "Live text final",
@@ -1580,6 +1668,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message_update",
         idempotencyKey: "cowtail:reply:message-27:update:1",
+        streamId: "cowtail:stream:message-27",
         messageId: "reply-message-existing",
         text: "Checking logs now.",
         links: [],
@@ -1589,6 +1678,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message_update",
         idempotencyKey: "cowtail:reply:message-27:update:2",
+        streamId: "cowtail:stream:message-27",
         messageId: "reply-message-existing",
         text: "Checking logs now.",
         links: [],
@@ -1722,6 +1812,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message",
         idempotencyKey: "cowtail:reply:message-27",
+        streamId: "cowtail:stream:message-27",
         sessionKey: "session-thread-27",
         title: "Tool-only chat",
         text: "",
@@ -1747,6 +1838,7 @@ describe("handleCowtailEvent", () => {
       {
         type: "openclaw_message_update",
         idempotencyKey: "cowtail:reply:message-27:update:1",
+        streamId: "cowtail:stream:message-27",
         messageId: "reply-message-1",
         text: "",
         links: [],
@@ -1829,6 +1921,113 @@ describe("handleCowtailEvent", () => {
         type: "openclaw_action_result",
         idempotencyKey: "cowtail:action-result:action-1:submitted",
         actionId: "action-1",
+        state: "submitted",
+      },
+    ]);
+  });
+
+  test("action_submitted correlates streamed action replies to the action stream", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Applying the approval" }, info: { kind: "block" } },
+        { payload: { text: "Approval applied." }, info: { kind: "final" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 36,
+      type: "action_submitted",
+      createdAt: 1_700_000_000_036,
+      threadId: "thread-36",
+      actionId: "action-36",
+      thread: {
+        id: "thread-36",
+        sessionKey: "session-action-stream",
+        status: "active",
+        targetAgent: "default",
+        title: "Action stream thread",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_036,
+      },
+      action: {
+        id: "action-36",
+        threadId: "thread-36",
+        messageId: "message-36",
+        label: "Approve",
+        kind: "approval",
+        payload: { decision: "approve" },
+        state: "submitted",
+        createdAt: 1_700_000_000_030,
+        updatedAt: 1_700_000_000_036,
+      },
+      payload: { decision: "approve" },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    const streamId = "cowtail:action-stream:action-36";
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        idempotencyKey: "cowtail:action:action-36",
+        streamId,
+        sessionKey: "session-action-stream",
+        title: "Action stream thread",
+        text: "Applying the approval",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "pending",
+      },
+    ]);
+    expect(client.sendOpenClawMessageUpdateCalls).toEqual([
+      {
+        type: "openclaw_message_update",
+        idempotencyKey: "cowtail:action:action-36:update:1",
+        streamId,
+        messageId: "reply-message-1",
+        text: "Approval applied.",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.map((snapshot) => ({
+        streamId: snapshot.streamId,
+        snapshotSequence: snapshot.snapshotSequence,
+        text: snapshot.text,
+        isFinal: snapshot.isFinal,
+      })),
+    ).toEqual([
+      {
+        streamId,
+        snapshotSequence: 1,
+        text: "Applying the approval",
+        isFinal: false,
+      },
+      {
+        streamId,
+        snapshotSequence: 2,
+        text: "Approval applied.",
+        isFinal: true,
+      },
+    ]);
+    expect(client.sendActionResultCalls).toEqual([
+      {
+        type: "openclaw_action_result",
+        idempotencyKey: "cowtail:action-result:action-36:submitted",
+        actionId: "action-36",
         state: "submitted",
       },
     ]);

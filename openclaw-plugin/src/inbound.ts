@@ -102,6 +102,7 @@ type CowtailReplyStreamState = {
   lastSnapshotText?: string;
   lastSnapshotSentAt?: number;
   liveText?: string;
+  snapshotSequence: number;
   toolFallbackIndex: number;
   toolFallbackIds: Record<string, string>;
   text: string;
@@ -278,6 +279,7 @@ export async function dispatchCowtailTextTurn(params: {
     idempotencyKey: `cowtail:reply:${message.id}`,
     streamId: `cowtail:stream:${message.id}`,
     updateIndex: 0,
+    snapshotSequence: 0,
     toolFallbackIndex: 0,
     toolFallbackIds: {},
     text: "",
@@ -364,6 +366,7 @@ export async function dispatchCowtailActionTurn(params: {
     idempotencyKey: `cowtail:action:${action.id}`,
     streamId: `cowtail:action-stream:${action.id}`,
     updateIndex: 0,
+    snapshotSequence: 0,
     toolFallbackIndex: 0,
     toolFallbackIds: {},
     text: "",
@@ -590,6 +593,7 @@ async function deliverCowtailReply(params: {
       const result = await params.client.sendOpenClawMessage({
         type: "openclaw_message",
         idempotencyKey: params.streamState.idempotencyKey,
+        streamId: params.streamState.streamId,
         sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
         title: params.thread.title,
         text: messageText,
@@ -610,6 +614,7 @@ async function deliverCowtailReply(params: {
     await params.client.sendOpenClawMessageUpdate({
       type: "openclaw_message_update",
       idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
+      streamId: params.streamState.streamId,
       messageId: params.streamState.messageId,
       text: messageText,
       links,
@@ -639,6 +644,7 @@ async function deliverCowtailReply(params: {
       const result = await params.client.sendOpenClawMessage({
         type: "openclaw_message",
         idempotencyKey: params.streamState.idempotencyKey,
+        streamId: params.streamState.streamId,
         sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
         title: params.thread.title,
         text: params.streamState.text,
@@ -659,6 +665,7 @@ async function deliverCowtailReply(params: {
     await params.client.sendOpenClawMessageUpdate({
       type: "openclaw_message_update",
       idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
+      streamId: params.streamState.streamId,
       messageId: params.streamState.messageId,
       text: params.streamState.text,
       links,
@@ -673,6 +680,7 @@ async function deliverCowtailReply(params: {
     await params.client.sendOpenClawMessageUpdate({
       type: "openclaw_message_update",
       idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
+      streamId: params.streamState.streamId,
       messageId: params.streamState.messageId,
       text,
       links,
@@ -698,6 +706,7 @@ async function deliverCowtailReply(params: {
   const result = await params.client.sendOpenClawMessage({
     type: "openclaw_message",
     idempotencyKey: params.streamState.idempotencyKey,
+    streamId: params.streamState.streamId,
     sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
     title: params.thread.title,
     text,
@@ -744,6 +753,7 @@ async function finalizeCowtailStreamedReply(params: {
   await params.client.sendOpenClawMessageUpdate({
     type: "openclaw_message_update",
     idempotencyKey: nextStreamUpdateIdempotencyKey(params.streamState),
+    streamId: params.streamState.streamId,
     messageId: params.streamState.messageId,
     text: params.streamState.text,
     links: params.streamState.links,
@@ -881,6 +891,7 @@ function emitCowtailStreamSnapshot(params: {
   params.streamState.liveText = params.text;
   params.streamState.lastSnapshotText = params.text;
   params.streamState.lastSnapshotSentAt = params.updatedAt;
+  params.streamState.snapshotSequence += 1;
 
   void params.client
     .sendOpenClawStreamSnapshot({
@@ -892,6 +903,7 @@ function emitCowtailStreamSnapshot(params: {
       links: params.streamState.links.map((link) => ({ ...link })),
       toolCalls: structuredClone(params.streamState.toolCalls),
       isFinal: params.isFinal,
+      snapshotSequence: params.streamState.snapshotSequence,
       updatedAt: params.updatedAt,
     })
     .catch((error) => {
