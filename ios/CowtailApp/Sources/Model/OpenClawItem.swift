@@ -291,6 +291,7 @@ struct OpenClawStreamSnapshot: Codable, Equatable, Sendable {
     let links: [OpenClawLink]
     let toolCalls: [OpenClawToolCall]
     let isFinal: Bool
+    let snapshotSequence: Int64?
     let updatedAt: Int64
 
     enum CodingKeys: String, CodingKey {
@@ -302,7 +303,32 @@ struct OpenClawStreamSnapshot: Codable, Equatable, Sendable {
         case links
         case toolCalls
         case isFinal
+        case snapshotSequence
         case updatedAt
+    }
+
+    init(
+        type: String,
+        streamId: String,
+        sessionKey: String,
+        threadId: String,
+        text: String,
+        links: [OpenClawLink],
+        toolCalls: [OpenClawToolCall],
+        isFinal: Bool,
+        snapshotSequence: Int64? = nil,
+        updatedAt: Int64
+    ) {
+        self.type = type
+        self.streamId = streamId
+        self.sessionKey = sessionKey
+        self.threadId = threadId
+        self.text = text
+        self.links = links
+        self.toolCalls = toolCalls
+        self.isFinal = isFinal
+        self.snapshotSequence = snapshotSequence
+        self.updatedAt = updatedAt
     }
 }
 
@@ -317,6 +343,7 @@ extension OpenClawStreamSnapshot {
         links = try container.decodeIfPresent([OpenClawLink].self, forKey: .links) ?? []
         toolCalls = try container.decodeIfPresent([OpenClawToolCall].self, forKey: .toolCalls) ?? []
         isFinal = try container.decode(Bool.self, forKey: .isFinal)
+        snapshotSequence = try container.decodeIfPresent(Int64.self, forKey: .snapshotSequence)
         updatedAt = try container.decode(Int64.self, forKey: .updatedAt)
     }
 }

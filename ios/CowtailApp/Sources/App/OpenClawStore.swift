@@ -33,6 +33,9 @@ final class OpenClawStore: ObservableObject {
     )
     private var connectionGeneration = 0
     private var liveStreamIdsByThreadID: [String: String] = [:]
+    private var retiredStreamIdsByThreadID: [String: Set<String>] = [:]
+    private var lastSnapshotCursorByStreamID: [String: StreamSnapshotCursor] = [:]
+    private var durableMessageIdsByStreamID: [String: String] = [:]
 
     private static let displayNameKey = "openclaw.displayName"
     private static let lastSeenSequenceKey = "openclaw.lastSeenSequence"
@@ -244,7 +247,11 @@ final class OpenClawStore: ObservableObject {
         }
 
         if let message = event.message {
-            upsertMessage(message, actions: event.actions)
+            upsertMessage(
+                message,
+                actions: event.actions,
+                finalizedStreamId: event.payload?.openClawStreamId
+            )
         } else {
             for action in event.actions {
                 upsertAction(action)
@@ -259,8 +266,19 @@ final class OpenClawStore: ObservableObject {
     }
 
     func applyStreamSnapshot(_ snapshot: OpenClawStreamSnapshot) {
+        if retiredStreamIdsByThreadID[snapshot.threadId]?.contains(snapshot.streamId) == true {
+            return
+        }
+
+        let snapshotCursor = StreamSnapshotCursor(snapshot)
+        if let lastSnapshotCursor = lastSnapshotCursorByStreamID[snapshot.streamId],
+           snapshotCursor.isOlder(than: lastSnapshotCursor) {
+            return
+        }
+
         var messages = messagesByThreadID[snapshot.threadId] ?? []
-        let hasExistingStreamMessage = messages.contains { $0.id == snapshot.streamId }
+        let messageId = durableMessageIdsByStreamID[snapshot.streamId] ?? snapshot.streamId
+        let hasExistingStreamMessage = messages.contains { $0.id == messageId }
 
         if snapshot.isFinal,
            liveStreamIdsByThreadID[snapshot.threadId] != snapshot.streamId,
@@ -271,14 +289,18 @@ final class OpenClawStore: ObservableObject {
         if let existingStreamId = liveStreamIdsByThreadID[snapshot.threadId],
            existingStreamId != snapshot.streamId {
             messages.removeAll { $0.id == existingStreamId }
+            retireStream(existingStreamId, threadId: snapshot.threadId)
         }
 
         liveStreamIdsByThreadID[snapshot.threadId] = snapshot.streamId
+        retiredStreamIdsByThreadID[snapshot.threadId]?.remove(snapshot.streamId)
+        lastSnapshotCursorByStreamID[snapshot.streamId] = snapshotCursor
 
-        let createdAt = messages.first(where: { $0.id == snapshot.streamId })?.createdAt ?? snapshot.updatedAt
+        let existingMessage = messages.first { $0.id == messageId }
+        let createdAt = existingMessage?.createdAt ?? snapshot.updatedAt
 
         let message = OpenClawMessage(
-            id: snapshot.streamId,
+            id: messageId,
             threadId: snapshot.threadId,
             direction: .openClawToUser,
             authorLabel: "OpenClaw",
@@ -289,9 +311,9 @@ final class OpenClawStore: ObservableObject {
             createdAt: createdAt,
             updatedAt: snapshot.updatedAt
         )
-        let messageWithActions = OpenClawMessageWithActions(message: message, actions: [])
+        let messageWithActions = OpenClawMessageWithActions(message: message, actions: existingMessage?.actions ?? [])
 
-        if let index = messages.firstIndex(where: { $0.id == snapshot.streamId }) {
+        if let index = messages.firstIndex(where: { $0.id == messageId }) {
             messages[index] = messageWithActions
         } else {
             messages.append(messageWithActions)
@@ -354,7 +376,11 @@ final class OpenClawStore: ObservableObject {
         if thread.status == .archived {
             threads.removeAll { $0.id == thread.id }
             messagesByThreadID.removeValue(forKey: thread.id)
-            liveStreamIdsByThreadID.removeValue(forKey: thread.id)
+            if let liveStreamId = liveStreamIdsByThreadID.removeValue(forKey: thread.id) {
+                lastSnapshotCursorByStreamID.removeValue(forKey: liveStreamId)
+                durableMessageIdsByStreamID.removeValue(forKey: liveStreamId)
+            }
+            retiredStreamIdsByThreadID.removeValue(forKey: thread.id)
             return
         }
 
@@ -366,10 +392,23 @@ final class OpenClawStore: ObservableObject {
         threads = sortedThreads(threads)
     }
 
-    private func upsertMessage(_ message: OpenClawMessage, actions: [OpenClawAction]) {
-        if message.direction == .openClawToUser,
-           let liveStreamId = liveStreamIdsByThreadID.removeValue(forKey: message.threadId) {
-            messagesByThreadID[message.threadId]?.removeAll { $0.id == liveStreamId }
+    private func upsertMessage(
+        _ message: OpenClawMessage,
+        actions: [OpenClawAction],
+        finalizedStreamId: String?
+    ) {
+        if message.direction == .openClawToUser {
+            if let finalizedStreamId {
+                if message.deliveryState.isTerminal {
+                    retireFinalizedStream(finalizedStreamId, threadId: message.threadId)
+                } else {
+                    reconcilePendingStream(finalizedStreamId, with: message.id, threadId: message.threadId)
+                }
+            } else if message.deliveryState.isTerminal,
+                      let liveStreamId = liveStreamIdsByThreadID.removeValue(forKey: message.threadId) {
+                messagesByThreadID[message.threadId]?.removeAll { $0.id == liveStreamId }
+                retireStream(liveStreamId, threadId: message.threadId)
+            }
         }
 
         let existingActions = messagesByThreadID[message.threadId]?
@@ -414,6 +453,34 @@ final class OpenClawStore: ObservableObject {
         return actions.sorted { $0.createdAt < $1.createdAt }
     }
 
+    private func reconcilePendingStream(_ streamId: String, with messageId: String, threadId: String) {
+        durableMessageIdsByStreamID[streamId] = messageId
+        messagesByThreadID[threadId]?.removeAll { $0.id == streamId }
+        if let liveStreamId = liveStreamIdsByThreadID[threadId],
+           liveStreamId != streamId {
+            retireStream(streamId, threadId: threadId)
+        } else {
+            liveStreamIdsByThreadID[threadId] = streamId
+            retiredStreamIdsByThreadID[threadId]?.remove(streamId)
+        }
+    }
+
+    private func retireFinalizedStream(_ streamId: String, threadId: String) {
+        messagesByThreadID[threadId]?.removeAll { $0.id == streamId }
+        durableMessageIdsByStreamID.removeValue(forKey: streamId)
+        if liveStreamIdsByThreadID[threadId] == streamId {
+            liveStreamIdsByThreadID.removeValue(forKey: threadId)
+        }
+        retireStream(streamId, threadId: threadId)
+    }
+
+    private func retireStream(_ streamId: String, threadId: String) {
+        var retiredStreamIds = retiredStreamIdsByThreadID[threadId] ?? []
+        retiredStreamIds.insert(streamId)
+        retiredStreamIdsByThreadID[threadId] = retiredStreamIds
+        lastSnapshotCursorByStreamID.removeValue(forKey: streamId)
+    }
+
     private func advanceCursor(to sequence: Int64) {
         if let lastSeenSequence, sequence < lastSeenSequence {
             return
@@ -447,5 +514,49 @@ private extension OpenClawMessageWithActions {
         createdAt = message.createdAt
         updatedAt = message.updatedAt
         self.actions = actions
+    }
+}
+
+private extension Dictionary where Key == String, Value == JSONValue {
+    var openClawStreamId: String? {
+        guard case .string(let streamId) = self["streamId"],
+              !streamId.isEmpty else {
+            return nil
+        }
+        return streamId
+    }
+}
+
+private extension OpenClawDeliveryState {
+    var isTerminal: Bool {
+        switch self {
+        case .sent, .failed:
+            return true
+        case .pending:
+            return false
+        }
+    }
+}
+
+private struct StreamSnapshotCursor {
+    let snapshotSequence: Int64?
+    let updatedAt: Int64
+
+    init(_ snapshot: OpenClawStreamSnapshot) {
+        snapshotSequence = snapshot.snapshotSequence
+        updatedAt = snapshot.updatedAt
+    }
+
+    func isOlder(than other: StreamSnapshotCursor) -> Bool {
+        switch (snapshotSequence, other.snapshotSequence) {
+        case let (current?, previous?):
+            return current < previous
+        case (nil, _?):
+            return true
+        case (_?, nil):
+            return false
+        case (nil, nil):
+            return updatedAt < other.updatedAt
+        }
     }
 }

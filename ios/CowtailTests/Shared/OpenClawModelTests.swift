@@ -275,6 +275,7 @@ final class OpenClawModelTests: XCTestCase {
             "contentSnapshotAtStart": "Checking "
           }],
           "isFinal": false,
+          "snapshotSequence": 4,
           "updatedAt": 1777128000000
         }
         """.utf8))
@@ -300,6 +301,7 @@ final class OpenClawModelTests: XCTestCase {
                 )
             ],
             isFinal: false,
+            snapshotSequence: 4,
             updatedAt: 1777128000000
         )
 
