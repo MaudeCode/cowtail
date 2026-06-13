@@ -439,7 +439,7 @@ actor CowtailAPI: CowtailAPIClient {
     ) async {
         let body = await bodyString(from: payload.body)
         logger.error(
-            "\(operation, privacy: .public) undocumented response status=\(statusCode, privacy: .public) headers=\(String(describing: payload.headerFields), privacy: .public) body=\(body, privacy: .public)"
+            "\(operation, privacy: .public) undocumented response status=\(statusCode, privacy: .public) headers=<redacted> body=\(body, privacy: .public)"
         )
     }
 
@@ -450,9 +450,9 @@ actor CowtailAPI: CowtailAPIClient {
 
         do {
             let bytes = try await Array(collecting: body, upTo: 32_768)
-            return String(decoding: bytes, as: UTF8.self)
+            return "<redacted response body: \(bytes.count) bytes>"
         } catch {
-            return "<unreadable body: \(error)>"
+            return "<unreadable redacted response body>"
         }
     }
 }

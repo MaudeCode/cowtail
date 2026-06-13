@@ -524,8 +524,7 @@ final class NotificationManager: NSObject, ObservableObject {
             print("[roundup-debug] NotificationManager.loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled)")
             logger.debug("loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
-            print("[roundup-debug] NotificationManager.loadDailyRoundupPreference failed error=\(error.localizedDescription)")
-            logger.error("loadDailyRoundupPreference failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("loadDailyRoundupPreference failed")
             handleDailyRoundupPreferenceError(error, restoring: dailyRoundupEnabled)
         }
     }
@@ -572,8 +571,7 @@ final class NotificationManager: NSObject, ObservableObject {
             print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled)")
             logger.debug("updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
-            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled failed error=\(error.localizedDescription)")
-            logger.error("updateDailyRoundupEnabled failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("updateDailyRoundupEnabled failed")
             handleDailyRoundupPreferenceError(error, restoring: previousValue)
         }
     }
