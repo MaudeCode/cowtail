@@ -441,6 +441,12 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
+        guard let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty else {
+            serverRegistrationState = .waitingForIdentity
+            serverRegistrationMessage = "Sign in with Apple again to refresh the secure identity token Cowtail needs."
+            return
+        }
+
         if isUITesting {
             lastSyncedRegistrationKey = nil
             clearPersistedServerRegistration()
@@ -453,7 +459,10 @@ final class NotificationManager: NSObject, ObservableObject {
         serverRegistrationMessage = nil
 
         do {
-            let response = try await api.unregisterPushDevice(deviceToken: deviceToken)
+            let response = try await api.unregisterPushDevice(
+                identityToken: identityToken,
+                deviceToken: deviceToken
+            )
             lastSyncedRegistrationKey = nil
             clearPersistedServerRegistration()
             serverRegistrationState = .idle

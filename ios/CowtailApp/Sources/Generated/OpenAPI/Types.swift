@@ -1108,16 +1108,24 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest`.
         internal struct PushUnregisterRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest/identityToken`.
+            internal var identityToken: Swift.String
             /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest/deviceToken`.
             internal var deviceToken: Swift.String
             /// Creates a new `PushUnregisterRequest`.
             ///
             /// - Parameters:
+            ///   - identityToken:
             ///   - deviceToken:
-            internal init(deviceToken: Swift.String) {
+            internal init(
+                identityToken: Swift.String,
+                deviceToken: Swift.String
+            ) {
+                self.identityToken = identityToken
                 self.deviceToken = deviceToken
             }
             internal enum CodingKeys: String, CodingKey {
+                case identityToken
                 case deviceToken
             }
         }

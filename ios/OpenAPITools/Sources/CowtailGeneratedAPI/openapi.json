@@ -551,12 +551,17 @@
       "PushUnregisterRequest": {
         "type": "object",
         "properties": {
+          "identityToken": {
+            "type": "string",
+            "minLength": 1
+          },
           "deviceToken": {
             "type": "string",
             "minLength": 1
           }
         },
         "required": [
+          "identityToken",
           "deviceToken"
         ]
       },

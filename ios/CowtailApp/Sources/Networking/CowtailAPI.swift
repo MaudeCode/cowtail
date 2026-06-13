@@ -266,9 +266,12 @@ actor CowtailAPI: CowtailAPIClient {
         }
     }
 
-    func unregisterPushDevice(deviceToken: String) async throws -> PushUnregistrationResponse {
+    func unregisterPushDevice(
+        identityToken: String,
+        deviceToken: String
+    ) async throws -> PushUnregistrationResponse {
         let output = try await pushUnregistrationClient.unregisterPushDevice(
-            body: .json(.init(deviceToken: deviceToken))
+            body: .json(.init(identityToken: identityToken, deviceToken: deviceToken))
         )
 
         switch output {

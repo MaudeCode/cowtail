@@ -826,8 +826,22 @@ app.post("/api/push/unregister", async (c) => {
     return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
+  let userId: string;
+  try {
+    userId = await verifyAppleIdentityToken(parsed.data.identityToken);
+  } catch (error) {
+    if (error instanceof AppleIdentityVerificationError) {
+      return jsonError(error.message, error.statusCode);
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Apple identity token verification failed";
+    return jsonError(message, 500);
+  }
+
   const ctx = c.env;
   const result = await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
+    userId,
     deviceToken: parsed.data.deviceToken.trim(),
   });
 

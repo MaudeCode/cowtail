@@ -17,6 +17,7 @@ export const pushRegisterResponseSchema = z.object({
 });
 
 export const pushUnregisterRequestSchema = z.object({
+  identityToken: nonEmptyStringSchema,
   deviceToken: nonEmptyStringSchema,
 });
 

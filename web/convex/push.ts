@@ -24,6 +24,24 @@ async function disableDeviceRegistration(ctx: MutationCtx, deviceToken: string) 
   return { ok: true, updated: true };
 }
 
+async function disableDeviceRegistrationForUser(
+  ctx: MutationCtx,
+  args: { userId: string; deviceToken: string },
+) {
+  const existing = await getDeviceRegistrationByToken(ctx, args.deviceToken);
+
+  if (!existing || existing.userId !== args.userId) {
+    return { ok: true, updated: false };
+  }
+
+  await ctx.db.patch(existing._id, {
+    enabled: false,
+    updatedAt: Date.now(),
+  });
+
+  return { ok: true, updated: true };
+}
+
 async function listEnabledDevices(ctx: MutationCtx | QueryCtx, userId: string) {
   return await ctx.db
     .query("deviceRegistrations")
@@ -86,10 +104,11 @@ export const upsertDeviceRegistration = mutation({
 
 export const disableDeviceRegistrationByToken = mutation({
   args: {
+    userId: v.string(),
     deviceToken: v.string(),
   },
   handler: async (ctx, args) => {
-    return await disableDeviceRegistration(ctx, args.deviceToken);
+    return await disableDeviceRegistrationForUser(ctx, args);
   },
 });
 
