@@ -49,6 +49,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
 
+      - name: Write iOS verify project env
+        run: install -m 600 ios/Config/project.env.example ios/Config/project.env
+
       - name: Run SwiftLint
         working-directory: ios
         run: swiftlint lint --strict
