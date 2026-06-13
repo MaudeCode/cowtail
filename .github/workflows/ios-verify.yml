@@ -63,24 +63,16 @@ jobs:
         working-directory: ios
         run: swiftformat --lint .
 
+      - name: Reset simulator before unit tests
+        working-directory: ios
+        run: scripts/reset-simulator.sh
+
       - name: Run iOS Unit Tests
         run: bun run test:ios:unit
 
       - name: Reset simulator before UI tests
-        run: |
-          target_udid="$(
-            xcrun simctl list devices available "iOS ${COWTAIL_IOS_TEST_OS}" |
-              awk -v device="${COWTAIL_IOS_TEST_DEVICE_NAME}" '
-                index($0, "    " device " (") == 1 && match($0, /\([0-9A-Fa-f-]{36}\)/) {
-                  print substr($0, RSTART + 1, RLENGTH - 2)
-                  exit
-                }
-              '
-          )"
-          if [ -n "${target_udid}" ]; then
-            xcrun simctl shutdown "${target_udid}" || true
-          fi
-          sleep 5
+        working-directory: ios
+        run: scripts/reset-simulator.sh
 
       - name: Run iOS UI Tests
         run: bun run test:ios:ui
