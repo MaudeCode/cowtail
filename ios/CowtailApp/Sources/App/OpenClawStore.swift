@@ -707,7 +707,7 @@ private extension OpenClawMessageWithActions {
     }
 }
 
-private extension Dictionary where Key == String, Value == JSONValue {
+private extension Dictionary<String, JSONValue> {
     var openClawStreamId: String? {
         guard case .string(let streamId) = self["streamId"],
               !streamId.isEmpty else {
