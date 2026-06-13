@@ -709,12 +709,15 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
 
     nonisolated private static func stringUserInfo(from userInfo: [AnyHashable: Any]) -> [String: String] {
         userInfo.reduce(into: [:]) { result, item in
-            guard let key = item.key as? String,
-                  let value = item.value as? String else {
+            guard let key = item.key as? String else {
                 return
             }
 
-            result[key] = value
+            if let value = item.value as? String {
+                result[key] = value
+            } else if let value = item.value as? NSNumber {
+                result[key] = value.stringValue
+            }
         }
     }
 

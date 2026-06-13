@@ -21,6 +21,12 @@ enum OpenClawRoute: Hashable {
     case thread(String)
 }
 
+private struct OpenClawNotificationPayload {
+    let version: Int
+    let threadID: String
+    let messageID: String
+}
+
 @MainActor
 final class UniversalLinkRouter: ObservableObject {
     static let shared = UniversalLinkRouter()
@@ -75,9 +81,12 @@ final class UniversalLinkRouter: ObservableObject {
 
     @discardableResult
     func handleNotification(userInfo: [AnyHashable: Any]) -> Bool {
-        if stringValue(for: ["kind", "type"], in: userInfo)?.lowercased() == "openclaw",
-           let threadID = stringValue(for: ["threadId", "threadID", "thread_id"], in: userInfo) {
-            openOpenClawThread(threadID)
+        if isOpenClawNotification(userInfo) {
+            guard let payload = openClawNotificationPayload(from: userInfo) else {
+                return false
+            }
+
+            openOpenClawThread(payload.threadID)
             return true
         }
 
@@ -94,6 +103,28 @@ final class UniversalLinkRouter: ObservableObject {
         }
 
         return false
+    }
+
+    private func isOpenClawNotification(_ userInfo: [AnyHashable: Any]) -> Bool {
+        stringValue(for: ["kind", "type"], in: userInfo)?.lowercased() == "openclaw"
+    }
+
+    private func openClawNotificationPayload(
+        from userInfo: [AnyHashable: Any]
+    ) -> OpenClawNotificationPayload? {
+        guard
+            intValue(for: ["version"], in: userInfo) == 1,
+            let threadID = stringValue(for: ["threadId", "threadID", "thread_id"], in: userInfo),
+            let messageID = stringValue(for: ["messageId", "messageID", "message_id"], in: userInfo)
+        else {
+            return nil
+        }
+
+        return OpenClawNotificationPayload(
+            version: 1,
+            threadID: threadID,
+            messageID: messageID
+        )
     }
 
     @discardableResult
@@ -177,6 +208,25 @@ final class UniversalLinkRouter: ObservableObject {
                 if !trimmed.isEmpty {
                     return trimmed
                 }
+            }
+        }
+
+        return nil
+    }
+
+    private func intValue(for keys: [String], in userInfo: [AnyHashable: Any]) -> Int? {
+        for key in keys {
+            if let int = userInfo[key] as? Int {
+                return int
+            }
+
+            if let number = userInfo[key] as? NSNumber {
+                return number.intValue
+            }
+
+            if let string = stringValue(for: [key], in: userInfo),
+               let int = Int(string) {
+                return int
             }
         }
 

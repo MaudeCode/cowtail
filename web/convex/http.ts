@@ -21,6 +21,7 @@ import {
   openclawDisplayPreferencesResponseSchema,
   openclawDisplayPreferencesUpdateRequestSchema,
   openclawMessageWithActionsListResponseSchema,
+  openclawPushNotificationPayloadSchema,
   openclawThreadListResponseSchema,
   okResponseSchema,
   pushRegisterRequestSchema,
@@ -106,6 +107,40 @@ function enrichPushData(
   }
 
   return enriched;
+}
+
+function buildOpenClawThreadURL(threadId: string): string {
+  return `/openclaw/threads/${encodeURIComponent(threadId)}`;
+}
+
+function isOpenClawPushData(data: Record<string, unknown> | undefined): boolean {
+  return nonEmptyString(data?.kind)?.toLowerCase() === "openclaw";
+}
+
+export function normalizePushDataForSend(
+  data: Record<string, unknown> | undefined,
+  alertId: string | undefined,
+): { ok: true; data: Record<string, unknown> | undefined } | { ok: false; error: string } {
+  const enriched = enrichPushData(data, alertId);
+  if (!isOpenClawPushData(enriched)) {
+    return { ok: true, data: enriched };
+  }
+
+  const parsed = openclawPushNotificationPayloadSchema.safeParse({
+    ...enriched,
+    kind: "openclaw",
+  });
+  if (!parsed.success) {
+    return { ok: false, error: formatIssues(parsed.error.issues) };
+  }
+
+  return {
+    ok: true,
+    data: {
+      ...parsed.data,
+      url: parsed.data.url ?? buildOpenClawThreadURL(parsed.data.threadId),
+    },
+  };
 }
 
 function requireServiceAuth(c: { req: { header(name: string): string | undefined } }) {
@@ -965,13 +1000,16 @@ app.post("/api/push/send", async (c) => {
     return jsonError(formatIssues(parsed.error.issues));
   }
 
-  const data = enrichPushData(parsed.data.data, extractAlertId(body));
+  const normalizedData = normalizePushDataForSend(parsed.data.data, extractAlertId(body));
+  if (!normalizedData.ok) {
+    return jsonError(normalizedData.error);
+  }
 
   const result = await sendPushToUser(c.env, {
     userId: parsed.data.userId,
     title: parsed.data.title,
     body: parsed.data.body,
-    data,
+    data: normalizedData.data,
   });
 
   return c.json(pushResultSchema.parse(result));
@@ -1026,7 +1064,10 @@ app.post("/api/push/test", async (c) => {
     return jsonError(formatIssues(parsed.error.issues));
   }
 
-  const data = enrichPushData(parsed.data.data, extractAlertId(body));
+  const normalizedData = normalizePushDataForSend(parsed.data.data, extractAlertId(body));
+  if (!normalizedData.ok) {
+    return jsonError(normalizedData.error);
+  }
 
   const result = await sendPushToUser(c.env, {
     userId: parsed.data.userId,
@@ -1034,7 +1075,7 @@ app.post("/api/push/test", async (c) => {
     body: parsed.data.body ?? "Push delivery from Cowtail is working.",
     data: {
       test: true,
-      ...data,
+      ...normalizedData.data,
     },
   });
 

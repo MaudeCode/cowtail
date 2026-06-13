@@ -22,7 +22,7 @@ import {
   validateOpenClawLimit,
   sortOpenClawMessagesAscending,
 } from "./openclawModel";
-import { parseOpenClawListLimit, requireOpenClawOwner } from "./http";
+import { normalizePushDataForSend, parseOpenClawListLimit, requireOpenClawOwner } from "./http";
 
 const originalOpenClawOwnerUserId = process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
 const originalRealtimeConvexToken = process.env.COWTAIL_REALTIME_CONVEX_TOKEN;
@@ -545,6 +545,46 @@ describe("OpenClaw Convex model helpers", () => {
       }),
     ).toBe(false);
     expect(shouldDropOpenClawReplyForThread(null)).toBe(false);
+  });
+
+  test("normalizes versioned OpenClaw push payloads at the HTTP boundary", () => {
+    expect(
+      normalizePushDataForSend(
+        {
+          kind: "openclaw",
+          version: 1,
+          threadId: "thread with spaces/and/slash",
+          messageId: "message-1",
+        },
+        undefined,
+      ),
+    ).toEqual({
+      ok: true,
+      data: {
+        kind: "openclaw",
+        version: 1,
+        threadId: "thread with spaces/and/slash",
+        messageId: "message-1",
+        url: "/openclaw/threads/thread%20with%20spaces%2Fand%2Fslash",
+      },
+    });
+  });
+
+  test("rejects malformed OpenClaw push payloads at the HTTP boundary", () => {
+    const result = normalizePushDataForSend(
+      {
+        kind: "openclaw",
+        version: 1,
+        threadId: "thread-1",
+      },
+      undefined,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected invalid OpenClaw push payload");
+    }
+    expect(result.error).toContain("messageId");
   });
 
   test("createThreadFromOpenClaw acknowledges and does not write messages for archived threads", async () => {
