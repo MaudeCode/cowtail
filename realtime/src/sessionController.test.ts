@@ -1688,8 +1688,12 @@ describe("OpenClawSessionController", () => {
   test("renames and deletes threads from authenticated iOS clients", async () => {
     const { api, controller } = createController();
     const iosSocket = new FakeSocket();
+    const pluginSocket = new FakeSocket();
+    controller.attach("plugin-1", pluginSocket);
+    await authenticatePlugin(controller, pluginSocket);
     await authenticateIos(controller, iosSocket);
     iosSocket.sentMessages.length = 0;
+    pluginSocket.sentMessages.length = 0;
 
     await controller.handleRawMessage(
       "ios-1",
@@ -1776,6 +1780,7 @@ describe("OpenClawSessionController", () => {
         payload: { threadId: "thread-1" },
       },
     ]);
+    expect(sent(pluginSocket)).toEqual([]);
   });
 
   test("rejects an expired iOS session before processing a command, closes, and detaches", async () => {
