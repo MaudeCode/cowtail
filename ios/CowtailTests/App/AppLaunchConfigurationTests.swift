@@ -39,6 +39,20 @@ final class AppLaunchConfigurationTests: XCTestCase {
         )
     }
 
+    func testMakeResolvesRelativeUITestingDeepLinkAgainstConfiguredPublicSite() {
+        let environment: [String: String] = [
+            "UI_TESTING": "1",
+            "UI_TEST_DEEP_LINK_URL": "/alerts/preview-alert"
+        ]
+
+        let configuration = AppLaunchConfiguration.make(environment: environment, arguments: [])
+
+        XCTAssertEqual(
+            configuration.deepLinkURL,
+            AppConfig.alertDetailURL(for: "preview-alert")
+        )
+    }
+
     func testMakeFallsBackToInboxPopulatedForUnknownOrEmptyScenarioWhileUITesting() {
         let unknownScenario = AppLaunchConfiguration.make(
             environment: [
