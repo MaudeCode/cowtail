@@ -44,6 +44,21 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - Cowtail realtime deployment notes live in [`docs/cowtail-realtime-deployment.md`](./docs/cowtail-realtime-deployment.md).
 - OpenClaw plugin deployment notes live in [`docs/openclaw-plugin-deployment.md`](./docs/openclaw-plugin-deployment.md).
 
+## OpenClaw Chat Verification
+
+Use these checks when changing the OpenClaw chat, realtime, push, plugin, or iOS surfaces:
+
+- Check shared protocol contracts with `bun run check:protocol`.
+- Test shared protocol contracts with `bun run test:protocol`.
+- Check realtime with `bun run check:realtime`.
+- Test realtime with `bun run test:realtime`.
+- Install OpenClaw plugin dependencies with `cd openclaw-plugin && bun install --frozen-lockfile` before running plugin checks in a fresh worktree.
+- Check the OpenClaw plugin with `bun run check:openclaw-plugin`.
+- Test the OpenClaw plugin with `bun run test:openclaw-plugin`.
+- Generate iOS OpenAPI sources with `cd ios && ./generate.sh` after protocol or HTTP contract changes.
+- Run iOS unit tests with `bun run test:ios:unit`.
+- Run iOS UI tests with `bun run test:ios:ui`.
+
 ## Convex Deploy Path
 
 Convex deploys are part of the release workflow for version tags.
