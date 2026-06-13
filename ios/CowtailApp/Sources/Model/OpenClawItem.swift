@@ -64,6 +64,7 @@ struct OpenClawThread: Codable, Equatable, Identifiable, Sendable {
 struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let threadId: String
+    let streamId: String?
     let direction: OpenClawMessageDirection
     let authorLabel: String?
     let text: String
@@ -76,6 +77,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id
         case threadId
+        case streamId
         case direction
         case authorLabel
         case text
@@ -89,6 +91,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     init(
         id: String,
         threadId: String,
+        streamId: String? = nil,
         direction: OpenClawMessageDirection,
         authorLabel: String?,
         text: String,
@@ -100,6 +103,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     ) {
         self.id = id
         self.threadId = threadId
+        self.streamId = streamId
         self.direction = direction
         self.authorLabel = authorLabel
         self.text = text
@@ -114,6 +118,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         threadId = try container.decode(String.self, forKey: .threadId)
+        streamId = try container.decodeIfPresent(String.self, forKey: .streamId)
         direction = try container.decode(OpenClawMessageDirection.self, forKey: .direction)
         authorLabel = try container.decodeIfPresent(String.self, forKey: .authorLabel)
         text = try container.decode(String.self, forKey: .text)
@@ -141,6 +146,7 @@ struct OpenClawAction: Codable, Equatable, Identifiable, Sendable {
 struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let threadId: String
+    let streamId: String?
     let direction: OpenClawMessageDirection
     let authorLabel: String?
     let text: String
@@ -154,6 +160,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id
         case threadId
+        case streamId
         case direction
         case authorLabel
         case text
@@ -169,6 +176,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
         OpenClawMessage(
             id: id,
             threadId: threadId,
+            streamId: streamId,
             direction: direction,
             authorLabel: authorLabel,
             text: text,
@@ -180,10 +188,26 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
         )
     }
 
+    init(message: OpenClawMessage, actions: [OpenClawAction]) {
+        id = message.id
+        threadId = message.threadId
+        streamId = message.streamId
+        direction = message.direction
+        authorLabel = message.authorLabel
+        text = message.text
+        links = message.links
+        toolCalls = message.toolCalls
+        deliveryState = message.deliveryState
+        createdAt = message.createdAt
+        updatedAt = message.updatedAt
+        self.actions = actions
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         threadId = try container.decode(String.self, forKey: .threadId)
+        streamId = try container.decodeIfPresent(String.self, forKey: .streamId)
         direction = try container.decode(OpenClawMessageDirection.self, forKey: .direction)
         authorLabel = try container.decodeIfPresent(String.self, forKey: .authorLabel)
         text = try container.decode(String.self, forKey: .text)

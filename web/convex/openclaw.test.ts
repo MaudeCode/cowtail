@@ -396,6 +396,7 @@ describe("OpenClaw Convex model helpers", () => {
         authorLabel: "OpenClaw",
         text: "Approve rollout?",
         links: [],
+        streamId: "cowtail:stream:message-1",
         deliveryState: "sent",
         createdAt: 1777128000000,
         updatedAt: 1777128000000,
@@ -418,6 +419,7 @@ describe("OpenClaw Convex model helpers", () => {
 
     expect(message.actions).toHaveLength(1);
     expect(message.actions[0]?.id).toBe("action-1");
+    expect(message.streamId).toBe("cowtail:stream:message-1");
   });
 
   test("builds action result patches and event payloads", () => {
@@ -515,6 +517,7 @@ describe("OpenClaw Convex model helpers", () => {
         toolCalls: [],
         deliveryState: "pending",
         updatedAt: 1_777_128_000_000,
+        streamId: "cowtail:stream:update",
       }),
     ).toEqual({
       text: "Updated",
@@ -522,6 +525,7 @@ describe("OpenClaw Convex model helpers", () => {
       toolCalls: [],
       deliveryState: "pending",
       updatedAt: 1_777_128_000_000,
+      streamId: "cowtail:stream:update",
     });
 
     expect(() => {
@@ -706,6 +710,12 @@ describe("OpenClaw Convex model helpers", () => {
         messageId: "openclawMessages-id",
         payload: { streamId: "cowtail:stream:streamed" },
       },
+    });
+    expect(inserts).toContainEqual({
+      table: "openclawMessages",
+      value: expect.objectContaining({
+        streamId: "cowtail:stream:streamed",
+      }),
     });
   });
 
@@ -1044,7 +1054,7 @@ describe("OpenClaw Convex model helpers", () => {
       createdAt: 150,
       updatedAt: 150,
     };
-    const { ctx, inserts } = createArchivedDropMutationCtx({
+    const { ctx, inserts, patches } = createArchivedDropMutationCtx({
       existingThread: thread,
       message,
     });
@@ -1077,6 +1087,12 @@ describe("OpenClaw Convex model helpers", () => {
         messageId: "message-existing",
         payload: { streamId: "cowtail:stream:update-streamed" },
       },
+    });
+    expect(patches).toContainEqual({
+      id: "message-existing",
+      value: expect.objectContaining({
+        streamId: "cowtail:stream:update-streamed",
+      }),
     });
   });
 

@@ -1358,6 +1358,8 @@ internal enum Components {
                 internal var id: Swift.String
                 /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/threadId`.
                 internal var threadId: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/streamId`.
+                internal var streamId: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/direction`.
                 internal enum DirectionPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case openclawToUser = "openclaw_to_user"
@@ -1625,6 +1627,7 @@ internal enum Components {
                 /// - Parameters:
                 ///   - id:
                 ///   - threadId:
+                ///   - streamId:
                 ///   - direction:
                 ///   - authorLabel:
                 ///   - text:
@@ -1637,6 +1640,7 @@ internal enum Components {
                 internal init(
                     id: Swift.String,
                     threadId: Swift.String,
+                    streamId: Swift.String? = nil,
                     direction: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.DirectionPayload,
                     authorLabel: Swift.String? = nil,
                     text: Swift.String,
@@ -1649,6 +1653,7 @@ internal enum Components {
                 ) {
                     self.id = id
                     self.threadId = threadId
+                    self.streamId = streamId
                     self.direction = direction
                     self.authorLabel = authorLabel
                     self.text = text
@@ -1662,6 +1667,7 @@ internal enum Components {
                 internal enum CodingKeys: String, CodingKey {
                     case id
                     case threadId
+                    case streamId
                     case direction
                     case authorLabel
                     case text

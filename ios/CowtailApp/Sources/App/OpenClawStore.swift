@@ -655,21 +655,18 @@ final class OpenClawStore: ObservableObject {
     private func retireFinalizedStream(_ streamId: String, threadId: String) {
         messagesByThreadID[threadId]?.removeAll { $0.id == streamId }
         durableMessageIdsByStreamID.removeValue(forKey: streamId)
-        if liveStreamIdsByThreadID[threadId] == streamId {
-            liveStreamIdsByThreadID.removeValue(forKey: threadId)
-        }
         retireStream(streamId, threadId: threadId)
     }
 
     private func retireDroppedStream(_ streamId: String, threadId: String) {
         messagesByThreadID[threadId]?.removeAll { $0.id == streamId }
-        if liveStreamIdsByThreadID[threadId] == streamId {
-            liveStreamIdsByThreadID.removeValue(forKey: threadId)
-        }
         retireStream(streamId, threadId: threadId)
     }
 
     private func retireStream(_ streamId: String, threadId: String) {
+        if liveStreamIdsByThreadID[threadId] == streamId {
+            liveStreamIdsByThreadID.removeValue(forKey: threadId)
+        }
         var retiredStreamIds = retiredStreamIdsByThreadID[threadId] ?? []
         retiredStreamIds.insert(streamId)
         retiredStreamIdsByThreadID[threadId] = retiredStreamIds
@@ -703,12 +700,45 @@ final class OpenClawStore: ObservableObject {
         var merged = fetchedMessages
         let fetchedIDs = Set(fetchedMessages.map(\.id))
         let currentMessages = messagesByThreadID[threadId] ?? []
+        let fetchedDurableAssistantMessages = fetchedMessages.filter {
+            $0.direction == .openClawToUser && $0.deliveryState.isTerminal
+        }
+        let retiredStreamIds = retireFetchedDurableStreamIfNeeded(
+            fetchedDurableAssistantMessages,
+            threadId: threadId
+        )
 
         for message in currentMessages where !fetchedIDs.contains(message.id) {
+            if retiredStreamIds.contains(message.id) {
+                continue
+            }
+
             merged.append(message)
         }
 
         return sortedMessages(merged)
+    }
+
+    private func retireFetchedDurableStreamIfNeeded(
+        _ fetchedDurableAssistantMessages: [OpenClawMessageWithActions],
+        threadId: String
+    ) -> Set<String> {
+        guard let liveStreamId = liveStreamIdsByThreadID[threadId] else {
+            return []
+        }
+
+        if let durableMessageId = durableMessageIdsByStreamID[liveStreamId],
+           fetchedDurableAssistantMessages.contains(where: { $0.threadId == threadId && $0.id == durableMessageId }) {
+            retireStream(liveStreamId, threadId: threadId)
+            return [liveStreamId]
+        }
+
+        if fetchedDurableAssistantMessages.contains(where: { $0.threadId == threadId && $0.streamId == liveStreamId }) {
+            retireStream(liveStreamId, threadId: threadId)
+            return [liveStreamId]
+        }
+
+        return []
     }
 
     private static func localOutgoingMessageID(for requestId: String) -> String {
@@ -725,22 +755,6 @@ final class OpenClawStore: ObservableObject {
 
     private static func localEchoDistance(_ lhs: Int64, from rhs: Int64) -> Int64 {
         lhs > rhs ? lhs - rhs : rhs - lhs
-    }
-}
-
-private extension OpenClawMessageWithActions {
-    init(message: OpenClawMessage, actions: [OpenClawAction]) {
-        id = message.id
-        threadId = message.threadId
-        direction = message.direction
-        authorLabel = message.authorLabel
-        text = message.text
-        links = message.links
-        toolCalls = message.toolCalls
-        deliveryState = message.deliveryState
-        createdAt = message.createdAt
-        updatedAt = message.updatedAt
-        self.actions = actions
     }
 }
 

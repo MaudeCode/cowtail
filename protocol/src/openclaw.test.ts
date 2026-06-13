@@ -785,6 +785,7 @@ describe("openclaw protocol schemas", () => {
     const message = openclawMessageWithActionsRecordSchema.parse({
       id: "message-1",
       threadId: "thread-1",
+      streamId: "cowtail:stream:message-1",
       direction: "openclaw_to_user",
       authorLabel: "OpenClaw",
       text: "Approve rollout?",
@@ -808,6 +809,7 @@ describe("openclaw protocol schemas", () => {
     });
 
     expect(message.actions[0]?.label).toBe("Approve");
+    expect(message.streamId).toBe("cowtail:stream:message-1");
 
     expect(
       openclawMessageWithActionsListResponseSchema.parse({

@@ -36,6 +36,7 @@ type StoredOpenClawThread = {
 type StoredOpenClawMessage = {
   _id: DocumentId;
   threadId: DocumentId;
+  streamId?: string;
   direction: OpenClawMessageDirection;
   authorLabel?: string;
   text: string;
@@ -138,15 +139,18 @@ export function buildOpenClawMessageUpdatePatch({
   toolCalls,
   deliveryState,
   updatedAt,
+  streamId,
 }: {
   text: string;
   links?: OpenClawMessageRecord["links"];
   toolCalls?: unknown;
   deliveryState?: OpenClawDeliveryState;
   updatedAt: number;
+  streamId?: string;
 }): {
   text: string;
   updatedAt: number;
+  streamId?: string;
   links?: OpenClawMessageRecord["links"];
   toolCalls?: OpenClawToolCallRecord[];
   deliveryState?: OpenClawDeliveryState;
@@ -154,6 +158,7 @@ export function buildOpenClawMessageUpdatePatch({
   return {
     text,
     updatedAt,
+    ...(streamId !== undefined ? { streamId } : {}),
     ...(links !== undefined ? { links } : {}),
     ...(toolCalls !== undefined ? { toolCalls: validateOpenClawToolCalls(toolCalls) } : {}),
     ...(deliveryState !== undefined ? { deliveryState } : {}),
@@ -210,6 +215,10 @@ export function toOpenClawMessageRecord(message: StoredOpenClawMessage): OpenCla
 
   if (message.authorLabel !== undefined) {
     record.authorLabel = message.authorLabel;
+  }
+
+  if (message.streamId !== undefined) {
+    record.streamId = message.streamId;
   }
 
   return record;

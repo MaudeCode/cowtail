@@ -519,6 +519,7 @@ export const createThreadFromOpenClaw = mutation({
 
     const messageId = await ctx.db.insert("openclawMessages", {
       threadId: thread,
+      streamId: args.streamId,
       direction: "openclaw_to_user",
       text: args.text,
       links: args.links ?? [],
@@ -644,6 +645,7 @@ export const updateMessageFromOpenClaw = mutation({
         toolCalls: args.toolCalls,
         deliveryState: args.deliveryState,
         updatedAt: now,
+        streamId: args.streamId,
       }),
     );
 

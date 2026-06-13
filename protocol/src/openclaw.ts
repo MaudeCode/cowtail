@@ -104,6 +104,7 @@ export const openclawThreadRecordSchema = z.object({
 const openclawMessageRecordBaseSchema = z.object({
   id: nonEmptyStringSchema,
   threadId: nonEmptyStringSchema,
+  streamId: nonEmptyStringSchema.optional(),
   direction: openclawMessageDirectionSchema,
   authorLabel: nonEmptyStringSchema.optional(),
   text: openclawMessageTextSchema,
