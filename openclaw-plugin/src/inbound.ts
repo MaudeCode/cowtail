@@ -590,31 +590,12 @@ async function deliverCowtailReply(params: {
     });
 
     if (!params.streamState.messageId) {
-      try {
-        const result = await params.client.sendOpenClawMessage({
-          type: "openclaw_message",
-          idempotencyKey: params.streamState.idempotencyKey,
-          streamId: params.streamState.streamId,
-          sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
-          title: params.thread.title,
-          text: messageText,
-          authorLabel: "OpenClaw",
-          links,
-          toolCalls: params.streamState.toolCalls,
-          actions: [],
-          deliveryState: "pending",
-        });
-        const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
-        if (!messageId) {
-          failCowtailStreamBeforeDurableCreate(params);
-          return;
-        }
-        params.streamState.messageId = messageId;
-        return;
-      } catch (error) {
-        failCowtailStreamBeforeDurableCreate(params);
-        throw error;
-      }
+      await createDurableCowtailReply(params, {
+        text: messageText,
+        links,
+        deliveryState: "pending",
+      });
+      return;
     }
 
     await params.client.sendOpenClawMessageUpdate({
@@ -647,31 +628,12 @@ async function deliverCowtailReply(params: {
       updatedAt: Date.now(),
     });
     if (!params.streamState.messageId) {
-      try {
-        const result = await params.client.sendOpenClawMessage({
-          type: "openclaw_message",
-          idempotencyKey: params.streamState.idempotencyKey,
-          streamId: params.streamState.streamId,
-          sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
-          title: params.thread.title,
-          text: params.streamState.text,
-          authorLabel: "OpenClaw",
-          links,
-          toolCalls: params.streamState.toolCalls,
-          actions: [],
-          deliveryState: "pending",
-        });
-        const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
-        if (!messageId) {
-          failCowtailStreamBeforeDurableCreate(params);
-          return;
-        }
-        params.streamState.messageId = messageId;
-        return;
-      } catch (error) {
-        failCowtailStreamBeforeDurableCreate(params);
-        throw error;
-      }
+      await createDurableCowtailReply(params, {
+        text: params.streamState.text,
+        links,
+        deliveryState: "pending",
+      });
+      return;
     }
 
     await params.client.sendOpenClawMessageUpdate({
@@ -715,29 +677,13 @@ async function deliverCowtailReply(params: {
   }
 
   params.streamState.text = text;
-  try {
-    const result = await params.client.sendOpenClawMessage({
-      type: "openclaw_message",
-      idempotencyKey: params.streamState.idempotencyKey,
-      streamId: params.streamState.streamId,
-      sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
-      title: params.thread.title,
-      text,
-      authorLabel: "OpenClaw",
-      links,
-      toolCalls: params.streamState.toolCalls,
-      actions: [],
-      deliveryState: "sent",
-    });
-    const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
-    if (!messageId) {
-      failCowtailStreamBeforeDurableCreate(params);
-      return;
-    }
-    params.streamState.messageId = messageId;
-  } catch (error) {
-    failCowtailStreamBeforeDurableCreate(params);
-    throw error;
+  const messageId = await createDurableCowtailReply(params, {
+    text,
+    links,
+    deliveryState: "sent",
+  });
+  if (!messageId) {
+    return;
   }
   emitCowtailStreamSnapshot({
     client: params.client,
@@ -750,6 +696,48 @@ async function deliverCowtailReply(params: {
     updatedAt: Date.now(),
   });
   params.streamState.completed = true;
+}
+
+async function createDurableCowtailReply(
+  params: {
+    client: CowtailInboundClient;
+    logger?: Logger | undefined;
+    route: CowtailRoute;
+    thread: OpenClawThreadRecord;
+    streamState: CowtailReplyStreamState;
+  },
+  message: {
+    text: string;
+    links: Array<{ label: string; url: string }>;
+    deliveryState: "pending" | "sent";
+  },
+): Promise<string | undefined> {
+  try {
+    const result = await params.client.sendOpenClawMessage({
+      type: "openclaw_message",
+      idempotencyKey: params.streamState.idempotencyKey,
+      streamId: params.streamState.streamId,
+      sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+      title: params.thread.title,
+      text: message.text,
+      authorLabel: "OpenClaw",
+      links: message.links,
+      toolCalls: params.streamState.toolCalls,
+      actions: [],
+      deliveryState: message.deliveryState,
+    });
+    const messageId = recordCreatedOpenClawMessageId(params.streamState, result);
+    if (!messageId) {
+      failCowtailStreamBeforeDurableCreate(params);
+      return undefined;
+    }
+
+    params.streamState.messageId = messageId;
+    return messageId;
+  } catch (error) {
+    failCowtailStreamBeforeDurableCreate(params);
+    throw error;
+  }
 }
 
 async function finalizeCowtailStreamedReply(params: {
