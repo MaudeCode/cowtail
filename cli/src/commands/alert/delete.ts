@@ -23,7 +23,7 @@ export class AlertDeleteCommand extends JsonCommand {
   async execute(): Promise<void> {
     const id = requireNonEmptyString(this.id, "id");
     const response = okResponseSchema.parse(
-      await deleteJson(`/api/alerts/${encodeURIComponent(id)}`),
+      await deleteJson(`/api/alerts/${encodeURIComponent(id)}`, { requireServiceAuth: true }),
     );
 
     this.printSuccess(`Deleted alert ${id}`, response);

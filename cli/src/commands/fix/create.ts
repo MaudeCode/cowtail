@@ -72,7 +72,9 @@ export class FixCreateCommand extends JsonCommand {
       throw validationError(formatIssueList(payloadResult.error.issues));
     }
 
-    const response = createResponseSchema.parse(await postJson("/api/fixes", payloadResult.data));
+    const response = createResponseSchema.parse(
+      await postJson("/api/fixes", payloadResult.data, { requireServiceAuth: true }),
+    );
 
     this.printSuccess(`Created fix ${response.id}`, response);
   }

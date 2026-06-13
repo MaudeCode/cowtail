@@ -85,7 +85,9 @@ export class AlertCreateCommand extends JsonCommand {
       throw validationError(formatIssueList(payloadResult.error.issues));
     }
 
-    const response = createResponseSchema.parse(await postJson("/api/alerts", payloadResult.data));
+    const response = createResponseSchema.parse(
+      await postJson("/api/alerts", payloadResult.data, { requireServiceAuth: true }),
+    );
 
     this.printSuccess(`Created alert ${response.id}`, response);
   }

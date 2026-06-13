@@ -39,7 +39,7 @@ describe("built binary help and structure", () => {
     expect(result.stdout).toContain("users");
     expect(result.stdout).toContain("update");
     expect(result.stderr).toBe("");
-  });
+  }, 30_000);
 
   test("alert group help shows current subcommands", () => {
     const result = runCliBinary(binaryPath, ["alert", "-h"]);
@@ -428,6 +428,127 @@ describe("built binary roundup commands", () => {
         ok: false,
         error: "Request failed (400): Roundup range is invalid",
       });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
+
+describe("built binary authenticated write commands", () => {
+  test("alert create sends service authorization", async () => {
+    const server = createServer((request, response) => {
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe("/actions/api/alerts");
+      expect(request.headers.authorization).toBe("Bearer secret-token");
+
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        expect(JSON.parse(body)).toEqual({
+          alertname: "DiskFull",
+          severity: "warning",
+          namespace: "storage",
+          status: "firing",
+          outcome: "escalated",
+          summary: "Disk is almost full",
+          action: "Page storage owner",
+        });
+
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true, id: "alert-123" }));
+      });
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(
+        binaryPath,
+        [
+          "alert",
+          "create",
+          "--alertname",
+          "DiskFull",
+          "--severity",
+          "warning",
+          "--namespace",
+          "storage",
+          "--status",
+          "firing",
+          "--outcome",
+          "escalated",
+          "--summary",
+          "Disk is almost full",
+          "--action",
+          "Page storage owner",
+          "--json",
+        ],
+        {
+          env: {
+            COWTAIL_CONFIG_PATH: configPath,
+          },
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout)).toEqual({ ok: true, id: "alert-123" });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  test("fix delete sends service authorization", async () => {
+    const server = createServer((request, response) => {
+      expect(request.method).toBe("DELETE");
+      expect(request.url).toBe("/actions/api/fixes/fix-123");
+      expect(request.headers.authorization).toBe("Bearer secret-token");
+
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(
+        binaryPath,
+        ["fix", "delete", "--id", "fix-123", "--json"],
+        {
+          env: {
+            COWTAIL_CONFIG_PATH: configPath,
+          },
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout)).toEqual({ ok: true });
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));

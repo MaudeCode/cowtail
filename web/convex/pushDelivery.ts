@@ -1,5 +1,5 @@
 import type { ActionCtx } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { isInvalidDeviceTokenReason } from "./apns";
 
 export async function sendPushToUser(
@@ -11,7 +11,9 @@ export async function sendPushToUser(
     data?: Record<string, unknown>;
   },
 ) {
-  const devices = await ctx.runQuery(api.push.listEnabledDevicesForUser, { userId: args.userId });
+  const devices = await ctx.runQuery(internal.push.listEnabledDevicesForUser, {
+    userId: args.userId,
+  });
 
   if (devices.length === 0) {
     return {

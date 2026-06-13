@@ -463,6 +463,9 @@ async function fetchClusterHealth(): Promise<HealthResponse> {
 
 // POST /api/alerts — write endpoint
 app.post("/api/alerts", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const body = await c.req.json().catch(() => null);
   if (!body) {
     return jsonError("Invalid JSON body");
@@ -489,7 +492,7 @@ app.post("/api/alerts", async (c) => {
   if (parsed.data.node) args.node = parsed.data.node;
   if (parsed.data.rootCause) args.rootCause = parsed.data.rootCause;
   if (parsed.data.resolvedAt) args.resolvedAt = parsed.data.resolvedAt;
-  const id = await ctx.runMutation(api.alerts.insert, args as any);
+  const id = await ctx.runMutation(internal.alerts.insert, args as any);
   return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
@@ -570,10 +573,13 @@ app.get("/api/alerts/:id", async (c) => {
 
 // DELETE /api/alerts/:id — delete a single alert
 app.delete("/api/alerts/:id", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const ctx = c.env;
   const id = c.req.param("id");
   try {
-    await ctx.runMutation(api.alerts.deleteById, { id: id as any });
+    await ctx.runMutation(internal.alerts.deleteById, { id: id as any });
     return c.json(okResponseSchema.parse({ ok: true }));
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 400);
@@ -582,6 +588,9 @@ app.delete("/api/alerts/:id", async (c) => {
 
 // POST /api/fixes — write endpoint
 app.post("/api/fixes", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const body = await c.req.json().catch(() => null);
   if (!body) {
     return jsonError("Invalid JSON body");
@@ -601,7 +610,7 @@ app.post("/api/fixes", async (c) => {
     scope: parsed.data.scope,
   };
   if (parsed.data.commit) args.commit = parsed.data.commit;
-  const id = await ctx.runMutation(api.fixes.insert, args as any);
+  const id = await ctx.runMutation(internal.fixes.insert, args as any);
   return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
@@ -664,10 +673,13 @@ app.get("/api/fixes/:id", async (c) => {
 
 // DELETE /api/fixes/:id — delete a single fix
 app.delete("/api/fixes/:id", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const ctx = c.env;
   const id = c.req.param("id");
   try {
-    await ctx.runMutation(api.fixes.deleteById, { id: id as any });
+    await ctx.runMutation(internal.fixes.deleteById, { id: id as any });
     return c.json(okResponseSchema.parse({ ok: true }));
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 400);
@@ -678,6 +690,9 @@ app.delete("/api/fixes/:id", async (c) => {
 // Accepts Alertmanager's payload format and writes alerts directly to Convex.
 // Used for known-noise alerts that don't need AI investigation.
 app.post("/api/alerts/webhook", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const body = await c.req.json();
   const ctx = c.env;
 
@@ -710,7 +725,7 @@ app.post("/api/alerts/webhook", async (c) => {
       args.resolvedAt = new Date(alert.endsAt).getTime();
     }
 
-    const id = await ctx.runMutation(api.alerts.insert, args as any);
+    const id = await ctx.runMutation(internal.alerts.insert, args as any);
     ids.push(id);
   }
 
@@ -800,7 +815,7 @@ app.post("/api/push/register", async (c) => {
   }
 
   const ctx = c.env;
-  const result = await ctx.runMutation(api.push.upsertDeviceRegistration, {
+  const result = await ctx.runMutation(internal.push.upsertDeviceRegistration, {
     userId,
     deviceToken: deviceToken.trim(),
     platform: nonEmptyString(parsed.data.platform) ?? "ios",
@@ -840,7 +855,7 @@ app.post("/api/push/unregister", async (c) => {
   }
 
   const ctx = c.env;
-  const result = await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
+  const result = await ctx.runMutation(internal.push.disableDeviceRegistrationByToken, {
     userId,
     deviceToken: parsed.data.deviceToken.trim(),
   });
@@ -1105,7 +1120,7 @@ app.get("/api/users", async (c) => {
   const authError = requireServiceAuth(c);
   if (authError) return authError;
 
-  const users = await c.env.runQuery(api.push.listCurrentUsers, {});
+  const users = await c.env.runQuery(internal.push.listCurrentUsers, {});
   return c.json(
     usersListResponseSchema.parse({
       ok: true,
@@ -1121,7 +1136,7 @@ app.get("/api/users/:userId/devices", async (c) => {
   if (authError) return authError;
 
   const userId = c.req.param("userId");
-  const devices = await c.env.runQuery(api.push.listEnabledDevicesForUser, { userId });
+  const devices = await c.env.runQuery(internal.push.listEnabledDevicesForUser, { userId });
 
   return c.json(
     userDevicesResponseSchema.parse({
