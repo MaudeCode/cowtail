@@ -339,27 +339,17 @@ async function getDuplicateIosReplyMessageForThread(
 async function acknowledgeDuplicateReceipt(
   ctx: MutationCtx,
   receipt: Doc<"openclawIdempotencyReceipts">,
-  payload?: Record<string, unknown>,
+  _payload?: Record<string, unknown>,
 ) {
-  const sequence = await insertOpenClawEvent(ctx, {
-    type: "message_acknowledged",
-    ...(receipt.threadId !== undefined ? { threadId: receipt.threadId } : {}),
-    ...(receipt.messageId !== undefined ? { messageId: receipt.messageId } : {}),
-    ...(receipt.actionId !== undefined ? { actionId: receipt.actionId } : {}),
-    payload: buildAcknowledgementPayload(payload, {
-      duplicate: true,
-      reason: "duplicate_idempotency_key",
-    }),
-  });
-
   return {
     ok: true,
+    duplicate: true,
     ...(receipt.threadId !== undefined ? { threadId: receipt.threadId } : {}),
     ...(receipt.messageId !== undefined ? { messageId: receipt.messageId } : {}),
     ...(receipt.actionId !== undefined ? { actionId: receipt.actionId } : {}),
     actionIds:
       receipt.messageId !== undefined ? await actionIdsForMessage(ctx, receipt.messageId) : [],
-    sequence,
+    sequence: receipt.sequence,
   };
 }
 

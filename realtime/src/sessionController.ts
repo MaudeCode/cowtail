@@ -9,7 +9,7 @@ import {
 } from "@maudecode/cowtail-protocol";
 
 import { authenticateClientHello, type RealtimeClient } from "./auth";
-import type { CowtailRealtimeApi } from "./cowtailApi";
+import type { CowtailRealtimeApi, CowtailRealtimeApiEventResult } from "./cowtailApi";
 import type { RealtimeSocket } from "./connectionRegistry";
 import { RealtimeConnectionRegistry } from "./connectionRegistry";
 import type { OpenClawPushBridge } from "./pushBridge";
@@ -247,14 +247,18 @@ export class OpenClawSessionController {
     switch (command.type) {
       case "openclaw_message": {
         try {
-          const event = await this.#api.createOpenClawMessage(command);
-          const delivered = await this.#broadcastToIos(event);
-          if (delivered === 0 && shouldPushOpenClawMessageEvent(event)) {
-            this.#sendPushFallback(event);
+          const result = await this.#api.createOpenClawMessage(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            const delivered = await this.#broadcastToIos(event);
+            if (delivered === 0 && shouldPushOpenClawMessageEvent(event)) {
+              this.#sendPushFallback(event);
+            }
           }
           this.#send(
             connectionId,
-            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
           );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -264,14 +268,18 @@ export class OpenClawSessionController {
 
       case "openclaw_message_update": {
         try {
-          const event = await this.#api.updateOpenClawMessage(command);
-          const delivered = await this.#broadcastToIos(event);
-          if (delivered === 0 && shouldPushOpenClawMessageEvent(event)) {
-            this.#sendPushFallback(event);
+          const result = await this.#api.updateOpenClawMessage(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            const delivered = await this.#broadcastToIos(event);
+            if (delivered === 0 && shouldPushOpenClawMessageEvent(event)) {
+              this.#sendPushFallback(event);
+            }
           }
           this.#send(
             connectionId,
-            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
           );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -299,11 +307,15 @@ export class OpenClawSessionController {
 
       case "ios_new_thread": {
         try {
-          const event = await this.#api.createIosThread(command);
-          await this.#broadcastToOpenClawAndIos(event);
+          const result = await this.#api.createIosThread(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToOpenClawAndIos(event);
+          }
           this.#send(
             connectionId,
-            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
           );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -313,11 +325,15 @@ export class OpenClawSessionController {
 
       case "ios_reply": {
         try {
-          const event = await this.#api.createIosReply(command);
-          await this.#broadcastToOpenClawAndIos(event);
+          const result = await this.#api.createIosReply(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToOpenClawAndIos(event);
+          }
           this.#send(
             connectionId,
-            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
           );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
@@ -327,9 +343,16 @@ export class OpenClawSessionController {
 
       case "ios_action": {
         try {
-          const event = await this.#api.submitIosAction(command);
-          await this.#broadcastToOpenClawAndIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          const result = await this.#api.submitIosAction(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToOpenClawAndIos(event);
+          }
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -338,9 +361,16 @@ export class OpenClawSessionController {
 
       case "ios_mark_thread_read": {
         try {
-          const event = await this.#api.markThreadRead(command);
-          await this.#broadcastToIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          const result = await this.#api.markThreadRead(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToIos(event);
+          }
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -349,9 +379,16 @@ export class OpenClawSessionController {
 
       case "ios_rename_thread": {
         try {
-          const event = await this.#api.renameIosThread(command);
-          await this.#broadcastToIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          const result = await this.#api.renameIosThread(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToIos(event);
+          }
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -360,9 +397,16 @@ export class OpenClawSessionController {
 
       case "ios_delete_thread": {
         try {
-          const event = await this.#api.deleteIosThread(command);
-          await this.#broadcastToIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          const result = await this.#api.deleteIosThread(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToIos(event);
+          }
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -371,9 +415,16 @@ export class OpenClawSessionController {
 
       case "openclaw_session_bound": {
         try {
-          const event = await this.#api.bindThreadSession(command);
-          await this.#broadcastToIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          const result = await this.#api.bindThreadSession(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToIos(event);
+          }
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -382,9 +433,16 @@ export class OpenClawSessionController {
 
       case "openclaw_action_result": {
         try {
-          const event = await this.#api.recordActionResult(command);
-          await this.#broadcastToIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          const result = await this.#api.recordActionResult(command);
+          const event = apiEventResultEvent(result);
+          const duplicate = isDuplicateApiEventResult(result);
+          if (!duplicate) {
+            await this.#broadcastToIos(event);
+          }
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event, { duplicate })),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -586,13 +644,28 @@ function isCommandAllowedForClient(client: RealtimeClient, commandType: string):
   );
 }
 
-function ackPayloadForEvent(event: OpenClawEventEnvelope): OpenClawRealtimeAckPayload | undefined {
+function apiEventResultEvent(result: CowtailRealtimeApiEventResult): OpenClawEventEnvelope {
+  return "event" in result ? result.event : result;
+}
+
+function isDuplicateApiEventResult(result: CowtailRealtimeApiEventResult): boolean {
+  return "duplicate" in result && result.duplicate === true;
+}
+
+function ackPayloadForEvent(
+  event: OpenClawEventEnvelope,
+  options: { duplicate?: boolean } = {},
+): OpenClawRealtimeAckPayload | undefined {
   const payload: OpenClawRealtimeAckPayload = {};
   if (event.threadId) {
     payload.threadId = event.threadId;
   }
   if (event.messageId) {
     payload.messageId = event.messageId;
+  }
+  if (options.duplicate === true) {
+    payload.duplicate = true;
+    payload.reason = "duplicate_idempotency_key";
   }
   if (event.payload?.dropped === true) {
     payload.dropped = true;

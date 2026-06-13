@@ -167,7 +167,42 @@ describe("ConvexCowtailRealtimeApi", () => {
       },
     ]);
     expect(event).toEqual(replayEvent);
+    if ("event" in event) {
+      throw new Error("expected non-duplicate event result");
+    }
     expect(event.sequence).toBe(7);
+  });
+
+  test("createOpenClawMessage marks duplicate mutation receipts without changing the replay event", async () => {
+    const replayEvent = createReplayEvent(7);
+    const api = new ConvexCowtailRealtimeApi(
+      {
+        query: async () => [replayEvent],
+        mutation: async () => ({
+          duplicate: true,
+          threadId: "thread-1",
+          messageId: "message-1",
+          actionIds: [],
+          sequence: 7,
+        }),
+      },
+      "realtime-convex-token",
+    );
+
+    const result = await api.createOpenClawMessage({
+      type: "openclaw_message",
+      requestId: "request-duplicate",
+      idempotencyKey: "cowtail:reply:request-duplicate",
+      sessionKey: "session-1",
+      title: "Deploy",
+      text: "Approve the deploy?",
+      links: [],
+      toolCalls: [],
+      streamId: "cowtail:stream:request-duplicate",
+      actions: [],
+    });
+
+    expect(result).toEqual({ event: replayEvent, duplicate: true });
   });
 
   test("updateOpenClawMessage returns the hydrated replay event for the update sequence", async () => {
@@ -229,6 +264,9 @@ describe("ConvexCowtailRealtimeApi", () => {
       },
     ]);
     expect(event).toEqual(replayEvent);
+    if ("event" in event) {
+      throw new Error("expected non-duplicate event result");
+    }
     expect(event.sequence).toBe(8);
   });
 

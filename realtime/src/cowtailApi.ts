@@ -46,19 +46,28 @@ export interface CowtailRealtimeApi {
   verifyAppSessionToken(token: string): Promise<AppSessionVerificationResult>;
   validateAppSession(sessionId: string): Promise<AppSessionValidationResult>;
   replayEvents(afterSequence?: OpenClawSequence): Promise<OpenClawEventEnvelope[]>;
-  createOpenClawMessage(command: OpenClawPluginMessageCommand): Promise<OpenClawEventEnvelope>;
+  createOpenClawMessage(
+    command: OpenClawPluginMessageCommand,
+  ): Promise<CowtailRealtimeApiEventResult>;
   updateOpenClawMessage(
     command: OpenClawPluginMessageUpdateCommand,
-  ): Promise<OpenClawEventEnvelope>;
-  createIosThread(command: OpenClawIosNewThreadCommand): Promise<OpenClawEventEnvelope>;
-  createIosReply(command: OpenClawIosReplyCommand): Promise<OpenClawEventEnvelope>;
-  submitIosAction(command: OpenClawIosActionCommand): Promise<OpenClawEventEnvelope>;
-  markThreadRead(command: OpenClawIosMarkThreadReadCommand): Promise<OpenClawEventEnvelope>;
-  renameIosThread(command: OpenClawIosRenameThreadCommand): Promise<OpenClawEventEnvelope>;
-  deleteIosThread(command: OpenClawIosDeleteThreadCommand): Promise<OpenClawEventEnvelope>;
-  bindThreadSession(command: OpenClawSessionBoundCommand): Promise<OpenClawEventEnvelope>;
-  recordActionResult(command: OpenClawActionResultCommand): Promise<OpenClawEventEnvelope>;
+  ): Promise<CowtailRealtimeApiEventResult>;
+  createIosThread(command: OpenClawIosNewThreadCommand): Promise<CowtailRealtimeApiEventResult>;
+  createIosReply(command: OpenClawIosReplyCommand): Promise<CowtailRealtimeApiEventResult>;
+  submitIosAction(command: OpenClawIosActionCommand): Promise<CowtailRealtimeApiEventResult>;
+  markThreadRead(command: OpenClawIosMarkThreadReadCommand): Promise<CowtailRealtimeApiEventResult>;
+  renameIosThread(command: OpenClawIosRenameThreadCommand): Promise<CowtailRealtimeApiEventResult>;
+  deleteIosThread(command: OpenClawIosDeleteThreadCommand): Promise<CowtailRealtimeApiEventResult>;
+  bindThreadSession(command: OpenClawSessionBoundCommand): Promise<CowtailRealtimeApiEventResult>;
+  recordActionResult(command: OpenClawActionResultCommand): Promise<CowtailRealtimeApiEventResult>;
 }
+
+export type CowtailRealtimeApiEventResult =
+  | OpenClawEventEnvelope
+  | {
+      event: OpenClawEventEnvelope;
+      duplicate: true;
+    };
 
 export async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
@@ -77,6 +86,12 @@ export function getSequence(value: unknown): OpenClawSequence {
   }
 
   return sequence;
+}
+
+function isDuplicateMutationResult(value: unknown): boolean {
+  return Boolean(
+    value && typeof value === "object" && (value as { duplicate?: unknown }).duplicate === true,
+  );
 }
 
 export function getFirstEvent(value: unknown, sequence?: OpenClawSequence): OpenClawEventEnvelope {
@@ -188,7 +203,7 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async createOpenClawMessage(
     command: OpenClawPluginMessageCommand,
-  ): Promise<OpenClawEventEnvelope> {
+  ): Promise<CowtailRealtimeApiEventResult> {
     const args = addDefined(
       addDefined(
         addDefined(
@@ -216,12 +231,12 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
     addDefined(args, "deliveryState", command.deliveryState);
     addDefined(args, "streamId", command.streamId);
     const result = await this.convex.mutation(convexApi.openclaw.createThreadFromOpenClaw, args);
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
   async updateOpenClawMessage(
     command: OpenClawPluginMessageUpdateCommand,
-  ): Promise<OpenClawEventEnvelope> {
+  ): Promise<CowtailRealtimeApiEventResult> {
     const args = addDefined(
       addDefined(
         addDefined(
@@ -243,10 +258,12 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
     addDefined(args, "toolCalls", command.toolCalls);
     addDefined(args, "streamId", command.streamId);
     const result = await this.convex.mutation(convexApi.openclaw.updateMessageFromOpenClaw, args);
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async createIosThread(command: OpenClawIosNewThreadCommand): Promise<OpenClawEventEnvelope> {
+  async createIosThread(
+    command: OpenClawIosNewThreadCommand,
+  ): Promise<CowtailRealtimeApiEventResult> {
     const args = addDefined(
       {
         serviceToken: this.serviceToken,
@@ -257,68 +274,78 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
       command.title,
     );
     const result = await this.convex.mutation(convexApi.openclaw.createPendingThreadFromIos, args);
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async createIosReply(command: OpenClawIosReplyCommand): Promise<OpenClawEventEnvelope> {
+  async createIosReply(command: OpenClawIosReplyCommand): Promise<CowtailRealtimeApiEventResult> {
     const result = await this.convex.mutation(convexApi.openclaw.createReplyFromIos, {
       serviceToken: this.serviceToken,
       idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
       text: command.text,
     });
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async submitIosAction(command: OpenClawIosActionCommand): Promise<OpenClawEventEnvelope> {
+  async submitIosAction(command: OpenClawIosActionCommand): Promise<CowtailRealtimeApiEventResult> {
     const result = await this.convex.mutation(convexApi.openclaw.submitActionFromIos, {
       serviceToken: this.serviceToken,
       idempotencyKey: command.idempotencyKey,
       actionId: command.actionId as never,
       payload: command.payload,
     });
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async markThreadRead(command: OpenClawIosMarkThreadReadCommand): Promise<OpenClawEventEnvelope> {
+  async markThreadRead(
+    command: OpenClawIosMarkThreadReadCommand,
+  ): Promise<CowtailRealtimeApiEventResult> {
     const result = await this.convex.mutation(convexApi.openclaw.markThreadRead, {
       serviceToken: this.serviceToken,
       idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
     });
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async renameIosThread(command: OpenClawIosRenameThreadCommand): Promise<OpenClawEventEnvelope> {
+  async renameIosThread(
+    command: OpenClawIosRenameThreadCommand,
+  ): Promise<CowtailRealtimeApiEventResult> {
     const result = await this.convex.mutation(convexApi.openclaw.renameThreadFromIos, {
       serviceToken: this.serviceToken,
       idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
       title: command.title,
     });
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async deleteIosThread(command: OpenClawIosDeleteThreadCommand): Promise<OpenClawEventEnvelope> {
+  async deleteIosThread(
+    command: OpenClawIosDeleteThreadCommand,
+  ): Promise<CowtailRealtimeApiEventResult> {
     const result = await this.convex.mutation(convexApi.openclaw.deleteThreadFromIos, {
       serviceToken: this.serviceToken,
       idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
     });
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async bindThreadSession(command: OpenClawSessionBoundCommand): Promise<OpenClawEventEnvelope> {
+  async bindThreadSession(
+    command: OpenClawSessionBoundCommand,
+  ): Promise<CowtailRealtimeApiEventResult> {
     const result = await this.convex.mutation(convexApi.openclaw.bindThreadSession, {
       serviceToken: this.serviceToken,
       idempotencyKey: command.idempotencyKey,
       threadId: command.threadId as never,
       sessionKey: command.sessionKey,
     });
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
   }
 
-  async recordActionResult(command: OpenClawActionResultCommand): Promise<OpenClawEventEnvelope> {
+  async recordActionResult(
+    command: OpenClawActionResultCommand,
+  ): Promise<CowtailRealtimeApiEventResult> {
     const args = addDefined(
       {
         serviceToken: this.serviceToken,
@@ -333,7 +360,14 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
       convexApi.openclaw.recordActionResultFromOpenClaw,
       args,
     );
-    return await this.eventBySequence(getSequence(result));
+    return await this.eventResultByMutationResult(result);
+  }
+
+  private async eventResultByMutationResult(
+    result: unknown,
+  ): Promise<CowtailRealtimeApiEventResult> {
+    const event = await this.eventBySequence(getSequence(result));
+    return isDuplicateMutationResult(result) ? { event, duplicate: true } : event;
   }
 
   private async eventBySequence(sequence: OpenClawSequence): Promise<OpenClawEventEnvelope> {

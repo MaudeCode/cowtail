@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
 
-import type { CowtailRealtimeApi } from "./cowtailApi";
+import type { CowtailRealtimeApi, CowtailRealtimeApiEventResult } from "./cowtailApi";
 import { RealtimeConnectionRegistry } from "./connectionRegistry";
 import type { OpenClawPushBridge, PushBridgeResult } from "./pushBridge";
 import { OpenClawSessionController, shouldReplayToClient } from "./sessionController";
@@ -32,9 +32,11 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
   public appSessionVerificationOk = true;
   public appSessionValidationOk = true;
   public holdOpenClawMessages = false;
+  public duplicateOpenClawMessage = false;
+  public duplicateIosReply = false;
   public readonly heldOpenClawMessages: Array<{
     command: Parameters<CowtailRealtimeApi["createOpenClawMessage"]>[0];
-    resolve: (event: OpenClawEventEnvelope) => void;
+    resolve: (event: CowtailRealtimeApiEventResult) => void;
   }> = [];
   public readonly openClawMessageUpdates: Parameters<
     CowtailRealtimeApi["updateOpenClawMessage"]
@@ -94,11 +96,12 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
       throw new Error("mutation failed");
     }
     if (this.holdOpenClawMessages) {
-      return await new Promise<OpenClawEventEnvelope>((resolve) => {
+      return await new Promise<CowtailRealtimeApiEventResult>((resolve) => {
         this.heldOpenClawMessages.push({ command, resolve });
       });
     }
-    return withPersistedStreamId(this.openClawMessageEvent, command.streamId);
+    const event = withPersistedStreamId(this.openClawMessageEvent, command.streamId);
+    return this.duplicateOpenClawMessage ? { event, duplicate: true as const } : event;
   }
 
   async updateOpenClawMessage(command: Parameters<CowtailRealtimeApi["updateOpenClawMessage"]>[0]) {
@@ -138,7 +141,9 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
 
   async createIosReply(command: Parameters<CowtailRealtimeApi["createIosReply"]>[0]) {
     this.iosReplies.push(command);
-    return this.iosReplyEvent;
+    return this.duplicateIosReply
+      ? { event: this.iosReplyEvent, duplicate: true as const }
+      : this.iosReplyEvent;
   }
 
   async submitIosAction(command: Parameters<CowtailRealtimeApi["submitIosAction"]>[0]) {
@@ -675,6 +680,48 @@ describe("OpenClawSessionController", () => {
         requestId: "request-1",
         sequence: 7,
         payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
+  });
+
+  test("duplicate OpenClaw messages ack original sequence without broadcast or push", async () => {
+    const { api, controller, pushBridge } = createController();
+    api.duplicateOpenClawMessage = true;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message",
+        requestId: "request-duplicate",
+        idempotencyKey: "cowtail:reply:request-duplicate",
+        streamId: "cowtail:stream:request-duplicate",
+        sessionKey: "session-1",
+        text: "Approve the deploy?",
+        links: [],
+        toolCalls: [],
+        actions: [],
+      }),
+    );
+
+    expect(sent(iosSocket)).toEqual([]);
+    expect(pushBridge.notifications).toEqual([]);
+    expect(sent(pluginSocket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-duplicate",
+        sequence: 7,
+        payload: {
+          threadId: "thread-openclaw",
+          messageId: "message-openclaw",
+          duplicate: true,
+          reason: "duplicate_idempotency_key",
+        },
       },
     ]);
   });
@@ -1441,6 +1488,43 @@ describe("OpenClawSessionController", () => {
     ]);
   });
 
+  test("duplicate ios_reply acks without forwarding the old event again", async () => {
+    const { api, controller } = createController();
+    api.duplicateIosReply = true;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_reply",
+        requestId: "request-duplicate-reply",
+        idempotencyKey: "ios:reply:request-duplicate-reply",
+        threadId: "thread-1",
+        text: "Ship it",
+      }),
+    );
+
+    expect(sent(pluginSocket)).toEqual([]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-duplicate-reply",
+        sequence: 9,
+        payload: {
+          threadId: "thread-1",
+          messageId: "message-ios",
+          duplicate: true,
+          reason: "duplicate_idempotency_key",
+        },
+      },
+    ]);
+  });
+
   test("forwards ios_new_thread events with ack reconciliation payload", async () => {
     const { api, controller } = createController();
     const pluginSocket = new FakeSocket();
@@ -1628,7 +1712,12 @@ describe("OpenClawSessionController", () => {
           updatedAt: 200,
         },
       },
-      { type: "ack", requestId: "request-rename", sequence: 10 },
+      {
+        type: "ack",
+        requestId: "request-rename",
+        sequence: 10,
+        payload: { threadId: "thread-1" },
+      },
       {
         sequence: 11,
         type: "thread_updated",
@@ -1646,7 +1735,12 @@ describe("OpenClawSessionController", () => {
         },
         payload: { deleted: true },
       },
-      { type: "ack", requestId: "request-delete", sequence: 11 },
+      {
+        type: "ack",
+        requestId: "request-delete",
+        sequence: 11,
+        payload: { threadId: "thread-1" },
+      },
     ]);
   });
 

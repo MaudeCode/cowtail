@@ -836,37 +836,13 @@ describe("OpenClaw Convex model helpers", () => {
 
     expect(result).toEqual({
       ok: true,
+      duplicate: true,
       threadId: "thread-active",
       messageId: "message-existing",
       actionIds: [],
-      sequence: 1,
+      sequence: 8,
     });
-    expect(inserts).toEqual([
-      {
-        table: "openclawState",
-        value: {
-          key: "openclaw-events",
-          nextSequence: 2,
-          updatedAt: expect.any(Number),
-        },
-      },
-      {
-        table: "openclawEvents",
-        value: {
-          type: "message_acknowledged",
-          sequence: 1,
-          createdAt: expect.any(Number),
-          threadId: "thread-active",
-          messageId: "message-existing",
-          payload: {
-            streamId: "cowtail:stream:duplicate-create",
-            dropped: true,
-            duplicate: true,
-            reason: "duplicate_idempotency_key",
-          },
-        },
-      },
-    ]);
+    expect(inserts).toEqual([]);
     expect(patches).toEqual([]);
   });
 
@@ -1222,23 +1198,14 @@ describe("OpenClaw Convex model helpers", () => {
 
     expect(result).toEqual({
       ok: true,
+      duplicate: true,
       threadId: "thread-active",
       actionId: "action-1",
       actionIds: [],
-      sequence: 1,
+      sequence: 8,
     });
     expect(patches).toEqual([]);
-    expect(inserts.at(-1)).toEqual({
-      table: "openclawEvents",
-      value: {
-        type: "message_acknowledged",
-        sequence: 1,
-        createdAt: expect.any(Number),
-        threadId: "thread-active",
-        actionId: "action-1",
-        payload: { dropped: true, duplicate: true, reason: "duplicate_idempotency_key" },
-      },
-    });
+    expect(inserts).toEqual([]);
   });
 
   test("updateMessageFromOpenClaw acknowledges duplicate idempotency keys without patching", async () => {
@@ -1295,28 +1262,14 @@ describe("OpenClaw Convex model helpers", () => {
 
     expect(result).toEqual({
       ok: true,
+      duplicate: true,
       threadId: "thread-active",
       messageId: "message-existing",
       actionIds: [],
-      sequence: 1,
+      sequence: 8,
     });
     expect(patches).toEqual([]);
-    expect(inserts.at(-1)).toEqual({
-      table: "openclawEvents",
-      value: {
-        type: "message_acknowledged",
-        sequence: 1,
-        createdAt: expect.any(Number),
-        threadId: "thread-active",
-        messageId: "message-existing",
-        payload: {
-          streamId: "cowtail:stream:duplicate-update",
-          dropped: true,
-          duplicate: true,
-          reason: "duplicate_idempotency_key",
-        },
-      },
-    });
+    expect(inserts).toEqual([]);
   });
 
   test("updateMessageFromOpenClaw rejects duplicate idempotency keys with mismatched stream IDs", async () => {
