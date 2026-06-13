@@ -1,6 +1,7 @@
 import {
   openclawRealtimeClientMessageSchema,
   type OpenClawEventEnvelope,
+  type OpenClawRealtimeAckPayload,
   type OpenClawMessageStreamSnapshotServerMessage,
   type OpenClawRealtimeAck,
   type OpenClawRealtimeError,
@@ -55,7 +56,7 @@ export function helloAcknowledged(client: RealtimeClient): OpenClawEventEnvelope
 export function ack(
   requestId: string,
   sequence?: number,
-  payload?: Record<string, unknown>,
+  payload?: OpenClawRealtimeAckPayload,
 ): OpenClawRealtimeAck {
   return {
     type: "ack",
@@ -300,7 +301,10 @@ export class OpenClawSessionController {
         try {
           const event = await this.#api.createIosThread(command);
           await this.#broadcastToOpenClawAndIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -311,7 +315,10 @@ export class OpenClawSessionController {
         try {
           const event = await this.#api.createIosReply(command);
           await this.#broadcastToOpenClawAndIos(event);
-          this.#send(connectionId, ack(command.requestId, event.sequence));
+          this.#send(
+            connectionId,
+            ack(command.requestId, event.sequence, ackPayloadForEvent(event)),
+          );
         } catch {
           this.#send(connectionId, realtimeError("command_failed", command.requestId));
         }
@@ -579,8 +586,8 @@ function isCommandAllowedForClient(client: RealtimeClient, commandType: string):
   );
 }
 
-function ackPayloadForEvent(event: OpenClawEventEnvelope): Record<string, unknown> | undefined {
-  const payload: Record<string, unknown> = {};
+function ackPayloadForEvent(event: OpenClawEventEnvelope): OpenClawRealtimeAckPayload | undefined {
+  const payload: OpenClawRealtimeAckPayload = {};
   if (event.threadId) {
     payload.threadId = event.threadId;
   }

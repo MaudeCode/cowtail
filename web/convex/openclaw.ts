@@ -284,10 +284,10 @@ async function acknowledgeDuplicateMessage(
   };
 }
 
-async function getDuplicateOpenClawMessageForSession(
+async function getDuplicateOpenClawMessageForTarget(
   ctx: MutationCtx,
   idempotencyKey: string,
-  sessionKey: string,
+  target: { sessionKey: string; threadId?: Id<"openclawThreads"> },
 ) {
   const message = await getMessageByIdempotencyKey(ctx, idempotencyKey);
   if (!message) {
@@ -299,8 +299,17 @@ async function getDuplicateOpenClawMessageForSession(
     );
   }
 
+  if (target.threadId !== undefined) {
+    if (message.threadId !== target.threadId) {
+      throw new Error(
+        `Idempotency key ${idempotencyKey} was already used for another command target`,
+      );
+    }
+    return message;
+  }
+
   const thread = await ctx.db.get(message.threadId);
-  if (!thread || thread.sessionKey !== sessionKey) {
+  if (!thread || thread.sessionKey !== target.sessionKey) {
     throw new Error(
       `Idempotency key ${idempotencyKey} was already used for another command target`,
     );
@@ -361,7 +370,7 @@ function buildCommandEventPayload({
   payload?: Record<string, unknown>;
   streamId?: string;
 }): Record<string, unknown> | undefined {
-  const eventPayload: Record<string, unknown> = { ...(payload ?? {}) };
+  const eventPayload: Record<string, unknown> = { ...payload };
   if (streamId !== undefined) {
     eventPayload.streamId = streamId;
   }
@@ -373,7 +382,7 @@ function buildAcknowledgementPayload(
   options: { duplicate?: true; reason: string },
 ): Record<string, unknown> {
   return {
-    ...(payload ?? {}),
+    ...payload,
     dropped: true,
     ...(options.duplicate === true ? { duplicate: true } : {}),
     reason: options.reason,
@@ -384,6 +393,7 @@ export const createThreadFromOpenClaw = mutation({
   args: {
     serviceToken: v.string(),
     sessionKey: v.string(),
+    threadId: v.optional(v.id("openclawThreads")),
     idempotencyKey: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
@@ -411,12 +421,18 @@ export const createThreadFromOpenClaw = mutation({
     const now = Date.now();
     const toolCalls = validateOpenClawToolCalls(args.toolCalls ?? []);
     const eventPayload = buildCommandEventPayload(args);
-    const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
+    const targetThread = args.threadId !== undefined ? await ctx.db.get(args.threadId) : null;
+    if (args.threadId !== undefined && !targetThread) {
+      throw new Error(`Thread not found: ${args.threadId}`);
+    }
+    const existingThread =
+      targetThread !== null ? targetThread : await getThreadBySessionKey(ctx, args.sessionKey);
     const receiptExpectation = {
       idempotencyKey: args.idempotencyKey,
       commandType: "openclaw_message",
       commandDigest: commandDigest({
         sessionKey: args.sessionKey,
+        ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
         title: args.title,
         text: args.text,
         authorLabel: args.authorLabel,
@@ -434,11 +450,10 @@ export const createThreadFromOpenClaw = mutation({
       return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt, eventPayload);
     }
 
-    const idempotentMessage = await getDuplicateOpenClawMessageForSession(
-      ctx,
-      args.idempotencyKey,
-      args.sessionKey,
-    );
+    const idempotentMessage = await getDuplicateOpenClawMessageForTarget(ctx, args.idempotencyKey, {
+      sessionKey: args.sessionKey,
+      ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
+    });
     if (idempotentMessage) {
       throw new Error(
         `Idempotency key ${args.idempotencyKey} was already used for another command target`,

@@ -168,6 +168,7 @@ export const openclawPluginMessageCommandSchema = requireOpenClawRenderableConte
     requestId: openclawRequestIdSchema,
     idempotencyKey: openclawIdempotencyKeySchema,
     sessionKey: nonEmptyStringSchema,
+    threadId: nonEmptyStringSchema.optional(),
     title: nonEmptyStringSchema.optional(),
     text: openclawMessageTextSchema,
     authorLabel: nonEmptyStringSchema.optional(),
@@ -292,11 +293,19 @@ export const openclawRealtimeClientMessageSchema = z.union([
   openclawActionResultCommandSchema,
 ]);
 
+export const openclawRealtimeAckPayloadSchema = z.object({
+  threadId: nonEmptyStringSchema.optional(),
+  messageId: nonEmptyStringSchema.optional(),
+  dropped: z.literal(true).optional(),
+  duplicate: z.literal(true).optional(),
+  reason: nonEmptyStringSchema.optional(),
+});
+
 export const openclawRealtimeAckSchema = z.object({
   type: z.literal("ack"),
   requestId: openclawRequestIdSchema,
   sequence: openclawSequenceSchema.optional(),
-  payload: jsonObjectSchema.optional(),
+  payload: openclawRealtimeAckPayloadSchema.optional(),
 });
 
 export const openclawRealtimeErrorSchema = z.object({
@@ -359,6 +368,14 @@ export const openclawEventReplayResponseSchema = z.object({
   events: z.array(openclawEventEnvelopeSchema),
 });
 
+export const openclawPushNotificationPayloadSchema = z.object({
+  kind: z.literal("openclaw"),
+  version: z.literal(1),
+  threadId: nonEmptyStringSchema,
+  messageId: nonEmptyStringSchema,
+  url: nonEmptyStringSchema.optional(),
+});
+
 export type OpenClawProtocolVersion = z.infer<typeof openclawProtocolVersionSchema>;
 export type OpenClawClientKind = z.infer<typeof openclawClientKindSchema>;
 export type OpenClawThreadStatus = z.infer<typeof openclawThreadStatusSchema>;
@@ -395,6 +412,7 @@ export type OpenClawIosDeleteThreadCommand = z.infer<typeof openclawIosDeleteThr
 export type OpenClawSessionBoundCommand = z.infer<typeof openclawSessionBoundCommandSchema>;
 export type OpenClawActionResultCommand = z.infer<typeof openclawActionResultCommandSchema>;
 export type OpenClawRealtimeAck = z.infer<typeof openclawRealtimeAckSchema>;
+export type OpenClawRealtimeAckPayload = z.infer<typeof openclawRealtimeAckPayloadSchema>;
 export type OpenClawRealtimeError = z.infer<typeof openclawRealtimeErrorSchema>;
 export type OpenClawRealtimeServerMessage = z.infer<typeof openclawRealtimeServerMessageSchema>;
 export type OpenClawSequence = z.infer<typeof openclawSequenceSchema>;
@@ -420,3 +438,4 @@ export type OpenClawMessageRecord = z.infer<typeof openclawMessageRecordSchema>;
 export type OpenClawActionRecord = z.infer<typeof openclawActionRecordSchema>;
 export type OpenClawEventEnvelope = z.infer<typeof openclawEventEnvelopeSchema>;
 export type OpenClawReplayQuery = z.infer<typeof openclawReplayQuerySchema>;
+export type OpenClawPushNotificationPayload = z.infer<typeof openclawPushNotificationPayloadSchema>;

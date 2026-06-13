@@ -110,6 +110,28 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
     this.iosThreads.push(command);
     return createEvent(3, "thread_created", {
       threadId: "thread-1",
+      messageId: "message-ios-thread",
+      thread: {
+        id: "thread-1",
+        status: "pending",
+        targetAgent: "default",
+        title: command.title ?? "Main",
+        unreadCount: 0,
+        createdAt: 100,
+        updatedAt: 100,
+        lastMessageAt: 100,
+      },
+      message: {
+        id: "message-ios-thread",
+        threadId: "thread-1",
+        direction: "user_to_openclaw",
+        text: command.text,
+        links: [],
+        toolCalls: [],
+        deliveryState: "sent",
+        createdAt: 100,
+        updatedAt: 100,
+      },
       payload: { text: command.text },
     });
   }
@@ -230,7 +252,7 @@ function withPersistedStreamId(
   return {
     ...event,
     payload: {
-      ...(event.payload ?? {}),
+      ...event.payload,
       streamId,
     },
   };
@@ -1154,10 +1176,7 @@ describe("OpenClawSessionController", () => {
 
     expect(api.validatedSessionIds).toEqual([]);
     expect(pushBridge.notifications).toEqual([
-      withPersistedStreamId(
-        api.openClawMessageEvent,
-        "cowtail:stream:request-expired-delivery",
-      ),
+      withPersistedStreamId(api.openClawMessageEvent, "cowtail:stream:request-expired-delivery"),
     ]);
     expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
@@ -1198,10 +1217,7 @@ describe("OpenClawSessionController", () => {
 
     expect(api.validatedSessionIds).toEqual(["session-1"]);
     expect(pushBridge.notifications).toEqual([
-      withPersistedStreamId(
-        api.openClawMessageEvent,
-        "cowtail:stream:request-revoked-delivery",
-      ),
+      withPersistedStreamId(api.openClawMessageEvent, "cowtail:stream:request-revoked-delivery"),
     ]);
     expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
@@ -1416,7 +1432,81 @@ describe("OpenClawSessionController", () => {
     expect(sent(pluginSocket)).toEqual([api.iosReplyEvent]);
     expect(sent(iosSocket)).toEqual([
       api.iosReplyEvent,
-      { type: "ack", requestId: "request-2", sequence: 9 },
+      {
+        type: "ack",
+        requestId: "request-2",
+        sequence: 9,
+        payload: { threadId: "thread-1", messageId: "message-ios" },
+      },
+    ]);
+  });
+
+  test("forwards ios_new_thread events with ack reconciliation payload", async () => {
+    const { api, controller } = createController();
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_new_thread",
+        requestId: "request-new-thread",
+        idempotencyKey: "ios:new-thread:request-new-thread",
+        title: "Deploy",
+        text: "Start check",
+      }),
+    );
+
+    expect(api.iosThreads).toEqual([
+      {
+        type: "ios_new_thread",
+        requestId: "request-new-thread",
+        idempotencyKey: "ios:new-thread:request-new-thread",
+        title: "Deploy",
+        text: "Start check",
+      },
+    ]);
+    expect(sent(pluginSocket)).toEqual([sent(iosSocket)[0]]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        sequence: 3,
+        type: "thread_created",
+        createdAt: 103,
+        threadId: "thread-1",
+        messageId: "message-ios-thread",
+        thread: {
+          id: "thread-1",
+          status: "pending",
+          targetAgent: "default",
+          title: "Deploy",
+          unreadCount: 0,
+          createdAt: 100,
+          updatedAt: 100,
+          lastMessageAt: 100,
+        },
+        message: {
+          id: "message-ios-thread",
+          threadId: "thread-1",
+          direction: "user_to_openclaw",
+          text: "Start check",
+          links: [],
+          toolCalls: [],
+          deliveryState: "sent",
+          createdAt: 100,
+          updatedAt: 100,
+        },
+        payload: { text: "Start check" },
+      },
+      {
+        type: "ack",
+        requestId: "request-new-thread",
+        sequence: 3,
+        payload: { threadId: "thread-1", messageId: "message-ios-thread" },
+      },
     ]);
   });
 
@@ -1468,7 +1558,12 @@ describe("OpenClawSessionController", () => {
     expect(sent(pluginSocket)).toEqual([]);
     expect(sent(iosSocket)).toEqual([
       api.iosReplyEvent,
-      { type: "ack", requestId: "request-archived-reply", sequence: 14 },
+      {
+        type: "ack",
+        requestId: "request-archived-reply",
+        sequence: 14,
+        payload: { threadId: "thread-archived", messageId: "message-archived" },
+      },
     ]);
   });
 

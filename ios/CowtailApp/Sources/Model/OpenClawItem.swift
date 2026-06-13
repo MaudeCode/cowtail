@@ -270,10 +270,46 @@ struct OpenClawEventEnvelope: Codable, Equatable, Sendable {
     }
 }
 
+struct OpenClawAckPayload: Codable, Equatable, Sendable {
+    let threadId: String?
+    let messageId: String?
+    let dropped: Bool?
+    let duplicate: Bool?
+    let reason: String?
+}
+
 struct OpenClawAck: Codable, Equatable, Sendable {
     let type: String
     let requestId: String
     let sequence: Int64?
+    let payload: OpenClawAckPayload?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case requestId
+        case sequence
+        case payload
+    }
+
+    init(
+        type: String,
+        requestId: String,
+        sequence: Int64? = nil,
+        payload: OpenClawAckPayload? = nil
+    ) {
+        self.type = type
+        self.requestId = requestId
+        self.sequence = sequence
+        self.payload = payload
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        requestId = try container.decode(String.self, forKey: .requestId)
+        sequence = try container.decodeIfPresent(Int64.self, forKey: .sequence)
+        payload = try container.decodeIfPresent(OpenClawAckPayload.self, forKey: .payload)
+    }
 }
 
 struct OpenClawRealtimeError: Codable, Equatable, Sendable {

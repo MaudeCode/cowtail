@@ -69,7 +69,13 @@ describe("CowtailHttpPushBridge", () => {
       userId: "owner-user-id",
       title: "OpenClaw: Deploy",
       body: "Approve the deploy?",
-      data: { kind: "openclaw", threadId: "thread-1", messageId: "message-1" },
+      data: {
+        kind: "openclaw",
+        version: 1,
+        threadId: "thread-1",
+        messageId: "message-1",
+        url: "/openclaw/threads/thread-1",
+      },
     });
     expect(result.ok).toBe(true);
   });
@@ -88,6 +94,43 @@ describe("CowtailHttpPushBridge", () => {
       ok: false,
       sent: 0,
       failed: 1,
+    });
+  });
+
+  test("encodes OpenClaw thread IDs in notification deep links", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      requests.push({ url, init });
+      return Response.json({
+        ok: true,
+        userId: "owner-user-id",
+        sent: 1,
+        failed: 0,
+        results: [],
+      });
+    };
+    const event = createMessageEvent();
+    event.threadId = "thread with spaces/and/slash";
+    event.messageId = "message-1";
+    event.thread = event.thread ? { ...event.thread, id: event.threadId } : event.thread;
+    event.message = event.message ? { ...event.message, threadId: event.threadId } : event.message;
+
+    const bridge = new CowtailHttpPushBridge({
+      httpBaseUrl: "https://cowtail.example.invalid",
+      bearerToken: "push-token",
+      ownerUserId: "owner-user-id",
+      fetchImpl,
+    });
+
+    const result = await bridge.sendOpenClawMessageNotification(event);
+
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(String(requests[0]?.init?.body)).data).toEqual({
+      kind: "openclaw",
+      version: 1,
+      threadId: "thread with spaces/and/slash",
+      messageId: "message-1",
+      url: "/openclaw/threads/thread%20with%20spaces%2Fand%2Fslash",
     });
   });
 
@@ -125,6 +168,34 @@ describe("CowtailHttpPushBridge", () => {
     });
     const event = createMessageEvent();
     delete (event.message as unknown as { text?: string }).text;
+
+    expect(await bridge.sendOpenClawMessageNotification(event)).toEqual({
+      ok: false,
+      sent: 0,
+      failed: 1,
+    });
+    expect(fetchCalls).toBe(0);
+  });
+
+  test("returns failure without calling fetch when message id is missing", async () => {
+    let fetchCalls = 0;
+    const bridge = new CowtailHttpPushBridge({
+      httpBaseUrl: "https://cowtail.example.invalid",
+      bearerToken: "push-token",
+      ownerUserId: "owner-user-id",
+      fetchImpl: async () => {
+        fetchCalls += 1;
+        return Response.json({
+          ok: true,
+          userId: "owner-user-id",
+          sent: 1,
+          failed: 0,
+          results: [],
+        });
+      },
+    });
+    const event = createMessageEvent();
+    delete (event as unknown as { messageId?: string }).messageId;
 
     expect(await bridge.sendOpenClawMessageNotification(event)).toEqual({
       ok: false,

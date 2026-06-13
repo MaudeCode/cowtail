@@ -629,6 +629,69 @@ describe("OpenClaw Convex model helpers", () => {
     });
   });
 
+  test("createThreadFromOpenClaw targets explicit thread IDs before session keys", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const activeThread = {
+      _id: "thread-direct",
+      sessionKey: "session-existing",
+      status: "active",
+      targetAgent: "default",
+      title: "Existing thread",
+      unreadCount: 2,
+      createdAt: 100,
+      updatedAt: 200,
+    };
+    const { ctx, inserts, patches, queryCalls } = createArchivedDropMutationCtx({
+      existingThread: activeThread,
+    });
+
+    const result = await convexHandler(createThreadFromOpenClaw)(ctx, {
+      serviceToken: "realtime-convex-token",
+      sessionKey: "session-openclaw-route",
+      threadId: "thread-direct",
+      idempotencyKey: "cowtail:reply:direct-thread",
+      streamId: "cowtail:stream:direct-thread",
+      text: "Direct reply",
+      toolCalls: [],
+      actions: [],
+    });
+
+    expect(result).toEqual({
+      threadId: "thread-direct",
+      messageId: "openclawMessages-id",
+      actionIds: [],
+      sequence: 1,
+    });
+    expect(queryCalls).not.toContain("openclawThreads");
+    expect(patches).toContainEqual({
+      id: "thread-direct",
+      value: {
+        status: "active",
+        unreadCount: 3,
+        updatedAt: expect.any(Number),
+        lastMessageAt: expect.any(Number),
+      },
+    });
+    expect(inserts).toContainEqual({
+      table: "openclawMessages",
+      value: expect.objectContaining({
+        threadId: "thread-direct",
+        idempotencyKey: "cowtail:reply:direct-thread",
+        text: "Direct reply",
+      }),
+    });
+    expect(inserts).toContainEqual({
+      table: "openclawIdempotencyReceipts",
+      value: expect.objectContaining({
+        idempotencyKey: "cowtail:reply:direct-thread",
+        commandType: "openclaw_message",
+        sessionKey: "session-openclaw-route",
+        threadId: "thread-direct",
+        messageId: "openclawMessages-id",
+      }),
+    });
+  });
+
   test("createThreadFromOpenClaw requires streamId in the Convex validator", () => {
     expectRequiredConvexArg(createThreadFromOpenClaw, "streamId");
   });

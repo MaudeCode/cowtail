@@ -22,6 +22,7 @@ function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): Resolve
 type SentMessage = {
   type: "openclaw_message";
   sessionKey: string;
+  threadId?: string;
   text: string;
   links: [];
   actions: [];
@@ -30,6 +31,7 @@ type SentMessage = {
 type SendResult = {
   requestId: string;
   sequence: number | undefined;
+  payload?: Record<string, unknown>;
 };
 
 function createClient(overrides?: {
@@ -50,8 +52,14 @@ function createClient(overrides?: {
 }
 
 describe("sendCowtailText", () => {
-  test("sends openclaw_message with a stable Cowtail session key", async () => {
-    const client = createClient();
+  test("sends openclaw_message with distinct thread and session fields", async () => {
+    const client = createClient({
+      sendOpenClawMessage: async () => ({
+        requestId: "request-17",
+        sequence: 17,
+        payload: { threadId: "thread_123", messageId: "message_123" },
+      }),
+    });
 
     const first = await sendCowtailText({
       account: createAccount(),
@@ -70,6 +78,7 @@ describe("sendCowtailText", () => {
       {
         type: "openclaw_message",
         sessionKey: "cowtail:thread_123",
+        threadId: "thread_123",
         text: "Hello world",
         links: [],
         actions: [],
@@ -77,6 +86,7 @@ describe("sendCowtailText", () => {
       {
         type: "openclaw_message",
         sessionKey: "cowtail:thread_123",
+        threadId: "thread_123",
         text: "Hello world",
         links: [],
         actions: [],
@@ -84,12 +94,12 @@ describe("sendCowtailText", () => {
     ]);
     expect(first).toEqual({
       channel: "cowtail",
-      messageId: "17",
+      messageId: "message_123",
       to: "cowtail:thread_123",
     });
     expect(second).toEqual({
       channel: "cowtail",
-      messageId: "17",
+      messageId: "message_123",
       to: "cowtail:thread_123",
     });
   });

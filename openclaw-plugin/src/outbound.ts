@@ -6,6 +6,7 @@ type CowtailOutboundClient = {
   sendOpenClawMessage(command: {
     type: "openclaw_message";
     sessionKey: string;
+    threadId?: string;
     text: string;
     links: [];
     actions: [];
@@ -26,12 +27,12 @@ function ensureNonBlankText(text: string): string {
   return text;
 }
 
-function resolveCowtailTarget(to: string): string {
+function resolveCowtailThreadId(to: string): string {
   const normalizedTarget = normalizeCowtailTarget(to);
   if (!normalizedTarget) {
     throw new Error("Cowtail target must not be blank");
   }
-  return buildCowtailTarget(normalizedTarget);
+  return normalizedTarget;
 }
 
 export async function sendCowtailText(params: {
@@ -42,11 +43,13 @@ export async function sendCowtailText(params: {
 }): Promise<CowtailOutboundResult> {
   const { client, to } = params;
   const text = ensureNonBlankText(params.text);
-  const target = resolveCowtailTarget(to);
+  const threadId = resolveCowtailThreadId(to);
+  const sessionKey = buildCowtailTarget(threadId);
 
   const result = await client.sendOpenClawMessage({
     type: "openclaw_message",
-    sessionKey: target,
+    sessionKey,
+    threadId,
     text,
     links: [],
     actions: [],
@@ -54,7 +57,10 @@ export async function sendCowtailText(params: {
 
   return {
     channel: "cowtail",
-    messageId: String(result.sequence ?? result.requestId),
-    to: target,
+    messageId:
+      typeof result.payload?.messageId === "string"
+        ? result.payload.messageId
+        : String(result.sequence ?? result.requestId),
+    to: buildCowtailTarget(threadId),
   };
 }

@@ -36,9 +36,12 @@ final class OpenClawStore: ObservableObject {
     private var retiredStreamIdsByThreadID: [String: Set<String>] = [:]
     private var lastSnapshotCursorByStreamID: [String: StreamSnapshotCursor] = [:]
     private var durableMessageIdsByStreamID: [String: String] = [:]
+    private var pendingOutgoingMessagesByRequestID: [String: PendingOutgoingMessage] = [:]
+    private var archivedThreadIDs: Set<String> = []
 
     private static let displayNameKey = "openclaw.displayName"
     private static let lastSeenSequenceKey = "openclaw.lastSeenSequence"
+    private static let localOutgoingMessageIDPrefix = "local:ios:reply:"
 
     init(
         api: any OpenClawAPIClient = OpenClawAPI(),
@@ -111,7 +114,7 @@ final class OpenClawStore: ObservableObject {
 
         do {
             let messages = try await api.fetchMessages(threadId: threadId, sessionToken: sessionToken)
-            messagesByThreadID[threadId] = sortedMessages(messages)
+            messagesByThreadID[threadId] = mergeFetchedMessages(messages, for: threadId)
             errorMessage = nil
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
@@ -173,27 +176,70 @@ final class OpenClawStore: ObservableObject {
 
     func sendReply(threadId: String, text: String) async throws {
         let requestId = UUID().uuidString
-        try await realtime.send(.reply(.init(
+        let pending = appendPendingOutgoingMessage(
             requestId: requestId,
-            idempotencyKey: "ios:reply:\(requestId)",
             threadId: threadId,
             text: text
-        )))
+        )
+
+        do {
+            let ack = try await realtime.send(.reply(.init(
+                requestId: requestId,
+                idempotencyKey: "ios:reply:\(requestId)",
+                threadId: threadId,
+                text: text
+            )))
+            if let sequence = ack.sequence {
+                advanceCursor(to: sequence)
+            }
+            if let messageId = ack.payload?.messageId {
+                finalizePendingOutgoingMessage(
+                    requestId: requestId,
+                    serverMessageId: messageId,
+                    deliveryState: .sent
+                )
+            }
+        } catch {
+            failPendingOutgoingMessage(requestId: requestId, fallback: pending)
+            throw error
+        }
     }
 
-    func createThread(title: String?, text: String) async throws {
+    @discardableResult
+    func retryPendingMessage(id messageId: String) async -> Bool {
+        guard let message = messagesByThreadID.values.flatMap({ $0 }).first(where: { $0.id == messageId }),
+              message.direction == .userToOpenClaw else {
+            return false
+        }
+
+        messagesByThreadID[message.threadId]?.removeAll { $0.id == messageId }
+        do {
+            try await sendReply(threadId: message.threadId, text: message.text)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func createThread(title: String?, text: String) async throws -> String? {
         let requestId = UUID().uuidString
-        try await realtime.send(.newThread(.init(
+        let ack = try await realtime.send(.newThread(.init(
             requestId: requestId,
             idempotencyKey: "ios:new-thread:\(requestId)",
             title: title,
             text: text
         )))
+
+        if let sequence = ack.sequence {
+            advanceCursor(to: sequence)
+        }
+        return ack.payload?.threadId
     }
 
     func submitAction(actionId: String, payload: [String: JSONValue]) async throws {
         let requestId = UUID().uuidString
-        try await realtime.send(.action(.init(
+        _ = try await realtime.send(.action(.init(
             requestId: requestId,
             idempotencyKey: "ios:action:\(actionId)",
             actionId: actionId,
@@ -203,7 +249,7 @@ final class OpenClawStore: ObservableObject {
 
     func markThreadRead(threadId: String) async throws {
         let requestId = UUID().uuidString
-        try await realtime.send(.markThreadRead(.init(
+        _ = try await realtime.send(.markThreadRead(.init(
             requestId: requestId,
             idempotencyKey: "ios:mark-read:\(requestId)",
             threadId: threadId
@@ -220,7 +266,7 @@ final class OpenClawStore: ObservableObject {
 
     func renameThread(threadId: String, title: String) async throws {
         let requestId = UUID().uuidString
-        try await realtime.send(.renameThread(.init(
+        _ = try await realtime.send(.renameThread(.init(
             requestId: requestId,
             idempotencyKey: "ios:rename:\(requestId)",
             threadId: threadId,
@@ -230,7 +276,7 @@ final class OpenClawStore: ObservableObject {
 
     func deleteThread(threadId: String) async throws {
         let requestId = UUID().uuidString
-        try await realtime.send(.deleteThread(.init(
+        _ = try await realtime.send(.deleteThread(.init(
             requestId: requestId,
             idempotencyKey: "ios:delete:\(requestId)",
             threadId: threadId
@@ -376,6 +422,10 @@ final class OpenClawStore: ObservableObject {
         if thread.status == .archived {
             threads.removeAll { $0.id == thread.id }
             messagesByThreadID.removeValue(forKey: thread.id)
+            pendingOutgoingMessagesByRequestID = pendingOutgoingMessagesByRequestID.filter { _, pending in
+                pending.threadId != thread.id
+            }
+            archivedThreadIDs.insert(thread.id)
             if let liveStreamId = liveStreamIdsByThreadID.removeValue(forKey: thread.id) {
                 lastSnapshotCursorByStreamID.removeValue(forKey: liveStreamId)
                 durableMessageIdsByStreamID.removeValue(forKey: liveStreamId)
@@ -384,6 +434,7 @@ final class OpenClawStore: ObservableObject {
             return
         }
 
+        archivedThreadIDs.remove(thread.id)
         if let index = threads.firstIndex(where: { $0.id == thread.id }) {
             threads[index] = thread
         } else {
@@ -397,6 +448,8 @@ final class OpenClawStore: ObservableObject {
         actions: [OpenClawAction],
         finalizedStreamId: String?
     ) {
+        reconcilePendingOutgoingMessage(with: message)
+
         if message.direction == .openClawToUser {
             if let finalizedStreamId {
                 if message.deliveryState.isTerminal {
@@ -424,6 +477,107 @@ final class OpenClawStore: ObservableObject {
             messages.append(messageWithActions)
         }
         messagesByThreadID[message.threadId] = sortedMessages(messages)
+    }
+
+    private func appendPendingOutgoingMessage(
+        requestId: String,
+        threadId: String,
+        text: String
+    ) -> PendingOutgoingMessage {
+        let now = Int64(Date().timeIntervalSince1970 * 1_000)
+        let pending = PendingOutgoingMessage(
+            requestId: requestId,
+            localMessageId: Self.localOutgoingMessageID(for: requestId),
+            threadId: threadId,
+            text: text,
+            createdAt: now
+        )
+        pendingOutgoingMessagesByRequestID[requestId] = pending
+
+        let message = OpenClawMessage(
+            id: pending.localMessageId,
+            threadId: threadId,
+            direction: .userToOpenClaw,
+            authorLabel: "You",
+            text: text,
+            links: [],
+            deliveryState: .pending,
+            createdAt: now,
+            updatedAt: now
+        )
+        upsertMessage(message, actions: [], finalizedStreamId: nil)
+        return pending
+    }
+
+    private func finalizePendingOutgoingMessage(
+        requestId: String,
+        serverMessageId: String,
+        deliveryState: OpenClawDeliveryState
+    ) {
+        guard let pending = pendingOutgoingMessagesByRequestID.removeValue(forKey: requestId) else {
+            return
+        }
+        guard !archivedThreadIDs.contains(pending.threadId) else {
+            return
+        }
+
+        messagesByThreadID[pending.threadId]?.removeAll { $0.id == pending.localMessageId }
+        let message = OpenClawMessage(
+            id: serverMessageId,
+            threadId: pending.threadId,
+            direction: .userToOpenClaw,
+            authorLabel: "You",
+            text: pending.text,
+            links: [],
+            deliveryState: deliveryState,
+            createdAt: pending.createdAt,
+            updatedAt: Int64(Date().timeIntervalSince1970 * 1_000)
+        )
+        upsertMessage(message, actions: [], finalizedStreamId: nil)
+    }
+
+    private func failPendingOutgoingMessage(requestId: String, fallback: PendingOutgoingMessage) {
+        let pending = pendingOutgoingMessagesByRequestID.removeValue(forKey: requestId) ?? fallback
+        guard !archivedThreadIDs.contains(pending.threadId) else {
+            return
+        }
+
+        messagesByThreadID[pending.threadId]?.removeAll { $0.id == pending.localMessageId }
+        let message = OpenClawMessage(
+            id: pending.localMessageId,
+            threadId: pending.threadId,
+            direction: .userToOpenClaw,
+            authorLabel: "You",
+            text: pending.text,
+            links: [],
+            deliveryState: .failed,
+            createdAt: pending.createdAt,
+            updatedAt: Int64(Date().timeIntervalSince1970 * 1_000)
+        )
+        upsertMessage(message, actions: [], finalizedStreamId: nil)
+    }
+
+    private func reconcilePendingOutgoingMessage(with message: OpenClawMessage) {
+        guard message.direction == .userToOpenClaw, message.deliveryState == .sent else { return }
+
+        guard let match = pendingOutgoingMessagesByRequestID
+            .first(where: { _, pending in
+                pending.threadId == message.threadId && pending.text == message.text
+            }) else {
+            if let localIndex = messagesByThreadID[message.threadId]?.firstIndex(where: {
+                Self.isLocalOutgoingMessageID($0.id)
+                    && $0.direction == .userToOpenClaw
+                    && $0.deliveryState == .pending
+                    && $0.text == message.text
+            }) {
+                messagesByThreadID[message.threadId]?.remove(at: localIndex)
+            }
+            return
+        }
+
+        if let pending = pendingOutgoingMessagesByRequestID.removeValue(forKey: match.key) {
+            messagesByThreadID[pending.threadId]?.removeAll { $0.id == pending.localMessageId }
+        }
     }
 
     private func upsertAction(_ action: OpenClawAction) {
@@ -500,6 +654,29 @@ final class OpenClawStore: ObservableObject {
     private func sortedMessages(_ messages: [OpenClawMessageWithActions]) -> [OpenClawMessageWithActions] {
         messages.sorted { $0.createdAt < $1.createdAt }
     }
+
+    private func mergeFetchedMessages(
+        _ fetchedMessages: [OpenClawMessageWithActions],
+        for threadId: String
+    ) -> [OpenClawMessageWithActions] {
+        var merged = fetchedMessages
+        let fetchedIDs = Set(fetchedMessages.map(\.id))
+        let currentMessages = messagesByThreadID[threadId] ?? []
+
+        for message in currentMessages where !fetchedIDs.contains(message.id) {
+            merged.append(message)
+        }
+
+        return sortedMessages(merged)
+    }
+
+    private static func localOutgoingMessageID(for requestId: String) -> String {
+        "\(localOutgoingMessageIDPrefix)\(requestId)"
+    }
+
+    private static func isLocalOutgoingMessageID(_ messageId: String) -> Bool {
+        messageId.hasPrefix(localOutgoingMessageIDPrefix)
+    }
 }
 
 private extension OpenClawMessageWithActions {
@@ -554,4 +731,12 @@ private struct StreamSnapshotCursor {
         }
         return snapshotSequence < other.snapshotSequence
     }
+}
+
+private struct PendingOutgoingMessage {
+    let requestId: String
+    let localMessageId: String
+    let threadId: String
+    let text: String
+    let createdAt: Int64
 }

@@ -20,6 +20,7 @@ struct OpenClawThreadListView: View {
         .sheet(isPresented: $isShowingNewThread) {
             OpenClawNewThreadView()
                 .environmentObject(store)
+                .environmentObject(universalLinkRouter)
         }
         .sheet(item: $renameTarget) { thread in
             OpenClawRenameThreadView(thread: thread)

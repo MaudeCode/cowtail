@@ -10,6 +10,7 @@ import {
   openclawMessageWithActionsRecordSchema,
   openclawMessageWithActionsListResponseSchema,
   openclawMessageRecordSchema,
+  openclawPushNotificationPayloadSchema,
   openclawReplayQuerySchema,
   openclawRealtimeClientMessageSchema,
   openclawRealtimeServerMessageSchema,
@@ -171,12 +172,40 @@ describe("openclaw protocol schemas", () => {
     expect(negativeSequence.success).toBe(false);
   });
 
+  test("parses versioned OpenClaw push notification payloads", () => {
+    expect(
+      openclawPushNotificationPayloadSchema.parse({
+        kind: "openclaw",
+        version: 1,
+        threadId: "thread-1",
+        messageId: "message-1",
+        url: "/openclaw/threads/thread-1",
+      }),
+    ).toEqual({
+      kind: "openclaw",
+      version: 1,
+      threadId: "thread-1",
+      messageId: "message-1",
+      url: "/openclaw/threads/thread-1",
+    });
+
+    expect(
+      openclawPushNotificationPayloadSchema.safeParse({
+        kind: "openclaw",
+        version: 2,
+        threadId: "thread-1",
+        messageId: "message-1",
+      }).success,
+    ).toBe(false);
+  });
+
   test("parses realtime OpenClaw plugin message command", () => {
     const parsed = openclawRealtimeClientMessageSchema.parse({
       type: "openclaw_message",
       requestId: "request-1",
       idempotencyKey: "cowtail:reply:message-1",
       sessionKey: "session-1",
+      threadId: "thread-1",
       title: "Deploy approval",
       text: "Approve production deploy?",
       authorLabel: "OpenClaw",
@@ -197,6 +226,7 @@ describe("openclaw protocol schemas", () => {
 
     expect(parsed.type).toBe("openclaw_message");
     expect(parsed.idempotencyKey).toBe("cowtail:reply:message-1");
+    expect(parsed.threadId).toBe("thread-1");
     expect(parsed.streamId).toBe("cowtail:stream:message-1");
     expect(parsed.actions).toEqual([
       {
@@ -205,6 +235,18 @@ describe("openclaw protocol schemas", () => {
         payload: { decision: "approve" },
       },
     ]);
+
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message",
+        requestId: "request-blank-thread",
+        idempotencyKey: "cowtail:reply:blank-thread",
+        sessionKey: "session-1",
+        threadId: "",
+        text: "No blank thread ids",
+        streamId: "cowtail:stream:blank-thread",
+      }).success,
+    ).toBe(false);
 
     expect(
       openclawRealtimeClientMessageSchema.parse({

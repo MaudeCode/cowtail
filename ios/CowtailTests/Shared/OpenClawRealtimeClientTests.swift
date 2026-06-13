@@ -47,4 +47,29 @@ final class OpenClawRealtimeClientTests: XCTestCase {
         XCTAssertEqual(event.type, "hello_acknowledged")
         XCTAssertEqual(event.sequence, 7)
     }
+
+    func testDecodeServerMessageDataParsesAckPayload() async throws {
+        let json = """
+        {
+          "type": "ack",
+          "requestId": "request-1",
+          "sequence": 12,
+          "payload": {
+            "threadId": "thread-1",
+            "messageId": "message-1"
+          }
+        }
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+
+        let message = try await OpenClawRealtimeClient.decodeServerMessageData(data)
+
+        guard case .ack(let ack) = message else {
+            return XCTFail("Expected ack")
+        }
+        XCTAssertEqual(ack.requestId, "request-1")
+        XCTAssertEqual(ack.sequence, 12)
+        XCTAssertEqual(ack.payload?.threadId, "thread-1")
+        XCTAssertEqual(ack.payload?.messageId, "message-1")
+    }
 }

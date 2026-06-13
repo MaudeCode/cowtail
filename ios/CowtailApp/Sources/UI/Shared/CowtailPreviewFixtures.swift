@@ -509,5 +509,7 @@ private final class PreviewOpenClawRealtime: OpenClawRealtimeConnecting {
 
     func stop() {}
 
-    func send(_ command: OpenClawClientCommand) async throws {}
+    func send(_ command: OpenClawClientCommand) async throws -> OpenClawAck {
+        OpenClawAck(type: "ack", requestId: command.requestId)
+    }
 }

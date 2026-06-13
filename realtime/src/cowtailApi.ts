@@ -199,18 +199,19 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
               idempotencyKey: command.idempotencyKey,
               text: command.text,
             },
-            "title",
-            command.title,
+            "threadId",
+            command.threadId as never,
           ),
-          "authorLabel",
-          command.authorLabel,
+          "title",
+          command.title,
         ),
-        "links",
-        command.links,
+        "authorLabel",
+        command.authorLabel,
       ),
-      "toolCalls",
-      command.toolCalls,
+      "links",
+      command.links,
     );
+    addDefined(args, "toolCalls", command.toolCalls);
     addDefined(args, "actions", command.actions);
     addDefined(args, "deliveryState", command.deliveryState);
     addDefined(args, "streamId", command.streamId);

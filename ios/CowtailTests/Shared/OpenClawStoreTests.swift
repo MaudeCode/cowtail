@@ -117,6 +117,262 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(action.idempotencyKey, "ios:action:action-1")
     }
 
+    func testSendReplyCreatesOptimisticUserMessageAndFinalizesFromAck() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        try await store.sendReply(threadId: "thread-1", text: "Check rollout")
+
+        XCTAssertEqual(realtime.sentCommands.count, 1)
+        guard case .reply(let reply) = realtime.sentCommands[0] else {
+            return XCTFail("Expected reply command")
+        }
+        XCTAssertEqual(reply.threadId, "thread-1")
+        XCTAssertEqual(reply.text, "Check rollout")
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.map(\.text), ["Check rollout"])
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.direction, .userToOpenClaw)
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.deliveryState, .sent)
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.id, "message-1")
+        XCTAssertEqual(store.lastSeenSequence, 99)
+    }
+
+    func testSendReplyKeepsFailedOptimisticMessageWhenCommandFails() async {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        realtime.sendError = OpenClawRealtimeClientError.commandRejected("command_failed")
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        do {
+            try await store.sendReply(threadId: "thread-1", text: "Check rollout")
+            XCTFail("Expected send failure")
+        } catch {
+            XCTAssertEqual(store.messagesByThreadID["thread-1"]?.map(\.text), ["Check rollout"])
+            XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.direction, .userToOpenClaw)
+            XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.deliveryState, .failed)
+        }
+    }
+
+    func testRetryPendingMessageResendsFailedReply() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        realtime.sendError = OpenClawRealtimeClientError.commandRejected("command_failed")
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        do {
+            try await store.sendReply(threadId: "thread-1", text: "Check rollout")
+            XCTFail("Expected send failure")
+        } catch {}
+
+        let failedMessage = try XCTUnwrap(store.messagesByThreadID["thread-1"]?.first)
+        XCTAssertEqual(failedMessage.deliveryState, .failed)
+
+        realtime.sendError = nil
+        let retried = await store.retryPendingMessage(id: failedMessage.id)
+
+        XCTAssertTrue(retried)
+        XCTAssertEqual(realtime.sentCommands.count, 1)
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.map(\.id), ["message-1"])
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.deliveryState, .sent)
+    }
+
+    func testReplyAckAfterArchiveDoesNotRecreateDeletedThreadMessages() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        try store.apply(OpenClawEventEnvelope(
+            sequence: 1,
+            type: "message_created",
+            createdAt: 1777128000000,
+            threadId: "thread-1",
+            messageId: "message-1",
+            thread: OpenClawFixtures.thread,
+            message: OpenClawFixtures.message
+        ))
+
+        realtime.onSend = { _ in
+            let archivedThread = OpenClawThread(
+                id: "thread-1",
+                sessionKey: "cowtail:thread-1",
+                status: .archived,
+                targetAgent: "default",
+                title: "Deploy check",
+                unreadCount: 0,
+                createdAt: 1777127000000,
+                updatedAt: 1777129000000,
+                lastMessageAt: 1777128000000
+            )
+            try? store.apply(OpenClawEventEnvelope(
+                sequence: 2,
+                type: "thread_updated",
+                createdAt: 1777129000000,
+                threadId: "thread-1",
+                thread: archivedThread
+            ))
+        }
+
+        try await store.sendReply(threadId: "thread-1", text: "Check rollout")
+
+        XCTAssertTrue(store.threads.isEmpty)
+        XCTAssertNil(store.messagesByThreadID["thread-1"])
+    }
+
+    func testServerEchoReconcilesOnlyOneDuplicateTextPendingReply() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        let first = OpenClawMessage(
+            id: "local:ios:reply:first",
+            threadId: "thread-1",
+            direction: .userToOpenClaw,
+            authorLabel: "You",
+            text: "Again",
+            links: [],
+            deliveryState: .pending,
+            createdAt: 1,
+            updatedAt: 1
+        )
+        let second = OpenClawMessage(
+            id: "local:ios:reply:second",
+            threadId: "thread-1",
+            direction: .userToOpenClaw,
+            authorLabel: "You",
+            text: "Again",
+            links: [],
+            deliveryState: .pending,
+            createdAt: 2,
+            updatedAt: 2
+        )
+
+        try store.apply(OpenClawEventEnvelope(
+            sequence: 1,
+            type: "message_created",
+            createdAt: 1,
+            threadId: "thread-1",
+            messageId: first.id,
+            thread: OpenClawFixtures.thread,
+            message: first
+        ))
+        try store.apply(OpenClawEventEnvelope(
+            sequence: 2,
+            type: "message_created",
+            createdAt: 2,
+            threadId: "thread-1",
+            messageId: second.id,
+            message: second
+        ))
+
+        let serverEcho = OpenClawMessage(
+            id: "message-server-1",
+            threadId: "thread-1",
+            direction: .userToOpenClaw,
+            authorLabel: "You",
+            text: "Again",
+            links: [],
+            deliveryState: .sent,
+            createdAt: 3,
+            updatedAt: 3
+        )
+
+        try store.apply(OpenClawEventEnvelope(
+            sequence: 3,
+            type: "message_created",
+            createdAt: 3,
+            threadId: "thread-1",
+            messageId: serverEcho.id,
+            message: serverEcho
+        ))
+
+        let messages = store.messagesByThreadID["thread-1"] ?? []
+        XCTAssertTrue(messages.contains { $0.id == "message-server-1" })
+        XCTAssertEqual(messages.filter { $0.text == "Again" && $0.deliveryState == .pending }.count, 1)
+    }
+
+    func testCreateThreadReturnsAckThreadID() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let realtime = FakeOpenClawRealtime()
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: realtime,
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        let threadID = try await store.createThread(title: "Deploy", text: "Check rollout")
+
+        XCTAssertEqual(threadID, "thread-1")
+        XCTAssertEqual(store.lastSeenSequence, 99)
+    }
+
+    func testLoadMessagesPreservesRealtimeMessagesWhenFetchLags() async throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        AppSessionManager.shared.seedForUITesting(
+            sessionState: .ready,
+            token: "session-token",
+            userID: "user-1",
+            expiresAt: Date(timeIntervalSinceNow: 3_600),
+            lastError: nil
+        )
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+        let realtimeMessage = OpenClawMessage(
+            id: "message-live-1",
+            threadId: "thread-1",
+            direction: .userToOpenClaw,
+            authorLabel: "You",
+            text: "Start from iOS",
+            links: [],
+            deliveryState: .sent,
+            createdAt: 1777128000000,
+            updatedAt: 1777128000000
+        )
+
+        try store.apply(OpenClawEventEnvelope(
+            sequence: 1,
+            type: "message_created",
+            createdAt: 1777128000000,
+            threadId: "thread-1",
+            messageId: realtimeMessage.id,
+            thread: OpenClawFixtures.thread,
+            message: realtimeMessage
+        ))
+
+        await store.loadMessages(threadId: "thread-1")
+
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.map(\.id), ["message-live-1"])
+        XCTAssertEqual(store.messagesByThreadID["thread-1"]?.first?.text, "Start from iOS")
+    }
+
     func testMarkThreadReadIfUnreadSendsCommandForUnreadThread() async throws {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let realtime = FakeOpenClawRealtime()
@@ -1481,6 +1737,8 @@ private final class FakeOpenClawRealtime: OpenClawRealtimeConnecting {
     private(set) var stopCount = 0
     private(set) var lastSessionToken: String?
     private(set) var lastSeenSequence: Int64?
+    var sendError: Error?
+    var onSend: ((OpenClawClientCommand) -> Void)?
     private var onConnectionStateChange: (@MainActor (OpenClawRealtimeTransportState) -> Void)?
     private var onMessage: (@MainActor (OpenClawServerMessage) -> Void)?
 
@@ -1510,8 +1768,25 @@ private final class FakeOpenClawRealtime: OpenClawRealtimeConnecting {
 
     private(set) var sentCommands: [OpenClawClientCommand] = []
 
-    func send(_ command: OpenClawClientCommand) async throws {
+    func send(_ command: OpenClawClientCommand) async throws -> OpenClawAck {
+        if let sendError {
+            throw sendError
+        }
+
         sentCommands.append(command)
+        onSend?(command)
+        return OpenClawAck(
+            type: "ack",
+            requestId: command.requestId,
+            sequence: 99,
+            payload: OpenClawAckPayload(
+                threadId: "thread-1",
+                messageId: "message-1",
+                dropped: nil,
+                duplicate: nil,
+                reason: nil
+            )
+        )
     }
 
     func emit(_ state: OpenClawRealtimeTransportState) {
