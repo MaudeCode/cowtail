@@ -408,59 +408,7 @@ enum CowtailPreviewFixtures {
         _ message: OpenClawMessage,
         actions: [OpenClawAction]
     ) -> OpenClawMessageWithActions {
-        let payload = OpenClawPreviewMessagePayload(message: message, actions: actions)
-        guard let data = try? JSONEncoder().encode(payload),
-              let messageWithActions = try? JSONDecoder().decode(OpenClawMessageWithActions.self, from: data) else {
-            return fallbackOpenClawMessageWithActions
-        }
-
-        return messageWithActions
-    }
-
-    private static var fallbackOpenClawMessageWithActions: OpenClawMessageWithActions {
-        let data = Data("""
-        {
-          "id": "fallback-message",
-          "threadId": "preview-thread",
-          "direction": "openclaw_to_user",
-          "authorLabel": "OpenClaw",
-          "text": "Preview message",
-          "links": [],
-          "deliveryState": "sent",
-          "createdAt": 1775000000000,
-          "updatedAt": 1775000000000,
-          "actions": []
-        }
-        """.utf8)
-        return try! JSONDecoder().decode(OpenClawMessageWithActions.self, from: data)
-    }
-}
-
-private struct OpenClawPreviewMessagePayload: Encodable {
-    let id: String
-    let threadId: String
-    let direction: OpenClawMessageDirection
-    let authorLabel: String?
-    let text: String
-    let links: [OpenClawLink]
-    let toolCalls: [OpenClawToolCall]
-    let deliveryState: OpenClawDeliveryState
-    let createdAt: Int64
-    let updatedAt: Int64
-    let actions: [OpenClawAction]
-
-    init(message: OpenClawMessage, actions: [OpenClawAction]) {
-        id = message.id
-        threadId = message.threadId
-        direction = message.direction
-        authorLabel = message.authorLabel
-        text = message.text
-        links = message.links
-        toolCalls = message.toolCalls
-        deliveryState = message.deliveryState
-        createdAt = message.createdAt
-        updatedAt = message.updatedAt
-        self.actions = actions
+        OpenClawMessageWithActions(message: message, actions: actions)
     }
 }
 
@@ -509,5 +457,7 @@ private final class PreviewOpenClawRealtime: OpenClawRealtimeConnecting {
 
     func stop() {}
 
-    func send(_ command: OpenClawClientCommand) async throws {}
+    func send(_ command: OpenClawClientCommand) async throws -> OpenClawAck {
+        OpenClawAck(type: "ack", requestId: command.requestId)
+    }
 }

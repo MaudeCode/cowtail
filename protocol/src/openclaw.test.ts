@@ -10,12 +10,14 @@ import {
   openclawMessageWithActionsRecordSchema,
   openclawMessageWithActionsListResponseSchema,
   openclawMessageRecordSchema,
+  openclawPushNotificationPayloadSchema,
   openclawReplayQuerySchema,
   openclawRealtimeClientMessageSchema,
   openclawRealtimeServerMessageSchema,
   openclawThreadRecordSchema,
   openclawToolCallRecordSchema,
 } from "./openclaw.js";
+import { pushRegisterRequestSchema, pushResultSchema } from "./push.js";
 
 describe("openclaw protocol schemas", () => {
   test("accepts plugin hello payload", () => {
@@ -171,15 +173,45 @@ describe("openclaw protocol schemas", () => {
     expect(negativeSequence.success).toBe(false);
   });
 
+  test("parses versioned OpenClaw push notification payloads", () => {
+    expect(
+      openclawPushNotificationPayloadSchema.parse({
+        kind: "openclaw",
+        version: 1,
+        threadId: "thread-1",
+        messageId: "message-1",
+        url: "/openclaw/threads/thread-1",
+      }),
+    ).toEqual({
+      kind: "openclaw",
+      version: 1,
+      threadId: "thread-1",
+      messageId: "message-1",
+      url: "/openclaw/threads/thread-1",
+    });
+
+    expect(
+      openclawPushNotificationPayloadSchema.safeParse({
+        kind: "openclaw",
+        version: 2,
+        threadId: "thread-1",
+        messageId: "message-1",
+      }).success,
+    ).toBe(false);
+  });
+
   test("parses realtime OpenClaw plugin message command", () => {
     const parsed = openclawRealtimeClientMessageSchema.parse({
       type: "openclaw_message",
       requestId: "request-1",
       idempotencyKey: "cowtail:reply:message-1",
       sessionKey: "session-1",
+      threadId: "thread-1",
+      threadHint: "openclaw-target-1",
       title: "Deploy approval",
       text: "Approve production deploy?",
       authorLabel: "OpenClaw",
+      streamId: "cowtail:stream:message-1",
       links: [{ label: "Run", url: "https://cowtail.example.invalid/runs/1" }],
       actions: [
         {
@@ -196,6 +228,9 @@ describe("openclaw protocol schemas", () => {
 
     expect(parsed.type).toBe("openclaw_message");
     expect(parsed.idempotencyKey).toBe("cowtail:reply:message-1");
+    expect(parsed.threadId).toBe("thread-1");
+    expect(parsed.threadHint).toBe("openclaw-target-1");
+    expect(parsed.streamId).toBe("cowtail:stream:message-1");
     expect(parsed.actions).toEqual([
       {
         label: "Approve",
@@ -205,12 +240,25 @@ describe("openclaw protocol schemas", () => {
     ]);
 
     expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message",
+        requestId: "request-blank-thread",
+        idempotencyKey: "cowtail:reply:blank-thread",
+        sessionKey: "session-1",
+        threadId: "",
+        text: "No blank thread ids",
+        streamId: "cowtail:stream:blank-thread",
+      }).success,
+    ).toBe(false);
+
+    expect(
       openclawRealtimeClientMessageSchema.parse({
         type: "openclaw_message_update",
         requestId: "request-1b",
         idempotencyKey: "cowtail:update:message-1:sent",
         messageId: "message-1",
         text: "Streaming reply",
+        streamId: "cowtail:stream:message-1",
         links: [],
         deliveryState: "pending",
       }),
@@ -220,6 +268,7 @@ describe("openclaw protocol schemas", () => {
       idempotencyKey: "cowtail:update:message-1:sent",
       messageId: "message-1",
       text: "Streaming reply",
+      streamId: "cowtail:stream:message-1",
       links: [],
       deliveryState: "pending",
     });
@@ -229,6 +278,7 @@ describe("openclaw protocol schemas", () => {
         type: "openclaw_message",
         requestId: "request-tool",
         idempotencyKey: "cowtail:reply:message-tool",
+        streamId: "cowtail:stream:message-tool",
         sessionKey: "session-1",
         text: "",
         toolCalls: [
@@ -243,6 +293,7 @@ describe("openclaw protocol schemas", () => {
       type: "openclaw_message",
       requestId: "request-tool",
       idempotencyKey: "cowtail:reply:message-tool",
+      streamId: "cowtail:stream:message-tool",
       sessionKey: "session-1",
       text: "",
       links: [],
@@ -275,6 +326,28 @@ describe("openclaw protocol schemas", () => {
     ).toBe(false);
   });
 
+  test("rejects realtime OpenClaw plugin messages missing streamId", () => {
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message",
+        requestId: "request-missing-stream",
+        idempotencyKey: "cowtail:reply:missing-stream",
+        sessionKey: "session-1",
+        text: "Nonblank message content",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message_update",
+        requestId: "request-missing-update-stream",
+        idempotencyKey: "cowtail:update:missing-stream",
+        messageId: "message-1",
+        text: "Nonblank update content",
+      }).success,
+    ).toBe(false);
+  });
+
   test("parses realtime-only OpenClaw stream snapshot commands and server messages", () => {
     const command = openclawRealtimeClientMessageSchema.parse({
       type: "openclaw_message_stream_snapshot",
@@ -284,6 +357,7 @@ describe("openclaw protocol schemas", () => {
       threadId: "thread-1",
       text: "Hello from the live stream",
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -297,6 +371,7 @@ describe("openclaw protocol schemas", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -309,6 +384,7 @@ describe("openclaw protocol schemas", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -321,8 +397,36 @@ describe("openclaw protocol schemas", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
+  });
+
+  test("rejects OpenClaw stream snapshots missing snapshotSequence", () => {
+    expect(
+      openclawRealtimeClientMessageSchema.safeParse({
+        type: "openclaw_message_stream_snapshot",
+        requestId: "stream-request-missing-sequence",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Hello from the live stream",
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      openclawRealtimeServerMessageSchema.safeParse({
+        type: "openclaw_message_stream_snapshot",
+        streamId: "stream-message-1",
+        sessionKey: "session-1",
+        threadId: "thread-1",
+        text: "Hello from the live stream",
+        isFinal: false,
+        updatedAt: 1777939200000,
+      }).success,
+    ).toBe(false);
   });
 
   test("parses tool-call-only OpenClaw stream snapshots with default links", () => {
@@ -342,6 +446,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
 
@@ -360,6 +465,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
 
@@ -380,6 +486,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
     expect(serverParsed).toEqual({
@@ -398,6 +505,7 @@ describe("openclaw protocol schemas", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200001,
     });
   });
@@ -632,10 +740,52 @@ describe("openclaw protocol schemas", () => {
     });
   });
 
+  test("push registration accepts only known APNS environments", () => {
+    expect(
+      pushRegisterRequestSchema.parse({
+        identityToken: "identity-token",
+        deviceToken: "device-token",
+        environment: "production",
+      }),
+    ).toEqual({
+      identityToken: "identity-token",
+      deviceToken: "device-token",
+      environment: "production",
+    });
+
+    expect(
+      pushRegisterRequestSchema.safeParse({
+        identityToken: "identity-token",
+        deviceToken: "device-token",
+        environment: "staging",
+      }).success,
+    ).toBe(false);
+  });
+
+  test("push results default skipped count for older senders", () => {
+    expect(
+      pushResultSchema.parse({
+        ok: true,
+        userId: "user-1",
+        sent: 1,
+        failed: 0,
+        results: [],
+      }),
+    ).toEqual({
+      ok: true,
+      userId: "user-1",
+      sent: 1,
+      failed: 0,
+      skipped: 0,
+      results: [],
+    });
+  });
+
   test("parses OpenClaw messages with embedded actions", () => {
     const message = openclawMessageWithActionsRecordSchema.parse({
       id: "message-1",
       threadId: "thread-1",
+      streamId: "cowtail:stream:message-1",
       direction: "openclaw_to_user",
       authorLabel: "OpenClaw",
       text: "Approve rollout?",
@@ -659,6 +809,7 @@ describe("openclaw protocol schemas", () => {
     });
 
     expect(message.actions[0]?.label).toBe("Approve");
+    expect(message.streamId).toBe("cowtail:stream:message-1");
 
     expect(
       openclawMessageWithActionsListResponseSchema.parse({

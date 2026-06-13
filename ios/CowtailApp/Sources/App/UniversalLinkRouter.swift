@@ -21,6 +21,12 @@ enum OpenClawRoute: Hashable {
     case thread(String)
 }
 
+private struct OpenClawNotificationPayload {
+    let version: Int
+    let threadID: String
+    let messageID: String
+}
+
 @MainActor
 final class UniversalLinkRouter: ObservableObject {
     static let shared = UniversalLinkRouter()
@@ -75,10 +81,16 @@ final class UniversalLinkRouter: ObservableObject {
 
     @discardableResult
     func handleNotification(userInfo: [AnyHashable: Any]) -> Bool {
-        if stringValue(for: ["kind", "type"], in: userInfo)?.lowercased() == "openclaw",
-           let threadID = stringValue(for: ["threadId", "threadID", "thread_id"], in: userInfo) {
-            openOpenClawThread(threadID)
-            return true
+        if isOpenClawNotification(userInfo) {
+            if let payload = openClawNotificationPayload(from: userInfo) {
+                openOpenClawThread(payload.threadID)
+                return true
+            }
+
+            if let threadID = legacyOpenClawThreadID(from: userInfo) {
+                openOpenClawThread(threadID)
+                return true
+            }
         }
 
         if let urlString = stringValue(
@@ -94,6 +106,38 @@ final class UniversalLinkRouter: ObservableObject {
         }
 
         return false
+    }
+
+    private func isOpenClawNotification(_ userInfo: [AnyHashable: Any]) -> Bool {
+        stringValue(for: ["kind", "type"], in: userInfo)?.lowercased() == "openclaw"
+    }
+
+    private func openClawNotificationPayload(
+        from userInfo: [AnyHashable: Any]
+    ) -> OpenClawNotificationPayload? {
+        guard
+            intValue(for: ["version"], in: userInfo) == 1,
+            let threadID = stringValue(for: ["threadId", "threadID", "thread_id"], in: userInfo),
+            let messageID = stringValue(for: ["messageId", "messageID", "message_id"], in: userInfo)
+        else {
+            return nil
+        }
+
+        return OpenClawNotificationPayload(
+            version: 1,
+            threadID: threadID,
+            messageID: messageID
+        )
+    }
+
+    private func legacyOpenClawThreadID(from userInfo: [AnyHashable: Any]) -> String? {
+        guard !hasAnyKey(["version"], in: userInfo),
+              let threadID = stringValue(for: ["threadId", "threadID", "thread_id"], in: userInfo),
+              !threadID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        return threadID
     }
 
     @discardableResult
@@ -181,6 +225,29 @@ final class UniversalLinkRouter: ObservableObject {
         }
 
         return nil
+    }
+
+    private func intValue(for keys: [String], in userInfo: [AnyHashable: Any]) -> Int? {
+        for key in keys {
+            if let int = userInfo[key] as? Int {
+                return int
+            }
+
+            if let number = userInfo[key] as? NSNumber {
+                return number.intValue
+            }
+
+            if let string = stringValue(for: [key], in: userInfo),
+               let int = Int(string) {
+                return int
+            }
+        }
+
+        return nil
+    }
+
+    private func hasAnyKey(_ keys: [String], in userInfo: [AnyHashable: Any]) -> Bool {
+        keys.contains { userInfo[AnyHashable($0)] != nil }
     }
 
     private func resolvedURL(from string: String) -> URL? {

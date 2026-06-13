@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OpenClawMessageBubble: View {
     @Environment(\.openClawStyle) private var style
+    @EnvironmentObject private var store: OpenClawStore
 
     let message: OpenClawMessageWithActions
 
@@ -47,6 +48,7 @@ struct OpenClawMessageBubble: View {
                     transcriptText(message.text)
                     links
                     OpenClawActionButtons(actions: message.actions)
+                    userDeliveryState
                 }
                 .padding(.trailing, 10)
                 .frame(maxWidth: 360, alignment: .trailing)
@@ -79,6 +81,35 @@ struct OpenClawMessageBubble: View {
 
                 links
                 OpenClawActionButtons(actions: message.actions)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var userDeliveryState: some View {
+        switch message.deliveryState {
+        case .sent:
+            EmptyView()
+        case .pending:
+            Text("Sending...")
+                .font(.cowtailSans(12, relativeTo: .caption))
+                .foregroundStyle(style.secondaryText)
+                .accessibilityIdentifier("label.openclaw.message-sending.\(message.id)")
+        case .failed:
+            HStack(spacing: 8) {
+                Text("Not sent")
+                    .font(.cowtailSans(12, relativeTo: .caption))
+                    .foregroundStyle(.red)
+                Button {
+                    Task {
+                        await store.retryPendingMessage(id: message.id)
+                    }
+                } label: {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .font(.cowtailSans(12, weight: .semibold, relativeTo: .caption))
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("button.openclaw.message-retry.\(message.id)")
             }
         }
     }

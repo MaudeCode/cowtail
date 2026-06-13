@@ -111,7 +111,10 @@ describe("ConvexCowtailRealtimeApi", () => {
   });
 
   test("createOpenClawMessage returns the hydrated replay event for the created sequence", async () => {
-    const replayEvent = createReplayEvent(7);
+    const replayEvent = {
+      ...createReplayEvent(7),
+      payload: { streamId: "cowtail:stream:message-1" },
+    };
     const mutations: Array<{ reference: unknown; args: unknown }> = [];
     const queries: Array<{ reference: unknown; args: unknown }> = [];
     const convex: ConvexLike = {
@@ -131,10 +134,13 @@ describe("ConvexCowtailRealtimeApi", () => {
       requestId: "request-1",
       idempotencyKey: "cowtail:reply:message-1",
       sessionKey: "session-1",
+      threadId: "thread-1",
+      threadHint: "openclaw-target-1",
       title: "Deploy",
       text: "Approve the deploy?",
       links: [],
       toolCalls: [],
+      streamId: "cowtail:stream:message-1",
       actions: [],
     });
 
@@ -143,11 +149,14 @@ describe("ConvexCowtailRealtimeApi", () => {
         reference: convexApi.openclaw.createThreadFromOpenClaw,
         args: {
           sessionKey: "session-1",
+          threadId: "thread-1",
+          threadHint: "openclaw-target-1",
           idempotencyKey: "cowtail:reply:message-1",
           title: "Deploy",
           text: "Approve the deploy?",
           links: [],
           toolCalls: [],
+          streamId: "cowtail:stream:message-1",
           actions: [],
           serviceToken: "realtime-convex-token",
         },
@@ -160,13 +169,49 @@ describe("ConvexCowtailRealtimeApi", () => {
       },
     ]);
     expect(event).toEqual(replayEvent);
+    if ("event" in event) {
+      throw new Error("expected non-duplicate event result");
+    }
     expect(event.sequence).toBe(7);
+  });
+
+  test("createOpenClawMessage marks duplicate mutation receipts without changing the replay event", async () => {
+    const replayEvent = createReplayEvent(7);
+    const api = new ConvexCowtailRealtimeApi(
+      {
+        query: async () => [replayEvent],
+        mutation: async () => ({
+          duplicate: true,
+          threadId: "thread-1",
+          messageId: "message-1",
+          actionIds: [],
+          sequence: 7,
+        }),
+      },
+      "realtime-convex-token",
+    );
+
+    const result = await api.createOpenClawMessage({
+      type: "openclaw_message",
+      requestId: "request-duplicate",
+      idempotencyKey: "cowtail:reply:request-duplicate",
+      sessionKey: "session-1",
+      title: "Deploy",
+      text: "Approve the deploy?",
+      links: [],
+      toolCalls: [],
+      streamId: "cowtail:stream:request-duplicate",
+      actions: [],
+    });
+
+    expect(result).toEqual({ event: replayEvent, duplicate: true });
   });
 
   test("updateOpenClawMessage returns the hydrated replay event for the update sequence", async () => {
     const replayEvent: OpenClawEventEnvelope = {
       ...createReplayEvent(8),
       type: "message_updated",
+      payload: { streamId: "cowtail:stream:message-1" },
       message: {
         ...createReplayEvent(8).message!,
         text: "Still checking...",
@@ -195,6 +240,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       text: "Still checking...",
       links: [],
       toolCalls: [],
+      streamId: "cowtail:stream:message-1",
       deliveryState: "pending",
     });
 
@@ -208,6 +254,7 @@ describe("ConvexCowtailRealtimeApi", () => {
           text: "Still checking...",
           links: [],
           toolCalls: [],
+          streamId: "cowtail:stream:message-1",
           deliveryState: "pending",
         },
       },
@@ -219,6 +266,9 @@ describe("ConvexCowtailRealtimeApi", () => {
       },
     ]);
     expect(event).toEqual(replayEvent);
+    if ("event" in event) {
+      throw new Error("expected non-duplicate event result");
+    }
     expect(event.sequence).toBe(8);
   });
 
@@ -295,6 +345,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       requestId: "request-7",
       idempotencyKey: "cowtail:update:message-1:sent",
       messageId: "message-1",
+      streamId: "cowtail:stream:message-1",
       text: "Still checking...",
       links: [],
       toolCalls: [],
@@ -326,6 +377,7 @@ describe("ConvexCowtailRealtimeApi", () => {
         type: "openclaw_message",
         requestId: "request-1",
         idempotencyKey: "cowtail:reply:request-1",
+        streamId: "cowtail:stream:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -360,6 +412,7 @@ describe("ConvexCowtailRealtimeApi", () => {
         type: "openclaw_message",
         requestId: "request-1",
         idempotencyKey: "cowtail:reply:request-1",
+        streamId: "cowtail:stream:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",

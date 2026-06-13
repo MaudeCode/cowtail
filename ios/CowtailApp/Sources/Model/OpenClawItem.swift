@@ -64,6 +64,7 @@ struct OpenClawThread: Codable, Equatable, Identifiable, Sendable {
 struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let threadId: String
+    let streamId: String?
     let direction: OpenClawMessageDirection
     let authorLabel: String?
     let text: String
@@ -76,6 +77,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id
         case threadId
+        case streamId
         case direction
         case authorLabel
         case text
@@ -89,6 +91,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     init(
         id: String,
         threadId: String,
+        streamId: String? = nil,
         direction: OpenClawMessageDirection,
         authorLabel: String?,
         text: String,
@@ -100,6 +103,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
     ) {
         self.id = id
         self.threadId = threadId
+        self.streamId = streamId
         self.direction = direction
         self.authorLabel = authorLabel
         self.text = text
@@ -114,6 +118,7 @@ struct OpenClawMessage: Codable, Equatable, Identifiable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         threadId = try container.decode(String.self, forKey: .threadId)
+        streamId = try container.decodeIfPresent(String.self, forKey: .streamId)
         direction = try container.decode(OpenClawMessageDirection.self, forKey: .direction)
         authorLabel = try container.decodeIfPresent(String.self, forKey: .authorLabel)
         text = try container.decode(String.self, forKey: .text)
@@ -141,6 +146,7 @@ struct OpenClawAction: Codable, Equatable, Identifiable, Sendable {
 struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let threadId: String
+    let streamId: String?
     let direction: OpenClawMessageDirection
     let authorLabel: String?
     let text: String
@@ -154,6 +160,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id
         case threadId
+        case streamId
         case direction
         case authorLabel
         case text
@@ -169,6 +176,7 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
         OpenClawMessage(
             id: id,
             threadId: threadId,
+            streamId: streamId,
             direction: direction,
             authorLabel: authorLabel,
             text: text,
@@ -180,10 +188,26 @@ struct OpenClawMessageWithActions: Codable, Equatable, Identifiable, Sendable {
         )
     }
 
+    init(message: OpenClawMessage, actions: [OpenClawAction]) {
+        id = message.id
+        threadId = message.threadId
+        streamId = message.streamId
+        direction = message.direction
+        authorLabel = message.authorLabel
+        text = message.text
+        links = message.links
+        toolCalls = message.toolCalls
+        deliveryState = message.deliveryState
+        createdAt = message.createdAt
+        updatedAt = message.updatedAt
+        self.actions = actions
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         threadId = try container.decode(String.self, forKey: .threadId)
+        streamId = try container.decodeIfPresent(String.self, forKey: .streamId)
         direction = try container.decode(OpenClawMessageDirection.self, forKey: .direction)
         authorLabel = try container.decodeIfPresent(String.self, forKey: .authorLabel)
         text = try container.decode(String.self, forKey: .text)
@@ -270,10 +294,46 @@ struct OpenClawEventEnvelope: Codable, Equatable, Sendable {
     }
 }
 
+struct OpenClawAckPayload: Codable, Equatable, Sendable {
+    let threadId: String?
+    let messageId: String?
+    let dropped: Bool?
+    let duplicate: Bool?
+    let reason: String?
+}
+
 struct OpenClawAck: Codable, Equatable, Sendable {
     let type: String
     let requestId: String
     let sequence: Int64?
+    let payload: OpenClawAckPayload?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case requestId
+        case sequence
+        case payload
+    }
+
+    init(
+        type: String,
+        requestId: String,
+        sequence: Int64? = nil,
+        payload: OpenClawAckPayload? = nil
+    ) {
+        self.type = type
+        self.requestId = requestId
+        self.sequence = sequence
+        self.payload = payload
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        requestId = try container.decode(String.self, forKey: .requestId)
+        sequence = try container.decodeIfPresent(Int64.self, forKey: .sequence)
+        payload = try container.decodeIfPresent(OpenClawAckPayload.self, forKey: .payload)
+    }
 }
 
 struct OpenClawRealtimeError: Codable, Equatable, Sendable {
@@ -291,6 +351,7 @@ struct OpenClawStreamSnapshot: Codable, Equatable, Sendable {
     let links: [OpenClawLink]
     let toolCalls: [OpenClawToolCall]
     let isFinal: Bool
+    let snapshotSequence: Int64
     let updatedAt: Int64
 
     enum CodingKeys: String, CodingKey {
@@ -302,6 +363,7 @@ struct OpenClawStreamSnapshot: Codable, Equatable, Sendable {
         case links
         case toolCalls
         case isFinal
+        case snapshotSequence
         case updatedAt
     }
 }
@@ -317,6 +379,7 @@ extension OpenClawStreamSnapshot {
         links = try container.decodeIfPresent([OpenClawLink].self, forKey: .links) ?? []
         toolCalls = try container.decodeIfPresent([OpenClawToolCall].self, forKey: .toolCalls) ?? []
         isFinal = try container.decode(Bool.self, forKey: .isFinal)
+        snapshotSequence = try container.decode(Int64.self, forKey: .snapshotSequence)
         updatedAt = try container.decode(Int64.self, forKey: .updatedAt)
     }
 }

@@ -92,6 +92,7 @@ export default defineSchema({
 
   openclawMessages: defineTable({
     threadId: v.id("openclawThreads"),
+    streamId: v.optional(v.string()),
     direction: v.union(v.literal("openclaw_to_user"), v.literal("user_to_openclaw")),
     authorLabel: v.optional(v.string()),
     text: v.string(),

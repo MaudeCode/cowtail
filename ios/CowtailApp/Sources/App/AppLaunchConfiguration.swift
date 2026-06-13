@@ -32,7 +32,7 @@ struct AppLaunchConfiguration: Equatable {
         return AppLaunchConfiguration(
             mode: .uiTesting(scenario),
             resetPersistentState: environment["UI_TEST_RESET_STATE"] == "1",
-            deepLinkURL: normalizedURL(for: environment["UI_TEST_DEEP_LINK_URL"]),
+            deepLinkURL: normalizedDeepLinkURL(for: environment["UI_TEST_DEEP_LINK_URL"]),
             selectedTab: selectedTab(from: environment["UI_TEST_START_TAB"])
         )
     }
@@ -41,13 +41,13 @@ struct AppLaunchConfiguration: Equatable {
         value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    private static func normalizedURL(for value: String?) -> URL? {
+    private static func normalizedDeepLinkURL(for value: String?) -> URL? {
         let normalized = normalizedValue(for: value)
         guard !normalized.isEmpty else {
             return nil
         }
 
-        return URL(string: normalized)
+        return AppConfig.resolvePublicURL(from: normalized)
     }
 
     private static func selectedTab(from value: String?) -> AppTab? {

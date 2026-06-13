@@ -229,6 +229,7 @@ describe("CowtailRealtimeClient", () => {
       type: "openclaw_message",
       requestId: "request-delayed",
       idempotencyKey: "cowtail:request:request-delayed",
+      streamId: "cowtail:request:request-delayed",
       sessionKey: "session-delayed",
       text: "queued",
       links: [],
@@ -283,6 +284,51 @@ describe("CowtailRealtimeClient", () => {
     });
   });
 
+  test("derives default stream IDs from custom idempotency keys", async () => {
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      requestIdFactory: () => "request-custom-key",
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    socket.open();
+    await flushMicrotasks();
+
+    const pending = client.sendOpenClawMessage({
+      type: "openclaw_message",
+      idempotencyKey: "cowtail:reply:stable",
+      sessionKey: "session-custom-key",
+      text: "hello",
+    });
+
+    await flushMicrotasks();
+
+    expect(JSON.parse(socket.sent[1]!)).toMatchObject({
+      type: "openclaw_message",
+      requestId: "request-custom-key",
+      idempotencyKey: "cowtail:reply:stable",
+      streamId: "cowtail:reply:stable",
+    });
+
+    socket.message({
+      type: "ack",
+      requestId: "request-custom-key",
+      sequence: 56,
+    });
+
+    await expect(pending).resolves.toEqual({
+      requestId: "request-custom-key",
+      sequence: 56,
+    });
+  });
+
   test("waits for the handshake when sending immediately after start", async () => {
     const socket = new FakeWebSocket(createAccount().url);
     const client = new CowtailRealtimeClient({
@@ -315,6 +361,7 @@ describe("CowtailRealtimeClient", () => {
       type: "openclaw_message",
       requestId: "request-before-open",
       idempotencyKey: "cowtail:request:request-before-open",
+      streamId: "cowtail:request:request-before-open",
       sessionKey: "session-before-open",
       text: "hello before open",
       links: [],
@@ -378,6 +425,7 @@ describe("CowtailRealtimeClient", () => {
           },
         ],
         isFinal: false,
+        snapshotSequence: 1,
         updatedAt: 1777939200000,
       })
       .then(() => {
@@ -418,6 +466,7 @@ describe("CowtailRealtimeClient", () => {
         },
       ],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
 
@@ -463,6 +512,7 @@ describe("CowtailRealtimeClient", () => {
       type: "openclaw_message",
       requestId: "request-1",
       idempotencyKey: "cowtail:request:request-1",
+      streamId: "cowtail:request:request-1",
       sessionKey: "session-1",
       text: "hello",
       links: [],
@@ -685,6 +735,7 @@ describe("CowtailRealtimeClient", () => {
       links: [],
       toolCalls: [],
       isFinal: false,
+      snapshotSequence: 1,
       updatedAt: 1777939200000,
     });
     await flushMicrotasks();

@@ -213,10 +213,15 @@ struct OpenClawThreadDetailView: View {
         }
         .task(id: threadID) {
             await store.loadMessages(threadId: threadID)
-            do {
-                try await store.markThreadRead(threadId: threadID)
-            } catch {
-                localErrorMessage = error.localizedDescription
+            await markThreadRead()
+        }
+        .onChange(of: thread?.unreadCount) { _, unreadCount in
+            guard let unreadCount, unreadCount > 0 else {
+                return
+            }
+
+            Task {
+                await markThreadReadIfUnread()
             }
         }
     }
@@ -337,6 +342,24 @@ struct OpenClawThreadDetailView: View {
         } catch {
             localErrorMessage = error.localizedDescription
             return false
+        }
+    }
+
+    @MainActor
+    private func markThreadRead() async {
+        do {
+            try await store.markThreadRead(threadId: threadID)
+        } catch {
+            localErrorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func markThreadReadIfUnread() async {
+        do {
+            try await store.markThreadReadIfUnread(threadId: threadID)
+        } catch {
+            localErrorMessage = error.localizedDescription
         }
     }
 

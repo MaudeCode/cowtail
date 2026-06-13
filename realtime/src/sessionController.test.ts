@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
 
-import type { CowtailRealtimeApi } from "./cowtailApi";
+import type { CowtailRealtimeApi, CowtailRealtimeApiEventResult } from "./cowtailApi";
 import { RealtimeConnectionRegistry } from "./connectionRegistry";
 import type { OpenClawPushBridge, PushBridgeResult } from "./pushBridge";
 import { OpenClawSessionController, shouldReplayToClient } from "./sessionController";
@@ -25,16 +25,20 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
   public verifiedSessionTokens: string[] = [];
   public validatedSessionIds: string[] = [];
   public readonly replayQueries: Array<number | undefined> = [];
+  public readonly replayLimits: number[] = [];
   public replayEventsResult: OpenClawEventEnvelope[] = [];
+  public replayEventPages: OpenClawEventEnvelope[][] = [];
   public rejectReplayEvents = false;
   public rejectOpenClawMessage = false;
   public rejectVerifyAppSessionToken = false;
   public appSessionVerificationOk = true;
   public appSessionValidationOk = true;
   public holdOpenClawMessages = false;
+  public duplicateOpenClawMessage = false;
+  public duplicateIosReply = false;
   public readonly heldOpenClawMessages: Array<{
     command: Parameters<CowtailRealtimeApi["createOpenClawMessage"]>[0];
-    resolve: (event: OpenClawEventEnvelope) => void;
+    resolve: (event: CowtailRealtimeApiEventResult) => void;
   }> = [];
   public readonly openClawMessageUpdates: Parameters<
     CowtailRealtimeApi["updateOpenClawMessage"]
@@ -80,10 +84,14 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
     };
   }
 
-  async replayEvents(afterSequence?: number): Promise<OpenClawEventEnvelope[]> {
+  async replayEvents(afterSequence?: number, limit = 100): Promise<OpenClawEventEnvelope[]> {
     this.replayQueries.push(afterSequence);
+    this.replayLimits.push(limit);
     if (this.rejectReplayEvents) {
       throw new Error("replay unavailable");
+    }
+    if (this.replayEventPages.length > 0) {
+      return this.replayEventPages.shift() ?? [];
     }
     return this.replayEventsResult;
   }
@@ -94,29 +102,54 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
       throw new Error("mutation failed");
     }
     if (this.holdOpenClawMessages) {
-      return await new Promise<OpenClawEventEnvelope>((resolve) => {
+      return await new Promise<CowtailRealtimeApiEventResult>((resolve) => {
         this.heldOpenClawMessages.push({ command, resolve });
       });
     }
-    return this.openClawMessageEvent;
+    const event = withPersistedStreamId(this.openClawMessageEvent, command.streamId);
+    return this.duplicateOpenClawMessage ? { event, duplicate: true as const } : event;
   }
 
   async updateOpenClawMessage(command: Parameters<CowtailRealtimeApi["updateOpenClawMessage"]>[0]) {
     this.openClawMessageUpdates.push(command);
-    return this.openClawMessageUpdateEvent;
+    return withPersistedStreamId(this.openClawMessageUpdateEvent, command.streamId);
   }
 
   async createIosThread(command: Parameters<CowtailRealtimeApi["createIosThread"]>[0]) {
     this.iosThreads.push(command);
     return createEvent(3, "thread_created", {
       threadId: "thread-1",
+      messageId: "message-ios-thread",
+      thread: {
+        id: "thread-1",
+        status: "pending",
+        targetAgent: "default",
+        title: command.title ?? "Main",
+        unreadCount: 0,
+        createdAt: 100,
+        updatedAt: 100,
+        lastMessageAt: 100,
+      },
+      message: {
+        id: "message-ios-thread",
+        threadId: "thread-1",
+        direction: "user_to_openclaw",
+        text: command.text,
+        links: [],
+        toolCalls: [],
+        deliveryState: "sent",
+        createdAt: 100,
+        updatedAt: 100,
+      },
       payload: { text: command.text },
     });
   }
 
   async createIosReply(command: Parameters<CowtailRealtimeApi["createIosReply"]>[0]) {
     this.iosReplies.push(command);
-    return this.iosReplyEvent;
+    return this.duplicateIosReply
+      ? { event: this.iosReplyEvent, duplicate: true as const }
+      : this.iosReplyEvent;
   }
 
   async submitIosAction(command: Parameters<CowtailRealtimeApi["submitIosAction"]>[0]) {
@@ -217,6 +250,23 @@ function createController() {
 
 function sent(socket: FakeSocket): unknown[] {
   return socket.sentMessages.map((message) => JSON.parse(message));
+}
+
+function withPersistedStreamId(
+  event: OpenClawEventEnvelope,
+  streamId: string | undefined,
+): OpenClawEventEnvelope {
+  if (streamId === undefined) {
+    return event;
+  }
+
+  return {
+    ...event,
+    payload: {
+      ...event.payload,
+      streamId,
+    },
+  };
 }
 
 function createEvent(
@@ -457,7 +507,7 @@ describe("OpenClawSessionController", () => {
     api.replayEventsResult = [
       createEvent(2, "thread_created"),
       createEvent(3, "thread_updated"),
-      createEvent(4, "message_created"),
+      createEvent(4, "message_created", { payload: { streamId: "cowtail:stream:replay-4" } }),
       createEvent(5, "reply_created"),
       createEvent(6, "action_submitted"),
       createEvent(7, "action_result"),
@@ -493,6 +543,34 @@ describe("OpenClawSessionController", () => {
       createEvent(6, "action_submitted"),
     ]);
     expect(sent(iosSocket).slice(1)).toEqual(api.replayEventsResult);
+  });
+
+  test("paginates replay until the backlog is exhausted", async () => {
+    const { api, controller } = createController();
+    const firstPage = Array.from({ length: 100 }, (_value, index) =>
+      createEvent(index + 2, index % 2 === 0 ? "thread_created" : "thread_updated"),
+    );
+    const secondPage = [createEvent(102, "reply_created"), createEvent(103, "action_submitted")];
+    api.replayEventPages = [firstPage, secondPage];
+    const pluginSocket = new FakeSocket();
+    controller.attach("plugin-1", pluginSocket);
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        protocolVersion: 1,
+        clientKind: "openclaw_plugin",
+        token: "bridge-token",
+        lastSeenSequence: 1,
+      }),
+    );
+
+    expect(api.replayQueries).toEqual([1, 101]);
+    expect(api.replayLimits).toEqual([100, 100]);
+    expect(sent(pluginSocket).slice(1)).toEqual([
+      ...firstPage.filter((event) => shouldReplayToClient({ kind: "openclaw_plugin" }, event)),
+      ...secondPage,
+    ]);
   });
 
   test("does not replay archived thread events to OpenClaw plugins", () => {
@@ -603,6 +681,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-1",
         idempotencyKey: "cowtail:reply:request-1",
+        streamId: "cowtail:stream:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -617,6 +696,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-1",
         idempotencyKey: "cowtail:reply:request-1",
+        streamId: "cowtail:stream:request-1",
         sessionKey: "session-1",
         title: "Deploy",
         text: "Approve the deploy?",
@@ -625,13 +705,57 @@ describe("OpenClawSessionController", () => {
         actions: [],
       },
     ]);
-    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(pushBridge.notifications).toEqual([
+      withPersistedStreamId(api.openClawMessageEvent, "cowtail:stream:request-1"),
+    ]);
     expect(sent(socket)).toEqual([
       {
         type: "ack",
         requestId: "request-1",
         sequence: 7,
         payload: { threadId: "thread-openclaw", messageId: "message-openclaw" },
+      },
+    ]);
+  });
+
+  test("duplicate OpenClaw messages ack original sequence without broadcast or push", async () => {
+    const { api, controller, pushBridge } = createController();
+    api.duplicateOpenClawMessage = true;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        type: "openclaw_message",
+        requestId: "request-duplicate",
+        idempotencyKey: "cowtail:reply:request-duplicate",
+        streamId: "cowtail:stream:request-duplicate",
+        sessionKey: "session-1",
+        text: "Approve the deploy?",
+        links: [],
+        toolCalls: [],
+        actions: [],
+      }),
+    );
+
+    expect(sent(iosSocket)).toEqual([]);
+    expect(pushBridge.notifications).toEqual([]);
+    expect(sent(pluginSocket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-duplicate",
+        sequence: 7,
+        payload: {
+          threadId: "thread-openclaw",
+          messageId: "message-openclaw",
+          duplicate: true,
+          reason: "duplicate_idempotency_key",
+        },
       },
     ]);
   });
@@ -651,6 +775,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-3",
         idempotencyKey: "cowtail:reply:request-3",
+        streamId: "cowtail:stream:request-3",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -660,7 +785,12 @@ describe("OpenClawSessionController", () => {
 
     expect(api.validatedSessionIds).toEqual(["session-1"]);
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(iosSocket)).toEqual([api.openClawMessageEvent]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...api.openClawMessageEvent,
+        payload: { streamId: "cowtail:stream:request-3" },
+      },
+    ]);
     expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
@@ -677,9 +807,12 @@ describe("OpenClawSessionController", () => {
       threadId: "thread-archived",
       payload: { dropped: true, reason: "thread_archived" },
     });
-    const socket = new FakeSocket();
-    await authenticatePlugin(controller, socket);
-    socket.sentMessages.length = 0;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
 
     await controller.handleRawMessage(
       "plugin-1",
@@ -687,6 +820,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-dropped-create",
         idempotencyKey: "cowtail:reply:request-dropped-create",
+        streamId: "cowtail:stream:request-dropped-create",
         sessionKey: "session-archived",
         text: "This should be dropped",
         links: [],
@@ -695,7 +829,17 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(socket)).toEqual([
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...api.openClawMessageEvent,
+        payload: {
+          dropped: true,
+          reason: "thread_archived",
+          streamId: "cowtail:stream:request-dropped-create",
+        },
+      },
+    ]);
+    expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
         requestId: "request-dropped-create",
@@ -733,6 +877,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-archived-envelope",
         idempotencyKey: "cowtail:reply:request-archived-envelope",
+        streamId: "cowtail:stream:request-archived-envelope",
         sessionKey: "session-archived",
         text: "Old reply from a deleted thread",
         links: [],
@@ -766,6 +911,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message_update",
         requestId: "request-update-1",
         idempotencyKey: "cowtail:update:message-openclaw:pending",
+        streamId: "cowtail:stream:message-openclaw",
         messageId: "message-openclaw",
         text: "Still checking...",
         links: [],
@@ -779,6 +925,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message_update",
         requestId: "request-update-1",
         idempotencyKey: "cowtail:update:message-openclaw:pending",
+        streamId: "cowtail:stream:message-openclaw",
         messageId: "message-openclaw",
         text: "Still checking...",
         links: [],
@@ -786,7 +933,12 @@ describe("OpenClawSessionController", () => {
       },
     ]);
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(iosSocket)).toEqual([updateEvent]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...updateEvent,
+        payload: { streamId: "cowtail:stream:message-openclaw" },
+      },
+    ]);
     expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
@@ -820,6 +972,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -833,6 +986,7 @@ describe("OpenClawSessionController", () => {
       text: "Partial text",
       links: [],
       toolCalls: [],
+      snapshotSequence: 1,
       isFinal: false,
       updatedAt: 1777939200000,
     };
@@ -866,6 +1020,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -899,6 +1054,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -931,6 +1087,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -946,6 +1103,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text updated",
         links: [],
         toolCalls: [],
+        snapshotSequence: 2,
         isFinal: false,
         updatedAt: 1777939200100,
       }),
@@ -961,6 +1119,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       },
@@ -972,6 +1131,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text updated",
         links: [],
         toolCalls: [],
+        snapshotSequence: 2,
         isFinal: false,
         updatedAt: 1777939200100,
       },
@@ -999,6 +1159,7 @@ describe("OpenClawSessionController", () => {
         text: "Partial text",
         links: [],
         toolCalls: [],
+        snapshotSequence: 1,
         isFinal: false,
         updatedAt: 1777939200000,
       }),
@@ -1023,9 +1184,12 @@ describe("OpenClawSessionController", () => {
       messageId: "message-archived",
       payload: { dropped: true, reason: "thread_archived" },
     });
-    const socket = new FakeSocket();
-    await authenticatePlugin(controller, socket);
-    socket.sentMessages.length = 0;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
 
     await controller.handleRawMessage(
       "plugin-1",
@@ -1033,6 +1197,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message_update",
         requestId: "request-dropped-update",
         idempotencyKey: "cowtail:update:message-archived:dropped",
+        streamId: "cowtail:stream:message-archived",
         messageId: "message-archived",
         text: "This should be dropped",
         links: [],
@@ -1041,7 +1206,17 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(pushBridge.notifications).toEqual([]);
-    expect(sent(socket)).toEqual([
+    expect(sent(iosSocket)).toEqual([
+      {
+        ...api.openClawMessageUpdateEvent,
+        payload: {
+          dropped: true,
+          reason: "thread_archived",
+          streamId: "cowtail:stream:message-archived",
+        },
+      },
+    ]);
+    expect(sent(pluginSocket)).toEqual([
       {
         type: "ack",
         requestId: "request-dropped-update",
@@ -1072,6 +1247,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-expired-delivery",
         idempotencyKey: "cowtail:reply:request-expired-delivery",
+        streamId: "cowtail:stream:request-expired-delivery",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1080,7 +1256,9 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(api.validatedSessionIds).toEqual([]);
-    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(pushBridge.notifications).toEqual([
+      withPersistedStreamId(api.openClawMessageEvent, "cowtail:stream:request-expired-delivery"),
+    ]);
     expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
     expect(registry.getClient("ios-1")).toBe(undefined);
@@ -1110,6 +1288,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-revoked-delivery",
         idempotencyKey: "cowtail:reply:request-revoked-delivery",
+        streamId: "cowtail:stream:request-revoked-delivery",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1118,7 +1297,9 @@ describe("OpenClawSessionController", () => {
     );
 
     expect(api.validatedSessionIds).toEqual(["session-1"]);
-    expect(pushBridge.notifications).toEqual([api.openClawMessageEvent]);
+    expect(pushBridge.notifications).toEqual([
+      withPersistedStreamId(api.openClawMessageEvent, "cowtail:stream:request-revoked-delivery"),
+    ]);
     expect(sent(iosSocket)).toEqual([{ type: "realtime_error", error: "unauthorized" }]);
     expect(iosSocket.closeCalls).toEqual([{ code: 1008, reason: "unauthorized" }]);
     expect(registry.getClient("ios-1")).toBe(undefined);
@@ -1145,6 +1326,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-4",
         idempotencyKey: "cowtail:reply:request-4",
+        streamId: "cowtail:stream:request-4",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1171,6 +1353,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-5",
         idempotencyKey: "cowtail:reply:request-5",
+        streamId: "cowtail:stream:request-5",
         sessionKey: "session-1",
         text: "Approve the deploy?",
         links: [],
@@ -1207,6 +1390,7 @@ describe("OpenClawSessionController", () => {
             type: "openclaw_message",
             requestId: "request-6",
             idempotencyKey: "cowtail:reply:request-6",
+            streamId: "cowtail:stream:request-6",
             sessionKey: "session-1",
             text: "Approve the deploy?",
             links: [],
@@ -1245,6 +1429,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-7",
         idempotencyKey: "cowtail:reply:request-7",
+        streamId: "cowtail:stream:request-7",
         sessionKey: "session-1",
         text: "first",
         links: [],
@@ -1257,6 +1442,7 @@ describe("OpenClawSessionController", () => {
         type: "openclaw_message",
         requestId: "request-8",
         idempotencyKey: "cowtail:reply:request-8",
+        streamId: "cowtail:stream:request-8",
         sessionKey: "session-1",
         text: "second",
         links: [],
@@ -1327,7 +1513,118 @@ describe("OpenClawSessionController", () => {
     expect(sent(pluginSocket)).toEqual([api.iosReplyEvent]);
     expect(sent(iosSocket)).toEqual([
       api.iosReplyEvent,
-      { type: "ack", requestId: "request-2", sequence: 9 },
+      {
+        type: "ack",
+        requestId: "request-2",
+        sequence: 9,
+        payload: { threadId: "thread-1", messageId: "message-ios" },
+      },
+    ]);
+  });
+
+  test("duplicate ios_reply acks without forwarding the old event again", async () => {
+    const { api, controller } = createController();
+    api.duplicateIosReply = true;
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_reply",
+        requestId: "request-duplicate-reply",
+        idempotencyKey: "ios:reply:request-duplicate-reply",
+        threadId: "thread-1",
+        text: "Ship it",
+      }),
+    );
+
+    expect(sent(pluginSocket)).toEqual([]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        type: "ack",
+        requestId: "request-duplicate-reply",
+        sequence: 9,
+        payload: {
+          threadId: "thread-1",
+          messageId: "message-ios",
+          duplicate: true,
+          reason: "duplicate_idempotency_key",
+        },
+      },
+    ]);
+  });
+
+  test("forwards ios_new_thread events with ack reconciliation payload", async () => {
+    const { api, controller } = createController();
+    const pluginSocket = new FakeSocket();
+    const iosSocket = new FakeSocket();
+    await authenticatePlugin(controller, pluginSocket);
+    await authenticateIos(controller, iosSocket);
+    pluginSocket.sentMessages.length = 0;
+    iosSocket.sentMessages.length = 0;
+
+    await controller.handleRawMessage(
+      "ios-1",
+      JSON.stringify({
+        type: "ios_new_thread",
+        requestId: "request-new-thread",
+        idempotencyKey: "ios:new-thread:request-new-thread",
+        title: "Deploy",
+        text: "Start check",
+      }),
+    );
+
+    expect(api.iosThreads).toEqual([
+      {
+        type: "ios_new_thread",
+        requestId: "request-new-thread",
+        idempotencyKey: "ios:new-thread:request-new-thread",
+        title: "Deploy",
+        text: "Start check",
+      },
+    ]);
+    expect(sent(pluginSocket)).toEqual([sent(iosSocket)[0]]);
+    expect(sent(iosSocket)).toEqual([
+      {
+        sequence: 3,
+        type: "thread_created",
+        createdAt: 103,
+        threadId: "thread-1",
+        messageId: "message-ios-thread",
+        thread: {
+          id: "thread-1",
+          status: "pending",
+          targetAgent: "default",
+          title: "Deploy",
+          unreadCount: 0,
+          createdAt: 100,
+          updatedAt: 100,
+          lastMessageAt: 100,
+        },
+        message: {
+          id: "message-ios-thread",
+          threadId: "thread-1",
+          direction: "user_to_openclaw",
+          text: "Start check",
+          links: [],
+          toolCalls: [],
+          deliveryState: "sent",
+          createdAt: 100,
+          updatedAt: 100,
+        },
+        payload: { text: "Start check" },
+      },
+      {
+        type: "ack",
+        requestId: "request-new-thread",
+        sequence: 3,
+        payload: { threadId: "thread-1", messageId: "message-ios-thread" },
+      },
     ]);
   });
 
@@ -1379,15 +1676,24 @@ describe("OpenClawSessionController", () => {
     expect(sent(pluginSocket)).toEqual([]);
     expect(sent(iosSocket)).toEqual([
       api.iosReplyEvent,
-      { type: "ack", requestId: "request-archived-reply", sequence: 14 },
+      {
+        type: "ack",
+        requestId: "request-archived-reply",
+        sequence: 14,
+        payload: { threadId: "thread-archived", messageId: "message-archived" },
+      },
     ]);
   });
 
   test("renames and deletes threads from authenticated iOS clients", async () => {
     const { api, controller } = createController();
     const iosSocket = new FakeSocket();
+    const pluginSocket = new FakeSocket();
+    controller.attach("plugin-1", pluginSocket);
+    await authenticatePlugin(controller, pluginSocket);
     await authenticateIos(controller, iosSocket);
     iosSocket.sentMessages.length = 0;
+    pluginSocket.sentMessages.length = 0;
 
     await controller.handleRawMessage(
       "ios-1",
@@ -1444,7 +1750,12 @@ describe("OpenClawSessionController", () => {
           updatedAt: 200,
         },
       },
-      { type: "ack", requestId: "request-rename", sequence: 10 },
+      {
+        type: "ack",
+        requestId: "request-rename",
+        sequence: 10,
+        payload: { threadId: "thread-1" },
+      },
       {
         sequence: 11,
         type: "thread_updated",
@@ -1462,8 +1773,14 @@ describe("OpenClawSessionController", () => {
         },
         payload: { deleted: true },
       },
-      { type: "ack", requestId: "request-delete", sequence: 11 },
+      {
+        type: "ack",
+        requestId: "request-delete",
+        sequence: 11,
+        payload: { threadId: "thread-1" },
+      },
     ]);
+    expect(sent(pluginSocket)).toEqual([]);
   });
 
   test("rejects an expired iOS session before processing a command, closes, and detaches", async () => {

@@ -7,3 +7,7 @@ Load it from an OpenClaw config with `plugins.entries.cowtail.path` pointing at 
 Configure `channels.cowtail.url` with the Cowtail realtime WebSocket endpoint and `channels.cowtail.bridgeToken` with the same bridge token configured on the Cowtail realtime service.
 
 V1 supports a single owner and OpenClaw's default `main` agent only.
+
+## Realtime event scope
+
+The plugin receives Cowtail events that require OpenClaw work: iOS-created threads, iOS replies, and submitted actions. Cowtail thread lifecycle updates such as read state, rename, and delete stay local to Cowtail/iOS because OpenClaw v1 has no channel-level state mutation contract for those operations.

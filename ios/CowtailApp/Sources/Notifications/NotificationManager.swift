@@ -441,6 +441,12 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
+        guard let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty else {
+            serverRegistrationState = .waitingForIdentity
+            serverRegistrationMessage = "Sign in with Apple again to refresh the secure identity token Cowtail needs."
+            return
+        }
+
         if isUITesting {
             lastSyncedRegistrationKey = nil
             clearPersistedServerRegistration()
@@ -453,7 +459,10 @@ final class NotificationManager: NSObject, ObservableObject {
         serverRegistrationMessage = nil
 
         do {
-            let response = try await api.unregisterPushDevice(deviceToken: deviceToken)
+            let response = try await api.unregisterPushDevice(
+                identityToken: identityToken,
+                deviceToken: deviceToken
+            )
             lastSyncedRegistrationKey = nil
             clearPersistedServerRegistration()
             serverRegistrationState = .idle
@@ -515,8 +524,7 @@ final class NotificationManager: NSObject, ObservableObject {
             print("[roundup-debug] NotificationManager.loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled)")
             logger.debug("loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
-            print("[roundup-debug] NotificationManager.loadDailyRoundupPreference failed error=\(error.localizedDescription)")
-            logger.error("loadDailyRoundupPreference failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("loadDailyRoundupPreference failed")
             handleDailyRoundupPreferenceError(error, restoring: dailyRoundupEnabled)
         }
     }
@@ -563,8 +571,7 @@ final class NotificationManager: NSObject, ObservableObject {
             print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled)")
             logger.debug("updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
-            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled failed error=\(error.localizedDescription)")
-            logger.error("updateDailyRoundupEnabled failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("updateDailyRoundupEnabled failed")
             handleDailyRoundupPreferenceError(error, restoring: previousValue)
         }
     }
@@ -709,12 +716,15 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
 
     nonisolated private static func stringUserInfo(from userInfo: [AnyHashable: Any]) -> [String: String] {
         userInfo.reduce(into: [:]) { result, item in
-            guard let key = item.key as? String,
-                  let value = item.value as? String else {
+            guard let key = item.key as? String else {
                 return
             }
 
-            result[key] = value
+            if let value = item.value as? String {
+                result[key] = value
+            } else if let value = item.value as? NSNumber {
+                result[key] = value.stringValue
+            }
         }
     }
 

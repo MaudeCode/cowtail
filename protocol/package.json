@@ -15,6 +15,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test src/*.test.ts",
     "codegen:ios": "bun run ./scripts/generate-ios-openapi.ts"
   },
   "dependencies": {

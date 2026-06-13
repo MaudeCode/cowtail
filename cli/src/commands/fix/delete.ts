@@ -23,7 +23,7 @@ export class FixDeleteCommand extends JsonCommand {
   async execute(): Promise<void> {
     const id = requireNonEmptyString(this.id, "id");
     const response = okResponseSchema.parse(
-      await deleteJson(`/api/fixes/${encodeURIComponent(id)}`),
+      await deleteJson(`/api/fixes/${encodeURIComponent(id)}`, { requireServiceAuth: true }),
     );
 
     this.printSuccess(`Deleted fix ${id}`, response);

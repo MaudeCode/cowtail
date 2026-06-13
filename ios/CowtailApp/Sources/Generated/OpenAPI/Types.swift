@@ -1051,7 +1051,12 @@ internal enum Components {
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/platform`.
             internal var platform: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/environment`.
-            internal var environment: Swift.String?
+            internal enum EnvironmentPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case development = "development"
+                case production = "production"
+            }
+            /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/environment`.
+            internal var environment: Components.Schemas.PushRegisterRequest.EnvironmentPayload?
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/deviceName`.
             internal var deviceName: Swift.String?
             /// Creates a new `PushRegisterRequest`.
@@ -1066,7 +1071,7 @@ internal enum Components {
                 identityToken: Swift.String,
                 deviceToken: Swift.String,
                 platform: Swift.String? = nil,
-                environment: Swift.String? = nil,
+                environment: Components.Schemas.PushRegisterRequest.EnvironmentPayload? = nil,
                 deviceName: Swift.String? = nil
             ) {
                 self.identityToken = identityToken
@@ -1108,16 +1113,24 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest`.
         internal struct PushUnregisterRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest/identityToken`.
+            internal var identityToken: Swift.String
             /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest/deviceToken`.
             internal var deviceToken: Swift.String
             /// Creates a new `PushUnregisterRequest`.
             ///
             /// - Parameters:
+            ///   - identityToken:
             ///   - deviceToken:
-            internal init(deviceToken: Swift.String) {
+            internal init(
+                identityToken: Swift.String,
+                deviceToken: Swift.String
+            ) {
+                self.identityToken = identityToken
                 self.deviceToken = deviceToken
             }
             internal enum CodingKeys: String, CodingKey {
+                case identityToken
                 case deviceToken
             }
         }
@@ -1345,6 +1358,8 @@ internal enum Components {
                 internal var id: Swift.String
                 /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/threadId`.
                 internal var threadId: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/streamId`.
+                internal var streamId: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/OpenClawMessageWithActionsListResponse/MessagesPayload/direction`.
                 internal enum DirectionPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case openclawToUser = "openclaw_to_user"
@@ -1612,6 +1627,7 @@ internal enum Components {
                 /// - Parameters:
                 ///   - id:
                 ///   - threadId:
+                ///   - streamId:
                 ///   - direction:
                 ///   - authorLabel:
                 ///   - text:
@@ -1624,6 +1640,7 @@ internal enum Components {
                 internal init(
                     id: Swift.String,
                     threadId: Swift.String,
+                    streamId: Swift.String? = nil,
                     direction: Components.Schemas.OpenClawMessageWithActionsListResponse.MessagesPayloadPayload.DirectionPayload,
                     authorLabel: Swift.String? = nil,
                     text: Swift.String,
@@ -1636,6 +1653,7 @@ internal enum Components {
                 ) {
                     self.id = id
                     self.threadId = threadId
+                    self.streamId = streamId
                     self.direction = direction
                     self.authorLabel = authorLabel
                     self.text = text
@@ -1649,6 +1667,7 @@ internal enum Components {
                 internal enum CodingKeys: String, CodingKey {
                     case id
                     case threadId
+                    case streamId
                     case direction
                     case authorLabel
                     case text

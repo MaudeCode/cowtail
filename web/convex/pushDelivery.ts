@@ -1,6 +1,7 @@
 import type { ActionCtx } from "./_generated/server";
-import { api, internal } from "./_generated/api";
-import { isInvalidDeviceTokenReason } from "./apns";
+import { internal } from "./_generated/api";
+import { configuredApnsEnvironment, isInvalidDeviceTokenReason } from "./apns";
+import { previewDeviceToken } from "./deviceTokenPreview";
 
 export async function sendPushToUser(
   ctx: ActionCtx,
@@ -11,7 +12,9 @@ export async function sendPushToUser(
     data?: Record<string, unknown>;
   },
 ) {
-  const devices = await ctx.runQuery(api.push.listEnabledDevicesForUser, { userId: args.userId });
+  const devices = await ctx.runQuery(internal.push.listEnabledDevicesForUser, {
+    userId: args.userId,
+  });
 
   if (devices.length === 0) {
     return {
@@ -26,8 +29,22 @@ export async function sendPushToUser(
   const results: Array<Record<string, unknown>> = [];
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
+  const activeEnvironment = configuredApnsEnvironment();
 
   for (const device of devices) {
+    if (device.environment !== activeEnvironment) {
+      skipped += 1;
+      results.push({
+        deviceToken: previewDeviceToken(device.deviceToken),
+        environment: device.environment,
+        skipped: true,
+        reason: "APNSEnvironmentMismatch",
+        activeEnvironment,
+      });
+      continue;
+    }
+
     const result = await ctx.runAction(internal.pushActions.sendApnsToDevice, {
       deviceToken: device.deviceToken,
       title: args.title,
@@ -40,27 +57,27 @@ export async function sendPushToUser(
     } else {
       failed += 1;
 
-      if (isInvalidDeviceTokenReason(result.reason)) {
-        await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
+      if (isInvalidDeviceTokenReason(result.reason) && device.environment === activeEnvironment) {
+        await ctx.runMutation(internal.push.disableDeviceRegistrationByToken, {
+          userId: args.userId,
           deviceToken: device.deviceToken,
         });
       }
     }
 
     results.push({
-      deviceToken:
-        device.deviceToken.length <= 12
-          ? device.deviceToken
-          : `${device.deviceToken.slice(0, 6)}…${device.deviceToken.slice(-6)}`,
+      deviceToken: previewDeviceToken(device.deviceToken),
+      environment: device.environment,
       ...result,
     });
   }
 
   return {
-    ok: failed === 0,
+    ok: failed === 0 && (sent > 0 || skipped === 0),
     userId: args.userId,
     sent,
     failed,
+    skipped,
     results,
   };
 }

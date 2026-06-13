@@ -43,29 +43,32 @@ final class OpenClawSeededRealtime: OpenClawRealtimeConnecting {
         onMessage = nil
     }
 
-    func send(_ command: OpenClawClientCommand) async throws {
+    func send(_ command: OpenClawClientCommand) async throws -> OpenClawAck {
         switch command {
         case .reply(let command):
-            emitReply(for: command)
+            return await emitReply(for: command)
         case .deleteThread(let command):
-            emitDeletedThread(threadId: command.threadId)
-        case .newThread, .action, .markThreadRead, .renameThread:
-            break
+            return await emitDeletedThread(threadId: command.threadId, requestId: command.requestId)
+        case .newThread(let command):
+            return await emitNewThread(for: command)
+        case .action, .markThreadRead, .renameThread:
+            return OpenClawAck(type: "ack", requestId: command.requestId)
         }
     }
 
     @MainActor
-    private func emitReply(for command: OpenClawReplyCommand) {
+    private func emitReply(for command: OpenClawReplyCommand) -> OpenClawAck {
         let userSequence = nextSequence
         nextSequence += 1
+        let userMessageID = "seeded-user-reply-\(userSequence)"
         onMessage?(.event(.init(
             sequence: userSequence,
             type: "message_created",
             createdAt: eventTime(for: userSequence),
             threadId: command.threadId,
-            messageId: "seeded-user-reply-\(userSequence)",
+            messageId: userMessageID,
             message: OpenClawMessage(
-                id: "seeded-user-reply-\(userSequence)",
+                id: userMessageID,
                 threadId: command.threadId,
                 direction: .userToOpenClaw,
                 authorLabel: "You",
@@ -99,10 +102,74 @@ final class OpenClawSeededRealtime: OpenClawRealtimeConnecting {
                 updatedAt: eventTime(for: assistantSequence)
             )
         )))
+
+        return OpenClawAck(
+            type: "ack",
+            requestId: command.requestId,
+            sequence: userSequence,
+            payload: OpenClawAckPayload(
+                threadId: command.threadId,
+                messageId: userMessageID,
+                dropped: nil,
+                duplicate: nil,
+                reason: nil
+            )
+        )
     }
 
     @MainActor
-    private func emitDeletedThread(threadId: String) {
+    private func emitNewThread(for command: OpenClawNewThreadCommand) -> OpenClawAck {
+        let sequence = nextSequence
+        nextSequence += 1
+        let threadId = "seeded-thread-\(sequence)"
+        let messageId = "seeded-new-thread-message-\(sequence)"
+        let now = eventTime(for: sequence)
+        onMessage?(.event(.init(
+            sequence: sequence,
+            type: "thread_created",
+            createdAt: now,
+            threadId: threadId,
+            messageId: messageId,
+            thread: OpenClawThread(
+                id: threadId,
+                sessionKey: nil,
+                status: .pending,
+                targetAgent: "default",
+                title: command.title ?? "New thread",
+                unreadCount: 0,
+                createdAt: now,
+                updatedAt: now,
+                lastMessageAt: now
+            ),
+            message: OpenClawMessage(
+                id: messageId,
+                threadId: threadId,
+                direction: .userToOpenClaw,
+                authorLabel: "You",
+                text: command.text,
+                links: [],
+                deliveryState: .sent,
+                createdAt: now,
+                updatedAt: now
+            )
+        )))
+
+        return OpenClawAck(
+            type: "ack",
+            requestId: command.requestId,
+            sequence: sequence,
+            payload: OpenClawAckPayload(
+                threadId: threadId,
+                messageId: messageId,
+                dropped: nil,
+                duplicate: nil,
+                reason: nil
+            )
+        )
+    }
+
+    @MainActor
+    private func emitDeletedThread(threadId: String, requestId: String) -> OpenClawAck {
         let sequence = nextSequence
         nextSequence += 1
         onMessage?(.event(.init(
@@ -122,6 +189,8 @@ final class OpenClawSeededRealtime: OpenClawRealtimeConnecting {
                 lastMessageAt: nil
             )
         )))
+
+        return OpenClawAck(type: "ack", requestId: requestId, sequence: sequence)
     }
 
     private func eventTime(for sequence: Int64) -> Int64 {

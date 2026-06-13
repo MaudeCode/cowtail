@@ -6,6 +6,8 @@ type CowtailOutboundClient = {
   sendOpenClawMessage(command: {
     type: "openclaw_message";
     sessionKey: string;
+    threadId?: string;
+    threadHint?: string;
     text: string;
     links: [];
     actions: [];
@@ -31,7 +33,7 @@ function resolveCowtailTarget(to: string): string {
   if (!normalizedTarget) {
     throw new Error("Cowtail target must not be blank");
   }
-  return buildCowtailTarget(normalizedTarget);
+  return normalizedTarget;
 }
 
 export async function sendCowtailText(params: {
@@ -43,18 +45,24 @@ export async function sendCowtailText(params: {
   const { client, to } = params;
   const text = ensureNonBlankText(params.text);
   const target = resolveCowtailTarget(to);
+  const sessionKey = buildCowtailTarget(target);
 
   const result = await client.sendOpenClawMessage({
     type: "openclaw_message",
-    sessionKey: target,
+    sessionKey,
+    threadHint: target,
     text,
     links: [],
     actions: [],
   });
+  const messageId = result.payload?.messageId;
+  if (typeof messageId !== "string" || messageId.trim() === "") {
+    throw new Error("Cowtail did not acknowledge a durable message id");
+  }
 
   return {
     channel: "cowtail",
-    messageId: String(result.sequence ?? result.requestId),
-    to: target,
+    messageId,
+    to: buildCowtailTarget(target),
   };
 }

@@ -151,6 +151,14 @@ async function getThreadBySessionKey(ctx: MutationCtx, sessionKey: string) {
   return threads.at(0);
 }
 
+async function getThreadByIdOrNull(ctx: MutationCtx, threadId: string) {
+  try {
+    return await ctx.db.get(threadId as Id<"openclawThreads">);
+  } catch {
+    return null;
+  }
+}
+
 async function getMessageByIdempotencyKey(ctx: MutationCtx, idempotencyKey: string) {
   const messages = await ctx.db
     .query("openclawMessages")
@@ -197,10 +205,10 @@ function assertIdempotencyReceiptMatches(
   if (
     receipt.commandType !== expected.commandType ||
     receipt.commandDigest !== expected.commandDigest ||
-    receipt.sessionKey !== expected.sessionKey ||
-    receipt.threadId !== expected.threadId ||
-    receipt.messageId !== expected.messageId ||
-    receipt.actionId !== expected.actionId
+    (expected.sessionKey !== undefined && receipt.sessionKey !== expected.sessionKey) ||
+    (expected.threadId !== undefined && receipt.threadId !== expected.threadId) ||
+    (expected.messageId !== undefined && receipt.messageId !== expected.messageId) ||
+    (expected.actionId !== undefined && receipt.actionId !== expected.actionId)
   ) {
     throw new Error(
       `Idempotency key ${expected.idempotencyKey} was already used for another command target`,
@@ -261,16 +269,19 @@ async function actionIdsForMessage(ctx: MutationCtx, messageId: Id<"openclawMess
   return actions.map((action) => action._id);
 }
 
-async function acknowledgeDuplicateMessage(ctx: MutationCtx, message: Doc<"openclawMessages">) {
+async function acknowledgeDuplicateMessage(
+  ctx: MutationCtx,
+  message: Doc<"openclawMessages">,
+  payload?: Record<string, unknown>,
+) {
   const sequence = await insertOpenClawEvent(ctx, {
     type: "message_acknowledged",
     threadId: message.threadId,
     messageId: message._id,
-    payload: {
-      dropped: true,
+    payload: buildAcknowledgementPayload(payload, {
       duplicate: true,
       reason: "duplicate_idempotency_key",
-    },
+    }),
   });
 
   return {
@@ -281,10 +292,10 @@ async function acknowledgeDuplicateMessage(ctx: MutationCtx, message: Doc<"openc
   };
 }
 
-async function getDuplicateOpenClawMessageForSession(
+async function getDuplicateOpenClawMessageForTarget(
   ctx: MutationCtx,
   idempotencyKey: string,
-  sessionKey: string,
+  target: { sessionKey: string; threadId?: Id<"openclawThreads"> },
 ) {
   const message = await getMessageByIdempotencyKey(ctx, idempotencyKey);
   if (!message) {
@@ -296,8 +307,17 @@ async function getDuplicateOpenClawMessageForSession(
     );
   }
 
+  if (target.threadId !== undefined) {
+    if (message.threadId !== target.threadId) {
+      throw new Error(
+        `Idempotency key ${idempotencyKey} was already used for another command target`,
+      );
+    }
+    return message;
+  }
+
   const thread = await ctx.db.get(message.threadId);
-  if (!thread || thread.sessionKey !== sessionKey) {
+  if (!thread || thread.sessionKey !== target.sessionKey) {
     throw new Error(
       `Idempotency key ${idempotencyKey} was already used for another command target`,
     );
@@ -327,27 +347,48 @@ async function getDuplicateIosReplyMessageForThread(
 async function acknowledgeDuplicateReceipt(
   ctx: MutationCtx,
   receipt: Doc<"openclawIdempotencyReceipts">,
+  _payload?: Record<string, unknown>,
 ) {
-  const sequence = await insertOpenClawEvent(ctx, {
-    type: "message_acknowledged",
-    ...(receipt.threadId !== undefined ? { threadId: receipt.threadId } : {}),
-    ...(receipt.messageId !== undefined ? { messageId: receipt.messageId } : {}),
-    ...(receipt.actionId !== undefined ? { actionId: receipt.actionId } : {}),
-    payload: {
-      dropped: true,
-      duplicate: true,
-      reason: "duplicate_idempotency_key",
-    },
-  });
-
   return {
     ok: true,
+    duplicate: true,
     ...(receipt.threadId !== undefined ? { threadId: receipt.threadId } : {}),
     ...(receipt.messageId !== undefined ? { messageId: receipt.messageId } : {}),
     ...(receipt.actionId !== undefined ? { actionId: receipt.actionId } : {}),
     actionIds:
       receipt.messageId !== undefined ? await actionIdsForMessage(ctx, receipt.messageId) : [],
-    sequence,
+    sequence: receipt.sequence,
+  };
+}
+
+function buildCommandEventPayload({
+  payload,
+  streamId,
+  threadHint,
+}: {
+  payload?: Record<string, unknown>;
+  streamId?: string;
+  threadHint?: string;
+}): Record<string, unknown> | undefined {
+  const eventPayload: Record<string, unknown> = { ...payload };
+  if (threadHint !== undefined) {
+    eventPayload.threadHint = threadHint;
+  }
+  if (streamId !== undefined) {
+    eventPayload.streamId = streamId;
+  }
+  return Object.keys(eventPayload).length === 0 ? undefined : eventPayload;
+}
+
+function buildAcknowledgementPayload(
+  payload: Record<string, unknown> | undefined,
+  options: { duplicate?: true; reason: string },
+): Record<string, unknown> {
+  return {
+    ...payload,
+    dropped: true,
+    ...(options.duplicate === true ? { duplicate: true } : {}),
+    reason: options.reason,
   };
 }
 
@@ -355,12 +396,16 @@ export const createThreadFromOpenClaw = mutation({
   args: {
     serviceToken: v.string(),
     sessionKey: v.string(),
+    threadId: v.optional(v.string()),
+    threadHint: v.optional(v.string()),
     idempotencyKey: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
     authorLabel: v.optional(v.string()),
     links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     toolCalls: openclawToolCallsValidator,
+    streamId: v.string(),
+    payload: v.optional(v.record(v.string(), v.any())),
     deliveryState: v.optional(
       v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
     ),
@@ -379,12 +424,22 @@ export const createThreadFromOpenClaw = mutation({
 
     const now = Date.now();
     const toolCalls = validateOpenClawToolCalls(args.toolCalls ?? []);
-    const existingThread = await getThreadBySessionKey(ctx, args.sessionKey);
+    const eventPayload = buildCommandEventPayload(args);
+    const targetThread =
+      args.threadId !== undefined ? await getThreadByIdOrNull(ctx, args.threadId) : null;
+    if (args.threadId !== undefined && targetThread === null) {
+      throw new Error(`Thread not found: ${args.threadId}`);
+    }
+
+    const existingThread =
+      targetThread !== null ? targetThread : await getThreadBySessionKey(ctx, args.sessionKey);
     const receiptExpectation = {
       idempotencyKey: args.idempotencyKey,
       commandType: "openclaw_message",
       commandDigest: commandDigest({
         sessionKey: args.sessionKey,
+        ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
+        ...(args.threadHint !== undefined ? { threadHint: args.threadHint } : {}),
         title: args.title,
         text: args.text,
         authorLabel: args.authorLabel,
@@ -392,29 +447,29 @@ export const createThreadFromOpenClaw = mutation({
         toolCalls,
         actions: args.actions ?? [],
         deliveryState: args.deliveryState ?? "sent",
+        streamId: args.streamId,
       }),
       sessionKey: args.sessionKey,
       ...(existingThread ? { threadId: existingThread._id } : {}),
     };
     const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
     if (duplicateReceipt) {
-      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt, eventPayload);
     }
 
-    const idempotentMessage = await getDuplicateOpenClawMessageForSession(
-      ctx,
-      args.idempotencyKey,
-      args.sessionKey,
-    );
+    const idempotentMessage = await getDuplicateOpenClawMessageForTarget(ctx, args.idempotencyKey, {
+      sessionKey: args.sessionKey,
+      ...(targetThread !== null ? { threadId: targetThread._id } : {}),
+    });
     if (idempotentMessage) {
-      return await acknowledgeDuplicateMessage(ctx, idempotentMessage);
+      return await acknowledgeDuplicateMessage(ctx, idempotentMessage, eventPayload);
     }
 
     if (existingThread && shouldDropOpenClawReplyForThread(existingThread)) {
       const sequence = await insertOpenClawEvent(ctx, {
         type: "message_acknowledged",
         threadId: existingThread._id,
-        payload: { dropped: true, reason: "thread_archived" },
+        payload: buildAcknowledgementPayload(eventPayload, { reason: "thread_archived" }),
       });
       await insertIdempotencyReceipt(
         ctx,
@@ -462,6 +517,7 @@ export const createThreadFromOpenClaw = mutation({
 
     const messageId = await ctx.db.insert("openclawMessages", {
       threadId: thread,
+      streamId: args.streamId,
       direction: "openclaw_to_user",
       text: args.text,
       links: args.links ?? [],
@@ -494,6 +550,7 @@ export const createThreadFromOpenClaw = mutation({
       type: "message_created",
       threadId: thread,
       messageId,
+      payload: eventPayload,
     });
     await insertIdempotencyReceipt(
       ctx,
@@ -513,6 +570,8 @@ export const updateMessageFromOpenClaw = mutation({
     text: v.string(),
     links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
     toolCalls: openclawToolCallsValidator,
+    streamId: v.string(),
+    payload: v.optional(v.record(v.string(), v.any())),
     deliveryState: v.optional(
       v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
     ),
@@ -541,6 +600,7 @@ export const updateMessageFromOpenClaw = mutation({
     if (!thread) {
       throw new Error(`Thread not found: ${message.threadId}`);
     }
+    const eventPayload = buildCommandEventPayload(args);
 
     const receiptExpectation = {
       idempotencyKey: args.idempotencyKey,
@@ -552,13 +612,14 @@ export const updateMessageFromOpenClaw = mutation({
         toolCalls: args.toolCalls ?? [],
         actions: args.actions ?? [],
         deliveryState: args.deliveryState,
+        streamId: args.streamId,
       }),
       threadId: message.threadId,
       messageId: args.messageId,
     };
     const duplicateReceipt = await getDuplicateIdempotencyReceipt(ctx, receiptExpectation);
     if (duplicateReceipt) {
-      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt);
+      return await acknowledgeDuplicateReceipt(ctx, duplicateReceipt, eventPayload);
     }
 
     if (shouldDropOpenClawReplyForThread(thread)) {
@@ -566,10 +627,7 @@ export const updateMessageFromOpenClaw = mutation({
         type: "message_acknowledged",
         threadId: message.threadId,
         messageId: args.messageId,
-        payload: {
-          dropped: true,
-          reason: "thread_archived",
-        },
+        payload: buildAcknowledgementPayload(eventPayload, { reason: "thread_archived" }),
       });
       await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 
@@ -585,6 +643,7 @@ export const updateMessageFromOpenClaw = mutation({
         toolCalls: args.toolCalls,
         deliveryState: args.deliveryState,
         updatedAt: now,
+        streamId: args.streamId,
       }),
     );
 
@@ -621,6 +680,7 @@ export const updateMessageFromOpenClaw = mutation({
       type: "message_updated",
       threadId: message.threadId,
       messageId: args.messageId,
+      payload: eventPayload,
     });
     await insertIdempotencyReceipt(ctx, receiptExpectation, sequence);
 

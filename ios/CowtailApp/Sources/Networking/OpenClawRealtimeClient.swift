@@ -10,7 +10,7 @@ protocol OpenClawRealtimeConnecting: AnyObject {
         onMessage: @escaping @MainActor (OpenClawServerMessage) -> Void
     )
     func stop()
-    func send(_ command: OpenClawClientCommand) async throws
+    func send(_ command: OpenClawClientCommand) async throws -> OpenClawAck
 }
 
 enum OpenClawRealtimeTransportState: Equatable {
@@ -65,7 +65,7 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
     private var helloSent = false
     private var reconnectAttempt = 0
     private var connectionGeneration = 0
-    private var pendingCommandContinuations: [String: CheckedContinuation<Void, Error>] = [:]
+    private var pendingCommandContinuations: [String: CheckedContinuation<OpenClawAck, Error>] = [:]
 
     init(
         url: URL = AppConfig.openClawRealtimeURL,
@@ -170,7 +170,7 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
         }
     }
 
-    func send(_ command: OpenClawClientCommand) async throws {
+    func send(_ command: OpenClawClientCommand) async throws -> OpenClawAck {
         guard let webSocketTask, helloSent else {
             throw OpenClawRealtimeClientError.notConnected
         }
@@ -180,7 +180,7 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
             throw OpenClawRealtimeClientError.invalidMessage
         }
 
-        try await withCheckedThrowingContinuation { continuation in
+        return try await withCheckedThrowingContinuation { continuation in
             pendingCommandContinuations[command.requestId] = continuation
             Task { @MainActor [weak self, weak webSocketTask] in
                 guard let self else { return }
@@ -247,7 +247,7 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
                 helloSent = true
                 onConnectionStateChange?(.connected)
             } else if case .ack(let ack) = decoded {
-                resolvePendingCommand(ack.requestId, result: .success(()))
+                resolvePendingCommand(ack.requestId, result: .success(ack))
             } else if case .realtimeError(let error) = decoded, let requestId = error.requestId {
                 resolvePendingCommand(
                     requestId,
@@ -305,7 +305,7 @@ final class OpenClawRealtimeClient: OpenClawRealtimeConnecting {
         return scheme == "ws" || scheme == "wss"
     }
 
-    private func resolvePendingCommand(_ requestId: String, result: Result<Void, Error>) {
+    private func resolvePendingCommand(_ requestId: String, result: Result<OpenClawAck, Error>) {
         guard let continuation = pendingCommandContinuations.removeValue(forKey: requestId) else {
             return
         }

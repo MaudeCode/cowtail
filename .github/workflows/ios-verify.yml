@@ -6,6 +6,9 @@ on:
     branches:
       - "main"
     paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
       - "ios/**"
       - ".github/workflows/ios-build.yml"
       - ".github/workflows/ios-verify.yml"
@@ -14,6 +17,9 @@ on:
     branches:
       - "main"
     paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
       - "ios/**"
       - ".github/workflows/ios-build.yml"
       - ".github/workflows/ios-verify.yml"
@@ -38,8 +44,16 @@ jobs:
         (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
       )
     runs-on: maude-mac
+    env:
+      COWTAIL_IOS_TEST_DEVICE_NAME: iPhone 17 Pro
+      COWTAIL_IOS_TEST_OS: "26.5"
     steps:
       - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Write iOS verify project env
+        run: install -m 600 ios/Config/project.env.example ios/Config/project.env
 
       - name: Run SwiftLint
         working-directory: ios
@@ -48,3 +62,17 @@ jobs:
       - name: Run SwiftFmt
         working-directory: ios
         run: swiftformat --lint .
+
+      - name: Reset simulator before unit tests
+        working-directory: ios
+        run: scripts/reset-simulator.sh
+
+      - name: Run iOS Unit Tests
+        run: bun run test:ios:unit
+
+      - name: Reset simulator before UI tests
+        working-directory: ios
+        run: scripts/reset-simulator.sh
+
+      - name: Run iOS UI Tests
+        run: bun run test:ios:ui

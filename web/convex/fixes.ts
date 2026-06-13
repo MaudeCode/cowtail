@@ -1,7 +1,7 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-export const insert = mutation({
+export const insert = internalMutation({
   args: {
     timestamp: v.number(),
     alertIds: v.array(v.id("alerts")),
@@ -54,7 +54,7 @@ export const getAll = query({
   },
 });
 
-export const deleteById = mutation({
+export const deleteById = internalMutation({
   args: { id: v.id("fixes") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);

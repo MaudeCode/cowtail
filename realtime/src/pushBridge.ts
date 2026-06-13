@@ -1,4 +1,9 @@
-import { pushResultSchema, type OpenClawEventEnvelope } from "@maudecode/cowtail-protocol";
+import {
+  openclawPushNotificationPayloadSchema,
+  pushResultSchema,
+  type OpenClawEventEnvelope,
+  type OpenClawPushNotificationPayload,
+} from "@maudecode/cowtail-protocol";
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -31,6 +36,24 @@ function failure(): PushBridgeResult {
   return { ok: false, sent: 0, failed: 1 };
 }
 
+function buildOpenClawNotificationPayload(
+  event: OpenClawEventEnvelope,
+): OpenClawPushNotificationPayload | undefined {
+  if (!event.threadId || !event.messageId) {
+    return undefined;
+  }
+
+  const parsed = openclawPushNotificationPayloadSchema.safeParse({
+    kind: "openclaw",
+    version: 1,
+    threadId: event.threadId,
+    messageId: event.messageId,
+    url: `/openclaw/threads/${encodeURIComponent(event.threadId)}`,
+  });
+
+  return parsed.success ? parsed.data : undefined;
+}
+
 export class CowtailHttpPushBridge implements OpenClawPushBridge {
   private readonly httpBaseUrl: string;
   private readonly bearerToken: string;
@@ -45,9 +68,9 @@ export class CowtailHttpPushBridge implements OpenClawPushBridge {
   }
 
   async sendOpenClawMessageNotification(event: OpenClawEventEnvelope): Promise<PushBridgeResult> {
+    const data = buildOpenClawNotificationPayload(event);
     if (
-      !event.threadId ||
-      !event.messageId ||
+      !data ||
       !event.message ||
       typeof event.message.text !== "string" ||
       event.message.text.trim().length === 0
@@ -67,7 +90,7 @@ export class CowtailHttpPushBridge implements OpenClawPushBridge {
           userId: this.ownerUserId,
           title: `OpenClaw: ${event.thread?.title ?? "Message"}`,
           body: truncateBody(event.message.text),
-          data: { kind: "openclaw", threadId: event.threadId, messageId: event.messageId },
+          data,
         }),
       });
     } catch {

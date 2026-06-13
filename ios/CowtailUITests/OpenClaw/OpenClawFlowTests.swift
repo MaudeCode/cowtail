@@ -51,6 +51,33 @@ final class OpenClawFlowTests: XCTestCase {
         XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2))
     }
 
+    func testNewThreadRoutesToCreatedConversation() {
+        let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
+        app.launch()
+
+        app.tabBars.buttons["Maude"].tap()
+        XCTAssertTrue(element(in: app, identifier: "screen.openclaw.threads").waitForExistence(timeout: 5))
+
+        app.buttons["button.openclaw.new-thread"].tap()
+        XCTAssertTrue(element(in: app, identifier: "sheet.openclaw.new-thread").waitForExistence(timeout: 5))
+
+        let titleField = element(in: app, identifier: "field.openclaw.new-thread.title")
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        titleField.tap()
+        titleField.typeText("Seeded route check")
+
+        let messageField = element(in: app, identifier: "field.openclaw.new-thread.message")
+        XCTAssertTrue(messageField.waitForExistence(timeout: 5))
+        messageField.tap()
+        messageField.typeText("Start from iOS")
+
+        app.buttons["button.openclaw.new-thread.send"].tap()
+
+        XCTAssertTrue(element(in: app, identifier: "screen.openclaw.thread-detail").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(in: app, identifier: "title.openclaw.thread").label.contains("Seeded route check"))
+        XCTAssertTrue(staticText(containing: "Start from iOS", in: app).waitForExistence(timeout: 5))
+    }
+
     func testBackFromThreadDetailReturnsToThreadList() {
         let app = AppLaunching.configuredApp(scenario: "openclaw_populated")
         app.launch()

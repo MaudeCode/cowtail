@@ -65,7 +65,7 @@ final class InboxFlowTests: XCTestCase {
     func testMissingAlertDeepLinkShowsUnavailableState() {
         let app = AppLaunching.configuredApp(
             scenario: "alert_deep_link_missing",
-            deepLinkURL: "https://cowtail.thezoo.house/alerts/missing-alert"
+            deepLinkURL: "/alerts/missing-alert"
         )
 
         app.launch()
@@ -79,7 +79,7 @@ final class InboxFlowTests: XCTestCase {
     func testKnownAlertDeepLinkShowsAlertDetail() {
         let app = AppLaunching.configuredApp(
             scenario: "alert_deep_link_known",
-            deepLinkURL: "https://cowtail.thezoo.house/alerts/preview-alert"
+            deepLinkURL: "/alerts/preview-alert"
         )
 
         app.launch()

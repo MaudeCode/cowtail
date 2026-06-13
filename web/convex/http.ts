@@ -21,6 +21,7 @@ import {
   openclawDisplayPreferencesResponseSchema,
   openclawDisplayPreferencesUpdateRequestSchema,
   openclawMessageWithActionsListResponseSchema,
+  openclawPushNotificationPayloadSchema,
   openclawThreadListResponseSchema,
   okResponseSchema,
   pushRegisterRequestSchema,
@@ -39,7 +40,9 @@ import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
+import { previewDeviceToken } from "./deviceTokenPreview";
 import { validateOpenClawLimit } from "./openclawModel";
 import { sendPushToUser } from "./pushDelivery";
 
@@ -106,6 +109,44 @@ function enrichPushData(
   }
 
   return enriched;
+}
+
+function buildOpenClawThreadURL(threadId: string): string {
+  return `/openclaw/threads/${encodeURIComponent(threadId)}`;
+}
+
+function isOpenClawPushData(data: Record<string, unknown> | undefined): boolean {
+  return (
+    nonEmptyString(data?.kind)?.toLowerCase() === "openclaw" ||
+    nonEmptyString(data?.type)?.toLowerCase() === "openclaw"
+  );
+}
+
+export function normalizePushDataForSend(
+  data: Record<string, unknown> | undefined,
+  alertId: string | undefined,
+): { ok: true; data: Record<string, unknown> | undefined } | { ok: false; error: string } {
+  const enriched = enrichPushData(data, alertId);
+  if (!isOpenClawPushData(enriched)) {
+    return { ok: true, data: enriched };
+  }
+
+  const parsed = openclawPushNotificationPayloadSchema.safeParse({
+    ...enriched,
+    kind: "openclaw",
+    type: undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: formatIssues(parsed.error.issues) };
+  }
+
+  return {
+    ok: true,
+    data: {
+      ...parsed.data,
+      url: parsed.data.url ?? buildOpenClawThreadURL(parsed.data.threadId),
+    },
+  };
 }
 
 function requireServiceAuth(c: { req: { header(name: string): string | undefined } }) {
@@ -252,8 +293,10 @@ function mapFixRecord(fix: Record<string, unknown> & { _id: string }) {
 }
 
 function mapUserDevice(device: Record<string, unknown>) {
+  const deviceToken = String(device.deviceToken);
   return {
-    deviceToken: String(device.deviceToken),
+    id: String(device._id),
+    deviceTokenPreview: previewDeviceToken(deviceToken),
     platform: String(device.platform),
     environment: String(device.environment),
     enabled: Boolean(device.enabled),
@@ -424,6 +467,9 @@ async function fetchClusterHealth(): Promise<HealthResponse> {
 
 // POST /api/alerts — write endpoint
 app.post("/api/alerts", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const body = await c.req.json().catch(() => null);
   if (!body) {
     return jsonError("Invalid JSON body");
@@ -450,7 +496,7 @@ app.post("/api/alerts", async (c) => {
   if (parsed.data.node) args.node = parsed.data.node;
   if (parsed.data.rootCause) args.rootCause = parsed.data.rootCause;
   if (parsed.data.resolvedAt) args.resolvedAt = parsed.data.resolvedAt;
-  const id = await ctx.runMutation(api.alerts.insert, args as any);
+  const id = await ctx.runMutation(internal.alerts.insert, args as any);
   return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
@@ -531,10 +577,13 @@ app.get("/api/alerts/:id", async (c) => {
 
 // DELETE /api/alerts/:id — delete a single alert
 app.delete("/api/alerts/:id", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const ctx = c.env;
   const id = c.req.param("id");
   try {
-    await ctx.runMutation(api.alerts.deleteById, { id: id as any });
+    await ctx.runMutation(internal.alerts.deleteById, { id: id as any });
     return c.json(okResponseSchema.parse({ ok: true }));
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 400);
@@ -543,6 +592,9 @@ app.delete("/api/alerts/:id", async (c) => {
 
 // POST /api/fixes — write endpoint
 app.post("/api/fixes", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const body = await c.req.json().catch(() => null);
   if (!body) {
     return jsonError("Invalid JSON body");
@@ -562,7 +614,7 @@ app.post("/api/fixes", async (c) => {
     scope: parsed.data.scope,
   };
   if (parsed.data.commit) args.commit = parsed.data.commit;
-  const id = await ctx.runMutation(api.fixes.insert, args as any);
+  const id = await ctx.runMutation(internal.fixes.insert, args as any);
   return c.json(createResponseSchema.parse({ ok: true, id }));
 });
 
@@ -625,10 +677,13 @@ app.get("/api/fixes/:id", async (c) => {
 
 // DELETE /api/fixes/:id — delete a single fix
 app.delete("/api/fixes/:id", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const ctx = c.env;
   const id = c.req.param("id");
   try {
-    await ctx.runMutation(api.fixes.deleteById, { id: id as any });
+    await ctx.runMutation(internal.fixes.deleteById, { id: id as any });
     return c.json(okResponseSchema.parse({ ok: true }));
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 400);
@@ -639,6 +694,9 @@ app.delete("/api/fixes/:id", async (c) => {
 // Accepts Alertmanager's payload format and writes alerts directly to Convex.
 // Used for known-noise alerts that don't need AI investigation.
 app.post("/api/alerts/webhook", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
   const body = await c.req.json();
   const ctx = c.env;
 
@@ -671,7 +729,7 @@ app.post("/api/alerts/webhook", async (c) => {
       args.resolvedAt = new Date(alert.endsAt).getTime();
     }
 
-    const id = await ctx.runMutation(api.alerts.insert, args as any);
+    const id = await ctx.runMutation(internal.alerts.insert, args as any);
     ids.push(id);
   }
 
@@ -761,12 +819,11 @@ app.post("/api/push/register", async (c) => {
   }
 
   const ctx = c.env;
-  const result = await ctx.runMutation(api.push.upsertDeviceRegistration, {
+  const result = await ctx.runMutation(internal.push.upsertDeviceRegistration, {
     userId,
     deviceToken: deviceToken.trim(),
     platform: nonEmptyString(parsed.data.platform) ?? "ios",
-    environment:
-      nonEmptyString(parsed.data.environment) ?? (process.env.APNS_ENV?.trim() || "development"),
+    environment: parsed.data.environment ?? configuredApnsEnvironment(),
     enabled: true,
     deviceName: nonEmptyString(parsed.data.deviceName),
     lastSeenAt: Date.now(),
@@ -787,8 +844,22 @@ app.post("/api/push/unregister", async (c) => {
     return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
+  let userId: string;
+  try {
+    userId = await verifyAppleIdentityToken(parsed.data.identityToken);
+  } catch (error) {
+    if (error instanceof AppleIdentityVerificationError) {
+      return jsonError(error.message, error.statusCode);
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Apple identity token verification failed";
+    return jsonError(message, 500);
+  }
+
   const ctx = c.env;
-  const result = await ctx.runMutation(api.push.disableDeviceRegistrationByToken, {
+  const result = await ctx.runMutation(internal.push.disableDeviceRegistrationByToken, {
+    userId,
     deviceToken: parsed.data.deviceToken.trim(),
   });
 
@@ -965,13 +1036,16 @@ app.post("/api/push/send", async (c) => {
     return jsonError(formatIssues(parsed.error.issues));
   }
 
-  const data = enrichPushData(parsed.data.data, extractAlertId(body));
+  const normalizedData = normalizePushDataForSend(parsed.data.data, extractAlertId(body));
+  if (!normalizedData.ok) {
+    return jsonError(normalizedData.error);
+  }
 
   const result = await sendPushToUser(c.env, {
     userId: parsed.data.userId,
     title: parsed.data.title,
     body: parsed.data.body,
-    data,
+    data: normalizedData.data,
   });
 
   return c.json(pushResultSchema.parse(result));
@@ -1026,7 +1100,10 @@ app.post("/api/push/test", async (c) => {
     return jsonError(formatIssues(parsed.error.issues));
   }
 
-  const data = enrichPushData(parsed.data.data, extractAlertId(body));
+  const normalizedData = normalizePushDataForSend(parsed.data.data, extractAlertId(body));
+  if (!normalizedData.ok) {
+    return jsonError(normalizedData.error);
+  }
 
   const result = await sendPushToUser(c.env, {
     userId: parsed.data.userId,
@@ -1034,7 +1111,7 @@ app.post("/api/push/test", async (c) => {
     body: parsed.data.body ?? "Push delivery from Cowtail is working.",
     data: {
       test: true,
-      ...data,
+      ...normalizedData.data,
     },
   });
 
@@ -1046,7 +1123,7 @@ app.get("/api/users", async (c) => {
   const authError = requireServiceAuth(c);
   if (authError) return authError;
 
-  const users = await c.env.runQuery(api.push.listCurrentUsers, {});
+  const users = await c.env.runQuery(internal.push.listCurrentUsers, {});
   return c.json(
     usersListResponseSchema.parse({
       ok: true,
@@ -1062,7 +1139,7 @@ app.get("/api/users/:userId/devices", async (c) => {
   if (authError) return authError;
 
   const userId = c.req.param("userId");
-  const devices = await c.env.runQuery(api.push.listEnabledDevicesForUser, { userId });
+  const devices = await c.env.runQuery(internal.push.listEnabledDevicesForUser, { userId });
 
   return c.json(
     userDevicesResponseSchema.parse({

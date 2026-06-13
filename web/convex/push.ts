@@ -1,5 +1,5 @@
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 async function getDeviceRegistrationByToken(ctx: MutationCtx | QueryCtx, deviceToken: string) {
@@ -9,10 +9,13 @@ async function getDeviceRegistrationByToken(ctx: MutationCtx | QueryCtx, deviceT
     .unique();
 }
 
-async function disableDeviceRegistration(ctx: MutationCtx, deviceToken: string) {
-  const existing = await getDeviceRegistrationByToken(ctx, deviceToken);
+async function disableDeviceRegistrationForUser(
+  ctx: MutationCtx,
+  args: { userId: string; deviceToken: string },
+) {
+  const existing = await getDeviceRegistrationByToken(ctx, args.deviceToken);
 
-  if (!existing) {
+  if (!existing || existing.userId !== args.userId) {
     return { ok: true, updated: false };
   }
 
@@ -54,7 +57,7 @@ async function listCurrentUsersSummary(ctx: QueryCtx) {
     .sort((left, right) => left.userId.localeCompare(right.userId));
 }
 
-export const upsertDeviceRegistration = mutation({
+export const upsertDeviceRegistration = internalMutation({
   args: {
     userId: v.string(),
     deviceToken: v.string(),
@@ -84,25 +87,17 @@ export const upsertDeviceRegistration = mutation({
   },
 });
 
-export const disableDeviceRegistrationByToken = mutation({
+export const disableDeviceRegistrationByToken = internalMutation({
   args: {
+    userId: v.string(),
     deviceToken: v.string(),
   },
   handler: async (ctx, args) => {
-    return await disableDeviceRegistration(ctx, args.deviceToken);
+    return await disableDeviceRegistrationForUser(ctx, args);
   },
 });
 
-export const disableDeviceRegistrationByTokenInternal = internalMutation({
-  args: {
-    deviceToken: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await disableDeviceRegistration(ctx, args.deviceToken);
-  },
-});
-
-export const listEnabledDevicesForUser = query({
+export const listEnabledDevicesForUser = internalQuery({
   args: {
     userId: v.string(),
   },
@@ -111,7 +106,7 @@ export const listEnabledDevicesForUser = query({
   },
 });
 
-export const listCurrentUsers = query({
+export const listCurrentUsers = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await listCurrentUsersSummary(ctx);

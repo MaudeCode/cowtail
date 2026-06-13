@@ -4,6 +4,7 @@ struct OpenClawNewThreadView: View {
     @Environment(\.cowtailPalette) private var palette
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: OpenClawStore
+    @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
 
     @State private var titleText = ""
     @State private var messageText = ""
@@ -102,11 +103,14 @@ struct OpenClawNewThreadView: View {
             }
 
             do {
-                try await store.createThread(
+                let threadId = try await store.createThread(
                     title: title.isEmpty ? nil : title,
                     text: message
                 )
                 dismiss()
+                if let threadId {
+                    universalLinkRouter.openOpenClawThread(threadId)
+                }
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -117,4 +121,5 @@ struct OpenClawNewThreadView: View {
 #Preview {
     OpenClawNewThreadView()
         .environmentObject(CowtailPreviewFixtures.openClawStore())
+        .environmentObject(UniversalLinkRouter.shared)
 }

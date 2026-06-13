@@ -518,7 +518,10 @@
           },
           "environment": {
             "type": "string",
-            "minLength": 1
+            "enum": [
+              "development",
+              "production"
+            ]
           },
           "deviceName": {
             "type": "string",
@@ -551,12 +554,17 @@
       "PushUnregisterRequest": {
         "type": "object",
         "properties": {
+          "identityToken": {
+            "type": "string",
+            "minLength": 1
+          },
           "deviceToken": {
             "type": "string",
             "minLength": 1
           }
         },
         "required": [
+          "identityToken",
           "deviceToken"
         ]
       },
@@ -736,6 +744,10 @@
                   "minLength": 1
                 },
                 "threadId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "streamId": {
                   "type": "string",
                   "minLength": 1
                 },

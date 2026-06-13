@@ -43,7 +43,7 @@ export class UsersDevicesCommand extends JsonCommand {
       response.devices
         .map(
           (device) =>
-            `${device.deviceToken}  ${device.platform}/${device.environment}  ${formatOptionalText(device.deviceName)}  lastSeen=${formatTimestamp(device.lastSeenAt)}`,
+            `${device.id}  ${device.deviceTokenPreview}  ${device.platform}/${device.environment}  ${formatOptionalText(device.deviceName)}  lastSeen=${formatTimestamp(device.lastSeenAt)}`,
         )
         .join("\n"),
     );
