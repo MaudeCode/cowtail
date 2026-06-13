@@ -154,11 +154,12 @@ export class CowtailRealtimeClient {
 
   sendOpenClawMessage(command: OpenClawMessageInput): Promise<CowtailCommandResult> {
     const requestId = this.#requestIdFactory();
+    const idempotencyKey = command.idempotencyKey ?? `cowtail:request:${requestId}`;
     return this.#sendCommand({
       ...command,
       requestId,
-      idempotencyKey: command.idempotencyKey ?? `cowtail:request:${requestId}`,
-      streamId: command.streamId ?? `cowtail:request:${requestId}`,
+      idempotencyKey,
+      streamId: command.streamId ?? idempotencyKey,
       links: command.links ?? [],
       toolCalls: command.toolCalls ?? [],
       actions: command.actions ?? [],

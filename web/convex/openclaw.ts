@@ -462,9 +462,7 @@ export const createThreadFromOpenClaw = mutation({
       ...(targetThread !== null ? { threadId: targetThread._id } : {}),
     });
     if (idempotentMessage) {
-      throw new Error(
-        `Idempotency key ${args.idempotencyKey} was already used for another command target`,
-      );
+      return await acknowledgeDuplicateMessage(ctx, idempotentMessage, eventPayload);
     }
 
     if (existingThread && shouldDropOpenClawReplyForThread(existingThread)) {

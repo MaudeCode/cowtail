@@ -284,6 +284,51 @@ describe("CowtailRealtimeClient", () => {
     });
   });
 
+  test("derives default stream IDs from custom idempotency keys", async () => {
+    const socket = new FakeWebSocket(createAccount().url);
+    const client = new CowtailRealtimeClient({
+      account: createAccount(),
+      stateStore: {
+        readLastSeenSequence: async () => undefined,
+        writeLastSeenSequence: async () => undefined,
+      },
+      onEvent: () => undefined,
+      requestIdFactory: () => "request-custom-key",
+      webSocketFactory: () => socket,
+    });
+
+    client.start();
+    socket.open();
+    await flushMicrotasks();
+
+    const pending = client.sendOpenClawMessage({
+      type: "openclaw_message",
+      idempotencyKey: "cowtail:reply:stable",
+      sessionKey: "session-custom-key",
+      text: "hello",
+    });
+
+    await flushMicrotasks();
+
+    expect(JSON.parse(socket.sent[1]!)).toMatchObject({
+      type: "openclaw_message",
+      requestId: "request-custom-key",
+      idempotencyKey: "cowtail:reply:stable",
+      streamId: "cowtail:reply:stable",
+    });
+
+    socket.message({
+      type: "ack",
+      requestId: "request-custom-key",
+      sequence: 56,
+    });
+
+    await expect(pending).resolves.toEqual({
+      requestId: "request-custom-key",
+      sequence: 56,
+    });
+  });
+
   test("waits for the handshake when sending immediately after start", async () => {
     const socket = new FakeWebSocket(createAccount().url);
     const client = new CowtailRealtimeClient({

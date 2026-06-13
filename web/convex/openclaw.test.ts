@@ -969,6 +969,71 @@ describe("OpenClaw Convex model helpers", () => {
     expect(patches).toEqual([]);
   });
 
+  test("createThreadFromOpenClaw acknowledges duplicate message idempotency keys without receipts", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const activeThread = {
+      _id: "thread-active",
+      sessionKey: "session-active",
+      status: "active",
+      targetAgent: "default",
+      title: "Active thread",
+      unreadCount: 1,
+      createdAt: 100,
+      updatedAt: 200,
+    };
+    const existingMessage = {
+      _id: "message-existing",
+      threadId: "thread-active",
+      direction: "openclaw_to_user",
+      text: "Existing reply",
+      links: [],
+      toolCalls: [],
+      deliveryState: "sent",
+      idempotencyKey: "cowtail:reply:message-1",
+      createdAt: 150,
+      updatedAt: 150,
+    };
+    const { ctx, inserts, patches } = createArchivedDropMutationCtx({
+      existingThread: activeThread,
+      idempotentMessage: existingMessage,
+    });
+
+    const result = await convexHandler(createThreadFromOpenClaw)(ctx, {
+      serviceToken: "realtime-convex-token",
+      sessionKey: "session-active",
+      idempotencyKey: "cowtail:reply:message-1",
+      streamId: "cowtail:stream:duplicate-create",
+      text: "Existing reply",
+      toolCalls: [],
+      actions: [],
+    });
+
+    expect(result).toEqual({
+      threadId: "thread-active",
+      messageId: "message-existing",
+      actionIds: [],
+      sequence: 1,
+    });
+    expect(inserts).toContainEqual({
+      table: "openclawEvents",
+      value: {
+        type: "message_acknowledged",
+        sequence: 1,
+        createdAt: expect.any(Number),
+        threadId: "thread-active",
+        messageId: "message-existing",
+        payload: {
+          streamId: "cowtail:stream:duplicate-create",
+          dropped: true,
+          duplicate: true,
+          reason: "duplicate_idempotency_key",
+        },
+      },
+    });
+    expect(inserts.some((insert) => insert.table === "openclawMessages")).toBe(false);
+    expect(patches).toEqual([]);
+  });
+
   test("updateMessageFromOpenClaw acknowledges archived drops with top-level message id", async () => {
     process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
     const archivedThread = {
