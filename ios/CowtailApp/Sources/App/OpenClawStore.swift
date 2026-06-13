@@ -298,6 +298,10 @@ final class OpenClawStore: ObservableObject {
                 actions: event.actions,
                 finalizedStreamId: event.payload?.openClawStreamId
             )
+        } else if event.payload?.dropped == true,
+                  let threadId = event.threadId,
+                  let streamId = event.payload?.openClawStreamId {
+            retireDroppedStream(streamId, threadId: threadId)
         } else {
             for action in event.actions {
                 upsertAction(action)
@@ -628,6 +632,14 @@ final class OpenClawStore: ObservableObject {
         retireStream(streamId, threadId: threadId)
     }
 
+    private func retireDroppedStream(_ streamId: String, threadId: String) {
+        messagesByThreadID[threadId]?.removeAll { $0.id == streamId }
+        if liveStreamIdsByThreadID[threadId] == streamId {
+            liveStreamIdsByThreadID.removeValue(forKey: threadId)
+        }
+        retireStream(streamId, threadId: threadId)
+    }
+
     private func retireStream(_ streamId: String, threadId: String) {
         var retiredStreamIds = retiredStreamIdsByThreadID[threadId] ?? []
         retiredStreamIds.insert(streamId)
@@ -702,6 +714,13 @@ private extension Dictionary where Key == String, Value == JSONValue {
             return nil
         }
         return streamId
+    }
+
+    var dropped: Bool {
+        guard case .bool(let dropped) = self["dropped"] else {
+            return false
+        }
+        return dropped
     }
 }
 

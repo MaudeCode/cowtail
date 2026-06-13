@@ -9,21 +9,6 @@ async function getDeviceRegistrationByToken(ctx: MutationCtx | QueryCtx, deviceT
     .unique();
 }
 
-async function disableDeviceRegistration(ctx: MutationCtx, deviceToken: string) {
-  const existing = await getDeviceRegistrationByToken(ctx, deviceToken);
-
-  if (!existing) {
-    return { ok: true, updated: false };
-  }
-
-  await ctx.db.patch(existing._id, {
-    enabled: false,
-    updatedAt: Date.now(),
-  });
-
-  return { ok: true, updated: true };
-}
-
 async function disableDeviceRegistrationForUser(
   ctx: MutationCtx,
   args: { userId: string; deviceToken: string },
@@ -109,15 +94,6 @@ export const disableDeviceRegistrationByToken = internalMutation({
   },
   handler: async (ctx, args) => {
     return await disableDeviceRegistrationForUser(ctx, args);
-  },
-});
-
-export const disableDeviceRegistrationByTokenInternal = internalMutation({
-  args: {
-    deviceToken: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await disableDeviceRegistration(ctx, args.deviceToken);
   },
 });
 

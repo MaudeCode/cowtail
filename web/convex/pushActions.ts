@@ -81,8 +81,12 @@ function getApnsOrigin(environment: ApnsConfig["environment"]): string {
     : "https://api.sandbox.push.apple.com";
 }
 
-function buildPayload(args: SendApnsNotificationArgs): string {
+export function buildApnsPayload(args: SendApnsNotificationArgs): string {
+  const customData = { ...(args.data ?? {}) };
+  delete customData.aps;
+
   return JSON.stringify({
+    ...customData,
     aps: {
       alert: {
         title: args.title,
@@ -90,7 +94,6 @@ function buildPayload(args: SendApnsNotificationArgs): string {
       },
       sound: "default",
     },
-    ...args.data,
   });
 }
 
@@ -98,7 +101,7 @@ async function sendApnsNotification(args: SendApnsNotificationArgs): Promise<Apn
   const config = getApnsConfig();
   const origin = getApnsOrigin(config.environment);
   const jwt = createApnsJwt(config);
-  const payload = buildPayload(args);
+  const payload = buildApnsPayload(args);
 
   return await new Promise<ApnsSuccess>((resolve, reject) => {
     const client = connect(origin);

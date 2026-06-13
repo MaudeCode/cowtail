@@ -20,11 +20,27 @@ final class UITestScenarioTests: XCTestCase {
     }
 
     @MainActor
-    func testOpenClawNotificationRequiresVersionedPayload() {
+    func testLegacyOpenClawNotificationRoutesToThreadDetail() {
+        let router = UniversalLinkRouter.makeForTesting()
+
+        let handled = router.handleNotification(userInfo: [
+            "kind": "openclaw",
+            "threadId": "thread-1",
+            "messageId": "message-1",
+        ])
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(router.selectedTab, .openclaw)
+        XCTAssertEqual(router.openClawPath, [.thread("thread-1")])
+    }
+
+    @MainActor
+    func testOpenClawNotificationRequiresValidVersionedPayload() {
         let router = UniversalLinkRouter.makeForTesting()
 
         XCTAssertFalse(router.handleNotification(userInfo: [
             "kind": "openclaw",
+            "version": "bad",
             "threadId": "thread-1",
             "messageId": "message-1",
         ]))

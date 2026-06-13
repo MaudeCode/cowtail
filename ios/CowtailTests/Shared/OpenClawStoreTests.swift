@@ -1195,6 +1195,59 @@ final class OpenClawStoreTests: XCTestCase {
         XCTAssertEqual(messages.first?.updatedAt, 1777128050000)
     }
 
+    func testDroppedAcknowledgementRetiresPendingStreamSnapshot() throws {
+        let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
+        let store = OpenClawStore(
+            api: FakeOpenClawAPI(),
+            realtime: FakeOpenClawRealtime(),
+            appSessionManager: .shared,
+            defaults: defaults
+        )
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "This reply will be dropped.",
+            links: [],
+            toolCalls: [],
+            isFinal: false,
+            snapshotSequence: 1,
+            updatedAt: 1777128000000
+        ))
+
+        try store.apply(OpenClawEventEnvelope(
+            sequence: 8,
+            type: "message_acknowledged",
+            createdAt: 1777128050000,
+            threadId: "thread-1",
+            messageId: "stream-message-1",
+            payload: [
+                "dropped": .bool(true),
+                "streamId": .string("stream-message-1"),
+            ]
+        ))
+
+        XCTAssertEqual(store.lastSeenSequence, 8)
+        XCTAssertEqual(store.messagesByThreadID["thread-1"], [])
+
+        store.applyStreamSnapshot(.init(
+            type: "openclaw_message_stream_snapshot",
+            streamId: "stream-message-1",
+            sessionKey: "session-1",
+            threadId: "thread-1",
+            text: "Stale retry should stay retired.",
+            links: [],
+            toolCalls: [],
+            isFinal: false,
+            snapshotSequence: 2,
+            updatedAt: 1777128060000
+        ))
+
+        XCTAssertEqual(store.messagesByThreadID["thread-1"], [])
+    }
+
     func testDurableAssistantMessageOnlyRetiresCorrelatedStream() throws {
         let defaults = UserDefaults(suiteName: "OpenClawStoreTests.\(UUID().uuidString)")!
         let store = OpenClawStore(

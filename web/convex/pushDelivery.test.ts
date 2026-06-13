@@ -77,6 +77,7 @@ describe("push delivery", () => {
     ]);
     expect(mutations).toEqual([
       {
+        userId: "user-1",
         deviceToken: "development-device-token-123456",
       },
     ]);

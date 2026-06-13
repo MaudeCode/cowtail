@@ -82,12 +82,15 @@ final class UniversalLinkRouter: ObservableObject {
     @discardableResult
     func handleNotification(userInfo: [AnyHashable: Any]) -> Bool {
         if isOpenClawNotification(userInfo) {
-            guard let payload = openClawNotificationPayload(from: userInfo) else {
-                return false
+            if let payload = openClawNotificationPayload(from: userInfo) {
+                openOpenClawThread(payload.threadID)
+                return true
             }
 
-            openOpenClawThread(payload.threadID)
-            return true
+            if let threadID = legacyOpenClawThreadID(from: userInfo) {
+                openOpenClawThread(threadID)
+                return true
+            }
         }
 
         if let urlString = stringValue(
@@ -125,6 +128,16 @@ final class UniversalLinkRouter: ObservableObject {
             threadID: threadID,
             messageID: messageID
         )
+    }
+
+    private func legacyOpenClawThreadID(from userInfo: [AnyHashable: Any]) -> String? {
+        guard !hasAnyKey(["version"], in: userInfo),
+              let threadID = stringValue(for: ["threadId", "threadID", "thread_id"], in: userInfo),
+              !threadID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        return threadID
     }
 
     @discardableResult
@@ -231,6 +244,10 @@ final class UniversalLinkRouter: ObservableObject {
         }
 
         return nil
+    }
+
+    private func hasAnyKey(_ keys: [String], in userInfo: [AnyHashable: Any]) -> Bool {
+        keys.contains { userInfo[AnyHashable($0)] != nil }
     }
 
     private func resolvedURL(from string: String) -> URL? {

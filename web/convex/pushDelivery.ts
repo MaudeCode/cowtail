@@ -58,7 +58,8 @@ export async function sendPushToUser(
       failed += 1;
 
       if (isInvalidDeviceTokenReason(result.reason) && device.environment === activeEnvironment) {
-        await ctx.runMutation(internal.push.disableDeviceRegistrationByTokenInternal, {
+        await ctx.runMutation(internal.push.disableDeviceRegistrationByToken, {
+          userId: args.userId,
           deviceToken: device.deviceToken,
         });
       }

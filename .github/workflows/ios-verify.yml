@@ -6,6 +6,9 @@ on:
     branches:
       - "main"
     paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
       - "ios/**"
       - ".github/workflows/ios-build.yml"
       - ".github/workflows/ios-verify.yml"
@@ -14,6 +17,9 @@ on:
     branches:
       - "main"
     paths:
+      - "package.json"
+      - "bun.lock"
+      - "protocol/**"
       - "ios/**"
       - ".github/workflows/ios-build.yml"
       - ".github/workflows/ios-verify.yml"
@@ -40,6 +46,8 @@ jobs:
     runs-on: maude-mac
     steps:
       - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
 
       - name: Run SwiftLint
         working-directory: ios
@@ -48,3 +56,9 @@ jobs:
       - name: Run SwiftFmt
         working-directory: ios
         run: swiftformat --lint .
+
+      - name: Run iOS Unit Tests
+        run: bun run test:ios:unit
+
+      - name: Run iOS UI Tests
+        run: bun run test:ios:ui
