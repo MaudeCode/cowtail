@@ -8,7 +8,8 @@ export const usersListEntrySchema = z.object({
 });
 
 export const userDeviceSchema = z.object({
-  deviceToken: nonEmptyStringSchema,
+  id: nonEmptyStringSchema,
+  deviceTokenPreview: nonEmptyStringSchema,
   platform: nonEmptyStringSchema,
   environment: nonEmptyStringSchema,
   enabled: z.boolean(),

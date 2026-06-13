@@ -291,8 +291,13 @@ function mapFixRecord(fix: Record<string, unknown> & { _id: string }) {
 }
 
 function mapUserDevice(device: Record<string, unknown>) {
+  const deviceToken = String(device.deviceToken);
   return {
-    deviceToken: String(device.deviceToken),
+    id: String(device._id),
+    deviceTokenPreview:
+      deviceToken.length <= 12
+        ? `redacted:${deviceToken.length}`
+        : `${deviceToken.slice(0, 6)}...${deviceToken.slice(-6)}`,
     platform: String(device.platform),
     environment: String(device.environment),
     enabled: Boolean(device.enabled),

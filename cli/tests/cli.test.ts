@@ -557,6 +557,72 @@ describe("built binary authenticated write commands", () => {
   });
 });
 
+describe("built binary user device commands", () => {
+  test("users devices prints token previews instead of raw tokens", async () => {
+    const rawToken = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    const server = createServer((request, response) => {
+      expect(request.method).toBe("GET");
+      expect(request.url).toBe("/actions/api/users/user-123/devices");
+      expect(request.headers.authorization).toBe("Bearer secret-token");
+
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          ok: true,
+          userId: "user-123",
+          count: 1,
+          devices: [
+            {
+              id: "device-123",
+              deviceTokenPreview: "abcdef...456789",
+              platform: "ios",
+              environment: "development",
+              enabled: true,
+              deviceName: "iPhone",
+              lastSeenAt: 1,
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          ],
+        }),
+      );
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(
+        binaryPath,
+        ["users", "devices", "--user-id", "user-123"],
+        {
+          env: {
+            COWTAIL_CONFIG_PATH: configPath,
+          },
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("device-123");
+      expect(result.stdout).toContain("abcdef...456789");
+      expect(result.stdout).not.toContain(rawToken);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
+
 describe("built binary validation and updater behavior", () => {
   test("missing required args produce JSON errors on stderr", () => {
     const result = runCliBinary(binaryPath, ["alert", "show", "--json"]);
