@@ -25,7 +25,9 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
   public verifiedSessionTokens: string[] = [];
   public validatedSessionIds: string[] = [];
   public readonly replayQueries: Array<number | undefined> = [];
+  public readonly replayLimits: number[] = [];
   public replayEventsResult: OpenClawEventEnvelope[] = [];
+  public replayEventPages: OpenClawEventEnvelope[][] = [];
   public rejectReplayEvents = false;
   public rejectOpenClawMessage = false;
   public rejectVerifyAppSessionToken = false;
@@ -82,10 +84,14 @@ class FakeCowtailRealtimeApi implements CowtailRealtimeApi {
     };
   }
 
-  async replayEvents(afterSequence?: number): Promise<OpenClawEventEnvelope[]> {
+  async replayEvents(afterSequence?: number, limit = 100): Promise<OpenClawEventEnvelope[]> {
     this.replayQueries.push(afterSequence);
+    this.replayLimits.push(limit);
     if (this.rejectReplayEvents) {
       throw new Error("replay unavailable");
+    }
+    if (this.replayEventPages.length > 0) {
+      return this.replayEventPages.shift() ?? [];
     }
     return this.replayEventsResult;
   }
@@ -537,6 +543,34 @@ describe("OpenClawSessionController", () => {
       createEvent(6, "action_submitted"),
     ]);
     expect(sent(iosSocket).slice(1)).toEqual(api.replayEventsResult);
+  });
+
+  test("paginates replay until the backlog is exhausted", async () => {
+    const { api, controller } = createController();
+    const firstPage = Array.from({ length: 100 }, (_value, index) =>
+      createEvent(index + 2, index % 2 === 0 ? "thread_created" : "thread_updated"),
+    );
+    const secondPage = [createEvent(102, "reply_created"), createEvent(103, "action_submitted")];
+    api.replayEventPages = [firstPage, secondPage];
+    const pluginSocket = new FakeSocket();
+    controller.attach("plugin-1", pluginSocket);
+
+    await controller.handleRawMessage(
+      "plugin-1",
+      JSON.stringify({
+        protocolVersion: 1,
+        clientKind: "openclaw_plugin",
+        token: "bridge-token",
+        lastSeenSequence: 1,
+      }),
+    );
+
+    expect(api.replayQueries).toEqual([1, 101]);
+    expect(api.replayLimits).toEqual([100, 100]);
+    expect(sent(pluginSocket).slice(1)).toEqual([
+      ...firstPage.filter((event) => shouldReplayToClient({ kind: "openclaw_plugin" }, event)),
+      ...secondPage,
+    ]);
   });
 
   test("does not replay archived thread events to OpenClaw plugins", () => {

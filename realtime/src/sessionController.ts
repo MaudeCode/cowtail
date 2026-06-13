@@ -35,6 +35,7 @@ type IosSnapshotSessionValidation = {
 };
 
 const IOS_SNAPSHOT_SESSION_VALIDATION_TTL_MS = 1_000;
+const REPLAY_PAGE_LIMIT = 100;
 
 export function helloAcknowledged(client: RealtimeClient): OpenClawEventEnvelope {
   const payload: Record<string, string> = {
@@ -204,15 +205,35 @@ export class OpenClawSessionController {
 
     if (auth.client.lastSeenSequence !== undefined) {
       try {
-        const replayEvents = await this.#api.replayEvents(auth.client.lastSeenSequence);
-        for (const event of replayEvents) {
-          if (shouldReplayToClient(auth.client, event)) {
-            this.#send(connectionId, event);
-          }
-        }
+        await this.#replayBacklog(connectionId, auth.client);
       } catch {
         this.#send(connectionId, realtimeError("replay_failed"));
       }
+    }
+  }
+
+  async #replayBacklog(connectionId: string, client: RealtimeClient): Promise<void> {
+    let afterSequence = client.lastSeenSequence;
+
+    while (afterSequence !== undefined) {
+      const replayEvents = await this.#api.replayEvents(afterSequence, REPLAY_PAGE_LIMIT);
+      if (replayEvents.length === 0) {
+        return;
+      }
+
+      let nextAfterSequence = afterSequence;
+      for (const event of replayEvents) {
+        nextAfterSequence = Math.max(nextAfterSequence, event.sequence);
+        if (shouldReplayToClient(client, event)) {
+          this.#send(connectionId, event);
+        }
+      }
+
+      if (nextAfterSequence <= afterSequence || replayEvents.length < REPLAY_PAGE_LIMIT) {
+        return;
+      }
+
+      afterSequence = nextAfterSequence;
     }
   }
 

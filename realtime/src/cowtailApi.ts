@@ -45,7 +45,7 @@ export type ConvexLike = {
 export interface CowtailRealtimeApi {
   verifyAppSessionToken(token: string): Promise<AppSessionVerificationResult>;
   validateAppSession(sessionId: string): Promise<AppSessionValidationResult>;
-  replayEvents(afterSequence?: OpenClawSequence): Promise<OpenClawEventEnvelope[]>;
+  replayEvents(afterSequence?: OpenClawSequence, limit?: number): Promise<OpenClawEventEnvelope[]>;
   createOpenClawMessage(
     command: OpenClawPluginMessageCommand,
   ): Promise<CowtailRealtimeApiEventResult>;
@@ -189,9 +189,12 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
     return { ok: true, userId: validation.userId, expiresAt: validation.expiresAt };
   }
 
-  async replayEvents(afterSequence?: OpenClawSequence): Promise<OpenClawEventEnvelope[]> {
+  async replayEvents(
+    afterSequence?: OpenClawSequence,
+    limit = 100,
+  ): Promise<OpenClawEventEnvelope[]> {
     const args = addDefined(
-      { limit: 100, serviceToken: this.serviceToken },
+      { limit, serviceToken: this.serviceToken },
       "afterSequence",
       afterSequence,
     ) as OpenClawReplayQuery & { serviceToken: string };
