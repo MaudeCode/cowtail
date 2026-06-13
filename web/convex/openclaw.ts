@@ -427,6 +427,10 @@ export const createThreadFromOpenClaw = mutation({
     const eventPayload = buildCommandEventPayload(args);
     const targetThread =
       args.threadId !== undefined ? await getThreadByIdOrNull(ctx, args.threadId) : null;
+    if (args.threadId !== undefined && targetThread === null) {
+      throw new Error(`Thread not found: ${args.threadId}`);
+    }
+
     const existingThread =
       targetThread !== null ? targetThread : await getThreadBySessionKey(ctx, args.sessionKey);
     const receiptExpectation = {

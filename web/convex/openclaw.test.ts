@@ -772,6 +772,39 @@ describe("OpenClaw Convex model helpers", () => {
     });
   });
 
+  test("createThreadFromOpenClaw rejects stale explicit thread IDs instead of falling back", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const { ctx, inserts, patches, queryCalls } = createArchivedDropMutationCtx({
+      existingThread: {
+        _id: "thread-active",
+        sessionKey: "session-active",
+        status: "active",
+        targetAgent: "default",
+        title: "Active thread",
+        unreadCount: 2,
+        createdAt: 100,
+        updatedAt: 200,
+      },
+    });
+
+    await expect(
+      convexHandler(createThreadFromOpenClaw)(ctx, {
+        serviceToken: "realtime-convex-token",
+        sessionKey: "session-active",
+        threadId: "thread-missing",
+        idempotencyKey: "cowtail:reply:missing-thread",
+        streamId: "cowtail:stream:missing-thread",
+        text: "Do not fall back",
+        toolCalls: [],
+        actions: [],
+      }),
+    ).rejects.toThrow("Thread not found: thread-missing");
+
+    expect(queryCalls).toEqual([]);
+    expect(inserts).toEqual([]);
+    expect(patches).toEqual([]);
+  });
+
   test("createThreadFromOpenClaw uses thread hints without treating them as thread IDs", async () => {
     process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
     const { ctx, inserts } = createArchivedDropMutationCtx({});
