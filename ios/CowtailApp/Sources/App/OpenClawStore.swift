@@ -42,6 +42,7 @@ final class OpenClawStore: ObservableObject {
     private static let displayNameKey = "openclaw.displayName"
     private static let lastSeenSequenceKey = "openclaw.lastSeenSequence"
     private static let localOutgoingMessageIDPrefix = "local:ios:reply:"
+    private static let localEchoReconciliationSkewMilliseconds: Int64 = 5 * 60 * 1_000
 
     init(
         api: any OpenClawAPIClient = OpenClawAPI(),
@@ -565,15 +566,16 @@ final class OpenClawStore: ObservableObject {
         guard message.direction == .userToOpenClaw, message.deliveryState == .sent else { return }
 
         guard let match = pendingOutgoingMessagesByRequestID
-            .first(where: { _, pending in
-                pending.threadId == message.threadId && pending.text == message.text
+            .filter({ _, pending in
+                pending.threadId == message.threadId
+                    && pending.text == message.text
+                    && Self.isWithinLocalEchoReconciliationSkew(pending.createdAt, message.createdAt)
+            })
+            .max(by: { lhs, rhs in
+                Self.localEchoDistance(lhs.value.createdAt, from: message.createdAt)
+                    > Self.localEchoDistance(rhs.value.createdAt, from: message.createdAt)
             }) else {
-            if let localIndex = messagesByThreadID[message.threadId]?.firstIndex(where: {
-                Self.isLocalOutgoingMessageID($0.id)
-                    && $0.direction == .userToOpenClaw
-                    && $0.deliveryState == .pending
-                    && $0.text == message.text
-            }) {
+            if let localIndex = localOutgoingMessageIndex(matching: message) {
                 messagesByThreadID[message.threadId]?.remove(at: localIndex)
             }
             return
@@ -582,6 +584,26 @@ final class OpenClawStore: ObservableObject {
         if let pending = pendingOutgoingMessagesByRequestID.removeValue(forKey: match.key) {
             messagesByThreadID[pending.threadId]?.removeAll { $0.id == pending.localMessageId }
         }
+    }
+
+    private func localOutgoingMessageIndex(matching message: OpenClawMessage) -> Int? {
+        messagesByThreadID[message.threadId]?.enumerated()
+            .filter { _, localMessage in
+                Self.isLocalOutgoingMessageID(localMessage.id)
+                    && localMessage.direction == .userToOpenClaw
+                    && (localMessage.deliveryState == .pending || localMessage.deliveryState == .failed)
+                    && localMessage.text == message.text
+                    && Self.isWithinLocalEchoReconciliationSkew(localMessage.createdAt, message.createdAt)
+            }
+            .max { lhs, rhs in
+                let lhsDistance = Self.localEchoDistance(lhs.element.createdAt, from: message.createdAt)
+                let rhsDistance = Self.localEchoDistance(rhs.element.createdAt, from: message.createdAt)
+                if lhsDistance == rhsDistance {
+                    return lhs.element.updatedAt < rhs.element.updatedAt
+                }
+                return lhsDistance > rhsDistance
+            }?
+            .offset
     }
 
     private func upsertAction(_ action: OpenClawAction) {
@@ -612,15 +634,22 @@ final class OpenClawStore: ObservableObject {
     }
 
     private func reconcilePendingStream(_ streamId: String, with messageId: String, threadId: String) {
+        if retiredStreamIdsByThreadID[threadId]?.contains(streamId) == true {
+            durableMessageIdsByStreamID.removeValue(forKey: streamId)
+            messagesByThreadID[threadId]?.removeAll { $0.id == streamId }
+            return
+        }
+
         durableMessageIdsByStreamID[streamId] = messageId
         messagesByThreadID[threadId]?.removeAll { $0.id == streamId }
         if let liveStreamId = liveStreamIdsByThreadID[threadId],
            liveStreamId != streamId {
-            retireStream(streamId, threadId: threadId)
-        } else {
-            liveStreamIdsByThreadID[threadId] = streamId
-            retiredStreamIdsByThreadID[threadId]?.remove(streamId)
+            messagesByThreadID[threadId]?.removeAll { $0.id == liveStreamId }
+            retireStream(liveStreamId, threadId: threadId)
         }
+
+        liveStreamIdsByThreadID[threadId] = streamId
+        retiredStreamIdsByThreadID[threadId]?.remove(streamId)
     }
 
     private func retireFinalizedStream(_ streamId: String, threadId: String) {
@@ -688,6 +717,14 @@ final class OpenClawStore: ObservableObject {
 
     private static func isLocalOutgoingMessageID(_ messageId: String) -> Bool {
         messageId.hasPrefix(localOutgoingMessageIDPrefix)
+    }
+
+    private static func isWithinLocalEchoReconciliationSkew(_ lhs: Int64, _ rhs: Int64) -> Bool {
+        localEchoDistance(lhs, from: rhs) <= localEchoReconciliationSkewMilliseconds
+    }
+
+    private static func localEchoDistance(_ lhs: Int64, from rhs: Int64) -> Int64 {
+        lhs > rhs ? lhs - rhs : rhs - lhs
     }
 }
 

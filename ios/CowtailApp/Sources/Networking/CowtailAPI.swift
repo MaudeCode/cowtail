@@ -94,7 +94,7 @@ actor CowtailAPI: CowtailAPIClient {
                 statusCode: statusCode,
                 payload: payload
             )
-            let body = await bodyString(from: payload.body)
+            let body = await redactedResponseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Alert list request failed with status \(statusCode): \(body)")
         }
     }
@@ -131,7 +131,7 @@ actor CowtailAPI: CowtailAPIClient {
                 statusCode: statusCode,
                 payload: payload
             )
-            let body = await bodyString(from: payload.body)
+            let body = await redactedResponseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Alert fetch failed with status \(statusCode): \(body)")
         }
     }
@@ -170,7 +170,7 @@ actor CowtailAPI: CowtailAPIClient {
                 statusCode: statusCode,
                 payload: payload
             )
-            let body = await bodyString(from: payload.body)
+            let body = await redactedResponseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Fix list request failed with status \(statusCode): \(body)")
         }
     }
@@ -212,7 +212,7 @@ actor CowtailAPI: CowtailAPIClient {
                 statusCode: statusCode,
                 payload: payload
             )
-            let body = await bodyString(from: payload.body)
+            let body = await redactedResponseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Fix range request failed with status \(statusCode): \(body)")
         }
     }
@@ -229,7 +229,7 @@ actor CowtailAPI: CowtailAPIClient {
                 statusCode: statusCode,
                 payload: payload
             )
-            let body = await bodyString(from: payload.body)
+            let body = await redactedResponseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Health request failed with status \(statusCode): \(body)")
         }
     }
@@ -265,7 +265,7 @@ actor CowtailAPI: CowtailAPIClient {
                 statusCode: statusCode,
                 payload: payload
             )
-            let body = await bodyString(from: payload.body)
+            let body = await responseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Push registration failed with status \(statusCode): \(body)")
         }
     }
@@ -287,7 +287,7 @@ actor CowtailAPI: CowtailAPIClient {
                 statusCode: statusCode,
                 payload: payload
             )
-            let body = await bodyString(from: payload.body)
+            let body = await responseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Push unregistration failed with status \(statusCode): \(body)")
         }
     }
@@ -437,22 +437,62 @@ actor CowtailAPI: CowtailAPIClient {
         statusCode: Int,
         payload: UndocumentedPayload
     ) async {
-        let body = await bodyString(from: payload.body)
+        let body = await redactedResponseBodyString(from: payload.body)
         logger.error(
             "\(operation, privacy: .public) undocumented response status=\(statusCode, privacy: .public) headers=<redacted> body=\(body, privacy: .public)"
         )
     }
 
-    private func bodyString(from body: HTTPBody?) async -> String {
+    static func responseBodyString(from body: HTTPBody?) async -> String {
+        await readableResponseBody(from: body).unredactedDescription
+    }
+
+    private func responseBodyString(from body: HTTPBody?) async -> String {
+        await Self.responseBodyString(from: body)
+    }
+
+    private func redactedResponseBodyString(from body: HTTPBody?) async -> String {
+        await Self.readableResponseBody(from: body).redactedDescription
+    }
+
+    private static func readableResponseBody(from body: HTTPBody?) async -> ReadableResponseBody {
         guard let body else {
-            return "<empty>"
+            return .empty
         }
 
         do {
             let bytes = try await Array(collecting: body, upTo: 32_768)
-            return "<redacted response body: \(bytes.count) bytes>"
+            return .bytes(bytes)
         } catch {
-            return "<unreadable redacted response body>"
+            return .unreadable
+        }
+    }
+
+    private enum ReadableResponseBody {
+        case empty
+        case bytes([UInt8])
+        case unreadable
+
+        var unredactedDescription: String {
+            switch self {
+            case .empty:
+                return "<empty>"
+            case .bytes(let bytes):
+                return String(decoding: bytes, as: UTF8.self)
+            case .unreadable:
+                return "<unreadable response body>"
+            }
+        }
+
+        var redactedDescription: String {
+            switch self {
+            case .empty:
+                return "<empty>"
+            case .bytes(let bytes):
+                return "<redacted response body: \(bytes.count) bytes>"
+            case .unreadable:
+                return "<unreadable redacted response body>"
+            }
         }
     }
 }
