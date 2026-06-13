@@ -54,13 +54,14 @@ export async function sendCowtailText(params: {
     links: [],
     actions: [],
   });
+  const messageId = result.payload?.messageId;
+  if (typeof messageId !== "string" || messageId.trim() === "") {
+    throw new Error("Cowtail did not acknowledge a durable message id");
+  }
 
   return {
     channel: "cowtail",
-    messageId:
-      typeof result.payload?.messageId === "string"
-        ? result.payload.messageId
-        : String(result.sequence ?? result.requestId),
+    messageId,
     to: buildCowtailTarget(threadId),
   };
 }
