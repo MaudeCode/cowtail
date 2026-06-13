@@ -114,7 +114,10 @@ function buildOpenClawThreadURL(threadId: string): string {
 }
 
 function isOpenClawPushData(data: Record<string, unknown> | undefined): boolean {
-  return nonEmptyString(data?.kind)?.toLowerCase() === "openclaw";
+  return (
+    nonEmptyString(data?.kind)?.toLowerCase() === "openclaw" ||
+    nonEmptyString(data?.type)?.toLowerCase() === "openclaw"
+  );
 }
 
 export function normalizePushDataForSend(
@@ -129,6 +132,7 @@ export function normalizePushDataForSend(
   const parsed = openclawPushNotificationPayloadSchema.safeParse({
     ...enriched,
     kind: "openclaw",
+    type: undefined,
   });
   if (!parsed.success) {
     return { ok: false, error: formatIssues(parsed.error.issues) };

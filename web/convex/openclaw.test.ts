@@ -570,6 +570,46 @@ describe("OpenClaw Convex model helpers", () => {
     });
   });
 
+  test("normalizes type-only OpenClaw push payload aliases at the HTTP boundary", () => {
+    expect(
+      normalizePushDataForSend(
+        {
+          type: "openclaw",
+          version: 1,
+          threadId: "thread-1",
+          messageId: "message-1",
+        },
+        undefined,
+      ),
+    ).toEqual({
+      ok: true,
+      data: {
+        kind: "openclaw",
+        version: 1,
+        threadId: "thread-1",
+        messageId: "message-1",
+        url: "/openclaw/threads/thread-1",
+      },
+    });
+  });
+
+  test("rejects malformed type-only OpenClaw push payload aliases at the HTTP boundary", () => {
+    const result = normalizePushDataForSend(
+      {
+        type: "openclaw",
+        version: 1,
+        threadId: "thread-1",
+      },
+      undefined,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected invalid OpenClaw push payload");
+    }
+    expect(result.error).toContain("messageId");
+  });
+
   test("rejects malformed OpenClaw push payloads at the HTTP boundary", () => {
     const result = normalizePushDataForSend(
       {
@@ -728,6 +768,37 @@ describe("OpenClaw Convex model helpers", () => {
         sessionKey: "session-openclaw-route",
         threadId: "thread-direct",
         messageId: "openclawMessages-id",
+      }),
+    });
+  });
+
+  test("createThreadFromOpenClaw falls back to session keys for opaque thread targets", async () => {
+    process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
+    const { ctx, inserts } = createArchivedDropMutationCtx({});
+
+    const result = await convexHandler(createThreadFromOpenClaw)(ctx, {
+      serviceToken: "realtime-convex-token",
+      sessionKey: "cowtail:opaque-target",
+      threadId: "opaque-target",
+      idempotencyKey: "cowtail:reply:opaque-target",
+      streamId: "cowtail:stream:opaque-target",
+      text: "Fallback reply",
+      toolCalls: [],
+      actions: [],
+    });
+
+    expect(result).toEqual({
+      threadId: "openclawThreads-id",
+      messageId: "openclawMessages-id",
+      actionIds: [],
+      sequence: 1,
+    });
+    expect(inserts).toContainEqual({
+      table: "openclawThreads",
+      value: expect.objectContaining({
+        sessionKey: "cowtail:opaque-target",
+        title: "Main",
+        status: "active",
       }),
     });
   });

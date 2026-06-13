@@ -151,6 +151,14 @@ async function getThreadBySessionKey(ctx: MutationCtx, sessionKey: string) {
   return threads.at(0);
 }
 
+async function getThreadByIdOrNull(ctx: MutationCtx, threadId: string) {
+  try {
+    return await ctx.db.get(threadId as Id<"openclawThreads">);
+  } catch {
+    return null;
+  }
+}
+
 async function getMessageByIdempotencyKey(ctx: MutationCtx, idempotencyKey: string) {
   const messages = await ctx.db
     .query("openclawMessages")
@@ -383,7 +391,7 @@ export const createThreadFromOpenClaw = mutation({
   args: {
     serviceToken: v.string(),
     sessionKey: v.string(),
-    threadId: v.optional(v.id("openclawThreads")),
+    threadId: v.optional(v.string()),
     idempotencyKey: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
@@ -411,10 +419,8 @@ export const createThreadFromOpenClaw = mutation({
     const now = Date.now();
     const toolCalls = validateOpenClawToolCalls(args.toolCalls ?? []);
     const eventPayload = buildCommandEventPayload(args);
-    const targetThread = args.threadId !== undefined ? await ctx.db.get(args.threadId) : null;
-    if (args.threadId !== undefined && !targetThread) {
-      throw new Error(`Thread not found: ${args.threadId}`);
-    }
+    const targetThread =
+      args.threadId !== undefined ? await getThreadByIdOrNull(ctx, args.threadId) : null;
     const existingThread =
       targetThread !== null ? targetThread : await getThreadBySessionKey(ctx, args.sessionKey);
     const receiptExpectation = {
@@ -442,7 +448,7 @@ export const createThreadFromOpenClaw = mutation({
 
     const idempotentMessage = await getDuplicateOpenClawMessageForTarget(ctx, args.idempotencyKey, {
       sessionKey: args.sessionKey,
-      ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
+      ...(targetThread !== null ? { threadId: targetThread._id } : {}),
     });
     if (idempotentMessage) {
       throw new Error(
