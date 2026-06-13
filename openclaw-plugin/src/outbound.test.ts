@@ -23,6 +23,7 @@ type SentMessage = {
   type: "openclaw_message";
   sessionKey: string;
   threadId?: string;
+  threadHint?: string;
   text: string;
   links: [];
   actions: [];
@@ -52,7 +53,7 @@ function createClient(overrides?: {
 }
 
 describe("sendCowtailText", () => {
-  test("sends openclaw_message with distinct thread and session fields", async () => {
+  test("sends openclaw_message with distinct target hint and session fields", async () => {
     const client = createClient({
       sendOpenClawMessage: async () => ({
         requestId: "request-17",
@@ -78,7 +79,7 @@ describe("sendCowtailText", () => {
       {
         type: "openclaw_message",
         sessionKey: "cowtail:thread_123",
-        threadId: "thread_123",
+        threadHint: "thread_123",
         text: "Hello world",
         links: [],
         actions: [],
@@ -86,7 +87,7 @@ describe("sendCowtailText", () => {
       {
         type: "openclaw_message",
         sessionKey: "cowtail:thread_123",
-        threadId: "thread_123",
+        threadHint: "thread_123",
         text: "Hello world",
         links: [],
         actions: [],

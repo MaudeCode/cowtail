@@ -207,28 +207,17 @@ export class ConvexCowtailRealtimeApi implements CowtailRealtimeApi {
   async createOpenClawMessage(
     command: OpenClawPluginMessageCommand,
   ): Promise<CowtailRealtimeApiEventResult> {
-    const args = addDefined(
-      addDefined(
-        addDefined(
-          addDefined(
-            {
-              serviceToken: this.serviceToken,
-              sessionKey: command.sessionKey,
-              idempotencyKey: command.idempotencyKey,
-              text: command.text,
-            },
-            "threadId",
-            command.threadId as never,
-          ),
-          "title",
-          command.title,
-        ),
-        "authorLabel",
-        command.authorLabel,
-      ),
-      "links",
-      command.links,
-    );
+    const args: Record<string, unknown> = {
+      serviceToken: this.serviceToken,
+      sessionKey: command.sessionKey,
+      idempotencyKey: command.idempotencyKey,
+      text: command.text,
+    };
+    addDefined(args, "threadId", command.threadId);
+    addDefined(args, "threadHint", command.threadHint);
+    addDefined(args, "title", command.title);
+    addDefined(args, "authorLabel", command.authorLabel);
+    addDefined(args, "links", command.links);
     addDefined(args, "toolCalls", command.toolCalls);
     addDefined(args, "actions", command.actions);
     addDefined(args, "deliveryState", command.deliveryState);

@@ -135,6 +135,7 @@ describe("ConvexCowtailRealtimeApi", () => {
       idempotencyKey: "cowtail:reply:message-1",
       sessionKey: "session-1",
       threadId: "thread-1",
+      threadHint: "openclaw-target-1",
       title: "Deploy",
       text: "Approve the deploy?",
       links: [],
@@ -149,6 +150,7 @@ describe("ConvexCowtailRealtimeApi", () => {
         args: {
           sessionKey: "session-1",
           threadId: "thread-1",
+          threadHint: "openclaw-target-1",
           idempotencyKey: "cowtail:reply:message-1",
           title: "Deploy",
           text: "Approve the deploy?",

@@ -169,6 +169,7 @@ export const openclawPluginMessageCommandSchema = requireOpenClawRenderableConte
     idempotencyKey: openclawIdempotencyKeySchema,
     sessionKey: nonEmptyStringSchema,
     threadId: nonEmptyStringSchema.optional(),
+    threadHint: nonEmptyStringSchema.optional(),
     title: nonEmptyStringSchema.optional(),
     text: openclawMessageTextSchema,
     authorLabel: nonEmptyStringSchema.optional(),

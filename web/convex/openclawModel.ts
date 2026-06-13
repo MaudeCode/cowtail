@@ -75,6 +75,7 @@ type OpenClawActionResultState = Extract<OpenClawActionState, "submitted" | "fai
 export type OpenClawEventPayloadInput = {
   type: OpenClawEventType;
   threadId?: string;
+  threadHint?: string;
   messageId?: string;
   actionId?: string;
   payload?: Record<string, unknown>;
@@ -351,6 +352,10 @@ export function buildOpenClawEventPayload(input: OpenClawEventPayloadInput) {
 
   if (input.threadId !== undefined) {
     payload.threadId = input.threadId;
+  }
+
+  if (input.threadHint !== undefined) {
+    payload.threadHint = input.threadHint;
   }
 
   if (input.messageId !== undefined) {

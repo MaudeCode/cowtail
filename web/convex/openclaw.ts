@@ -364,11 +364,16 @@ async function acknowledgeDuplicateReceipt(
 function buildCommandEventPayload({
   payload,
   streamId,
+  threadHint,
 }: {
   payload?: Record<string, unknown>;
   streamId?: string;
+  threadHint?: string;
 }): Record<string, unknown> | undefined {
   const eventPayload: Record<string, unknown> = { ...payload };
+  if (threadHint !== undefined) {
+    eventPayload.threadHint = threadHint;
+  }
   if (streamId !== undefined) {
     eventPayload.streamId = streamId;
   }
@@ -392,6 +397,7 @@ export const createThreadFromOpenClaw = mutation({
     serviceToken: v.string(),
     sessionKey: v.string(),
     threadId: v.optional(v.string()),
+    threadHint: v.optional(v.string()),
     idempotencyKey: v.string(),
     title: v.optional(v.string()),
     text: v.string(),
@@ -429,6 +435,7 @@ export const createThreadFromOpenClaw = mutation({
       commandDigest: commandDigest({
         sessionKey: args.sessionKey,
         ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
+        ...(args.threadHint !== undefined ? { threadHint: args.threadHint } : {}),
         title: args.title,
         text: args.text,
         authorLabel: args.authorLabel,

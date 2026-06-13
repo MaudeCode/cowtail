@@ -772,14 +772,14 @@ describe("OpenClaw Convex model helpers", () => {
     });
   });
 
-  test("createThreadFromOpenClaw falls back to session keys for opaque thread targets", async () => {
+  test("createThreadFromOpenClaw uses thread hints without treating them as thread IDs", async () => {
     process.env.COWTAIL_REALTIME_CONVEX_TOKEN = "realtime-convex-token";
     const { ctx, inserts } = createArchivedDropMutationCtx({});
 
     const result = await convexHandler(createThreadFromOpenClaw)(ctx, {
       serviceToken: "realtime-convex-token",
       sessionKey: "cowtail:opaque-target",
-      threadId: "opaque-target",
+      threadHint: "opaque-target",
       idempotencyKey: "cowtail:reply:opaque-target",
       streamId: "cowtail:stream:opaque-target",
       text: "Fallback reply",
@@ -799,6 +799,15 @@ describe("OpenClaw Convex model helpers", () => {
         sessionKey: "cowtail:opaque-target",
         title: "Main",
         status: "active",
+      }),
+    });
+    expect(inserts).toContainEqual({
+      table: "openclawEvents",
+      value: expect.objectContaining({
+        payload: expect.objectContaining({
+          threadHint: "opaque-target",
+          streamId: "cowtail:stream:opaque-target",
+        }),
       }),
     });
   });

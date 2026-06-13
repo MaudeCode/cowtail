@@ -207,6 +207,7 @@ describe("openclaw protocol schemas", () => {
       idempotencyKey: "cowtail:reply:message-1",
       sessionKey: "session-1",
       threadId: "thread-1",
+      threadHint: "openclaw-target-1",
       title: "Deploy approval",
       text: "Approve production deploy?",
       authorLabel: "OpenClaw",
@@ -228,6 +229,7 @@ describe("openclaw protocol schemas", () => {
     expect(parsed.type).toBe("openclaw_message");
     expect(parsed.idempotencyKey).toBe("cowtail:reply:message-1");
     expect(parsed.threadId).toBe("thread-1");
+    expect(parsed.threadHint).toBe("openclaw-target-1");
     expect(parsed.streamId).toBe("cowtail:stream:message-1");
     expect(parsed.actions).toEqual([
       {
