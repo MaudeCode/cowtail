@@ -342,30 +342,6 @@ struct OpenClawStreamSnapshot: Codable, Equatable, Sendable {
         case snapshotSequence
         case updatedAt
     }
-
-    init(
-        type: String,
-        streamId: String,
-        sessionKey: String,
-        threadId: String,
-        text: String,
-        links: [OpenClawLink],
-        toolCalls: [OpenClawToolCall],
-        isFinal: Bool,
-        snapshotSequence: Int64,
-        updatedAt: Int64
-    ) {
-        self.type = type
-        self.streamId = streamId
-        self.sessionKey = sessionKey
-        self.threadId = threadId
-        self.text = text
-        self.links = links
-        self.toolCalls = toolCalls
-        self.isFinal = isFinal
-        self.snapshotSequence = snapshotSequence
-        self.updatedAt = updatedAt
-    }
 }
 
 extension OpenClawStreamSnapshot {

@@ -82,7 +82,7 @@ function getApnsOrigin(environment: ApnsConfig["environment"]): string {
 }
 
 export function buildApnsPayload(args: SendApnsNotificationArgs): string {
-  const customData = { ...(args.data ?? {}) };
+  const customData = { ...args.data };
   delete customData.aps;
 
   return JSON.stringify({
