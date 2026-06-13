@@ -26,9 +26,7 @@ describe("Cowtail session helpers", () => {
     expect(
       resolveCowtailThreadIdFromSessionKey("agent:main:cowtail:default:direct:thread_123"),
     ).toBe("thread_123");
-    expect(resolveCowtailThreadIdFromSessionKey("agent:main:direct:thread_123")).toBe(
-      "thread_123",
-    );
+    expect(resolveCowtailThreadIdFromSessionKey("agent:main:direct:thread_123")).toBe("thread_123");
   });
 
   test("does not treat bare Cowtail targets as thread document ids", () => {
