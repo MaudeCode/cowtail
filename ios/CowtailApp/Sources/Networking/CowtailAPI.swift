@@ -240,13 +240,17 @@ actor CowtailAPI: CowtailAPIClient {
         environment: String,
         deviceName: String
     ) async throws -> PushRegistrationResponse {
+        guard let pushEnvironment = Components.Schemas.PushRegisterRequest.EnvironmentPayload(rawValue: environment) else {
+            throw CowtailAPIError.requestFailed("Invalid APNS environment: \(environment)")
+        }
+
         let output = try await pushRegistrationClient.registerPushDevice(
             body: .json(
                 .init(
                     identityToken: identityToken,
                     deviceToken: deviceToken,
                     platform: "ios",
-                    environment: environment,
+                    environment: pushEnvironment,
                     deviceName: deviceName
                 )
             )

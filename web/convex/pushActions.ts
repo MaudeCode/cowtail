@@ -5,7 +5,7 @@ import { createPrivateKey, sign } from "node:crypto";
 
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import type { PushData } from "./apns";
+import { parseApnsEnvironment, type ApnsEnvironment, type PushData } from "./apns";
 
 type SendApnsNotificationArgs = {
   deviceToken: string;
@@ -18,7 +18,7 @@ type ApnsConfig = {
   keyId: string;
   teamId: string;
   topic: string;
-  environment: "development" | "production";
+  environment: ApnsEnvironment;
   authKeyP8: string;
 };
 
@@ -48,18 +48,11 @@ function getRequiredEnv(name: string): string {
 }
 
 function getApnsConfig(): ApnsConfig {
-  const environment = (process.env.APNS_ENV?.trim() || "development") as
-    | "development"
-    | "production";
-  if (environment !== "development" && environment !== "production") {
-    throw new ApnsError(`Invalid APNS_ENV: ${environment}`);
-  }
-
   return {
     keyId: getRequiredEnv("APNS_KEY_ID"),
     teamId: getRequiredEnv("APNS_TEAM_ID"),
     topic: getRequiredEnv("APNS_TOPIC"),
-    environment,
+    environment: parseApnsEnvironment(process.env.APNS_ENV),
     authKeyP8: getRequiredEnv("APNS_AUTH_KEY_P8"),
   };
 }

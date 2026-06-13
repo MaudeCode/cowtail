@@ -40,6 +40,7 @@ import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
 import { validateOpenClawLimit } from "./openclawModel";
 import { sendPushToUser } from "./pushDelivery";
@@ -824,8 +825,7 @@ app.post("/api/push/register", async (c) => {
     userId,
     deviceToken: deviceToken.trim(),
     platform: nonEmptyString(parsed.data.platform) ?? "ios",
-    environment:
-      nonEmptyString(parsed.data.environment) ?? (process.env.APNS_ENV?.trim() || "development"),
+    environment: parsed.data.environment ?? configuredApnsEnvironment(),
     enabled: true,
     deviceName: nonEmptyString(parsed.data.deviceName),
     lastSeenAt: Date.now(),

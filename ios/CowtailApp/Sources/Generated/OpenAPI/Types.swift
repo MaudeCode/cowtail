@@ -1051,7 +1051,12 @@ internal enum Components {
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/platform`.
             internal var platform: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/environment`.
-            internal var environment: Swift.String?
+            internal enum EnvironmentPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case development = "development"
+                case production = "production"
+            }
+            /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/environment`.
+            internal var environment: Components.Schemas.PushRegisterRequest.EnvironmentPayload?
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/deviceName`.
             internal var deviceName: Swift.String?
             /// Creates a new `PushRegisterRequest`.
@@ -1066,7 +1071,7 @@ internal enum Components {
                 identityToken: Swift.String,
                 deviceToken: Swift.String,
                 platform: Swift.String? = nil,
-                environment: Swift.String? = nil,
+                environment: Components.Schemas.PushRegisterRequest.EnvironmentPayload? = nil,
                 deviceName: Swift.String? = nil
             ) {
                 self.identityToken = identityToken

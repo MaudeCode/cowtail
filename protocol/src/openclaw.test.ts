@@ -17,6 +17,7 @@ import {
   openclawThreadRecordSchema,
   openclawToolCallRecordSchema,
 } from "./openclaw.js";
+import { pushRegisterRequestSchema } from "./push.js";
 
 describe("openclaw protocol schemas", () => {
   test("accepts plugin hello payload", () => {
@@ -735,6 +736,28 @@ describe("openclaw protocol schemas", () => {
     ).toEqual({
       displayName: "Maude",
     });
+  });
+
+  test("push registration accepts only known APNS environments", () => {
+    expect(
+      pushRegisterRequestSchema.parse({
+        identityToken: "identity-token",
+        deviceToken: "device-token",
+        environment: "production",
+      }),
+    ).toEqual({
+      identityToken: "identity-token",
+      deviceToken: "device-token",
+      environment: "production",
+    });
+
+    expect(
+      pushRegisterRequestSchema.safeParse({
+        identityToken: "identity-token",
+        deviceToken: "device-token",
+        environment: "staging",
+      }).success,
+    ).toBe(false);
   });
 
   test("parses OpenClaw messages with embedded actions", () => {

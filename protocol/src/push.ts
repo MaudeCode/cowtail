@@ -2,11 +2,13 @@ import { z } from "zod";
 
 import { jsonObjectSchema, nonEmptyStringSchema } from "./shared.js";
 
+export const pushEnvironmentSchema = z.enum(["development", "production"]);
+
 export const pushRegisterRequestSchema = z.object({
   identityToken: nonEmptyStringSchema,
   deviceToken: nonEmptyStringSchema,
   platform: nonEmptyStringSchema.optional(),
-  environment: nonEmptyStringSchema.optional(),
+  environment: pushEnvironmentSchema.optional(),
   deviceName: nonEmptyStringSchema.optional(),
 });
 
@@ -48,6 +50,7 @@ export const pushResultSchema = z.object({
   results: z.array(jsonObjectSchema),
 });
 export type PushRegisterRequest = z.infer<typeof pushRegisterRequestSchema>;
+export type PushEnvironment = z.infer<typeof pushEnvironmentSchema>;
 export type PushRegisterResponse = z.infer<typeof pushRegisterResponseSchema>;
 export type PushUnregisterRequest = z.infer<typeof pushUnregisterRequestSchema>;
 export type PushUnregisterResponse = z.infer<typeof pushUnregisterResponseSchema>;

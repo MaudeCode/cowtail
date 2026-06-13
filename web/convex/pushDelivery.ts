@@ -1,6 +1,12 @@
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { isInvalidDeviceTokenReason } from "./apns";
+import { configuredApnsEnvironment, isInvalidDeviceTokenReason } from "./apns";
+
+function previewDeviceToken(deviceToken: string) {
+  return deviceToken.length <= 12
+    ? `redacted:${deviceToken.length}`
+    : `${deviceToken.slice(0, 6)}...${deviceToken.slice(-6)}`;
+}
 
 export async function sendPushToUser(
   ctx: ActionCtx,
@@ -28,8 +34,20 @@ export async function sendPushToUser(
   const results: Array<Record<string, unknown>> = [];
   let sent = 0;
   let failed = 0;
+  const activeEnvironment = configuredApnsEnvironment();
 
   for (const device of devices) {
+    if (device.environment !== activeEnvironment) {
+      results.push({
+        deviceToken: previewDeviceToken(device.deviceToken),
+        environment: device.environment,
+        skipped: true,
+        reason: "APNSEnvironmentMismatch",
+        activeEnvironment,
+      });
+      continue;
+    }
+
     const result = await ctx.runAction(internal.pushActions.sendApnsToDevice, {
       deviceToken: device.deviceToken,
       title: args.title,
@@ -42,7 +60,7 @@ export async function sendPushToUser(
     } else {
       failed += 1;
 
-      if (isInvalidDeviceTokenReason(result.reason)) {
+      if (isInvalidDeviceTokenReason(result.reason) && device.environment === activeEnvironment) {
         await ctx.runMutation(internal.push.disableDeviceRegistrationByTokenInternal, {
           deviceToken: device.deviceToken,
         });
@@ -50,10 +68,8 @@ export async function sendPushToUser(
     }
 
     results.push({
-      deviceToken:
-        device.deviceToken.length <= 12
-          ? device.deviceToken
-          : `${device.deviceToken.slice(0, 6)}…${device.deviceToken.slice(-6)}`,
+      deviceToken: previewDeviceToken(device.deviceToken),
+      environment: device.environment,
       ...result,
     });
   }
