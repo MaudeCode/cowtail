@@ -11,7 +11,12 @@ import type {
 
 import type { CowtailRealtimeClient } from "./client.js";
 import type { ResolvedCowtailAccount } from "./types.js";
-import { buildCowtailTarget, isSupportedCowtailAgent } from "./session-keys.js";
+import {
+  buildCowtailTarget,
+  isSupportedCowtailAgent,
+  normalizeCowtailTarget,
+  resolveCowtailThreadIdFromSessionKey,
+} from "./session-keys.js";
 
 type Logger = {
   warn?: (message: string) => void;
@@ -36,6 +41,7 @@ type CowtailInboundRuntime = {
       }) => {
         agentId: string;
         sessionKey: string;
+        matchedBy?: string;
       };
     };
     session: Pick<
@@ -83,6 +89,7 @@ type CowtailInboundClient = Pick<
 type CowtailRoute = {
   agentId: string;
   sessionKey: string;
+  matchedBy?: string;
 };
 type CowtailReplyPayload = {
   text?: string;
@@ -151,10 +158,11 @@ export async function handleCowtailEvent(params: {
       }
 
       if (!thread.sessionKey) {
+        const threadId = resolveCowtailThreadId({ route, thread });
         await client.sendSessionBound({
           type: "openclaw_session_bound",
-          idempotencyKey: `cowtail:session-bound:${thread.id}`,
-          threadId: thread.id,
+          idempotencyKey: `cowtail:session-bound:${threadId}`,
+          threadId,
           sessionKey: route.sessionKey,
         });
       }
@@ -713,11 +721,13 @@ async function createDurableCowtailReply(
   },
 ): Promise<string | undefined> {
   try {
+    const routedThreadId = resolveCowtailThreadIdFromSessionKey(params.route.sessionKey);
     const result = await params.client.sendOpenClawMessage({
       type: "openclaw_message",
       idempotencyKey: params.streamState.idempotencyKey,
       streamId: params.streamState.streamId,
-      sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
+      sessionKey: params.route.sessionKey,
+      ...(routedThreadId ? { threadId: routedThreadId } : {}),
       title: params.thread.title,
       text: message.text,
       authorLabel: "OpenClaw",
@@ -904,8 +914,8 @@ function emitCowtailStreamSnapshot(params: {
     .sendOpenClawStreamSnapshot({
       type: "openclaw_message_stream_snapshot",
       streamId: params.streamState.streamId,
-      sessionKey: params.thread.sessionKey ?? params.route.sessionKey,
-      threadId: params.thread.id,
+      sessionKey: params.route.sessionKey,
+      threadId: resolveCowtailThreadId(params),
       text: params.text,
       links: params.streamState.links.map((link) => ({ ...link })),
       toolCalls: structuredClone(params.streamState.toolCalls),
@@ -1221,7 +1231,7 @@ function finalizeInboundContext(params: {
   body: string;
   timestamp: number;
 }) {
-  const target = buildCowtailTarget(params.thread.id);
+  const target = buildCowtailTarget(resolveCowtailThreadId(params));
   return params.runtime.channel.reply.finalizeInboundContext(
     {
       Body: params.body,
@@ -1279,14 +1289,18 @@ function resolveThreadRoute(params: {
     };
   }
 
-  const route = params.runtime.channel.routing.resolveAgentRoute({
-    cfg: params.runtime.config.loadConfig(),
-    channel: CHANNEL_ID,
+  const threadId = normalizeCowtailTarget(params.thread.id);
+  if (!threadId) {
+    params.logger?.warn?.("Cowtail thread_created event has a blank thread id");
+    return null;
+  }
+
+  const cfg = params.runtime.config.loadConfig();
+  const route = resolveCowtailAgentRoute({
+    cfg,
+    threadId,
     accountId: params.account.accountId,
-    peer: {
-      kind: "direct",
-      id: buildCowtailTarget(params.thread.id),
-    },
+    runtime: params.runtime,
   });
   if (!isSupportedCowtailAgent(route.agentId)) {
     params.logger?.warn?.(
@@ -1299,6 +1313,67 @@ function resolveThreadRoute(params: {
     agentId: route.agentId,
     sessionKey: route.sessionKey,
   };
+}
+
+function resolveCowtailAgentRoute(params: {
+  cfg: ReturnType<PluginRuntime["config"]["loadConfig"]>;
+  threadId: string;
+  accountId: string;
+  runtime: CowtailInboundRuntime;
+}): CowtailRoute {
+  const rawRoute = resolveAgentRouteForPeer({
+    cfg: params.cfg,
+    accountId: params.accountId,
+    runtime: params.runtime,
+    peerId: params.threadId,
+  });
+  if (isPeerBindingRoute(rawRoute)) {
+    return rawRoute;
+  }
+
+  const prefixedThreadId = buildCowtailTarget(params.threadId);
+  if (prefixedThreadId === params.threadId) {
+    return rawRoute;
+  }
+
+  const prefixedRoute = resolveAgentRouteForPeer({
+    cfg: params.cfg,
+    accountId: params.accountId,
+    runtime: params.runtime,
+    peerId: prefixedThreadId,
+  });
+  return isPeerBindingRoute(prefixedRoute) ? prefixedRoute : rawRoute;
+}
+
+function resolveAgentRouteForPeer(params: {
+  cfg: ReturnType<PluginRuntime["config"]["loadConfig"]>;
+  accountId: string;
+  runtime: CowtailInboundRuntime;
+  peerId: string;
+}): CowtailRoute {
+  return params.runtime.channel.routing.resolveAgentRoute({
+    cfg: params.cfg,
+    channel: CHANNEL_ID,
+    accountId: params.accountId,
+    peer: {
+      kind: "direct",
+      id: params.peerId,
+    },
+  });
+}
+
+function isPeerBindingRoute(route: CowtailRoute): boolean {
+  return route.matchedBy === "binding.peer";
+}
+
+function resolveCowtailThreadId(params: {
+  route: CowtailRoute;
+  thread: Pick<OpenClawThreadRecord, "id">;
+}): string {
+  return (
+    resolveCowtailThreadIdFromSessionKey(params.route.sessionKey) ??
+    normalizeCowtailTarget(params.thread.id)
+  );
 }
 
 function errorMessage(error: unknown): string {

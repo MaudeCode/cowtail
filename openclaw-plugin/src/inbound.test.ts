@@ -9,7 +9,6 @@ import type {
   OpenClawToolCallRecord,
 } from "@maudecode/cowtail-protocol";
 
-import { buildCowtailTarget } from "./session-keys.js";
 import type { ResolvedCowtailAccount } from "./types.js";
 import { handleCowtailEvent } from "./inbound.js";
 
@@ -60,6 +59,7 @@ type FakeRuntime = {
       resolveAgentRoute: (params: RouteCall) => {
         agentId: string;
         sessionKey: string;
+        matchedBy?: string;
       };
     };
     session: {
@@ -249,6 +249,12 @@ function createRuntime(overrides?: {
   route?: {
     agentId: string;
     sessionKey: string;
+    matchedBy?: string;
+  };
+  resolveRoute?: (params: RouteCall) => {
+    agentId: string;
+    sessionKey: string;
+    matchedBy?: string;
   };
   readSessionUpdatedAt?: number;
   dispatchError?: Error;
@@ -308,6 +314,9 @@ function createRuntime(overrides?: {
       routing: {
         resolveAgentRoute(params) {
           routeCalls.push(params);
+          if (overrides?.resolveRoute) {
+            return overrides.resolveRoute(params);
+          }
           return overrides?.route ?? { agentId: "main", sessionKey: "session-routed" };
         },
       },
@@ -434,6 +443,7 @@ describe("handleCowtailEvent", () => {
       route: {
         agentId: "main",
         sessionKey: "session-thread-created",
+        matchedBy: "binding.peer",
       },
       readSessionUpdatedAt: 111,
     });
@@ -480,7 +490,7 @@ describe("handleCowtailEvent", () => {
         accountId: "default",
         peer: {
           kind: "direct",
-          id: buildCowtailTarget("thread-1"),
+          id: "thread-1",
         },
       },
     ]);
@@ -537,6 +547,211 @@ describe("handleCowtailEvent", () => {
       },
     ]);
     expect(client.sendActionResultCalls).toEqual([]);
+  });
+
+  test("thread_created normalizes prefixed Cowtail ids before route lookup", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      route: {
+        agentId: "main",
+        sessionKey: "agent:main:cowtail:thread-prefixed",
+        matchedBy: "binding.peer",
+      },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 3,
+      type: "thread_created",
+      createdAt: 1_700_000_000_002,
+      threadId: "cowtail:thread-prefixed",
+      messageId: "message-prefixed",
+      thread: {
+        id: "cowtail:thread-prefixed",
+        status: "pending",
+        targetAgent: "default",
+        title: "Prefixed thread",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_002,
+      },
+      message: {
+        id: "message-prefixed",
+        threadId: "cowtail:thread-prefixed",
+        direction: "user_to_openclaw",
+        text: "Start with a prefixed id",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_002,
+        updatedAt: 1_700_000_000_002,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(runtimeState.routeCalls).toEqual([
+      {
+        cfg: runtimeState.cfg,
+        channel: "cowtail",
+        accountId: "default",
+        peer: {
+          kind: "direct",
+          id: "thread-prefixed",
+        },
+      },
+    ]);
+    expect(client.sendSessionBoundCalls).toEqual([
+      {
+        type: "openclaw_session_bound",
+        idempotencyKey: "cowtail:session-bound:thread-prefixed",
+        threadId: "thread-prefixed",
+        sessionKey: "agent:main:cowtail:thread-prefixed",
+      },
+    ]);
+  });
+
+  test("thread_created falls back to prefixed Cowtail route resolver binding matches", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      resolveRoute(params) {
+        if (params.peer.id === "cowtail:thread-legacy") {
+          return {
+            agentId: "main",
+            sessionKey: "agent:main:cowtail:thread-legacy",
+            matchedBy: "binding.peer",
+          };
+        }
+        return {
+          agentId: "main",
+          sessionKey: "agent:main",
+          matchedBy: "default",
+        };
+      },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 4,
+      type: "thread_created",
+      createdAt: 1_700_000_000_003,
+      threadId: "thread-legacy",
+      messageId: "message-legacy",
+      thread: {
+        id: "thread-legacy",
+        status: "pending",
+        targetAgent: "default",
+        title: "Legacy binding thread",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_003,
+      },
+      message: {
+        id: "message-legacy",
+        threadId: "thread-legacy",
+        direction: "user_to_openclaw",
+        text: "Use legacy binding",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_003,
+        updatedAt: 1_700_000_000_003,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(runtimeState.routeCalls.map((call) => call.peer.id)).toEqual([
+      "thread-legacy",
+      "cowtail:thread-legacy",
+    ]);
+    expect(client.sendSessionBoundCalls).toEqual([
+      {
+        type: "openclaw_session_bound",
+        idempotencyKey: "cowtail:session-bound:thread-legacy",
+        threadId: "thread-legacy",
+        sessionKey: "agent:main:cowtail:thread-legacy",
+      },
+    ]);
+  });
+
+  test("thread_created keeps the raw route when the prefixed route is not a peer binding", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      resolveRoute(params) {
+        if (params.peer.id === "cowtail:thread-default-prefixed") {
+          return {
+            agentId: "main",
+            sessionKey: "agent:main:cowtail:should-not-win",
+            matchedBy: "default",
+          };
+        }
+        return {
+          agentId: "main",
+          sessionKey: "session-raw-route",
+          matchedBy: "default",
+        };
+      },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 5,
+      type: "thread_created",
+      createdAt: 1_700_000_000_004,
+      threadId: "thread-default-prefixed",
+      messageId: "message-default-prefixed",
+      thread: {
+        id: "thread-default-prefixed",
+        status: "pending",
+        targetAgent: "default",
+        title: "Default prefixed route thread",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_004,
+      },
+      message: {
+        id: "message-default-prefixed",
+        threadId: "thread-default-prefixed",
+        direction: "user_to_openclaw",
+        text: "Keep the raw route",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_004,
+        updatedAt: 1_700_000_000_004,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(runtimeState.routeCalls.map((call) => call.peer.id)).toEqual([
+      "thread-default-prefixed",
+      "cowtail:thread-default-prefixed",
+    ]);
+    expect(client.sendSessionBoundCalls).toEqual([
+      {
+        type: "openclaw_session_bound",
+        idempotencyKey: "cowtail:session-bound:thread-default-prefixed",
+        threadId: "thread-default-prefixed",
+        sessionKey: "session-raw-route",
+      },
+    ]);
   });
 
   test("reply_created dispatches into the bound session without creating a new session", async () => {
@@ -648,6 +863,146 @@ describe("handleCowtailEvent", () => {
         text: "Here is the answer.",
         authorLabel: "OpenClaw",
         links: [{ label: "Attachment", url: "https://example.invalid/log.txt" }],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+  });
+
+  test("reply delivery targets the Cowtail thread encoded in the routed session key", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      onPartialReplies: [{ text: "Routing..." }],
+      deliverPayload: {
+        text: "Routed answer.",
+      },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 24,
+      type: "reply_created",
+      createdAt: 1_700_000_000_013,
+      threadId: "stale-default-thread",
+      messageId: "message-routed",
+      thread: {
+        id: "stale-default-thread",
+        sessionKey: "agent:main:cowtail:routed-thread",
+        status: "active",
+        targetAgent: "default",
+        title: "Routed chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_013,
+      },
+      message: {
+        id: "message-routed",
+        threadId: "stale-default-thread",
+        direction: "user_to_openclaw",
+        text: "Route this back.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_013,
+        updatedAt: 1_700_000_000_013,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-routed",
+        streamId: "cowtail:stream:message-routed",
+        sessionKey: "agent:main:cowtail:routed-thread",
+        threadId: "routed-thread",
+        title: "Routed chat",
+        text: "Routed answer.",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "sent",
+      },
+    ]);
+    expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.threadId)).toEqual([
+      "routed-thread",
+      "routed-thread",
+    ]);
+    expect(runtimeState.dispatchCalls).toHaveLength(1);
+    expect(runtimeState.dispatchCalls[0]!.ctx).toMatchObject({
+      To: "cowtail:routed-thread",
+      OriginatingTo: "cowtail:routed-thread",
+    });
+  });
+
+  test("reply delivery does not treat a bare Cowtail session target as a thread id", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      onPartialReplies: [{ text: "Draft answer." }],
+      deliverPayload: {
+        text: "Bare target answer.",
+      },
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 25,
+      type: "reply_created",
+      createdAt: 1_700_000_000_014,
+      threadId: "actual-thread-doc",
+      messageId: "message-bare-target",
+      thread: {
+        id: "actual-thread-doc",
+        sessionKey: "cowtail:opaque-target",
+        status: "active",
+        targetAgent: "default",
+        title: "Bare target chat",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_014,
+      },
+      message: {
+        id: "message-bare-target",
+        threadId: "actual-thread-doc",
+        direction: "user_to_openclaw",
+        text: "Use the document id.",
+        links: [],
+        toolCalls: [],
+        deliveryState: "pending",
+        createdAt: 1_700_000_000_014,
+        updatedAt: 1_700_000_000_014,
+      },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.threadId)).toEqual([
+      "actual-thread-doc",
+      "actual-thread-doc",
+    ]);
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        idempotencyKey: "cowtail:reply:message-bare-target",
+        streamId: "cowtail:stream:message-bare-target",
+        sessionKey: "cowtail:opaque-target",
+        title: "Bare target chat",
+        text: "Bare target answer.",
+        authorLabel: "OpenClaw",
+        links: [],
         toolCalls: [],
         actions: [],
         deliveryState: "sent",
@@ -2067,6 +2422,102 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:action-result:action-36:submitted",
         actionId: "action-36",
         state: "submitted",
+      },
+    ]);
+  });
+
+  test("action_submitted routes streamed replies to the Cowtail thread encoded in the session key", async () => {
+    const client = createClient();
+    const { logger } = createLogger();
+    const runtimeState = createRuntime({
+      deliveries: [
+        { payload: { text: "Applying the routed approval" }, info: { kind: "block" } },
+        { payload: { text: "Routed approval applied." }, info: { kind: "final" } },
+      ],
+    });
+    const event: OpenClawEventEnvelope = {
+      sequence: 37,
+      type: "action_submitted",
+      createdAt: 1_700_000_000_037,
+      threadId: "stale-action-thread",
+      actionId: "action-37",
+      thread: {
+        id: "stale-action-thread",
+        sessionKey: "agent:main:cowtail:routed-action-thread",
+        status: "active",
+        targetAgent: "default",
+        title: "Routed action stream thread",
+        unreadCount: 0,
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_037,
+      },
+      action: {
+        id: "action-37",
+        threadId: "stale-action-thread",
+        messageId: "message-37",
+        label: "Approve",
+        kind: "approval",
+        payload: { decision: "approve" },
+        state: "submitted",
+        createdAt: 1_700_000_000_030,
+        updatedAt: 1_700_000_000_037,
+      },
+      payload: { decision: "approve" },
+    };
+
+    await handleCowtailEvent({
+      event,
+      account: createAccount(),
+      client,
+      runtime: runtimeState.runtime,
+      logger,
+    });
+
+    const streamId = "cowtail:action-stream:action-37";
+    expect(runtimeState.dispatchCalls).toHaveLength(1);
+    expect(runtimeState.dispatchCalls[0]!.ctx).toMatchObject({
+      To: "cowtail:routed-action-thread",
+      OriginatingTo: "cowtail:routed-action-thread",
+    });
+    expect(client.sendOpenClawMessageCalls).toEqual([
+      {
+        type: "openclaw_message",
+        idempotencyKey: "cowtail:action:action-37",
+        streamId,
+        sessionKey: "agent:main:cowtail:routed-action-thread",
+        threadId: "routed-action-thread",
+        title: "Routed action stream thread",
+        text: "Applying the routed approval",
+        authorLabel: "OpenClaw",
+        links: [],
+        toolCalls: [],
+        actions: [],
+        deliveryState: "pending",
+      },
+    ]);
+    expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.threadId)).toEqual([
+      "routed-action-thread",
+      "routed-action-thread",
+    ]);
+    expect(
+      client.sendOpenClawStreamSnapshotCalls.map((snapshot) => ({
+        streamId: snapshot.streamId,
+        snapshotSequence: snapshot.snapshotSequence,
+        text: snapshot.text,
+        isFinal: snapshot.isFinal,
+      })),
+    ).toEqual([
+      {
+        streamId,
+        snapshotSequence: 1,
+        text: "Applying the routed approval",
+        isFinal: false,
+      },
+      {
+        streamId,
+        snapshotSequence: 2,
+        text: "Routed approval applied.",
+        isFinal: true,
       },
     ]);
   });
