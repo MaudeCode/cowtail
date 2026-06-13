@@ -1,7 +1,7 @@
-export type PushData = Record<string, unknown>;
-export type ApnsEnvironment = "development" | "production";
+import { pushEnvironmentSchema, type PushEnvironment } from "@maudecode/cowtail-protocol";
 
-const APNS_ENVIRONMENTS = new Set<ApnsEnvironment>(["development", "production"]);
+export type PushData = Record<string, unknown>;
+export type ApnsEnvironment = PushEnvironment;
 
 const INVALID_TOKEN_REASONS = new Set(["BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"]);
 
@@ -11,8 +11,9 @@ export function isInvalidDeviceTokenReason(reason?: string): boolean {
 
 export function parseApnsEnvironment(value: string | undefined): ApnsEnvironment {
   const environment = value?.trim() || "development";
-  if (APNS_ENVIRONMENTS.has(environment as ApnsEnvironment)) {
-    return environment as ApnsEnvironment;
+  const parsed = pushEnvironmentSchema.safeParse(environment);
+  if (parsed.success) {
+    return parsed.data;
   }
 
   throw new Error(`Invalid APNS_ENV: ${environment}`);

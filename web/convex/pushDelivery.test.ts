@@ -49,6 +49,7 @@ describe("push delivery", () => {
       userId: "user-1",
       sent: 0,
       failed: 1,
+      skipped: 1,
       results: [
         {
           deviceToken: "develo...123456",
@@ -79,5 +80,48 @@ describe("push delivery", () => {
         deviceToken: "development-device-token-123456",
       },
     ]);
+  });
+
+  test("reports failure when every enabled device is for another APNS environment", async () => {
+    process.env.APNS_ENV = "production";
+    const actions: Array<Record<string, unknown>> = [];
+    const ctx = {
+      runQuery: async () => [
+        {
+          deviceToken: "development-device-token-123456",
+          environment: "development",
+        },
+      ],
+      runAction: async (_action: unknown, args: Record<string, unknown>) => {
+        actions.push(args);
+        return { ok: true };
+      },
+      runMutation: async () => undefined,
+    };
+
+    await expect(
+      sendPushToUser(ctx as never, {
+        userId: "user-1",
+        title: "Title",
+        body: "Body",
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      userId: "user-1",
+      sent: 0,
+      failed: 0,
+      skipped: 1,
+      results: [
+        {
+          deviceToken: "develo...123456",
+          environment: "development",
+          skipped: true,
+          reason: "APNSEnvironmentMismatch",
+          activeEnvironment: "production",
+        },
+      ],
+    });
+
+    expect(actions).toEqual([]);
   });
 });

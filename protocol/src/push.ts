@@ -47,6 +47,7 @@ export const pushResultSchema = z.object({
   userId: nonEmptyStringSchema,
   sent: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative().default(0),
   results: z.array(jsonObjectSchema),
 });
 export type PushRegisterRequest = z.infer<typeof pushRegisterRequestSchema>;

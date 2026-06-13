@@ -514,6 +514,116 @@ describe("built binary authenticated write commands", () => {
     }
   });
 
+  test("alert delete sends service authorization", async () => {
+    const server = createServer((request, response) => {
+      expect(request.method).toBe("DELETE");
+      expect(request.url).toBe("/actions/api/alerts/alert-123");
+      expect(request.headers.authorization).toBe("Bearer secret-token");
+
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(
+        binaryPath,
+        ["alert", "delete", "--id", "alert-123", "--json"],
+        {
+          env: {
+            COWTAIL_CONFIG_PATH: configPath,
+          },
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout)).toEqual({ ok: true });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  test("fix create sends service authorization", async () => {
+    const server = createServer((request, response) => {
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe("/actions/api/fixes");
+      expect(request.headers.authorization).toBe("Bearer secret-token");
+
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        expect(JSON.parse(body)).toEqual({
+          alertIds: ["alert-123"],
+          description: "Expanded disk",
+          rootCause: "Volume was full",
+          scope: "reactive",
+        });
+
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true, id: "fix-123" }));
+      });
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const result = await runCliBinaryAsync(
+        binaryPath,
+        [
+          "fix",
+          "create",
+          "--alert-id",
+          "alert-123",
+          "--description",
+          "Expanded disk",
+          "--root-cause",
+          "Volume was full",
+          "--scope",
+          "reactive",
+          "--json",
+        ],
+        {
+          env: {
+            COWTAIL_CONFIG_PATH: configPath,
+          },
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout)).toEqual({ ok: true, id: "fix-123" });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   test("fix delete sends service authorization", async () => {
     const server = createServer((request, response) => {
       expect(request.method).toBe("DELETE");

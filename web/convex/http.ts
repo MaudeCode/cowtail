@@ -42,6 +42,7 @@ import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
+import { previewDeviceToken } from "./deviceTokenPreview";
 import { validateOpenClawLimit } from "./openclawModel";
 import { sendPushToUser } from "./pushDelivery";
 
@@ -295,10 +296,7 @@ function mapUserDevice(device: Record<string, unknown>) {
   const deviceToken = String(device.deviceToken);
   return {
     id: String(device._id),
-    deviceTokenPreview:
-      deviceToken.length <= 12
-        ? `redacted:${deviceToken.length}`
-        : `${deviceToken.slice(0, 6)}...${deviceToken.slice(-6)}`,
+    deviceTokenPreview: previewDeviceToken(deviceToken),
     platform: String(device.platform),
     environment: String(device.environment),
     enabled: Boolean(device.enabled),

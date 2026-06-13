@@ -17,7 +17,7 @@ import {
   openclawThreadRecordSchema,
   openclawToolCallRecordSchema,
 } from "./openclaw.js";
-import { pushRegisterRequestSchema } from "./push.js";
+import { pushRegisterRequestSchema, pushResultSchema } from "./push.js";
 
 describe("openclaw protocol schemas", () => {
   test("accepts plugin hello payload", () => {
@@ -760,6 +760,25 @@ describe("openclaw protocol schemas", () => {
         environment: "staging",
       }).success,
     ).toBe(false);
+  });
+
+  test("push results default skipped count for older senders", () => {
+    expect(
+      pushResultSchema.parse({
+        ok: true,
+        userId: "user-1",
+        sent: 1,
+        failed: 0,
+        results: [],
+      }),
+    ).toEqual({
+      ok: true,
+      userId: "user-1",
+      sent: 1,
+      failed: 0,
+      skipped: 0,
+      results: [],
+    });
   });
 
   test("parses OpenClaw messages with embedded actions", () => {

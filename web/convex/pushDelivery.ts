@@ -1,12 +1,7 @@
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { configuredApnsEnvironment, isInvalidDeviceTokenReason } from "./apns";
-
-function previewDeviceToken(deviceToken: string) {
-  return deviceToken.length <= 12
-    ? `redacted:${deviceToken.length}`
-    : `${deviceToken.slice(0, 6)}...${deviceToken.slice(-6)}`;
-}
+import { previewDeviceToken } from "./deviceTokenPreview";
 
 export async function sendPushToUser(
   ctx: ActionCtx,
@@ -34,10 +29,12 @@ export async function sendPushToUser(
   const results: Array<Record<string, unknown>> = [];
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   const activeEnvironment = configuredApnsEnvironment();
 
   for (const device of devices) {
     if (device.environment !== activeEnvironment) {
+      skipped += 1;
       results.push({
         deviceToken: previewDeviceToken(device.deviceToken),
         environment: device.environment,
@@ -75,10 +72,11 @@ export async function sendPushToUser(
   }
 
   return {
-    ok: failed === 0,
+    ok: failed === 0 && (sent > 0 || skipped === 0),
     userId: args.userId,
     sent,
     failed,
+    skipped,
     results,
   };
 }
