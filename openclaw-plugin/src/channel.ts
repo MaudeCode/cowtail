@@ -53,6 +53,12 @@ function resolveAccountId(accountId?: string | null): string {
   return normalized;
 }
 
+function stringifyOutboundThreadId(
+  threadId: string | number | null | undefined,
+): string | undefined {
+  return threadId == null ? undefined : String(threadId);
+}
+
 function resolveEventTimestamp(event: unknown): number {
   if (typeof event !== "object" || event === null) {
     return Date.now();
@@ -295,6 +301,9 @@ export function createCowtailChannelPlugin(deps: CowtailChannelDeps = defaultDep
           if (!account.configured) {
             throw new Error("Cowtail account is not configured");
           }
+          const threadId = stringifyOutboundThreadId(
+            (ctx as { threadId?: string | number | null }).threadId,
+          );
 
           const activeClient = activeClients.get(accountId);
           if (activeClient) {
@@ -302,6 +311,7 @@ export function createCowtailChannelPlugin(deps: CowtailChannelDeps = defaultDep
               account,
               client: activeClient,
               to: ctx.to,
+              ...(threadId != null ? { threadId } : {}),
               text: ctx.text,
             });
           }
@@ -325,6 +335,7 @@ export function createCowtailChannelPlugin(deps: CowtailChannelDeps = defaultDep
               account,
               client,
               to: ctx.to,
+              ...(threadId != null ? { threadId } : {}),
               text: ctx.text,
             });
           } finally {
