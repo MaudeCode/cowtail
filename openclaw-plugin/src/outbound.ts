@@ -1,17 +1,11 @@
 import { buildCowtailTarget, normalizeCowtailTarget } from "./session-keys.js";
-import type { CowtailCommandResult } from "./client.js";
+import type { CowtailCommandResult, OpenClawMessageInput } from "./client.js";
 import type { ResolvedCowtailAccount } from "./types.js";
 
+type CowtailOutboundMessage = OpenClawMessageInput & { threadId: string };
+
 type CowtailOutboundClient = {
-  sendOpenClawMessage(command: {
-    type: "openclaw_message";
-    sessionKey: string;
-    threadId?: string;
-    threadHint?: string;
-    text: string;
-    links: [];
-    actions: [];
-  }): Promise<CowtailCommandResult>;
+  sendOpenClawMessage(command: CowtailOutboundMessage): Promise<CowtailCommandResult>;
 };
 
 export type CowtailOutboundResult = {
@@ -36,20 +30,38 @@ function resolveCowtailTarget(to: string): string {
   return normalizedTarget;
 }
 
+function resolveCowtailThreadId(params: {
+  target: string;
+  threadId?: string | null | undefined;
+}): string {
+  if (params.threadId != null) {
+    const normalizedThreadId = normalizeCowtailTarget(params.threadId);
+    if (!normalizedThreadId) {
+      throw new Error("Cowtail threadId must not be blank");
+    }
+    return normalizedThreadId;
+  }
+
+  return params.target;
+}
+
 export async function sendCowtailText(params: {
   account: Pick<ResolvedCowtailAccount, "agentId">;
   client: CowtailOutboundClient;
   to: string;
+  threadId?: string | null;
   text: string;
 }): Promise<CowtailOutboundResult> {
   const { client, to } = params;
   const text = ensureNonBlankText(params.text);
   const target = resolveCowtailTarget(to);
+  const threadId = resolveCowtailThreadId({ target, threadId: params.threadId });
   const sessionKey = buildCowtailTarget(target);
 
   const result = await client.sendOpenClawMessage({
     type: "openclaw_message",
     sessionKey,
+    threadId,
     threadHint: target,
     text,
     links: [],
@@ -58,6 +70,14 @@ export async function sendCowtailText(params: {
   const messageId = result.payload?.messageId;
   if (typeof messageId !== "string" || messageId.trim() === "") {
     throw new Error("Cowtail did not acknowledge a durable message id");
+  }
+
+  const acknowledgedThreadId =
+    typeof result.payload?.threadId === "string"
+      ? normalizeCowtailTarget(result.payload.threadId)
+      : "";
+  if (acknowledgedThreadId !== threadId) {
+    throw new Error("Cowtail did not acknowledge a durable message in the intended thread");
   }
 
   return {

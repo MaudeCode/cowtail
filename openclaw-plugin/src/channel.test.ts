@@ -336,6 +336,7 @@ describe("cowtailChannelPlugin", () => {
       cfg: ctx.cfg,
       accountId: DEFAULT_ACCOUNT_ID,
       to: "thread_123",
+      threadId: "cowtail:thread_context",
       text: "Hello world",
     } as never);
 
@@ -344,6 +345,7 @@ describe("cowtailChannelPlugin", () => {
       account: resolveCowtailAccount(ctx.cfg),
       client: clientInstances[0],
       to: "thread_123",
+      threadId: "cowtail:thread_context",
       text: "Hello world",
     });
     expect(result as Record<string, unknown>).toMatchObject({
@@ -354,6 +356,50 @@ describe("cowtailChannelPlugin", () => {
 
     await releaseAbort();
     await running;
+  });
+
+  test("outbound.sendText forwards context thread id when creating a transient client", async () => {
+    const cowtailChannelPlugin = createPlugin();
+    const cfg = createConfig();
+
+    await cowtailChannelPlugin.outbound!.sendText?.({
+      cfg,
+      accountId: DEFAULT_ACCOUNT_ID,
+      to: "thread_target",
+      threadId: "cowtail:thread_context",
+      text: "Hello from a fresh process",
+    } as never);
+
+    expect(sendCowtailTextMock).toHaveBeenCalledTimes(1);
+    expect(sendCowtailTextMock.mock.calls[0]?.[0]).toMatchObject({
+      account: resolveCowtailAccount(cfg),
+      client: clientInstances[0],
+      to: "thread_target",
+      threadId: "cowtail:thread_context",
+      text: "Hello from a fresh process",
+    });
+  });
+
+  test("outbound.sendText stringifies numeric context thread ids before delivery", async () => {
+    const cowtailChannelPlugin = createPlugin();
+    const cfg = createConfig();
+
+    await cowtailChannelPlugin.outbound!.sendText?.({
+      cfg,
+      accountId: DEFAULT_ACCOUNT_ID,
+      to: "thread_target",
+      threadId: 12345,
+      text: "Hello from a numeric thread",
+    } as never);
+
+    expect(sendCowtailTextMock).toHaveBeenCalledTimes(1);
+    expect(sendCowtailTextMock.mock.calls[0]?.[0]).toMatchObject({
+      account: resolveCowtailAccount(cfg),
+      client: clientInstances[0],
+      to: "thread_target",
+      threadId: "12345",
+      text: "Hello from a numeric thread",
+    });
   });
 
   test("outbound.sendText creates a transient client when no active client exists", async () => {

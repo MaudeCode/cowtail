@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { sendCowtailText } from "./outbound.js";
+import type { CowtailCommandResult, OpenClawMessageInput } from "./client.js";
 import type { ResolvedCowtailAccount } from "./types.js";
 
 function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): ResolvedCowtailAccount {
@@ -19,21 +20,8 @@ function createAccount(overrides: Partial<ResolvedCowtailAccount> = {}): Resolve
   };
 }
 
-type SentMessage = {
-  type: "openclaw_message";
-  sessionKey: string;
-  threadId?: string;
-  threadHint?: string;
-  text: string;
-  links: [];
-  actions: [];
-};
-
-type SendResult = {
-  requestId: string;
-  sequence: number | undefined;
-  payload?: Record<string, unknown>;
-};
+type SentMessage = OpenClawMessageInput & { threadId: string };
+type SendResult = CowtailCommandResult;
 
 function createClient(overrides?: {
   sendOpenClawMessage?: (message: SentMessage) => Promise<SendResult>;
@@ -53,7 +41,7 @@ function createClient(overrides?: {
 }
 
 describe("sendCowtailText", () => {
-  test("sends openclaw_message with distinct target hint and session fields", async () => {
+  test("sends openclaw_message with resolved thread id, target hint, and session fields", async () => {
     const client = createClient({
       sendOpenClawMessage: async () => ({
         requestId: "request-17",
@@ -79,6 +67,7 @@ describe("sendCowtailText", () => {
       {
         type: "openclaw_message",
         sessionKey: "cowtail:thread_123",
+        threadId: "thread_123",
         threadHint: "thread_123",
         text: "Hello world",
         links: [],
@@ -87,6 +76,7 @@ describe("sendCowtailText", () => {
       {
         type: "openclaw_message",
         sessionKey: "cowtail:thread_123",
+        threadId: "thread_123",
         threadHint: "thread_123",
         text: "Hello world",
         links: [],
@@ -105,6 +95,36 @@ describe("sendCowtailText", () => {
     });
   });
 
+  test("uses normalized outbound context thread id before target fallback", async () => {
+    const client = createClient({
+      sendOpenClawMessage: async () => ({
+        requestId: "request-17",
+        sequence: 17,
+        payload: { threadId: "thread_explicit", messageId: "message_123" },
+      }),
+    });
+
+    await sendCowtailText({
+      account: createAccount(),
+      client,
+      to: "cowtail:thread_target",
+      threadId: "cowtail:thread_explicit",
+      text: "Hello world",
+    });
+
+    expect(client.sentMessages).toEqual([
+      {
+        type: "openclaw_message",
+        sessionKey: "cowtail:thread_target",
+        threadId: "thread_explicit",
+        threadHint: "thread_target",
+        text: "Hello world",
+        links: [],
+        actions: [],
+      },
+    ]);
+  });
+
   test("rejects acks without a durable message id", async () => {
     const client = createClient({
       sendOpenClawMessage: async () => ({ requestId: "request-abc", sequence: undefined }),
@@ -118,6 +138,44 @@ describe("sendCowtailText", () => {
         text: "Hello world",
       }),
     ).rejects.toThrow(/durable message id/i);
+  });
+
+  test("rejects acks whose durable message belongs to a different thread", async () => {
+    const client = createClient({
+      sendOpenClawMessage: async () => ({
+        requestId: "request-abc",
+        sequence: 17,
+        payload: { threadId: "thread_other", messageId: "message_123" },
+      }),
+    });
+
+    await expect(
+      sendCowtailText({
+        account: createAccount(),
+        client,
+        to: "cowtail:thread_123",
+        text: "Hello world",
+      }),
+    ).rejects.toThrow(/intended thread/i);
+  });
+
+  test("rejects acks with a durable message id but no intended thread", async () => {
+    const client = createClient({
+      sendOpenClawMessage: async () => ({
+        requestId: "request-abc",
+        sequence: 17,
+        payload: { messageId: "message_123" },
+      }),
+    });
+
+    await expect(
+      sendCowtailText({
+        account: createAccount(),
+        client,
+        to: "cowtail:thread_123",
+        text: "Hello world",
+      }),
+    ).rejects.toThrow(/intended thread/i);
   });
 
   test("rejects blank text before sending", async () => {
