@@ -31,6 +31,7 @@ type RecordCall = {
   storePath: string;
   sessionKey: string;
   ctx: Record<string, unknown>;
+  updateLastRoute?: Record<string, unknown>;
   onRecordError?: (err: unknown) => void;
 };
 
@@ -859,6 +860,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-22",
         streamId: "cowtail:stream:message-22",
         sessionKey: "session-thread-22",
+        threadId: "thread-22",
         title: "Chat thread",
         text: "Here is the answer.",
         authorLabel: "OpenClaw",
@@ -870,7 +872,7 @@ describe("handleCowtailEvent", () => {
     ]);
   });
 
-  test("reply delivery targets the Cowtail thread encoded in the routed session key", async () => {
+  test("reply delivery targets the current Cowtail thread over a stale routed session key", async () => {
     const client = createClient();
     const { logger } = createLogger();
     const runtimeState = createRuntime({
@@ -922,7 +924,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-routed",
         streamId: "cowtail:stream:message-routed",
         sessionKey: "agent:main:cowtail:routed-thread",
-        threadId: "routed-thread",
+        threadId: "stale-default-thread",
         title: "Routed chat",
         text: "Routed answer.",
         authorLabel: "OpenClaw",
@@ -933,13 +935,22 @@ describe("handleCowtailEvent", () => {
       },
     ]);
     expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.threadId)).toEqual([
-      "routed-thread",
-      "routed-thread",
+      "stale-default-thread",
+      "stale-default-thread",
     ]);
+    expect(runtimeState.recordInboundSessionCalls).toHaveLength(1);
+    expect(runtimeState.recordInboundSessionCalls[0]!.updateLastRoute).toEqual({
+      sessionKey: "agent:main:cowtail:routed-thread",
+      channel: "cowtail",
+      to: "cowtail:stale-default-thread",
+      accountId: "default",
+      threadId: "stale-default-thread",
+    });
     expect(runtimeState.dispatchCalls).toHaveLength(1);
     expect(runtimeState.dispatchCalls[0]!.ctx).toMatchObject({
-      To: "cowtail:routed-thread",
-      OriginatingTo: "cowtail:routed-thread",
+      To: "cowtail:stale-default-thread",
+      OriginatingTo: "cowtail:stale-default-thread",
+      MessageThreadId: "stale-default-thread",
     });
   });
 
@@ -999,6 +1010,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-bare-target",
         streamId: "cowtail:stream:message-bare-target",
         sessionKey: "cowtail:opaque-target",
+        threadId: "actual-thread-doc",
         title: "Bare target chat",
         text: "Bare target answer.",
         authorLabel: "OpenClaw",
@@ -1063,6 +1075,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-23",
         streamId: "cowtail:stream:message-23",
         sessionKey: "session-thread-23",
+        threadId: "thread-23",
         title: "Streaming chat",
         text: "Checking the deploy",
         authorLabel: "OpenClaw",
@@ -1172,6 +1185,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-28",
         streamId: "cowtail:stream:message-28",
         sessionKey: "session-thread-28",
+        threadId: "thread-28",
         title: "Partial stream chat",
         text: "Hello!",
         authorLabel: "OpenClaw",
@@ -1444,6 +1458,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-24",
         streamId: "cowtail:stream:message-24",
         sessionKey: "session-thread-24",
+        threadId: "thread-24",
         title: "Tool chat",
         text: "Checking ",
         authorLabel: "OpenClaw",
@@ -1875,6 +1890,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-31",
         streamId: "cowtail:stream:message-31",
         sessionKey: "session-thread-31",
+        threadId: "thread-31",
         title: "Rejected snapshot chat",
         text: "Live text final",
         authorLabel: "OpenClaw",
@@ -2207,6 +2223,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:reply:message-27",
         streamId: "cowtail:stream:message-27",
         sessionKey: "session-thread-27",
+        threadId: "thread-27",
         title: "Tool-only chat",
         text: "",
         authorLabel: "OpenClaw",
@@ -2373,6 +2390,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:action:action-36",
         streamId,
         sessionKey: "session-action-stream",
+        threadId: "thread-36",
         title: "Action stream thread",
         text: "Applying the approval",
         authorLabel: "OpenClaw",
@@ -2426,7 +2444,7 @@ describe("handleCowtailEvent", () => {
     ]);
   });
 
-  test("action_submitted routes streamed replies to the Cowtail thread encoded in the session key", async () => {
+  test("action_submitted routes streamed replies to the current Cowtail thread", async () => {
     const client = createClient();
     const { logger } = createLogger();
     const runtimeState = createRuntime({
@@ -2476,8 +2494,9 @@ describe("handleCowtailEvent", () => {
     const streamId = "cowtail:action-stream:action-37";
     expect(runtimeState.dispatchCalls).toHaveLength(1);
     expect(runtimeState.dispatchCalls[0]!.ctx).toMatchObject({
-      To: "cowtail:routed-action-thread",
-      OriginatingTo: "cowtail:routed-action-thread",
+      To: "cowtail:stale-action-thread",
+      OriginatingTo: "cowtail:stale-action-thread",
+      MessageThreadId: "stale-action-thread",
     });
     expect(client.sendOpenClawMessageCalls).toEqual([
       {
@@ -2485,7 +2504,7 @@ describe("handleCowtailEvent", () => {
         idempotencyKey: "cowtail:action:action-37",
         streamId,
         sessionKey: "agent:main:cowtail:routed-action-thread",
-        threadId: "routed-action-thread",
+        threadId: "stale-action-thread",
         title: "Routed action stream thread",
         text: "Applying the routed approval",
         authorLabel: "OpenClaw",
@@ -2496,8 +2515,8 @@ describe("handleCowtailEvent", () => {
       },
     ]);
     expect(client.sendOpenClawStreamSnapshotCalls.map((snapshot) => snapshot.threadId)).toEqual([
-      "routed-action-thread",
-      "routed-action-thread",
+      "stale-action-thread",
+      "stale-action-thread",
     ]);
     expect(
       client.sendOpenClawStreamSnapshotCalls.map((snapshot) => ({
