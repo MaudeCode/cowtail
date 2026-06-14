@@ -15,7 +15,6 @@ import {
   buildCowtailTarget,
   isSupportedCowtailAgent,
   normalizeCowtailTarget,
-  resolveCowtailThreadIdFromSessionKey,
 } from "./session-keys.js";
 
 type Logger = {
@@ -158,7 +157,7 @@ export async function handleCowtailEvent(params: {
       }
 
       if (!thread.sessionKey) {
-        const threadId = resolveCowtailThreadId({ route, thread });
+        const threadId = resolveCowtailThreadId(thread);
         await client.sendSessionBound({
           type: "openclaw_session_bound",
           idempotencyKey: `cowtail:session-bound:${threadId}`,
@@ -447,13 +446,22 @@ async function recordCowtailInboundSessionAndDispatchReply(params: {
   onRecordError: (error: unknown) => void;
   onDispatchError: (error: unknown, info: { kind: string }) => void;
 }): Promise<void> {
+  const threadId = resolveCowtailThreadId(params.thread);
+  const sessionKey =
+    typeof params.ctxPayload.SessionKey === "string"
+      ? params.ctxPayload.SessionKey
+      : params.route.sessionKey;
   await params.runtime.channel.session.recordInboundSession({
     storePath: params.storePath,
-    sessionKey:
-      typeof params.ctxPayload.SessionKey === "string"
-        ? params.ctxPayload.SessionKey
-        : params.route.sessionKey,
+    sessionKey,
     ctx: params.ctxPayload,
+    updateLastRoute: {
+      sessionKey,
+      channel: CHANNEL_ID,
+      to: buildCowtailTarget(threadId),
+      accountId: params.accountId,
+      threadId,
+    },
     onRecordError: params.onRecordError,
   });
 
@@ -721,13 +729,13 @@ async function createDurableCowtailReply(
   },
 ): Promise<string | undefined> {
   try {
-    const routedThreadId = resolveCowtailThreadIdFromSessionKey(params.route.sessionKey);
+    const threadId = resolveCowtailThreadId(params.thread);
     const result = await params.client.sendOpenClawMessage({
       type: "openclaw_message",
       idempotencyKey: params.streamState.idempotencyKey,
       streamId: params.streamState.streamId,
       sessionKey: params.route.sessionKey,
-      ...(routedThreadId ? { threadId: routedThreadId } : {}),
+      threadId,
       title: params.thread.title,
       text: message.text,
       authorLabel: "OpenClaw",
@@ -915,7 +923,7 @@ function emitCowtailStreamSnapshot(params: {
       type: "openclaw_message_stream_snapshot",
       streamId: params.streamState.streamId,
       sessionKey: params.route.sessionKey,
-      threadId: resolveCowtailThreadId(params),
+      threadId: resolveCowtailThreadId(params.thread),
       text: params.text,
       links: params.streamState.links.map((link) => ({ ...link })),
       toolCalls: structuredClone(params.streamState.toolCalls),
@@ -1231,7 +1239,8 @@ function finalizeInboundContext(params: {
   body: string;
   timestamp: number;
 }) {
-  const target = buildCowtailTarget(resolveCowtailThreadId(params));
+  const threadId = resolveCowtailThreadId(params.thread);
+  const target = buildCowtailTarget(threadId);
   return params.runtime.channel.reply.finalizeInboundContext(
     {
       Body: params.body,
@@ -1241,6 +1250,7 @@ function finalizeInboundContext(params: {
       From: SENDER_ADDRESS,
       To: target,
       SessionKey: params.route.sessionKey,
+      MessageThreadId: threadId,
       AccountId: params.account.accountId,
       ChatType: "direct" as const,
       ConversationLabel: params.thread.title,
@@ -1366,14 +1376,8 @@ function isPeerBindingRoute(route: CowtailRoute): boolean {
   return route.matchedBy === "binding.peer";
 }
 
-function resolveCowtailThreadId(params: {
-  route: CowtailRoute;
-  thread: Pick<OpenClawThreadRecord, "id">;
-}): string {
-  return (
-    resolveCowtailThreadIdFromSessionKey(params.route.sessionKey) ??
-    normalizeCowtailTarget(params.thread.id)
-  );
+function resolveCowtailThreadId(thread: Pick<OpenClawThreadRecord, "id">): string {
+  return normalizeCowtailTarget(thread.id);
 }
 
 function errorMessage(error: unknown): string {
