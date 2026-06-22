@@ -25,7 +25,6 @@ Phase 1 is implemented:
 - `cowtail fix delete`
 - `cowtail roundup test`
 - `cowtail health show`
-- `cowtail realtime health`
 - `cowtail push send`
 - `cowtail push test`
 - `cowtail users devices`
@@ -86,7 +85,7 @@ Example config:
 }
 ```
 
-`baseUrl` is required. Realtime health diagnostics use the same origin as `baseUrl` and check `/healthz`. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, and `roundup test`.
+`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, and `roundup test`.
 
 `cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
@@ -108,7 +107,6 @@ Tagged release builds embed the Git tag as the canonical CLI version. Local buil
 - `cowtail fix delete`
 - `cowtail roundup test`
 - `cowtail health show`
-- `cowtail realtime health`
 - `cowtail push send`
 - `cowtail push test`
 - `cowtail users devices`
@@ -132,8 +130,6 @@ cowtail roundup test \
   --to 2026-04-14
 
 cowtail health show
-
-cowtail realtime health
 
 cowtail users list
 

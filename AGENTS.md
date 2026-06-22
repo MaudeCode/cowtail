@@ -41,20 +41,13 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).
 - Example app/Convex env values live in [`web/.env.example`](./web/.env.example).
 - Example container runtime env values live in [`web/.env.container.example`](./web/.env.container.example).
-- Cowtail realtime deployment notes live in [`docs/cowtail-realtime-deployment.md`](./docs/cowtail-realtime-deployment.md).
-- OpenClaw plugin deployment notes live in [`docs/openclaw-plugin-deployment.md`](./docs/openclaw-plugin-deployment.md).
 
-## OpenClaw Chat Verification
+## Chat Verification
 
-Use these checks when changing the OpenClaw chat, realtime, push, plugin, or iOS surfaces:
+Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 
 - Check shared protocol contracts with `bun run check:protocol`.
 - Test shared protocol contracts with `bun run test:protocol`.
-- Check realtime with `bun run check:realtime`.
-- Test realtime with `bun run test:realtime`.
-- Install OpenClaw plugin dependencies with `cd openclaw-plugin && bun install --frozen-lockfile` before running plugin checks in a fresh worktree.
-- Check the OpenClaw plugin with `bun run check:openclaw-plugin`.
-- Test the OpenClaw plugin with `bun run test:openclaw-plugin`.
 - Generate iOS OpenAPI sources with `cd ios && ./generate.sh` after protocol or HTTP contract changes.
 - Run iOS unit tests with `bun run test:ios:unit`.
 - Run iOS UI tests with `bun run test:ios:ui`.
@@ -89,7 +82,6 @@ The release workflow builds and publishes the repo-owned release artifacts.
   - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context
   - builds CLI release binaries from [`cli/`](./cli)
   - builds and publishes the CLI npm package from [`cli/`](./cli)
-  - builds and publishes the OpenClaw plugin npm package from [`openclaw-plugin/`](./openclaw-plugin)
   - publishes multi-architecture container images
   - creates a GitHub Release for the tag and attaches the CLI artifacts
   - deploys Convex from [`web/`](./web) after artifact publication succeeds
@@ -97,7 +89,7 @@ The release workflow builds and publishes the repo-owned release artifacts.
 
 Important boundary:
 
-- This repository builds and publishes the web image, realtime image, CLI archives, CLI npm package, and OpenClaw plugin package.
+- This repository builds and publishes the web image, CLI archives, and CLI npm package.
 - This repository deploys Convex functions as part of a successful release.
 - The root Bun workspace is intentionally limited to `web/` and `protocol/` so the web container build does not depend on CLI workspace metadata.
 - The actual Kubernetes rollout is managed outside this repo by GitOps.

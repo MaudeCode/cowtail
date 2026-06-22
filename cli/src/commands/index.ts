@@ -3,7 +3,6 @@ import { configCommandGroup } from "./config";
 import { fixCommandGroup } from "./fix";
 import { healthCommandGroup } from "./health";
 import { pushCommandGroup } from "./push";
-import { realtimeCommandGroup } from "./realtime";
 import { roundupCommandGroup } from "./roundup";
 import { usersCommandGroup } from "./users";
 import { UpdateCommand, UPDATE_DESCRIPTION } from "./update";
@@ -17,7 +16,6 @@ export const commandGroups: CommandGroupDefinition[] = [
   fixCommandGroup,
   healthCommandGroup,
   pushCommandGroup,
-  realtimeCommandGroup,
   usersCommandGroup,
 ];
 

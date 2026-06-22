@@ -4,28 +4,22 @@
   "packageManager": "bun@1.3.11",
   "workspaces": [
     "web",
-    "protocol",
-    "realtime"
+    "protocol"
   ],
   "scripts": {
     "build:cli": "cd cli && bun run build",
-    "build:realtime": "cd realtime && bun run build",
     "codegen:ios": "cd protocol && bun run codegen:ios",
     "dev:web": "cd web && bun run dev",
     "check:cli": "cd cli && bun run check",
-    "check:openclaw-plugin": "cd openclaw-plugin && bun run check",
-    "check:realtime": "cd realtime && bun run check",
     "build:web": "cd web && bun run build",
     "test:ios:ui": "cd ios && scripts/test.sh CowtailUITests",
     "check:protocol": "cd protocol && bun run check",
-    "test:openclaw-plugin": "cd openclaw-plugin && bun run test",
     "test:protocol": "cd protocol && bun run test",
     "test:ios:unit": "cd ios && scripts/test.sh CowtailTests",
-    "test:realtime": "cd realtime && bun test",
-    "lint:ts": "oxlint web cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex",
-    "lint:ts:fix": "oxlint --fix web cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex",
-    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex",
-    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests protocol/src protocol/scripts realtime/src openclaw-plugin/src script/codex"
+    "lint:ts": "oxlint web cli/src cli/tests protocol/src protocol/scripts script/codex",
+    "lint:ts:fix": "oxlint --fix web cli/src cli/tests protocol/src protocol/scripts script/codex",
+    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests protocol/src protocol/scripts script/codex",
+    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests protocol/src protocol/scripts script/codex"
   },
   "devDependencies": {
     "oxfmt": "^0.46.0",
