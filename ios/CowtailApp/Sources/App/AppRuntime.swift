@@ -57,7 +57,6 @@ final class AppRuntime {
                 notificationManager: notificationManager,
                 openClawStore: OpenClawStore(
                     api: OpenClawAPI(),
-                    realtime: OpenClawRealtimeClient(),
                     appSessionManager: appSessionManager
                 ),
                 themeSettings: themeSettings,
@@ -122,7 +121,6 @@ final class AppRuntime {
                 notificationManager: notificationManager,
                 openClawStore: OpenClawStore(
                     api: OpenClawSeededAPI(seed: scenario.seed.openClaw),
-                    realtime: OpenClawSeededRealtime(),
                     appSessionManager: appSessionManager,
                     defaults: openClawDefaults
                 ),

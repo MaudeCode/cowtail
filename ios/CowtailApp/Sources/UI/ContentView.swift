@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.cowtailPalette) private var palette
-    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var openClawStore: OpenClawStore
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
 
@@ -73,20 +72,6 @@ struct ContentView: View {
         }
         .task {
             await openClawStore.refreshIfPossible()
-            await openClawStore.connectForeground()
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            switch newPhase {
-            case .active:
-                Task {
-                    await openClawStore.refreshIfPossible()
-                    await openClawStore.connectForeground(forceRestart: true)
-                }
-            case .background, .inactive:
-                openClawStore.disconnectForeground()
-            @unknown default:
-                break
-            }
         }
     }
 

@@ -5,10 +5,6 @@ struct OpenClawThreadListView: View {
     @EnvironmentObject private var store: OpenClawStore
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
 
-    @State private var isShowingNewThread = false
-    @State private var renameTarget: OpenClawThread?
-    @State private var deleteTarget: OpenClawThread?
-
     var body: some View {
         OpenClawScreen {
             threadList
@@ -17,32 +13,6 @@ struct OpenClawThreadListView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.openclaw.threads")
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $isShowingNewThread) {
-            OpenClawNewThreadView()
-                .environmentObject(store)
-                .environmentObject(universalLinkRouter)
-        }
-        .sheet(item: $renameTarget) { thread in
-            OpenClawRenameThreadView(thread: thread)
-                .environmentObject(store)
-        }
-        .alert(
-            "Delete Thread",
-            isPresented: deleteConfirmationPresented,
-            presenting: deleteTarget
-        ) { thread in
-            Button("Delete Thread", role: .destructive) {
-                delete(thread)
-            }
-            .accessibilityIdentifier("button.openclaw.thread-delete.confirm.\(thread.id)")
-
-            Button("Cancel", role: .cancel) {
-                deleteTarget = nil
-            }
-            .accessibilityIdentifier("button.openclaw.thread-delete.cancel.\(thread.id)")
-        } message: { thread in
-            Text("Delete \"\(thread.title)\" from OpenClaw.")
-        }
         .task {
             await store.refreshIfPossible()
         }
@@ -62,6 +32,11 @@ struct OpenClawThreadListView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
 
+            readOnlyCard
+                .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 8, trailing: 14))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
             if let errorMessage = store.errorMessage {
                 errorCard(message: errorMessage)
                     .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 5, trailing: 14))
@@ -69,7 +44,7 @@ struct OpenClawThreadListView: View {
                     .listRowBackground(Color.clear)
             }
 
-            if store.connectionState == .signedOut {
+            if store.isSignedOut {
                 signedOutCard
                     .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 18, trailing: 14))
                     .listRowSeparator(.hidden)
@@ -102,24 +77,17 @@ struct OpenClawThreadListView: View {
     }
 
     private var pageHeader: some View {
-        CowtailPageHeader(title: headerTitle) {
-            Button {
-                isShowingNewThread = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .semibold))
-                    .frame(width: 42, height: 42)
-                    .background(style.elevatedSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(style.border, lineWidth: 1)
-                    }
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(style.primaryText)
-            .accessibilityLabel("New OpenClaw thread")
-            .accessibilityIdentifier("button.openclaw.new-thread")
-        }
+        CowtailPageHeader(title: headerTitle)
+    }
+
+    private var readOnlyCard: some View {
+        OpenClawInlineBanner(
+            title: "Read Only",
+            message: "Live replies and thread changes were retired with the bridge.",
+            tint: style.info,
+            systemImage: "archivebox"
+        )
+        .accessibilityIdentifier("card.openclaw.read-only")
     }
 
     private var threadSectionHeader: some View {
@@ -142,41 +110,14 @@ struct OpenClawThreadListView: View {
             OpenClawThreadRow(thread: thread)
         }
         .buttonStyle(.plain)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                deleteTarget = thread
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-
-            Button {
-                renameTarget = thread
-            } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-            .tint(.blue)
-        }
-        .contextMenu {
-            Button {
-                renameTarget = thread
-            } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-
-            Button(role: .destructive) {
-                deleteTarget = thread
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
         .accessibilityIdentifier("row.openclaw.thread.\(thread.id)")
     }
 
     private var signedOutCard: some View {
         OpenClawInlineBanner(
             title: "Signed Out",
-            message: "Sign in from Farmhouse to use OpenClaw threads.",
-            tint: store.connectionState.tint,
+            message: "Sign in from Farmhouse to view OpenClaw threads.",
+            tint: style.warning,
             systemImage: "person.crop.circle.badge.exclamationmark"
         )
         .accessibilityIdentifier("card.openclaw.signed-out")
@@ -185,7 +126,7 @@ struct OpenClawThreadListView: View {
     private var emptyCard: some View {
         OpenClawInlineBanner(
             title: "No Threads",
-            message: "Start a thread when you need OpenClaw to help with a cluster task.",
+            message: "No archived OpenClaw conversations are available.",
             tint: style.info,
             systemImage: "bubble.left.and.bubble.right"
         )
@@ -222,70 +163,5 @@ struct OpenClawThreadListView: View {
 
     private var style: OpenClawStyle {
         OpenClawStyle(palette: palette)
-    }
-
-    private var deleteConfirmationPresented: Binding<Bool> {
-        Binding(
-            get: { deleteTarget != nil },
-            set: { isPresented in
-                if !isPresented {
-                    deleteTarget = nil
-                }
-            }
-        )
-    }
-
-    private func delete(_ thread: OpenClawThread) {
-        Task {
-            do {
-                try await store.deleteThread(threadId: thread.id)
-                if universalLinkRouter.openClawPath == [.thread(thread.id)] {
-                    universalLinkRouter.openClawPath.removeAll()
-                }
-            } catch {
-                store.errorMessage = error.localizedDescription
-            }
-            deleteTarget = nil
-        }
-    }
-}
-
-extension OpenClawConnectionState {
-    var displayTitle: String {
-        switch self {
-        case .disconnected:
-            return "Offline"
-        case .signedOut:
-            return "Signed Out"
-        case .connecting:
-            return "Connecting"
-        case .connected:
-            return "Connected"
-        case .reconnecting:
-            return "Reconnecting"
-        case .failed:
-            return "Failed"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .disconnected, .signedOut:
-            return .gray
-        case .connecting, .reconnecting:
-            return .orange
-        case .connected:
-            return .green
-        case .failed:
-            return .red
-        }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        OpenClawThreadListView()
-            .environmentObject(CowtailPreviewFixtures.openClawStore())
-            .environmentObject(UniversalLinkRouter.shared)
     }
 }

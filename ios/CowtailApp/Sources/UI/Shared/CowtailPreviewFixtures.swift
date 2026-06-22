@@ -354,54 +354,11 @@ enum CowtailPreviewFixtures {
         )
         let defaults = UserDefaults(suiteName: "cowtail.openclaw.preview.\(UUID().uuidString)") ?? .standard
         defaults.set("OpenClaw", forKey: "openclaw.displayName")
-        let store = OpenClawStore(
+        return OpenClawStore(
             api: api,
-            realtime: PreviewOpenClawRealtime(),
             appSessionManager: .shared,
             defaults: defaults
         )
-
-        try? store.apply(.init(
-            sequence: 1,
-            type: "thread_created",
-            createdAt: openClawThread.createdAt,
-            threadId: openClawThread.id,
-            thread: openClawThread
-        ))
-        try? store.apply(.init(
-            sequence: 2,
-            type: "message_created",
-            createdAt: openClawMessage.createdAt,
-            threadId: openClawThread.id,
-            messageId: openClawMessage.id,
-            message: openClawMessage,
-            actions: [openClawAction]
-        ))
-        try? store.apply(.init(
-            sequence: 3,
-            type: "message_created",
-            createdAt: openClawReply.createdAt,
-            threadId: openClawThread.id,
-            messageId: openClawReply.id,
-            message: openClawReply
-        ))
-        try? store.apply(.init(
-            sequence: 4,
-            type: "message_created",
-            createdAt: openClawToolResult.createdAt,
-            threadId: openClawThread.id,
-            messageId: openClawToolResult.id,
-            message: openClawToolResult
-        ))
-        try? store.apply(.init(
-            sequence: 5,
-            type: "thread_created",
-            createdAt: secondaryOpenClawThread.createdAt,
-            threadId: secondaryOpenClawThread.id,
-            thread: secondaryOpenClawThread
-        ))
-
-        return store
     }
 
     private static func decodeOpenClawMessageWithActions(
@@ -441,23 +398,5 @@ private actor PreviewOpenClawAPI: OpenClawAPIClient {
 
     func fetchMessages(threadId: String, sessionToken: String) async throws -> [OpenClawMessageWithActions] {
         messagesByThreadID[threadId] ?? []
-    }
-}
-
-@MainActor
-private final class PreviewOpenClawRealtime: OpenClawRealtimeConnecting {
-    func start(
-        sessionToken _: String,
-        lastSeenSequence _: Int64?,
-        onConnectionStateChange: @escaping @MainActor (OpenClawRealtimeTransportState) -> Void,
-        onMessage _: @escaping @MainActor (OpenClawServerMessage) -> Void
-    ) {
-        onConnectionStateChange(.connected)
-    }
-
-    func stop() {}
-
-    func send(_ command: OpenClawClientCommand) async throws -> OpenClawAck {
-        OpenClawAck(type: "ack", requestId: command.requestId)
     }
 }
