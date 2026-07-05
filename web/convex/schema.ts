@@ -18,7 +18,110 @@ export default defineSchema({
     rootCause: v.optional(v.string()),
     messaged: v.boolean(),
     resolvedAt: v.optional(v.number()),
-  }).index("by_timestamp", ["timestamp"]),
+    source: v.optional(
+      v.union(
+        v.literal("alertmanager"),
+        v.literal("hermes"),
+        v.literal("manual"),
+        v.literal("weekly-review"),
+      ),
+    ),
+    sourceEventId: v.optional(v.id("alertmanagerEvents")),
+    alertmanagerFingerprint: v.optional(v.string()),
+    dedupeKey: v.optional(v.string()),
+    startsAt: v.optional(v.number()),
+    endsAt: v.optional(v.number()),
+    generatorURL: v.optional(v.string()),
+    labels: v.optional(v.record(v.string(), v.any())),
+    annotations: v.optional(v.record(v.string(), v.any())),
+    lastReceivedAt: v.optional(v.number()),
+    occurrenceCount: v.optional(v.number()),
+  })
+    .index("by_timestamp", ["timestamp"])
+    .index("by_dedupeKey", ["dedupeKey"])
+    .index("by_fingerprint_status", ["alertmanagerFingerprint", "status"])
+    .index("by_sourceEventId", ["sourceEventId"])
+    .index("by_status_timestamp", ["status", "timestamp"]),
+
+  alertmanagerEvents: defineTable({
+    receivedAt: v.number(),
+    source: v.literal("alertmanager"),
+    receiver: v.optional(v.string()),
+    status: v.string(),
+    groupKey: v.optional(v.string()),
+    groupLabels: v.record(v.string(), v.any()),
+    externalURL: v.optional(v.string()),
+    version: v.optional(v.string()),
+    truncatedAlerts: v.optional(v.number()),
+    commonLabels: v.record(v.string(), v.any()),
+    commonAnnotations: v.record(v.string(), v.any()),
+    rawPayload: v.any(),
+    payloadHash: v.string(),
+    createdAlertIds: v.array(v.id("alerts")),
+    createdJobIds: v.array(v.id("investigationJobs")),
+    ingestStatus: v.union(v.literal("stored"), v.literal("normalized"), v.literal("failed")),
+    error: v.optional(v.string()),
+  })
+    .index("by_receivedAt", ["receivedAt"])
+    .index("by_payloadHash", ["payloadHash"])
+    .index("by_groupKey", ["groupKey"])
+    .index("by_ingestStatus_receivedAt", ["ingestStatus", "receivedAt"]),
+
+  investigationJobs: defineTable({
+    alertId: v.id("alerts"),
+    sourceEventId: v.id("alertmanagerEvents"),
+    fingerprint: v.string(),
+    dedupeKey: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("claimed"),
+      v.literal("done"),
+      v.literal("failed"),
+      v.literal("deadletter"),
+    ),
+    priority: v.union(v.literal("low"), v.literal("normal"), v.literal("high")),
+    attempts: v.number(),
+    maxAttempts: v.number(),
+    nextAttemptAt: v.number(),
+    claimedBy: v.optional(v.string()),
+    claimToken: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    leaseUntil: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    errorHistory: v.array(
+      v.object({
+        at: v.number(),
+        phase: v.string(),
+        error: v.string(),
+        retryable: v.boolean(),
+      }),
+    ),
+    completedAt: v.optional(v.number()),
+    deadletteredAt: v.optional(v.number()),
+    deadletterReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status_nextAttemptAt", ["status", "nextAttemptAt"])
+    .index("by_alertId", ["alertId"])
+    .index("by_fingerprint_status", ["fingerprint", "status"])
+    .index("by_claimToken", ["claimToken"]),
+
+  jobDeliveries: defineTable({
+    jobId: v.id("investigationJobs"),
+    target: v.literal("hermes:cowtail-alert-job"),
+    status: v.union(v.literal("pending"), v.literal("delivered"), v.literal("failed")),
+    attempts: v.number(),
+    lastAttemptAt: v.optional(v.number()),
+    nextAttemptAt: v.number(),
+    lastStatusCode: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status_nextAttemptAt", ["status", "nextAttemptAt"])
+    .index("by_jobId", ["jobId"])
+    .index("by_target_status", ["target", "status"]),
 
   deviceRegistrations: defineTable({
     userId: v.string(),

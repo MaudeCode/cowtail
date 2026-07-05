@@ -53,11 +53,15 @@ describe("roundup helpers", () => {
 
     expect(counts).toEqual({
       total: 4,
+      pending: 0,
       fixed: 2,
       selfResolved: 1,
       noise: 0,
       escalated: 1,
       fixes: 2,
+      rawEvents: 0,
+      failedIngestEvents: 0,
+      deadletterJobs: 0,
     });
   });
 
@@ -66,11 +70,15 @@ describe("roundup helpers", () => {
       resolveRoundupWindow("2026-04-14", "2026-04-14", "America/New_York"),
       {
         total: 0,
+        pending: 0,
         fixed: 0,
         selfResolved: 0,
         noise: 0,
         escalated: 0,
         fixes: 0,
+        rawEvents: 0,
+        failedIngestEvents: 0,
+        deadletterJobs: 0,
       },
     );
 
@@ -82,15 +90,43 @@ describe("roundup helpers", () => {
       resolveRoundupWindow("2026-04-14", "2026-04-14", "America/New_York"),
       {
         total: 12,
+        pending: 1,
         fixed: 5,
         selfResolved: 3,
         noise: 2,
         escalated: 2,
         fixes: 3,
+        rawEvents: 12,
+        failedIngestEvents: 0,
+        deadletterJobs: 1,
       },
     );
 
-    expect(body).toBe("Apr 14: 12 alerts, 5 fixed, 3 self-resolved, 2 escalated, 3 fixes shipped.");
+    expect(body).toBe(
+      "Apr 14: 12 alerts, 1 pending, 5 fixed, 3 self-resolved, 2 escalated, 1 investigation deadletter, 3 fixes shipped.",
+    );
+  });
+
+  test("buildDailyRoundupBody reports raw ingest gaps instead of quiet-day copy", () => {
+    const body = buildDailyRoundupBody(
+      resolveRoundupWindow("2026-04-14", "2026-04-14", "America/New_York"),
+      {
+        total: 0,
+        pending: 0,
+        fixed: 0,
+        selfResolved: 0,
+        noise: 0,
+        escalated: 0,
+        fixes: 0,
+        rawEvents: 2,
+        failedIngestEvents: 1,
+        deadletterJobs: 0,
+      },
+    );
+
+    expect(body).toBe(
+      "Apr 14: Cowtail ingest gap detected: 2 Alertmanager events arrived, but no alert rows were created.",
+    );
   });
 
   test("buildDailyRoundupPayload uses the roundup URL", () => {

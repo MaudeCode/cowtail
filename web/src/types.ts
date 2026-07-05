@@ -4,7 +4,7 @@ export type {
 } from "@maudecode/cowtail-protocol";
 
 export type Severity = "critical" | "warning" | "info";
-export type Outcome = "fixed" | "self-resolved" | "noise" | "escalated";
+export type Outcome = "pending" | "fixed" | "self-resolved" | "noise" | "escalated";
 
 export interface Alert {
   id: string;

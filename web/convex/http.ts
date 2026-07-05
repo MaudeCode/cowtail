@@ -163,6 +163,40 @@ function requireServiceAuth(c: { req: { header(name: string): string | undefined
   return null;
 }
 
+function requireBearerAuth(
+  c: { req: { header(name: string): string | undefined } },
+  expectedToken: string | undefined,
+  missingMessage: string,
+) {
+  const expected = expectedToken?.trim();
+  if (!expected) {
+    return jsonError(missingMessage, 500);
+  }
+
+  const authorization = c.req.header("authorization")?.trim();
+  if (authorization !== `Bearer ${expected}`) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  return null;
+}
+
+function requireAlertmanagerWebhookAuth(c: { req: { header(name: string): string | undefined } }) {
+  return requireBearerAuth(
+    c,
+    process.env.COWTAIL_ALERTMANAGER_WEBHOOK_TOKEN ?? process.env.PUSH_API_BEARER_TOKEN,
+    "Alertmanager webhook token is not configured",
+  );
+}
+
+function requireWorkerAuth(c: { req: { header(name: string): string | undefined } }) {
+  return requireBearerAuth(
+    c,
+    process.env.COWTAIL_WORKER_TOKEN,
+    "Cowtail worker token is not configured",
+  );
+}
+
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const hash = await crypto.subtle.digest("SHA-256", bytes);
@@ -277,6 +311,17 @@ function mapAlertRecord(alert: Record<string, unknown> & { _id: string }) {
     rootCause: alert.rootCause,
     messaged: alert.messaged,
     resolvedAt: alert.resolvedAt,
+    source: alert.source,
+    sourceEventId: alert.sourceEventId ? String(alert.sourceEventId) : undefined,
+    alertmanagerFingerprint: alert.alertmanagerFingerprint,
+    dedupeKey: alert.dedupeKey,
+    startsAt: alert.startsAt,
+    endsAt: alert.endsAt,
+    generatorURL: alert.generatorURL,
+    labels: alert.labels,
+    annotations: alert.annotations,
+    lastReceivedAt: alert.lastReceivedAt,
+    occurrenceCount: alert.occurrenceCount,
   });
 }
 
@@ -290,6 +335,91 @@ function mapFixRecord(fix: Record<string, unknown> & { _id: string }) {
     scope: fix.scope,
     commit: fix.commit,
   };
+}
+
+type AlertmanagerAlert = {
+  status?: unknown;
+  labels?: Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+  startsAt?: unknown;
+  endsAt?: unknown;
+  generatorURL?: unknown;
+  fingerprint?: unknown;
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function labelString(labels: Record<string, unknown>, key: string, fallback = "unknown"): string {
+  return nonEmptyString(labels[key]) ?? fallback;
+}
+
+function parseAlertTimestamp(value: unknown, fallback: number): number {
+  const text = nonEmptyString(value);
+  if (!text) return fallback;
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function alertDedupeKey(alert: AlertmanagerAlert): string {
+  const labels = asRecord(alert.labels);
+  const fingerprint = nonEmptyString(alert.fingerprint) ?? labelString(labels, "alertname");
+  const status = nonEmptyString(alert.status) ?? "firing";
+  const startsAt = nonEmptyString(alert.startsAt) ?? "unknown-start";
+  const endsAt = status === "resolved" ? (nonEmptyString(alert.endsAt) ?? "unknown-end") : "";
+  return [fingerprint, status, startsAt, endsAt].filter(Boolean).join(":");
+}
+
+function alertSummary(alert: AlertmanagerAlert): string {
+  const labels = asRecord(alert.labels);
+  const annotations = asRecord(alert.annotations);
+  return (
+    nonEmptyString(annotations.description) ??
+    nonEmptyString(annotations.summary) ??
+    `${labelString(labels, "alertname")} ${nonEmptyString(alert.status) ?? "firing"}`
+  );
+}
+
+function alertNode(alert: AlertmanagerAlert): string | undefined {
+  const labels = asRecord(alert.labels);
+  return (
+    nonEmptyString(labels.node) ??
+    nonEmptyString(labels.kubernetes_node) ??
+    nonEmptyString(labels.instance)
+  );
+}
+
+function normalizeAlertmanagerAlert(alert: AlertmanagerAlert, receivedAt: number) {
+  const labels = asRecord(alert.labels);
+  const annotations = asRecord(alert.annotations);
+  const status = nonEmptyString(alert.status) ?? "firing";
+  const startsAt = parseAlertTimestamp(alert.startsAt, receivedAt);
+  const endsAt = status === "resolved" ? parseAlertTimestamp(alert.endsAt, receivedAt) : undefined;
+  const fingerprint = nonEmptyString(alert.fingerprint) ?? alertDedupeKey(alert);
+
+  return {
+    dedupeKey: alertDedupeKey(alert),
+    alertmanagerFingerprint: fingerprint,
+    timestamp: startsAt,
+    startsAt,
+    endsAt,
+    generatorURL: nonEmptyString(alert.generatorURL),
+    alertname: labelString(labels, "alertname"),
+    severity: labelString(labels, "severity", "warning"),
+    namespace: labelString(labels, "namespace"),
+    node: alertNode(alert),
+    status,
+    summary: alertSummary(alert),
+    labels,
+    annotations,
+  };
+}
+
+function generateClaimToken(): string {
+  return createOpaqueToken();
 }
 
 function mapUserDevice(device: Record<string, unknown>) {
@@ -690,50 +820,363 @@ app.delete("/api/fixes/:id", async (c) => {
   }
 });
 
-// POST /api/alerts/webhook — Alertmanager-native webhook receiver
-// Accepts Alertmanager's payload format and writes alerts directly to Convex.
-// Used for known-noise alerts that don't need AI investigation.
+// POST /api/alerts/webhook — Alertmanager-native durable webhook receiver
+// Writes the raw Alertmanager event first, then upserts normalized alerts and queues investigation jobs.
 app.post("/api/alerts/webhook", async (c) => {
-  const authError = requireServiceAuth(c);
+  const authError = requireAlertmanagerWebhookAuth(c);
   if (authError) return authError;
 
-  const body = await c.req.json();
-  const ctx = c.env;
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return c.json({ ok: false, error: "Invalid JSON body" }, 400);
+  }
 
-  // Alertmanager sends { status, alerts: [...] }
-  const alerts = body.alerts;
+  const payload = body as Record<string, unknown>;
+  const alerts = payload.alerts;
   if (!Array.isArray(alerts) || alerts.length === 0) {
     return c.json({ ok: false, error: "No alerts in payload" }, 400);
   }
 
-  const ids: string[] = [];
-  for (const alert of alerts) {
-    const labels = alert.labels ?? {};
-    const annotations = alert.annotations ?? {};
-    const status = alert.status ?? "firing";
+  const receivedAt = Date.now();
+  const payloadHash = await sha256Hex(JSON.stringify(payload));
+  const eventId = await c.env.runMutation((internal as any).alertmanagerEvents.insertStored, {
+    receivedAt,
+    receiver: nonEmptyString(payload.receiver),
+    status: nonEmptyString(payload.status) ?? "unknown",
+    groupKey: nonEmptyString(payload.groupKey),
+    groupLabels: asRecord(payload.groupLabels),
+    externalURL: nonEmptyString(payload.externalURL),
+    version: nonEmptyString(payload.version),
+    truncatedAlerts:
+      typeof payload.truncatedAlerts === "number" ? payload.truncatedAlerts : undefined,
+    commonLabels: asRecord(payload.commonLabels),
+    commonAnnotations: asRecord(payload.commonAnnotations),
+    rawPayload: payload,
+    payloadHash,
+  });
 
-    const args: Record<string, unknown> = {
-      timestamp: alert.startsAt ? new Date(alert.startsAt).getTime() : Date.now(),
-      alertname: labels.alertname ?? "unknown",
-      severity: labels.severity ?? "warning",
-      namespace: labels.namespace ?? "unknown",
-      status,
-      outcome: "noise",
-      summary: annotations.description || annotations.summary || `${labels.alertname} ${status}`,
-      action: "Auto-logged via direct webhook (no AI investigation)",
-      messaged: false,
-    };
-    if (labels.node) args.node = labels.node;
-    if (labels.instance) args.node = labels.instance;
-    if (status === "resolved" && alert.endsAt) {
-      args.resolvedAt = new Date(alert.endsAt).getTime();
+  const alertIds: string[] = [];
+  const jobIds: string[] = [];
+  const deliveryIds: string[] = [];
+
+  try {
+    for (const rawAlert of alerts) {
+      const normalized = normalizeAlertmanagerAlert(rawAlert as AlertmanagerAlert, receivedAt);
+      const alertId = await c.env.runMutation((internal as any).alerts.upsertFromAlertmanager, {
+        sourceEventId: eventId,
+        ...normalized,
+      });
+      alertIds.push(String(alertId));
+
+      const jobId = await c.env.runMutation(
+        (internal as any).investigationJobs.createOrCoalesceForAlert,
+        {
+          alertId,
+          sourceEventId: eventId,
+          fingerprint: normalized.alertmanagerFingerprint,
+          dedupeKey: normalized.dedupeKey,
+          alertStatus: normalized.status,
+          severity: normalized.severity,
+          now: receivedAt,
+        },
+      );
+
+      if (jobId) {
+        jobIds.push(String(jobId));
+        const deliveryId = await c.env.runMutation((internal as any).jobDeliveries.enqueue, {
+          jobId,
+          now: receivedAt,
+        });
+        deliveryIds.push(String(deliveryId));
+      }
     }
 
-    const id = await ctx.runMutation(internal.alerts.insert, args as any);
-    ids.push(id);
+    await c.env.runMutation((internal as any).alertmanagerEvents.markNormalized, {
+      id: eventId,
+      createdAlertIds: alertIds,
+      createdJobIds: jobIds,
+    });
+
+    for (const deliveryId of deliveryIds) {
+      await attemptHermesJobDelivery(c, deliveryId);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await c.env.runMutation((internal as any).alertmanagerEvents.markFailed, {
+      id: eventId,
+      error: message,
+    });
+    return c.json({ ok: false, error: message, eventId: String(eventId) }, 500);
   }
 
-  return c.json({ ok: true, ids, count: ids.length });
+  return c.json({
+    ok: true,
+    eventId: String(eventId),
+    alertIds,
+    jobIds,
+    deliveryIds,
+    count: alertIds.length,
+  });
+});
+
+async function loadInvestigationJobContext(c: RouteContext, job: any) {
+  const alert = job?.alertId
+    ? await c.env.runQuery((api as any).alerts.getById, { id: job.alertId })
+    : null;
+  const sourceEvent = job?.sourceEventId
+    ? await c.env.runQuery((api as any).alertmanagerEvents.getById, { id: job.sourceEventId })
+    : null;
+
+  return {
+    job,
+    alert: alert ? mapAlertRecord(alert as any) : null,
+    sourceEvent: sourceEvent
+      ? {
+          id: String(sourceEvent._id),
+          receivedAt: sourceEvent.receivedAt,
+          receiver: sourceEvent.receiver,
+          status: sourceEvent.status,
+          groupKey: sourceEvent.groupKey,
+          groupLabels: sourceEvent.groupLabels,
+          commonLabels: sourceEvent.commonLabels,
+          commonAnnotations: sourceEvent.commonAnnotations,
+          externalURL: sourceEvent.externalURL,
+          version: sourceEvent.version,
+          truncatedAlerts: sourceEvent.truncatedAlerts,
+          ingestStatus: sourceEvent.ingestStatus,
+        }
+      : null,
+  };
+}
+
+async function attemptHermesJobDelivery(c: RouteContext, deliveryId: string) {
+  const now = Date.now();
+  const delivery = await c.env.runQuery((api as any).jobDeliveries.getById, {
+    id: deliveryId as any,
+  });
+  if (!delivery) {
+    return { ok: false, error: "job delivery not found" };
+  }
+
+  const webhookUrl = nonEmptyString(process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL);
+  const webhookToken = nonEmptyString(process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN);
+  if (!webhookUrl || !webhookToken) {
+    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
+      id: delivery._id,
+      ok: false,
+      now,
+      error: "Hermes alert job webhook is not configured",
+    });
+    return { ok: false, error: "Hermes alert job webhook is not configured" };
+  }
+
+  const job = await c.env.runQuery((api as any).investigationJobs.getById, {
+    id: delivery.jobId,
+  });
+  if (!job) {
+    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
+      id: delivery._id,
+      ok: false,
+      now,
+      error: "investigation job not found",
+    });
+    return { ok: false, error: "investigation job not found" };
+  }
+
+  const alert = await c.env.runQuery((api as any).alerts.getById, { id: job.alertId });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${webhookToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "cowtail.alert_job_available",
+        jobId: String(job._id),
+        alertId: String(job.alertId),
+        fingerprint: job.fingerprint,
+        alertname: alert?.alertname,
+        severity: alert?.severity,
+        status: job.status,
+        createdAt: job.createdAt,
+      }),
+      signal: controller.signal,
+    });
+
+    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
+      id: delivery._id,
+      ok: response.ok,
+      now,
+      statusCode: response.status,
+      error: response.ok ? undefined : `Hermes webhook returned HTTP ${response.status}`,
+    });
+    return { ok: response.ok, statusCode: response.status };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
+      id: delivery._id,
+      ok: false,
+      now,
+      error: message,
+    });
+    return { ok: false, error: message };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+app.post("/api/investigation-jobs/claim", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const now = Date.now();
+  const job = await c.env.runMutation((internal as any).investigationJobs.claim, {
+    jobId: nonEmptyString(body.jobId) as any,
+    workerId: nonEmptyString(body.workerId) ?? "hermes-default-gateway",
+    claimToken: generateClaimToken(),
+    leaseSeconds: typeof body.leaseSeconds === "number" ? body.leaseSeconds : 900,
+    now,
+  });
+
+  if (!job) {
+    return c.json({ ok: true, claimed: false });
+  }
+
+  return c.json({ ok: true, claimed: true, ...(await loadInvestigationJobContext(c, job)) });
+});
+
+app.get("/api/investigation-jobs/deadletters", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const limit = parseOptionalQueryTimestamp(c.req.query("limit")) ?? 50;
+  const jobs = await c.env.runQuery((api as any).investigationJobs.deadletters, { limit });
+  return c.json({ ok: true, count: jobs.length, jobs });
+});
+
+app.post("/api/job-deliveries/:id/retry", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const result = await attemptHermesJobDelivery(c, c.req.param("id"));
+  return c.json(result);
+});
+
+app.get("/api/investigation-jobs/:id", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const job = await c.env.runQuery((api as any).investigationJobs.getById, {
+    id: c.req.param("id") as any,
+  });
+  if (!job) {
+    return jsonError("Investigation job not found", 404);
+  }
+
+  return c.json({ ok: true, ...(await loadInvestigationJobContext(c, job)) });
+});
+
+app.post("/api/investigation-jobs/:id/renew", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const claimToken = nonEmptyString(body.claimToken);
+  if (!claimToken) {
+    return jsonError("claimToken is required");
+  }
+
+  const result = await c.env.runMutation((internal as any).investigationJobs.renew, {
+    id: c.req.param("id") as any,
+    claimToken,
+    leaseSeconds: typeof body.leaseSeconds === "number" ? body.leaseSeconds : 900,
+    now: Date.now(),
+  });
+  return c.json({ ok: true, ...result });
+});
+
+app.post("/api/investigation-jobs/:id/complete", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+  const claimToken = nonEmptyString(body.claimToken);
+  const outcome = nonEmptyString(body.outcome);
+  const summary = nonEmptyString(body.summary);
+  const action = nonEmptyString(body.action);
+  if (!claimToken || !outcome || !summary || !action) {
+    return jsonError("claimToken, outcome, summary, and action are required");
+  }
+
+  const job = await c.env.runQuery((api as any).investigationJobs.getById, {
+    id: c.req.param("id") as any,
+  });
+  if (!job) {
+    return jsonError("Investigation job not found", 404);
+  }
+
+  await c.env.runMutation((internal as any).alerts.updateOutcome, {
+    id: job.alertId,
+    outcome,
+    summary,
+    action,
+    rootCause: nonEmptyString(body.rootCause),
+    messaged: typeof body.messaged === "boolean" ? body.messaged : false,
+  });
+  await c.env.runMutation((internal as any).investigationJobs.complete, {
+    id: c.req.param("id") as any,
+    claimToken,
+    now: Date.now(),
+  });
+
+  return c.json({ ok: true });
+});
+
+app.post("/api/investigation-jobs/:id/fail", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body) {
+    return jsonError("Invalid JSON body");
+  }
+  const phase = nonEmptyString(body.phase) ?? "investigation";
+  const error = nonEmptyString(body.error);
+  if (!error) {
+    return jsonError("error is required");
+  }
+
+  const result = await c.env.runMutation((internal as any).investigationJobs.fail, {
+    id: c.req.param("id") as any,
+    claimToken: nonEmptyString(body.claimToken),
+    phase,
+    error,
+    retryable: typeof body.retryable === "boolean" ? body.retryable : true,
+    now: Date.now(),
+  });
+  return c.json({ ok: true, ...result });
+});
+
+app.post("/api/investigation-jobs/:id/requeue", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const result = await c.env.runMutation((internal as any).investigationJobs.requeue, {
+    id: c.req.param("id") as any,
+    now: Date.now(),
+  });
+  await c.env.runMutation((internal as any).jobDeliveries.enqueue, {
+    jobId: c.req.param("id") as any,
+    now: Date.now(),
+  });
+  return c.json({ ok: true, ...result });
 });
 
 // POST /api/auth/session — exchange a fresh Apple identity token for an app session

@@ -37,6 +37,7 @@ interface ConvexFix {
 }
 
 const outcomeColors: Record<string, { bg: string; text: string; label: string }> = {
+  pending: { bg: "bg-gray-500", text: "text-gray-500", label: "Pending" },
   fixed: { bg: "bg-outcome-fixed", text: "text-outcome-fixed", label: "Fixed" },
   "self-resolved": { bg: "bg-self-resolved", text: "text-self-resolved", label: "Self Resolved" },
   noise: { bg: "bg-noise", text: "text-noise", label: "Noise" },
@@ -96,6 +97,7 @@ export default function Roundup() {
 
   const stats = {
     total: alerts.length,
+    pending: alerts.filter((a) => a.outcome === "pending").length,
     fixed: alerts.filter((a) => a.outcome === "fixed").length,
     selfResolved: alerts.filter((a) => a.outcome === "self-resolved").length,
     noise: alerts.filter((a) => a.outcome === "noise").length,
@@ -109,7 +111,7 @@ export default function Roundup() {
     return acc;
   }, {});
 
-  const outcomeOrder: Outcome[] = ["escalated", "fixed", "self-resolved", "noise"];
+  const outcomeOrder: Outcome[] = ["pending", "escalated", "fixed", "self-resolved", "noise"];
 
   return (
     <div className="font-sans bg-bg text-txt min-h-screen grid-bg">
@@ -141,9 +143,10 @@ export default function Roundup() {
         ) : (
           <>
             {/* Summary stats */}
-            <div className="grid grid-cols-6 gap-px bg-gray-200 mb-8 max-lg:grid-cols-3">
+            <div className="grid grid-cols-7 gap-px bg-gray-200 mb-8 max-lg:grid-cols-3">
               {[
                 { label: "Total", value: stats.total, color: "" },
+                { label: "Pending", value: stats.pending, color: "text-gray-500" },
                 { label: "Fixed", value: stats.fixed, color: "text-outcome-fixed" },
                 { label: "S-Resolved", value: stats.selfResolved, color: "text-self-resolved" },
                 { label: "Noise", value: stats.noise, color: "text-noise" },

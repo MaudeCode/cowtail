@@ -22,6 +22,7 @@ interface ConvexFix {
 }
 
 const outcomeStyle = {
+  pending: "bg-gray-500 text-white",
   fixed: "bg-outcome-fixed text-white",
   "self-resolved": "bg-self-resolved text-white",
   noise: "bg-noise text-white",

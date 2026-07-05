@@ -4,6 +4,8 @@ import { alertOutcomes, alertStatuses, nonEmptyStringSchema, timestampSchema } f
 
 export const alertOutcomeSchema = z.enum(alertOutcomes);
 export const alertStatusSchema = z.enum(alertStatuses);
+export const alertSourceSchema = z.enum(["alertmanager", "hermes", "manual", "weekly-review"]);
+const rawStringRecordSchema = z.record(z.string(), z.unknown());
 
 export const alertCreateRequestSchema = z.object({
   timestamp: timestampSchema.optional(),
@@ -34,6 +36,17 @@ export const alertRecordSchema = z.object({
   rootCause: nonEmptyStringSchema.optional(),
   messaged: z.boolean(),
   resolvedAt: timestampSchema.optional(),
+  source: alertSourceSchema.optional(),
+  sourceEventId: nonEmptyStringSchema.optional(),
+  alertmanagerFingerprint: nonEmptyStringSchema.optional(),
+  dedupeKey: nonEmptyStringSchema.optional(),
+  startsAt: timestampSchema.optional(),
+  endsAt: timestampSchema.optional(),
+  generatorURL: nonEmptyStringSchema.optional(),
+  labels: rawStringRecordSchema.optional(),
+  annotations: rawStringRecordSchema.optional(),
+  lastReceivedAt: timestampSchema.optional(),
+  occurrenceCount: z.number().int().positive().optional(),
 });
 
 export const alertListQuerySchema = z.object({
@@ -64,3 +77,4 @@ export type AlertListResponse = z.infer<typeof alertListResponseSchema>;
 export type AlertGetResponse = z.infer<typeof alertGetResponseSchema>;
 export type AlertOutcome = z.infer<typeof alertOutcomeSchema>;
 export type AlertStatus = z.infer<typeof alertStatusSchema>;
+export type AlertSource = z.infer<typeof alertSourceSchema>;

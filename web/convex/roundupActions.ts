@@ -93,7 +93,12 @@ async function buildRoundupNotification(
   ctx: Parameters<typeof sendPushToUser>[0],
   window: RoundupWindow,
 ): Promise<RoundupNotification> {
-  const [alerts, fixes]: [Array<{ outcome: string }>, Array<unknown>] = await Promise.all([
+  const [alerts, fixes, rawEvents, deadletterJobs]: [
+    Array<{ outcome: string }>,
+    Array<unknown>,
+    Array<{ ingestStatus?: string }>,
+    Array<unknown>,
+  ] = await Promise.all([
     ctx.runQuery(api.alerts.getByTimeRange, {
       from: window.fromTimestamp,
       to: window.toTimestamp,
@@ -102,9 +107,17 @@ async function buildRoundupNotification(
       from: window.fromTimestamp,
       to: window.toTimestamp,
     }),
+    ctx.runQuery((api as any).alertmanagerEvents.getByTimeRange, {
+      from: window.fromTimestamp,
+      to: window.toTimestamp,
+    }),
+    ctx.runQuery((api as any).investigationJobs.deadlettersByTimeRange, {
+      from: window.fromTimestamp,
+      to: window.toTimestamp,
+    }),
   ]);
 
-  const counts = buildRoundupCounts(alerts, fixes);
+  const counts = buildRoundupCounts(alerts, fixes, rawEvents, deadletterJobs);
   const payload = buildDailyRoundupPayload(window, cowtailWebOrigin());
   const body = buildDailyRoundupBody(window, counts);
 

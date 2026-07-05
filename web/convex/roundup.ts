@@ -2,11 +2,15 @@ import type { DailyRoundupPushPayload } from "@maudecode/cowtail-protocol";
 
 export type RoundupCounts = {
   total: number;
+  pending: number;
   fixed: number;
   selfResolved: number;
   noise: number;
   escalated: number;
   fixes: number;
+  rawEvents: number;
+  failedIngestEvents: number;
+  deadletterJobs: number;
 };
 
 export type RoundupWindow = {
@@ -167,14 +171,20 @@ export function shouldRunDailyRoundupAt(now: Date, timeZone: string, localHour: 
 export function buildRoundupCounts(
   alerts: Array<{ outcome: string }>,
   fixes: Array<unknown>,
+  rawEvents: Array<{ ingestStatus?: string }> = [],
+  deadletterJobs: Array<unknown> = [],
 ): RoundupCounts {
   return {
     total: alerts.length,
+    pending: alerts.filter((alert) => alert.outcome === "pending").length,
     fixed: alerts.filter((alert) => alert.outcome === "fixed").length,
     selfResolved: alerts.filter((alert) => alert.outcome === "self-resolved").length,
     noise: alerts.filter((alert) => alert.outcome === "noise").length,
     escalated: alerts.filter((alert) => alert.outcome === "escalated").length,
     fixes: fixes.length,
+    rawEvents: rawEvents.length,
+    failedIngestEvents: rawEvents.filter((event) => event.ingestStatus === "failed").length,
+    deadletterJobs: deadletterJobs.length,
   };
 }
 
@@ -191,6 +201,10 @@ export function buildDailyRoundupBody(window: RoundupWindow, counts: RoundupCoun
   const label = formatRoundupLabel(window.roundupFrom, window.roundupTo);
 
   if (counts.total === 0) {
+    if (counts.rawEvents > 0) {
+      return `${label}: Cowtail ingest gap detected: ${counts.rawEvents} Alertmanager event${counts.rawEvents === 1 ? "" : "s"} arrived, but no alert rows were created.`;
+    }
+
     if (counts.fixes > 0) {
       return `${label}: No alerts fired, ${counts.fixes} fix${counts.fixes === 1 ? "" : "es"} shipped.`;
     }
@@ -200,10 +214,23 @@ export function buildDailyRoundupBody(window: RoundupWindow, counts: RoundupCoun
 
   const segments = [
     `${counts.total} alert${counts.total === 1 ? "" : "s"}`,
+    `${counts.pending} pending`,
     `${counts.fixed} fixed`,
     `${counts.selfResolved} self-resolved`,
     `${counts.escalated} escalated`,
   ];
+
+  if (counts.deadletterJobs > 0) {
+    segments.push(
+      `${counts.deadletterJobs} investigation deadletter${counts.deadletterJobs === 1 ? "" : "s"}`,
+    );
+  }
+
+  if (counts.failedIngestEvents > 0) {
+    segments.push(
+      `${counts.failedIngestEvents} failed ingest event${counts.failedIngestEvents === 1 ? "" : "s"}`,
+    );
+  }
 
   if (counts.fixes > 0) {
     segments.push(`${counts.fixes} fix${counts.fixes === 1 ? "" : "es"} shipped`);
