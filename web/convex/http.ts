@@ -66,6 +66,10 @@ function nonEmptyString(value: unknown): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+export function shouldCreateInvestigationJobForReceiver(receiver: unknown): boolean {
+  return nonEmptyString(receiver) === "cowtail-investigate";
+}
+
 function extractAlertId(value: Record<string, unknown>): string | undefined {
   return (
     nonEmptyString(value.alertId) ?? nonEmptyString(value.alertID) ?? nonEmptyString(value.alert_id)
@@ -859,6 +863,8 @@ app.post("/api/alerts/webhook", async (c) => {
   const jobIds: string[] = [];
   const deliveryIds: string[] = [];
 
+  const shouldCreateInvestigationJobs = shouldCreateInvestigationJobForReceiver(payload.receiver);
+
   try {
     for (const rawAlert of alerts) {
       const normalized = normalizeAlertmanagerAlert(rawAlert as AlertmanagerAlert, receivedAt);
@@ -867,6 +873,10 @@ app.post("/api/alerts/webhook", async (c) => {
         ...normalized,
       });
       alertIds.push(String(alertId));
+
+      if (!shouldCreateInvestigationJobs) {
+        continue;
+      }
 
       const jobId = await c.env.runMutation(
         (internal as any).investigationJobs.createOrCoalesceForAlert,
