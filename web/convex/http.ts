@@ -67,7 +67,7 @@ function nonEmptyString(value: unknown): string | undefined {
 }
 
 export function shouldCreateInvestigationJobForReceiver(receiver: unknown): boolean {
-  return nonEmptyString(receiver) === "cowtail-investigate";
+  return nonEmptyString(receiver)?.split("/").at(-1) === "cowtail-investigate";
 }
 
 function extractAlertId(value: Record<string, unknown>): string | undefined {
