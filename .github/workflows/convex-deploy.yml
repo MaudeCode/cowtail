@@ -20,6 +20,8 @@ jobs:
     env:
       CONVEX_SELF_HOSTED_URL: "${{ vars.CONVEX_SELF_HOSTED_URL }}"
       CONVEX_SELF_HOSTED_ADMIN_KEY: "${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}"
+      COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL: "${{ secrets.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL }}"
+      COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN: "${{ secrets.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -41,8 +43,24 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL}" ]; then
+            echo "Missing Actions secret COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL" >&2
+            exit 1
+          fi
+
+          if [ -z "${COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN}" ]; then
+            echo "Missing Actions secret COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN" >&2
+            exit 1
+          fi
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Synchronize Convex function environment
+        working-directory: web
+        run: |
+          bunx convex env set COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL "${COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL}"
+          bunx convex env set COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN "${COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN}"
 
       - name: Deploy Convex
         working-directory: web
