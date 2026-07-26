@@ -43,6 +43,7 @@ import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
+import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { validateOpenClawLimit } from "./openclawModel";
 import { sendPushToUser } from "./pushDelivery";
@@ -398,15 +399,6 @@ function parseAlertTimestamp(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function alertDedupeKey(alert: AlertmanagerAlert): string {
-  const labels = asRecord(alert.labels);
-  const fingerprint = nonEmptyString(alert.fingerprint) ?? labelString(labels, "alertname");
-  const status = nonEmptyString(alert.status) ?? "firing";
-  const startsAt = nonEmptyString(alert.startsAt) ?? "unknown-start";
-  const endsAt = status === "resolved" ? (nonEmptyString(alert.endsAt) ?? "unknown-end") : "";
-  return [fingerprint, status, startsAt, endsAt].filter(Boolean).join(":");
-}
-
 function alertSummary(alert: AlertmanagerAlert): string {
   const labels = asRecord(alert.labels);
   const annotations = asRecord(alert.annotations);
@@ -430,14 +422,15 @@ function normalizeAlertmanagerAlert(alert: AlertmanagerAlert, receivedAt: number
   const labels = asRecord(alert.labels);
   const annotations = asRecord(alert.annotations);
   const status = nonEmptyString(alert.status) ?? "firing";
-  const startsAt = parseAlertTimestamp(alert.startsAt, receivedAt);
+  const startsAtText = nonEmptyString(alert.startsAt);
+  const startsAt = startsAtText ? parseAlertTimestamp(startsAtText, receivedAt) : undefined;
   const endsAt = status === "resolved" ? parseAlertTimestamp(alert.endsAt, receivedAt) : undefined;
-  const fingerprint = nonEmptyString(alert.fingerprint) ?? alertDedupeKey(alert);
+  const fingerprint = alertmanagerFingerprint(alert.fingerprint, labels);
 
   return {
-    dedupeKey: alertDedupeKey(alert),
+    dedupeKey: alertLifecycleDedupeKey(fingerprint, startsAt),
     alertmanagerFingerprint: fingerprint,
-    timestamp: startsAt,
+    timestamp: startsAt ?? receivedAt,
     startsAt,
     endsAt,
     generatorURL: nonEmptyString(alert.generatorURL),
