@@ -1,6 +1,26 @@
 import { describe, expect, test } from "bun:test";
 
-import { shouldCreateInvestigationJobForReceiver } from "./http";
+import { isBearerTokenAuthorized, shouldCreateInvestigationJobForReceiver } from "./http";
+
+describe("trusted Cowtail write credentials", () => {
+  test("accepts either the service or worker bearer token", () => {
+    expect(isBearerTokenAuthorized("Bearer service-token", ["service-token", "worker-token"])).toBe(
+      true,
+    );
+    expect(isBearerTokenAuthorized("Bearer worker-token", ["service-token", "worker-token"])).toBe(
+      true,
+    );
+  });
+
+  test("rejects missing, malformed, and unrelated credentials", () => {
+    expect(isBearerTokenAuthorized(undefined, ["service-token", "worker-token"])).toBe(false);
+    expect(isBearerTokenAuthorized("worker-token", ["service-token", "worker-token"])).toBe(false);
+    expect(isBearerTokenAuthorized("Bearer other-token", ["service-token", "worker-token"])).toBe(
+      false,
+    );
+    expect(isBearerTokenAuthorized("Bearer worker-token", [undefined, " "])).toBe(false);
+  });
+});
 
 describe("Alertmanager webhook receiver policy", () => {
   test("keeps cowtail-direct ledger-only", () => {

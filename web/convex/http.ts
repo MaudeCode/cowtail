@@ -167,6 +167,30 @@ function requireServiceAuth(c: { req: { header(name: string): string | undefined
   return null;
 }
 
+export function isBearerTokenAuthorized(
+  authorization: string | undefined,
+  expectedTokens: Array<string | undefined>,
+): boolean {
+  const provided = authorization?.trim();
+  return expectedTokens.some((token) => {
+    const expected = token?.trim();
+    return Boolean(expected) && provided === `Bearer ${expected}`;
+  });
+}
+
+function requireServiceOrWorkerAuth(c: { req: { header(name: string): string | undefined } }) {
+  const expectedTokens = [process.env.PUSH_API_BEARER_TOKEN, process.env.COWTAIL_WORKER_TOKEN];
+  if (!expectedTokens.some((token) => Boolean(token?.trim()))) {
+    return jsonError("Cowtail service and worker tokens are not configured", 500);
+  }
+
+  if (!isBearerTokenAuthorized(c.req.header("authorization"), expectedTokens)) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  return null;
+}
+
 function requireBearerAuth(
   c: { req: { header(name: string): string | undefined } },
   expectedToken: string | undefined,
@@ -726,7 +750,7 @@ app.delete("/api/alerts/:id", async (c) => {
 
 // POST /api/fixes — write endpoint
 app.post("/api/fixes", async (c) => {
-  const authError = requireServiceAuth(c);
+  const authError = requireServiceOrWorkerAuth(c);
   if (authError) return authError;
 
   const body = await c.req.json().catch(() => null);
