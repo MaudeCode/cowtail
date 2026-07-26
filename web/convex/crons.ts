@@ -11,4 +11,11 @@ crons.hourly(
   {},
 );
 
+crons.interval(
+  "retry Hermes alert-job deliveries",
+  { minutes: 1 },
+  (internal as any).jobDeliveryActions.retryDue,
+  {},
+);
+
 export default crons;

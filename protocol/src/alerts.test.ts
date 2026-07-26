@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { alertCreateRequestSchema, alertRecordSchema } from "./alerts.js";
 
 describe("alert protocol schemas", () => {
-  test("accepts pending alert outcomes for durable ingest", () => {
-    const parsed = alertCreateRequestSchema.parse({
+  test("accepts pending and recorded outcomes for durable ingest", () => {
+    const pending = alertCreateRequestSchema.parse({
       alertname: "KubePodCrashLooping",
       severity: "warning",
       namespace: "network",
@@ -13,8 +13,18 @@ describe("alert protocol schemas", () => {
       summary: "Pod is crash looping.",
       action: "Recorded by Cowtail Alertmanager ingest. Investigation pending.",
     });
+    const recorded = alertCreateRequestSchema.parse({
+      alertname: "CephPGNotDeepScrubbed",
+      severity: "warning",
+      namespace: "rook-ceph",
+      status: "firing",
+      outcome: "recorded",
+      summary: "Placement group is overdue for a deep scrub.",
+      action: "Recorded by Cowtail Alertmanager ingest. No immediate investigation requested.",
+    });
 
-    expect(parsed.outcome).toBe("pending");
+    expect(pending.outcome).toBe("pending");
+    expect(recorded.outcome).toBe("recorded");
   });
 
   test("keeps compact alert records backwards compatible", () => {

@@ -50,6 +50,8 @@ enum AlertSeverity: String, CaseIterable, Decodable, Identifiable {
 }
 
 enum AlertOutcome: String, Decodable, Identifiable {
+    case pending
+    case recorded
     case fixed
     case selfResolved = "self-resolved"
     case noise
@@ -65,6 +67,10 @@ enum AlertOutcome: String, Decodable, Identifiable {
 
     var label: String {
         switch self {
+        case .pending:
+            return "Pending"
+        case .recorded:
+            return "Recorded"
         case .fixed:
             return "Fixed"
         case .selfResolved:
@@ -80,6 +86,8 @@ enum AlertOutcome: String, Decodable, Identifiable {
 
     var tint: Color {
         switch self {
+        case .pending, .recorded:
+            return .gray
         case .fixed:
             return .green
         case .selfResolved:
@@ -95,6 +103,10 @@ enum AlertOutcome: String, Decodable, Identifiable {
 
     var symbolName: String {
         switch self {
+        case .pending:
+            return "clock.fill"
+        case .recorded:
+            return "tray.full.fill"
         case .fixed:
             return "checkmark.circle.fill"
         case .selfResolved:
@@ -112,7 +124,7 @@ enum AlertOutcome: String, Decodable, Identifiable {
         switch self {
         case .fixed, .escalated:
             return true
-        case .selfResolved, .noise, .unknown:
+        case .pending, .recorded, .selfResolved, .noise, .unknown:
             return false
         }
     }

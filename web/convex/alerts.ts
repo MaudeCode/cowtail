@@ -1,6 +1,8 @@
 import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+import { resolveInitialAlertDisposition } from "./alertDisposition";
+
 const alertSourceValidator = v.union(
   v.literal("alertmanager"),
   v.literal("hermes"),
@@ -53,12 +55,14 @@ export const upsertFromAlertmanager = internalMutation({
     namespace: v.string(),
     node: v.optional(v.string()),
     status: v.string(),
+    investigationPending: v.boolean(),
     summary: v.string(),
     labels: v.record(v.string(), v.any()),
     annotations: v.record(v.string(), v.any()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const disposition = resolveInitialAlertDisposition(args.status, args.investigationPending);
     const existing = await ctx.db
       .query("alerts")
       .withIndex("by_dedupeKey", (q) => q.eq("dedupeKey", args.dedupeKey))
@@ -79,6 +83,7 @@ export const upsertFromAlertmanager = internalMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         ...patch,
+        ...(existing.outcome === "pending" ? disposition : {}),
         occurrenceCount: (existing.occurrenceCount ?? 1) + 1,
       });
       return existing._id;
@@ -91,9 +96,9 @@ export const upsertFromAlertmanager = internalMutation({
       namespace: args.namespace,
       node: args.node,
       status: args.status,
-      outcome: "pending",
+      outcome: disposition.outcome,
       summary: args.summary,
-      action: "Recorded by Cowtail Alertmanager ingest. Investigation pending.",
+      action: disposition.action,
       messaged: false,
       resolvedAt: args.endsAt,
       dedupeKey: args.dedupeKey,

@@ -46,14 +46,16 @@ describe("roundup helpers", () => {
         { outcome: "fixed" },
         { outcome: "self-resolved" },
         { outcome: "escalated" },
+        { outcome: "recorded" },
         { outcome: "fixed" },
       ],
       [{}, {}],
     );
 
     expect(counts).toEqual({
-      total: 4,
+      total: 5,
       pending: 0,
+      recorded: 1,
       fixed: 2,
       selfResolved: 1,
       noise: 0,
@@ -71,6 +73,7 @@ describe("roundup helpers", () => {
       {
         total: 0,
         pending: 0,
+        recorded: 0,
         fixed: 0,
         selfResolved: 0,
         noise: 0,
@@ -91,6 +94,7 @@ describe("roundup helpers", () => {
       {
         total: 12,
         pending: 1,
+        recorded: 1,
         fixed: 5,
         selfResolved: 3,
         noise: 2,
@@ -103,7 +107,7 @@ describe("roundup helpers", () => {
     );
 
     expect(body).toBe(
-      "Apr 14: 12 alerts, 1 pending, 5 fixed, 3 self-resolved, 2 escalated, 1 investigation deadletter, 3 fixes shipped.",
+      "Apr 14: 12 alerts, 1 pending, 1 recorded, 5 fixed, 3 self-resolved, 2 escalated, 1 investigation deadletter, 3 fixes shipped.",
     );
   });
 
@@ -113,6 +117,7 @@ describe("roundup helpers", () => {
       {
         total: 0,
         pending: 0,
+        recorded: 0,
         fixed: 0,
         selfResolved: 0,
         noise: 0,

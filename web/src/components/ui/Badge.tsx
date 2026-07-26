@@ -2,6 +2,7 @@ import type { Outcome } from "../../types";
 
 const outcomeStyles: Record<Outcome, string> = {
   pending: "bg-gray-500",
+  recorded: "bg-gray-400",
   fixed: "bg-fixed",
   "self-resolved": "bg-self-resolved",
   noise: "bg-noise",

@@ -3,6 +3,7 @@ import type { DailyRoundupPushPayload } from "@maudecode/cowtail-protocol";
 export type RoundupCounts = {
   total: number;
   pending: number;
+  recorded: number;
   fixed: number;
   selfResolved: number;
   noise: number;
@@ -177,6 +178,7 @@ export function buildRoundupCounts(
   return {
     total: alerts.length,
     pending: alerts.filter((alert) => alert.outcome === "pending").length,
+    recorded: alerts.filter((alert) => alert.outcome === "recorded").length,
     fixed: alerts.filter((alert) => alert.outcome === "fixed").length,
     selfResolved: alerts.filter((alert) => alert.outcome === "self-resolved").length,
     noise: alerts.filter((alert) => alert.outcome === "noise").length,
@@ -215,6 +217,7 @@ export function buildDailyRoundupBody(window: RoundupWindow, counts: RoundupCoun
   const segments = [
     `${counts.total} alert${counts.total === 1 ? "" : "s"}`,
     `${counts.pending} pending`,
+    `${counts.recorded} recorded`,
     `${counts.fixed} fixed`,
     `${counts.selfResolved} self-resolved`,
     `${counts.escalated} escalated`,

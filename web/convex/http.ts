@@ -868,13 +868,15 @@ app.post("/api/alerts/webhook", async (c) => {
   try {
     for (const rawAlert of alerts) {
       const normalized = normalizeAlertmanagerAlert(rawAlert as AlertmanagerAlert, receivedAt);
+      const investigationPending = shouldCreateInvestigationJobs && normalized.status === "firing";
       const alertId = await c.env.runMutation((internal as any).alerts.upsertFromAlertmanager, {
         sourceEventId: eventId,
+        investigationPending,
         ...normalized,
       });
       alertIds.push(String(alertId));
 
-      if (!shouldCreateInvestigationJobs) {
+      if (!investigationPending) {
         continue;
       }
 
@@ -960,82 +962,9 @@ async function loadInvestigationJobContext(c: RouteContext, job: any) {
 }
 
 async function attemptHermesJobDelivery(c: RouteContext, deliveryId: string) {
-  const now = Date.now();
-  const delivery = await c.env.runQuery((api as any).jobDeliveries.getById, {
-    id: deliveryId as any,
+  return await c.env.runAction((internal as any).jobDeliveryActions.deliverOne, {
+    deliveryId: deliveryId as any,
   });
-  if (!delivery) {
-    return { ok: false, error: "job delivery not found" };
-  }
-
-  const webhookUrl = nonEmptyString(process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL);
-  const webhookToken = nonEmptyString(process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN);
-  if (!webhookUrl || !webhookToken) {
-    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
-      id: delivery._id,
-      ok: false,
-      now,
-      error: "Hermes alert job webhook is not configured",
-    });
-    return { ok: false, error: "Hermes alert job webhook is not configured" };
-  }
-
-  const job = await c.env.runQuery((api as any).investigationJobs.getById, {
-    id: delivery.jobId,
-  });
-  if (!job) {
-    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
-      id: delivery._id,
-      ok: false,
-      now,
-      error: "investigation job not found",
-    });
-    return { ok: false, error: "investigation job not found" };
-  }
-
-  const alert = await c.env.runQuery((api as any).alerts.getById, { id: job.alertId });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
-  try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${webhookToken}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        type: "cowtail.alert_job_available",
-        jobId: String(job._id),
-        alertId: String(job.alertId),
-        fingerprint: job.fingerprint,
-        alertname: alert?.alertname,
-        severity: alert?.severity,
-        status: job.status,
-        createdAt: job.createdAt,
-      }),
-      signal: controller.signal,
-    });
-
-    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
-      id: delivery._id,
-      ok: response.ok,
-      now,
-      statusCode: response.status,
-      error: response.ok ? undefined : `Hermes webhook returned HTTP ${response.status}`,
-    });
-    return { ok: response.ok, statusCode: response.status };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await c.env.runMutation((internal as any).jobDeliveries.recordAttempt, {
-      id: delivery._id,
-      ok: false,
-      now,
-      error: message,
-    });
-    return { ok: false, error: message };
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 app.post("/api/investigation-jobs/claim", async (c) => {

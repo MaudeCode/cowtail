@@ -213,21 +213,27 @@ struct RoundupStats {
 }
 
 enum RoundupOutcomeSection: CaseIterable, Identifiable {
+    case pending
     case escalated
     case fixed
     case selfResolved
+    case recorded
     case noise
 
     var id: String { accessibilityKey }
 
     var accessibilityKey: String {
         switch self {
+        case .pending:
+            return "pending"
         case .escalated:
             return "escalated"
         case .fixed:
             return "fixed"
         case .selfResolved:
             return "self-resolved"
+        case .recorded:
+            return "recorded"
         case .noise:
             return "noise"
         }
@@ -235,12 +241,16 @@ enum RoundupOutcomeSection: CaseIterable, Identifiable {
 
     var outcome: AlertOutcome {
         switch self {
+        case .pending:
+            return .pending
         case .escalated:
             return .escalated
         case .fixed:
             return .fixed
         case .selfResolved:
             return .selfResolved
+        case .recorded:
+            return .recorded
         case .noise:
             return .noise
         }

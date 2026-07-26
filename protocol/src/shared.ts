@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-export const alertOutcomes = ["pending", "fixed", "self-resolved", "noise", "escalated"] as const;
+export const alertOutcomes = [
+  "pending",
+  "recorded",
+  "fixed",
+  "self-resolved",
+  "noise",
+  "escalated",
+] as const;
 export const alertStatuses = ["firing", "resolved"] as const;
 export const fixScopes = ["reactive", "weekly", "monthly"] as const;
 export const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
