@@ -1,6 +1,20 @@
 import { describe, expect, test } from "bun:test";
 
-import { isBearerTokenAuthorized, shouldCreateInvestigationJobForReceiver } from "./http";
+import {
+  isBearerTokenAuthorized,
+  parseInvestigationOutcome,
+  shouldCreateInvestigationJobForReceiver,
+} from "./http";
+
+describe("investigation outcomes", () => {
+  test("accepts only protocol alert outcomes", () => {
+    expect(parseInvestigationOutcome("fixed")).toBe("fixed");
+    expect(parseInvestigationOutcome("self-resolved")).toBe("self-resolved");
+    expect(parseInvestigationOutcome("noise")).toBe("noise");
+    expect(parseInvestigationOutcome("verified_synthetic_probe")).toBeUndefined();
+    expect(parseInvestigationOutcome(undefined)).toBeUndefined();
+  });
+});
 
 describe("trusted Cowtail write credentials", () => {
   test("accepts either the service or worker bearer token", () => {

@@ -8,6 +8,7 @@ import {
   alertGetResponseSchema,
   alertListQuerySchema,
   alertListResponseSchema,
+  alertOutcomeSchema,
   alertRecordSchema,
   alertCreateRequestSchema,
   createResponseSchema,
@@ -68,6 +69,11 @@ function nonEmptyString(value: unknown): string | undefined {
 
 export function shouldCreateInvestigationJobForReceiver(receiver: unknown): boolean {
   return nonEmptyString(receiver)?.split("/").at(-1) === "cowtail-investigate";
+}
+
+export function parseInvestigationOutcome(value: unknown) {
+  const parsed = alertOutcomeSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function extractAlertId(value: Record<string, unknown>): string | undefined {
@@ -1071,11 +1077,11 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
     return jsonError("Invalid JSON body");
   }
   const claimToken = nonEmptyString(body.claimToken);
-  const outcome = nonEmptyString(body.outcome);
+  const outcome = parseInvestigationOutcome(body.outcome);
   const summary = nonEmptyString(body.summary);
   const action = nonEmptyString(body.action);
   if (!claimToken || !outcome || !summary || !action) {
-    return jsonError("claimToken, outcome, summary, and action are required");
+    return jsonError("claimToken, a valid outcome, summary, and action are required");
   }
 
   const job = await c.env.runQuery((api as any).investigationJobs.getById, {
@@ -1131,12 +1137,26 @@ app.post("/api/investigation-jobs/:id/requeue", async (c) => {
   const authError = requireWorkerAuth(c);
   if (authError) return authError;
 
+  const id = c.req.param("id") as any;
+  const job = await c.env.runQuery((api as any).investigationJobs.getById, { id });
+  if (!job) {
+    return jsonError("Investigation job not found", 404);
+  }
+
+  await c.env.runMutation((internal as any).alerts.updateOutcome, {
+    id: job.alertId,
+    outcome: "pending",
+    summary: "Investigation requeued for another worker attempt.",
+    action: "Cowtail durable investigation requeued.",
+    messaged: false,
+  });
+
   const result = await c.env.runMutation((internal as any).investigationJobs.requeue, {
-    id: c.req.param("id") as any,
+    id,
     now: Date.now(),
   });
   await c.env.runMutation((internal as any).jobDeliveries.enqueue, {
-    jobId: c.req.param("id") as any,
+    jobId: id,
     now: Date.now(),
   });
   return c.json({ ok: true, ...result });
