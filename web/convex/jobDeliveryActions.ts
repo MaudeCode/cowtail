@@ -24,6 +24,16 @@ type DeliveryResult = {
   statusCode?: number;
 };
 
+type PendingDelivery = {
+  _id: Id<"jobDeliveries">;
+};
+
+type RetrySummary = {
+  attempted: number;
+  delivered: number;
+  failed: number;
+};
+
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -174,11 +184,14 @@ export const deliverOne = internalAction({
 
 export const retryDue = internalAction({
   args: {},
-  handler: async (ctx) => {
-    const deliveries = await ctx.runQuery((api as any).jobDeliveries.getPending, {
-      now: Date.now(),
-      limit: DELIVERY_BATCH_SIZE,
-    });
+  handler: async (ctx): Promise<RetrySummary> => {
+    const deliveries: PendingDelivery[] = await ctx.runQuery(
+      (api as any).jobDeliveries.getPending,
+      {
+        now: Date.now(),
+        limit: DELIVERY_BATCH_SIZE,
+      },
+    );
     const results: DeliveryResult[] = [];
 
     for (const delivery of deliveries) {
