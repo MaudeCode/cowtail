@@ -6,9 +6,9 @@ struct CompactActivityRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: alert.outcome.symbolName)
+            Image(systemName: alert.workflowState.symbolName)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(alert.outcome.tint)
+                .foregroundStyle(alert.workflowState.tint)
                 .frame(width: 20, height: 20)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -24,7 +24,7 @@ struct CompactActivityRow: View {
                 }
 
                 HStack(spacing: 8) {
-                    CowtailMonoLabel(text: alert.outcome.label, tint: alert.outcome.tint)
+                    CowtailMonoLabel(text: alert.workflowState.label, tint: alert.workflowState.tint)
 
                     if !alert.sourceLine.isEmpty {
                         CowtailMonoLabel(text: alert.sourceLine)

@@ -14,7 +14,7 @@ struct RoundupOutcomeSectionCard: View {
 
             ForEach(Array(alerts.sorted(by: { $0.timestamp < $1.timestamp }).enumerated()), id: \.element.id) { index, alert in
                 NavigationLink {
-                    AlertDetailView(alert: alert)
+                    AlertDestinationView(alertID: alert.id)
                 } label: {
                     CompactActivityRow(alert: alert)
                 }

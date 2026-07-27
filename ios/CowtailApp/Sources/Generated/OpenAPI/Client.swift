@@ -503,82 +503,24 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// Fetch the current account-scoped OpenClaw preferences
+    /// Apply an owner disposition or retry an alert investigation
     ///
-    /// - Remark: HTTP `GET /me/openclaw-preferences`.
-    /// - Remark: Generated from `#/paths//me/openclaw-preferences/get(getOpenClawPreferences)`.
-    internal func getOpenClawPreferences(_ input: Operations.GetOpenClawPreferences.Input) async throws -> Operations.GetOpenClawPreferences.Output {
+    /// - Remark: HTTP `POST /me/alerts/{id}/actions`.
+    /// - Remark: Generated from `#/paths//me/alerts/{id}/actions/post(performAlertAction)`.
+    internal func performAlertAction(_ input: Operations.PerformAlertAction.Input) async throws -> Operations.PerformAlertAction.Output {
         try await client.send(
             input: input,
-            forOperation: Operations.GetOpenClawPreferences.id,
+            forOperation: Operations.PerformAlertAction.id,
             serializer: { input in
                 let path = try converter.renderedPath(
-                    template: "/me/openclaw-preferences",
-                    parameters: []
+                    template: "/me/alerts/{}/actions",
+                    parameters: [
+                        input.path.id
+                    ]
                 )
                 var request: HTTPTypes.HTTPRequest = .init(
                     soar_path: path,
-                    method: .get
-                )
-                suppressMutabilityWarning(&request)
-                converter.setAcceptHeader(
-                    in: &request.headerFields,
-                    contentTypes: input.headers.accept
-                )
-                return (request, nil)
-            },
-            deserializer: { response, responseBody in
-                switch response.status.code {
-                case 200:
-                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.GetOpenClawPreferences.Output.Ok.Body
-                    let chosenContentType = try converter.bestContentType(
-                        received: contentType,
-                        options: [
-                            "application/json"
-                        ]
-                    )
-                    switch chosenContentType {
-                    case "application/json":
-                        body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.OpenClawDisplayPreferencesResponse.self,
-                            from: responseBody,
-                            transforming: { value in
-                                .json(value)
-                            }
-                        )
-                    default:
-                        preconditionFailure("bestContentType chose an invalid content type.")
-                    }
-                    return .ok(.init(body: body))
-                default:
-                    return .undocumented(
-                        statusCode: response.status.code,
-                        .init(
-                            headerFields: response.headerFields,
-                            body: responseBody
-                        )
-                    )
-                }
-            }
-        )
-    }
-    /// Update the current account-scoped OpenClaw preferences
-    ///
-    /// - Remark: HTTP `PUT /me/openclaw-preferences`.
-    /// - Remark: Generated from `#/paths//me/openclaw-preferences/put(updateOpenClawPreferences)`.
-    internal func updateOpenClawPreferences(_ input: Operations.UpdateOpenClawPreferences.Input) async throws -> Operations.UpdateOpenClawPreferences.Output {
-        try await client.send(
-            input: input,
-            forOperation: Operations.UpdateOpenClawPreferences.id,
-            serializer: { input in
-                let path = try converter.renderedPath(
-                    template: "/me/openclaw-preferences",
-                    parameters: []
-                )
-                var request: HTTPTypes.HTTPRequest = .init(
-                    soar_path: path,
-                    method: .put
+                    method: .post
                 )
                 suppressMutabilityWarning(&request)
                 converter.setAcceptHeader(
@@ -600,7 +542,7 @@ internal struct Client: APIProtocol {
                 switch response.status.code {
                 case 200:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.UpdateOpenClawPreferences.Output.Ok.Body
+                    let body: Operations.PerformAlertAction.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -610,7 +552,7 @@ internal struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.OpenClawDisplayPreferencesResponse.self,
+                            Components.Schemas.AlertHumanActionResponse.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -620,47 +562,9 @@ internal struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .ok(.init(body: body))
-                default:
-                    return .undocumented(
-                        statusCode: response.status.code,
-                        .init(
-                            headerFields: response.headerFields,
-                            body: responseBody
-                        )
-                    )
-                }
-            }
-        )
-    }
-    /// List OpenClaw threads for the current app session
-    ///
-    /// - Remark: HTTP `GET /openclaw/threads`.
-    /// - Remark: Generated from `#/paths//openclaw/threads/get(listOpenClawThreads)`.
-    internal func listOpenClawThreads(_ input: Operations.ListOpenClawThreads.Input) async throws -> Operations.ListOpenClawThreads.Output {
-        try await client.send(
-            input: input,
-            forOperation: Operations.ListOpenClawThreads.id,
-            serializer: { input in
-                let path = try converter.renderedPath(
-                    template: "/openclaw/threads",
-                    parameters: []
-                )
-                var request: HTTPTypes.HTTPRequest = .init(
-                    soar_path: path,
-                    method: .get
-                )
-                suppressMutabilityWarning(&request)
-                converter.setAcceptHeader(
-                    in: &request.headerFields,
-                    contentTypes: input.headers.accept
-                )
-                return (request, nil)
-            },
-            deserializer: { response, responseBody in
-                switch response.status.code {
-                case 200:
+                case 400:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.ListOpenClawThreads.Output.Ok.Body
+                    let body: Operations.PerformAlertAction.Output.BadRequest.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -670,7 +574,7 @@ internal struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.OpenClawThreadListResponse.self,
+                            Components.Schemas.ErrorResponse.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -679,50 +583,10 @@ internal struct Client: APIProtocol {
                     default:
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
-                    return .ok(.init(body: body))
-                default:
-                    return .undocumented(
-                        statusCode: response.status.code,
-                        .init(
-                            headerFields: response.headerFields,
-                            body: responseBody
-                        )
-                    )
-                }
-            }
-        )
-    }
-    /// List OpenClaw messages and actions for a thread
-    ///
-    /// - Remark: HTTP `GET /openclaw/threads/{threadId}/messages`.
-    /// - Remark: Generated from `#/paths//openclaw/threads/{threadId}/messages/get(listOpenClawThreadMessages)`.
-    internal func listOpenClawThreadMessages(_ input: Operations.ListOpenClawThreadMessages.Input) async throws -> Operations.ListOpenClawThreadMessages.Output {
-        try await client.send(
-            input: input,
-            forOperation: Operations.ListOpenClawThreadMessages.id,
-            serializer: { input in
-                let path = try converter.renderedPath(
-                    template: "/openclaw/threads/{}/messages",
-                    parameters: [
-                        input.path.threadId
-                    ]
-                )
-                var request: HTTPTypes.HTTPRequest = .init(
-                    soar_path: path,
-                    method: .get
-                )
-                suppressMutabilityWarning(&request)
-                converter.setAcceptHeader(
-                    in: &request.headerFields,
-                    contentTypes: input.headers.accept
-                )
-                return (request, nil)
-            },
-            deserializer: { response, responseBody in
-                switch response.status.code {
-                case 200:
+                    return .badRequest(.init(body: body))
+                case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.ListOpenClawThreadMessages.Output.Ok.Body
+                    let body: Operations.PerformAlertAction.Output.Unauthorized.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -732,7 +596,7 @@ internal struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.OpenClawMessageWithActionsListResponse.self,
+                            Components.Schemas.ErrorResponse.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -741,7 +605,73 @@ internal struct Client: APIProtocol {
                     default:
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
-                    return .ok(.init(body: body))
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.PerformAlertAction.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.PerformAlertAction.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                case 409:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.PerformAlertAction.Output.Conflict.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .conflict(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,

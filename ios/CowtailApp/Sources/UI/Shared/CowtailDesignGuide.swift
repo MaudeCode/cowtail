@@ -25,7 +25,7 @@ enum CowtailDesignGuide {
             ScrollView {
                 VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
                     InboxHeaderCard(lastUpdated: .now)
-                    InboxMetricsCard(openCount: 84, criticalCount: 3)
+                    InboxMetricsCard(needsYouCount: 84, inProgressCount: 3)
                     InboxClusterHealthCard(
                         health: CowtailPreviewFixtures.health,
                         healthErrorMessage: nil,

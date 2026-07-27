@@ -3,6 +3,7 @@ import SwiftUI
 struct RoundupView: View {
     let roundupRoute: RoundupRoute
     @Environment(\.roundupDataClient) private var roundupDataClient
+    @EnvironmentObject private var store: CowtailStore
 
     @State private var alerts: [AlertItem] = []
     @State private var fixes: [AlertFix] = []
@@ -10,11 +11,15 @@ struct RoundupView: View {
     @State private var errorMessage: String?
 
     private var stats: RoundupStats {
-        RoundupStats(alerts: alerts, fixes: fixes)
+        RoundupStats(alerts: currentAlerts, fixes: fixes)
     }
 
     private var groupedAlerts: [AlertOutcome: [AlertItem]] {
-        Dictionary(grouping: alerts, by: \.outcome)
+        Dictionary(grouping: currentAlerts, by: \.outcome)
+    }
+
+    private var currentAlerts: [AlertItem] {
+        alerts.map { store.alert(withID: $0.id) ?? $0 }
     }
 
     private var timeZone: TimeZone {
@@ -136,7 +141,9 @@ struct RoundupView: View {
         do {
             async let alertsTask = roundupDataClient.fetchRoundupAlerts(from: fromDate, to: toDate)
             async let fixesTask = roundupDataClient.fetchRoundupFixes(from: fromDate, to: toDate)
-            alerts = try await alertsTask
+            let fetchedAlerts = try await alertsTask
+            alerts = fetchedAlerts
+            store.cacheAlerts(fetchedAlerts)
             fixes = try await fixesTask
         } catch {
             alerts = []

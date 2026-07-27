@@ -6,7 +6,7 @@ struct AlertDetailHeroCard: View {
 
     var body: some View {
         CowtailHeroCard {
-            AlertClassificationHeader(outcome: alert.outcome)
+            AlertClassificationHeader(state: alert.workflowState)
 
             CowtailPageHeader(title: .title(alert.alertName))
 
@@ -17,11 +17,7 @@ struct AlertDetailHeroCard: View {
             HStack {
                 CowtailMonoLabel(text: alert.timestamp.formatted(date: .abbreviated, time: .shortened))
                 Spacer()
-                if alert.status == .resolved {
-                    CowtailStatusBadge(title: "Resolved", tint: palette.info)
-                } else if alert.outcome.prefersStrongBadge {
-                    CowtailStatusBadge(title: alert.outcome.label, tint: alert.outcome.tint)
-                }
+                CowtailStatusBadge(title: alert.status.label, tint: alert.status == .firing ? .orange : palette.info)
             }
         }
     }

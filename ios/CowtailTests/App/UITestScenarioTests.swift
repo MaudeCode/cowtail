@@ -4,90 +4,6 @@ import XCTest
 
 final class UITestScenarioTests: XCTestCase {
     @MainActor
-    func testOpenClawNotificationRoutesToThreadDetail() {
-        let router = UniversalLinkRouter.makeForTesting()
-
-        let handled = router.handleNotification(userInfo: [
-            "kind": "openclaw",
-            "version": 1,
-            "threadId": "thread-1",
-            "messageId": "message-1",
-        ])
-
-        XCTAssertTrue(handled)
-        XCTAssertEqual(router.selectedTab, .openclaw)
-        XCTAssertEqual(router.openClawPath, [.thread("thread-1")])
-    }
-
-    @MainActor
-    func testLegacyOpenClawNotificationRoutesToThreadDetail() {
-        let router = UniversalLinkRouter.makeForTesting()
-
-        let handled = router.handleNotification(userInfo: [
-            "kind": "openclaw",
-            "threadId": "thread-1",
-            "messageId": "message-1",
-        ])
-
-        XCTAssertTrue(handled)
-        XCTAssertEqual(router.selectedTab, .openclaw)
-        XCTAssertEqual(router.openClawPath, [.thread("thread-1")])
-    }
-
-    @MainActor
-    func testOpenClawNotificationRequiresValidVersionedPayload() {
-        let router = UniversalLinkRouter.makeForTesting()
-
-        XCTAssertFalse(router.handleNotification(userInfo: [
-            "kind": "openclaw",
-            "version": "bad",
-            "threadId": "thread-1",
-            "messageId": "message-1",
-        ]))
-        XCTAssertFalse(router.handleNotification(userInfo: [
-            "kind": "openclaw",
-            "version": 2,
-            "threadId": "thread-1",
-            "messageId": "message-1",
-        ]))
-        XCTAssertFalse(router.handleNotification(userInfo: [
-            "kind": "openclaw",
-            "version": 1,
-            "threadId": "thread-1",
-        ]))
-        XCTAssertEqual(router.selectedTab, .inbox)
-        XCTAssertTrue(router.openClawPath.isEmpty)
-    }
-
-    @MainActor
-    func testOpenClawNotificationAcceptsStringVersionFromNotificationUserInfo() {
-        let router = UniversalLinkRouter.makeForTesting()
-
-        let handled = router.handleNotification(userInfo: [
-            "kind": "openclaw",
-            "version": "1",
-            "threadId": "thread-1",
-            "messageId": "message-1",
-        ])
-
-        XCTAssertTrue(handled)
-        XCTAssertEqual(router.selectedTab, .openclaw)
-        XCTAssertEqual(router.openClawPath, [.thread("thread-1")])
-    }
-
-    @MainActor
-    func testOpenClawThreadURLRoutesToThreadDetail() throws {
-        let router = UniversalLinkRouter.makeForTesting()
-        let url = try XCTUnwrap(URL(string: "https://\(AppConfig.publicSiteHost)/openclaw/threads/thread-1"))
-
-        let handled = router.handle(url)
-
-        XCTAssertTrue(handled)
-        XCTAssertEqual(router.selectedTab, .openclaw)
-        XCTAssertEqual(router.openClawPath, [.thread("thread-1")])
-    }
-
-    @MainActor
     func testAppRuntimeSeedsManagersAndStartupTabForUITesting() {
         AppleAccountManager.shared.seedForUITesting(
             signInState: .signedOut,
@@ -268,6 +184,36 @@ final class UITestScenarioTests: XCTestCase {
         XCTAssertEqual(ids(roundupFixes), ids(seed.roundupFixes))
         XCTAssertEqual(inboxAlert?.id, CowtailPreviewFixtures.alert.id)
         XCTAssertEqual(roundupAlert?.id, "roundup-alert-1")
+    }
+
+    @MainActor
+    func testAlertActionReportsSessionRefreshFailureInsteadOfSignInPrompt() async {
+        let seed = UITestScenario(named: .inboxPopulated).seed
+        AppSessionManager.shared.seedForUITesting(
+            sessionState: .failed,
+            token: nil,
+            userID: "ui-test-apple-user",
+            expiresAt: nil,
+            lastError: "Session exchange unavailable."
+        )
+        defer { AppSessionManager.shared.resetForUITesting() }
+
+        let store = CowtailStore(
+            api: SeededCowtailAPI(mode: seed.apiMode),
+            appSessionManager: .shared,
+            alerts: seed.store.alerts
+        )
+
+        let succeeded = await store.performAlertAction(
+            alertID: CowtailPreviewFixtures.alert.id,
+            action: .retryInvestigation
+        )
+
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(
+            store.actionError(for: CowtailPreviewFixtures.alert.id),
+            "Session exchange unavailable."
+        )
     }
 }
 

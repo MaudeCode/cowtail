@@ -34,11 +34,14 @@ Choose the path by reachability, not by SSID.
 
 The app should try the private endpoint first with a short timeout, then fall back to the public path. That covers home Wi-Fi and VPN without needing brittle Wi-Fi-name logic.
 
+## Alert workflow
+The inbox groups alerts by the latest durable investigation state: human attention, in progress, and recent.
+
+Owner actions use the app-session-authenticated `POST /api/me/alerts/{id}/actions` route. The response includes a sanitized investigation snapshot and never worker claim credentials. Shared schemas in `protocol/src/alerts.ts` remain authoritative for the generated iOS client.
+
 ## Future feature hooks
 Planned, but not fully built out here:
 - push notifications
 - ack / snooze actions
 - Siri / App Intents
 - Action Button launch flow
-- voice-to-Maude
-- structured command actions back to OpenClaw

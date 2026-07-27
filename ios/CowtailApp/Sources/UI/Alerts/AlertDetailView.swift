@@ -14,6 +14,8 @@ struct AlertDetailView: View {
             ScrollView {
                 VStack(spacing: CowtailDesignGuide.topLevelSpacing) {
                     AlertDetailHeroCard(alert: alert)
+                    AlertInvestigationCard(alert: alert)
+                    AlertOwnerActionsCard(alert: alert)
 
                     if !alert.actionTaken.isEmpty {
                         AlertTextSectionCard(title: "Recorded Action", bodyText: alert.actionTaken)

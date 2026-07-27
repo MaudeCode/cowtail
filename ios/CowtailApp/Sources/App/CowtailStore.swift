@@ -47,9 +47,12 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var fixesByAlertID: [String: [AlertFix]]
     @Published private(set) var isLoading: Bool
     @Published private(set) var lastUpdated: Date?
+    @Published private(set) var alertActionIDsInFlight: Set<String>
+    @Published private(set) var alertActionErrors: [String: String]
     @Published var errorMessage: String?
 
     private let api: any CowtailAPIClient
+    private let appSessionManager: AppSessionManager
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "store"
@@ -58,6 +61,7 @@ final class CowtailStore: ObservableObject {
 
     init(
         api: any CowtailAPIClient = CowtailAPI(),
+        appSessionManager: AppSessionManager = .shared,
         alerts: [AlertItem] = [],
         health: HealthSummary? = nil,
         fixesByAlertID: [String: [AlertFix]] = [:],
@@ -65,6 +69,7 @@ final class CowtailStore: ObservableObject {
         hasLoaded: Bool = false
     ) {
         self.api = api
+        self.appSessionManager = appSessionManager
         self.alerts = alerts
         self.alertCacheByID = Dictionary(uniqueKeysWithValues: alerts.map { ($0.id, $0) })
         self.alertLoadErrors = [:]
@@ -73,6 +78,8 @@ final class CowtailStore: ObservableObject {
         self.healthErrorMessage = nil
         self.fixesByAlertID = fixesByAlertID
         self.isLoading = false
+        self.alertActionIDsInFlight = []
+        self.alertActionErrors = [:]
         self.errorMessage = errorMessage
         self.hasLoaded = hasLoaded
     }
@@ -163,12 +170,66 @@ final class CowtailStore: ObservableObject {
         alerts.first(where: { $0.id == alertID }) ?? alertCacheByID[alertID]
     }
 
+    func cacheAlerts(_ alerts: [AlertItem]) {
+        for alert in alerts {
+            alertCacheByID[alert.id] = alert
+        }
+    }
+
     func isLoadingAlert(_ alertID: String) -> Bool {
         alertIDsLoading.contains(alertID)
     }
 
     func alertError(for alertID: String) -> String? {
         alertLoadErrors[alertID]
+    }
+
+    func isPerformingAction(for alertID: String) -> Bool {
+        alertActionIDsInFlight.contains(alertID)
+    }
+
+    func actionError(for alertID: String) -> String? {
+        alertActionErrors[alertID]
+    }
+
+    @discardableResult
+    func performAlertAction(
+        alertID: String,
+        action: AlertHumanAction,
+        note: String? = nil
+    ) async -> Bool {
+        guard !alertActionIDsInFlight.contains(alertID) else { return false }
+        alertActionIDsInFlight.insert(alertID)
+        alertActionErrors.removeValue(forKey: alertID)
+        defer { alertActionIDsInFlight.remove(alertID) }
+
+        guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
+            alertActionErrors[alertID] = if appSessionManager.sessionState == .failed {
+                appSessionManager.lastError ?? "Cowtail could not refresh your app session."
+            } else {
+                "Sign in with Apple in Farmhouse to manage alerts."
+            }
+            return false
+        }
+
+        do {
+            let updated = try await api.performAlertAction(
+                alertID: alertID,
+                action: action,
+                note: note,
+                sessionToken: sessionToken
+            )
+            alertCacheByID[updated.id] = updated
+            if let index = alerts.firstIndex(where: { $0.id == updated.id }) {
+                alerts[index] = updated
+            }
+            return true
+        } catch {
+            guard !NetworkErrorClassifier.isCancellation(error) else { return false }
+            logger.error("performAlertAction failed for \(alertID, privacy: .public): \(String(describing: error), privacy: .public)")
+            alertActionErrors[alertID] = error.localizedDescription
+            return false
+        }
     }
 
     func loadAlert(id alertID: String) async {

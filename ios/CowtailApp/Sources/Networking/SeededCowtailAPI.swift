@@ -15,7 +15,7 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
         )
     }
 
-    private let mode: Mode
+    private var mode: Mode
 
     init(mode: Mode) {
         self.mode = mode
@@ -74,6 +74,34 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
             return roundupFixes.sorted { $0.timestamp > $1.timestamp }
         case .alertListFailure:
             return []
+        }
+    }
+
+    func performAlertAction(
+        alertID: String,
+        action: AlertHumanAction,
+        note: String?,
+        sessionToken _: String
+    ) async throws -> AlertItem {
+        switch mode {
+        case let .success(alerts, health, fixesByAlertID, roundupAlerts, roundupFixes):
+            guard let current = (alerts + roundupAlerts).first(where: { $0.id == alertID }) else {
+                throw CowtailAPIError.requestFailed("Alert not found in seeded API.")
+            }
+            if action == .retryInvestigation, current.investigation?.canRetry != true {
+                throw CowtailAPIError.requestFailed("This investigation cannot be retried.")
+            }
+            let updated = current.applying(action: action, note: note)
+            mode = .success(
+                alerts: alerts.map { $0.id == alertID ? updated : $0 },
+                health: health,
+                fixesByAlertID: fixesByAlertID,
+                roundupAlerts: roundupAlerts.map { $0.id == alertID ? updated : $0 },
+                roundupFixes: roundupFixes
+            )
+            return updated
+        case .alertListFailure(let message, _):
+            throw CowtailAPIError.requestFailed(message)
         }
     }
 }

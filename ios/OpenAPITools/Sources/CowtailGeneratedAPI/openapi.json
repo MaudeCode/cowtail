@@ -12,6 +12,13 @@
     }
   ],
   "components": {
+    "securitySchemes": {
+      "appSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Cowtail app session"
+      }
+    },
     "schemas": {
       "ConvexQueryResponse": {
         "anyOf": [
@@ -95,6 +102,97 @@
           },
           "messaged": {
             "type": "boolean"
+          },
+          "investigation": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "claimed",
+                  "done",
+                  "failed",
+                  "deadletter"
+                ]
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "normal",
+                  "high"
+                ]
+              },
+              "attempts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "maxAttempts": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true
+              },
+              "nextAttemptAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "claimedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "leaseUntil": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lastError": {
+                "type": "string",
+                "minLength": 1
+              },
+              "lastErrorPhase": {
+                "type": "string",
+                "minLength": 1
+              },
+              "completedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deadletteredAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "updatedAt": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "priority",
+              "attempts",
+              "maxAttempts",
+              "nextAttemptAt",
+              "updatedAt"
+            ]
+          },
+          "ownerDisposition": {
+            "type": "string",
+            "enum": [
+              "noise",
+              "escalated"
+            ]
+          },
+          "ownerNote": {
+            "type": "string"
+          },
+          "ownerUpdatedAt": {
+            "type": "number",
+            "minimum": 0
           }
         },
         "required": [
@@ -605,7 +703,7 @@
           "dailyRoundupEnabled"
         ]
       },
-      "OpenClawDisplayPreferencesResponse": {
+      "AlertHumanActionResponse": {
         "type": "object",
         "properties": {
           "ok": {
@@ -614,335 +712,272 @@
               true
             ]
           },
-          "preferences": {
+          "alert": {
             "type": "object",
             "properties": {
-              "displayName": {
+              "id": {
                 "type": "string",
-                "minLength": 1,
-                "default": "OpenClaw"
+                "minLength": 1
+              },
+              "timestamp": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "alertname": {
+                "type": "string",
+                "minLength": 1
+              },
+              "severity": {
+                "type": "string",
+                "minLength": 1
+              },
+              "namespace": {
+                "type": "string",
+                "minLength": 1
+              },
+              "node": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "firing",
+                  "resolved"
+                ]
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "recorded",
+                  "fixed",
+                  "self-resolved",
+                  "noise",
+                  "escalated"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rootCause": {
+                "type": "string",
+                "minLength": 1
+              },
+              "messaged": {
+                "type": "boolean"
+              },
+              "resolvedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "alertmanager",
+                  "hermes",
+                  "manual",
+                  "weekly-review"
+                ]
+              },
+              "sourceEventId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "alertmanagerFingerprint": {
+                "type": "string",
+                "minLength": 1
+              },
+              "dedupeKey": {
+                "type": "string",
+                "minLength": 1
+              },
+              "startsAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "endsAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "generatorURL": {
+                "type": "string",
+                "minLength": 1
+              },
+              "labels": {
+                "type": "object",
+                "additionalProperties": {
+                  "nullable": true
+                }
+              },
+              "annotations": {
+                "type": "object",
+                "additionalProperties": {
+                  "nullable": true
+                }
+              },
+              "lastReceivedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "occurrenceCount": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true
+              },
+              "investigation": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "claimed",
+                      "done",
+                      "failed",
+                      "deadletter"
+                    ]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "normal",
+                      "high"
+                    ]
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "maxAttempts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "nextAttemptAt": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "claimedAt": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "leaseUntil": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "lastError": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "lastErrorPhase": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "completedAt": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "deadletteredAt": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "updatedAt": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "priority",
+                  "attempts",
+                  "maxAttempts",
+                  "nextAttemptAt",
+                  "updatedAt"
+                ]
+              },
+              "ownerDisposition": {
+                "type": "string",
+                "enum": [
+                  "noise",
+                  "escalated"
+                ]
+              },
+              "ownerNote": {
+                "type": "string"
+              },
+              "ownerUpdatedAt": {
+                "type": "integer",
+                "minimum": 0
               }
-            }
+            },
+            "required": [
+              "id",
+              "timestamp",
+              "alertname",
+              "severity",
+              "namespace",
+              "status",
+              "outcome",
+              "summary",
+              "action",
+              "messaged"
+            ]
           }
         },
         "required": [
           "ok",
-          "preferences"
+          "alert"
         ]
       },
-      "OpenClawDisplayPreferencesUpdateRequest": {
+      "ErrorResponse": {
         "type": "object",
         "properties": {
-          "displayName": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
             "type": "string",
             "minLength": 1
           }
         },
         "required": [
-          "displayName"
+          "ok",
+          "error"
         ]
       },
-      "OpenClawThreadListResponse": {
+      "AlertHumanActionRequest": {
         "type": "object",
         "properties": {
-          "ok": {
-            "type": "boolean",
+          "action": {
+            "type": "string",
             "enum": [
-              true
+              "retry-investigation",
+              "mark-noise",
+              "escalate"
             ]
           },
-          "count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "threads": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "sessionKey": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "status": {
-                  "type": "string",
-                  "enum": [
-                    "pending",
-                    "active",
-                    "archived"
-                  ]
-                },
-                "targetAgent": {
-                  "type": "string",
-                  "enum": [
-                    "default"
-                  ]
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "unreadCount": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "createdAt": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "updatedAt": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "lastMessageAt": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              },
-              "required": [
-                "id",
-                "status",
-                "targetAgent",
-                "title",
-                "unreadCount",
-                "createdAt",
-                "updatedAt"
-              ]
-            }
+          "note": {
+            "type": "string",
+            "maxLength": 500
           }
         },
         "required": [
-          "ok",
-          "count",
-          "threads"
-        ]
-      },
-      "OpenClawMessageWithActionsListResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "messages": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "threadId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "streamId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "direction": {
-                  "type": "string",
-                  "enum": [
-                    "openclaw_to_user",
-                    "user_to_openclaw"
-                  ]
-                },
-                "authorLabel": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "text": {
-                  "type": "string"
-                },
-                "links": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "label": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "url": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "label",
-                      "url"
-                    ]
-                  },
-                  "default": []
-                },
-                "toolCalls": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "name": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": {
-                          "nullable": true
-                        }
-                      },
-                      "result": {
-                        "nullable": true
-                      },
-                      "status": {
-                        "type": "string",
-                        "enum": [
-                          "pending",
-                          "running",
-                          "complete",
-                          "error"
-                        ]
-                      },
-                      "startedAt": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "completedAt": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "insertedAtContentLength": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "contentSnapshotAtStart": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "name",
-                      "status"
-                    ]
-                  },
-                  "default": []
-                },
-                "deliveryState": {
-                  "type": "string",
-                  "enum": [
-                    "pending",
-                    "sent",
-                    "failed"
-                  ]
-                },
-                "createdAt": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "updatedAt": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "actions": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "threadId": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "messageId": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "label": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "kind": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "payload": {
-                        "type": "object",
-                        "additionalProperties": {
-                          "nullable": true
-                        }
-                      },
-                      "state": {
-                        "type": "string",
-                        "enum": [
-                          "pending",
-                          "submitted",
-                          "failed",
-                          "expired"
-                        ]
-                      },
-                      "resultMetadata": {
-                        "type": "object",
-                        "additionalProperties": {
-                          "nullable": true
-                        }
-                      },
-                      "createdAt": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "updatedAt": {
-                        "type": "integer",
-                        "minimum": 0
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "threadId",
-                      "messageId",
-                      "label",
-                      "kind",
-                      "payload",
-                      "state",
-                      "createdAt",
-                      "updatedAt"
-                    ]
-                  },
-                  "default": []
-                }
-              },
-              "required": [
-                "id",
-                "threadId",
-                "direction",
-                "text",
-                "deliveryState",
-                "createdAt",
-                "updatedAt"
-              ]
-            }
-          }
-        },
-        "required": [
-          "ok",
-          "count",
-          "messages"
+          "action"
         ]
       }
     },
@@ -1144,84 +1179,18 @@
         }
       }
     },
-    "/me/openclaw-preferences": {
-      "get": {
-        "operationId": "getOpenClawPreferences",
+    "/me/alerts/{id}/actions": {
+      "post": {
+        "operationId": "performAlertAction",
         "tags": [
-          "openclaw"
+          "alerts"
         ],
-        "summary": "Fetch the current account-scoped OpenClaw preferences",
-        "responses": {
-          "200": {
-            "description": "The account OpenClaw preferences.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenClawDisplayPreferencesResponse"
-                }
-              }
-            }
+        "summary": "Apply an owner disposition or retry an alert investigation",
+        "security": [
+          {
+            "appSession": []
           }
-        }
-      },
-      "put": {
-        "operationId": "updateOpenClawPreferences",
-        "tags": [
-          "openclaw"
         ],
-        "summary": "Update the current account-scoped OpenClaw preferences",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OpenClawDisplayPreferencesUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The updated account OpenClaw preferences.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenClawDisplayPreferencesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/openclaw/threads": {
-      "get": {
-        "operationId": "listOpenClawThreads",
-        "tags": [
-          "openclaw"
-        ],
-        "summary": "List OpenClaw threads for the current app session",
-        "responses": {
-          "200": {
-            "description": "OpenClaw thread list.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenClawThreadListResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/openclaw/threads/{threadId}/messages": {
-      "get": {
-        "operationId": "listOpenClawThreadMessages",
-        "tags": [
-          "openclaw"
-        ],
-        "summary": "List OpenClaw messages and actions for a thread",
         "parameters": [
           {
             "schema": {
@@ -1229,17 +1198,77 @@
               "minLength": 1
             },
             "required": true,
-            "name": "threadId",
+            "name": "id",
             "in": "path"
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertHumanActionRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "OpenClaw thread message list.",
+            "description": "The updated alert.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OpenClawMessageWithActionsListResponse"
+                  "$ref": "#/components/schemas/AlertHumanActionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid owner action request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Alert not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Alert workflow state conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

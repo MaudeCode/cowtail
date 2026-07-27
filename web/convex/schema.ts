@@ -36,6 +36,9 @@ export default defineSchema({
     annotations: v.optional(v.record(v.string(), v.any())),
     lastReceivedAt: v.optional(v.number()),
     occurrenceCount: v.optional(v.number()),
+    ownerDisposition: v.optional(v.union(v.literal("noise"), v.literal("escalated"))),
+    ownerNote: v.optional(v.string()),
+    ownerUpdatedAt: v.optional(v.number()),
   })
     .index("by_timestamp", ["timestamp"])
     .index("by_dedupeKey", ["dedupeKey"])

@@ -6,6 +6,8 @@ import {
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
   alertGetResponseSchema,
+  alertHumanActionRequestSchema,
+  alertHumanActionResponseSchema,
   alertListQuerySchema,
   alertListResponseSchema,
   alertOutcomeSchema,
@@ -275,9 +277,18 @@ async function requireAppSession(c: {
 }
 
 export function requireOpenClawOwner(auth: { userId: string }) {
-  const ownerUserId = nonEmptyString(process.env.COWTAIL_OPENCLAW_OWNER_USER_ID);
+  return requireCowtailOwner(auth, "OpenClaw owner user ID is not configured");
+}
+
+export function requireCowtailOwner(
+  auth: { userId: string },
+  missingMessage = "Cowtail owner user ID is not configured",
+) {
+  const ownerUserId =
+    nonEmptyString(process.env.COWTAIL_OWNER_USER_ID) ??
+    nonEmptyString(process.env.COWTAIL_OPENCLAW_OWNER_USER_ID);
   if (!ownerUserId) {
-    return jsonError("OpenClaw owner user ID is not configured", 500);
+    return jsonError(missingMessage, 500);
   }
 
   if (auth.userId !== ownerUserId) {
@@ -357,6 +368,10 @@ function mapAlertRecord(alert: Record<string, unknown> & { _id: string }) {
     annotations: alert.annotations,
     lastReceivedAt: alert.lastReceivedAt,
     occurrenceCount: alert.occurrenceCount,
+    investigation: alert.investigation,
+    ownerDisposition: alert.ownerDisposition,
+    ownerNote: alert.ownerNote,
+    ownerUpdatedAt: alert.ownerUpdatedAt,
   });
 }
 
@@ -1114,10 +1129,14 @@ app.post("/api/investigation-jobs/:id/fail", async (c) => {
   if (!error) {
     return jsonError("error is required");
   }
+  const claimToken = nonEmptyString(body.claimToken);
+  if (!claimToken) {
+    return jsonError("claimToken is required");
+  }
 
   const result = await c.env.runMutation((internal as any).investigationJobs.fail, {
     id: c.req.param("id") as any,
-    claimToken: nonEmptyString(body.claimToken),
+    claimToken,
     phase,
     error,
     retryable: typeof body.retryable === "boolean" ? body.retryable : true,
@@ -1153,6 +1172,50 @@ app.post("/api/investigation-jobs/:id/requeue", async (c) => {
     now: Date.now(),
   });
   return c.json({ ok: true, ...result });
+});
+
+app.post("/api/me/alerts/:id/actions", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+  const ownerError = requireCowtailOwner(auth);
+  if (ownerError) return ownerError;
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = alertHumanActionRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
+  }
+
+  const id = c.req.param("id") as Id<"alerts">;
+  const alert = await c.env.runQuery((api as any).alerts.getById, { id });
+  if (!alert) return jsonError("Alert not found", 404);
+
+  const now = Date.now();
+  const note = nonEmptyString(parsed.data.note);
+
+  try {
+    await c.env.runMutation((internal as any).alerts.applyOwnerAction, {
+      id,
+      action: parsed.data.action,
+      note,
+      now,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("no investigation to retry") || message.includes("already in progress")) {
+      return jsonError(message, 409);
+    }
+    throw error;
+  }
+
+  const updated = await c.env.runQuery((internal as any).alerts.getByIdForOwner, { id });
+  if (!updated) return jsonError("Alert not found after update", 404);
+  return c.json(
+    alertHumanActionResponseSchema.parse({
+      ok: true,
+      alert: mapAlertRecord(updated as Record<string, unknown> & { _id: string }),
+    }),
+  );
 });
 
 // POST /api/auth/session — exchange a fresh Apple identity token for an app session
