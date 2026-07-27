@@ -17,6 +17,10 @@ This repo contains four projects:
 - `web/` contains the React app and Convex functions
 - `protocol/` contains shared transport contracts and schemas
 
+## Product direction
+
+The accepted owner-facing incident, Inbox, Ranch, Roundup, and action model is documented in [`docs/product/owner-incident-experience.md`](./docs/product/owner-incident-experience.md).
+
 ## Features
 
 - **Alert history** — every alert that fired, with timestamp, severity, namespace, outcome
