@@ -1,41 +1,34 @@
 import SwiftUI
 
 struct AlertInboxView: View {
-    @State private var showsAllActionableAlerts = false
-    @State private var showsAllRecentActivity = false
+    @State private var showsAllNeedsYou = false
+    @State private var showsAllInProgress = false
+    @State private var showsAllRecent = false
     @EnvironmentObject private var store: CowtailStore
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
 
-    private var openCount: Int {
-        store.alerts.filter { $0.status == .firing }.count
+    private var needsYouAlerts: [AlertItem] {
+        store.alerts.filter { $0.workflowState.needsHumanAttention }
     }
 
-    private var criticalCount: Int {
-        store.alerts.filter { $0.severity == .critical && $0.status == .firing }.count
+    private var inProgressAlerts: [AlertItem] {
+        store.alerts.filter { !$0.workflowState.needsHumanAttention && $0.workflowState.isInProgress }
     }
 
-    private var actionableAlerts: [AlertItem] {
-        store.alerts.filter { $0.status == .firing && $0.outcome != .noise }
+    private var recentAlerts: [AlertItem] {
+        store.alerts.filter { !$0.workflowState.needsHumanAttention && !$0.workflowState.isInProgress }
     }
 
-    private var recentActivityAlerts: [AlertItem] {
-        store.alerts.filter { !($0.status == .firing && $0.outcome != .noise) }
+    private var visibleNeedsYou: [AlertItem] {
+        showsAllNeedsYou ? needsYouAlerts : Array(needsYouAlerts.prefix(3))
     }
 
-    private var visibleActionableAlerts: [AlertItem] {
-        if showsAllActionableAlerts {
-            return actionableAlerts
-        }
-
-        return Array(actionableAlerts.prefix(3))
+    private var visibleInProgress: [AlertItem] {
+        showsAllInProgress ? inProgressAlerts : Array(inProgressAlerts.prefix(3))
     }
 
-    private var visibleRecentActivityAlerts: [AlertItem] {
-        if showsAllRecentActivity {
-            return recentActivityAlerts
-        }
-
-        return Array(recentActivityAlerts.prefix(8))
+    private var visibleRecent: [AlertItem] {
+        showsAllRecent ? recentAlerts : Array(recentAlerts.prefix(8))
     }
 
     var body: some View {
@@ -61,8 +54,8 @@ struct AlertInboxView: View {
                 }
 
                 InboxMetricsCard(
-                    openCount: openCount,
-                    criticalCount: criticalCount
+                    needsYouCount: needsYouAlerts.count,
+                    inProgressCount: inProgressAlerts.count
                 )
                 .accessibilityIdentifier("card.inbox.metrics")
                 .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -94,8 +87,6 @@ struct AlertInboxView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.inbox")
-        // Fully hiding the nav bar causes SwiftUI's native refresh control
-        // to render offscreen on this screen.
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -103,114 +94,141 @@ struct AlertInboxView: View {
         }
     }
 
+    @ViewBuilder
     private var alertList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if store.alerts.isEmpty, store.isLoading {
-                VStack(alignment: .leading, spacing: 12) {
-                    ProgressView("Loading alerts...")
-                }
+        if store.alerts.isEmpty, store.isLoading {
+            ProgressView("Loading alerts...")
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .cowtailCard()
-            } else if store.alerts.isEmpty, store.errorMessage == nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("No alerts returned")
-                        .font(.cowtailSans(17, weight: .semibold, relativeTo: .headline))
-                    Text("The backend did not return any alerts for the last 7 days.")
-                        .font(.cowtailSans(13, relativeTo: .footnote))
+        } else if store.alerts.isEmpty, store.errorMessage == nil {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("No alerts returned")
+                    .font(.cowtailSans(17, weight: .semibold, relativeTo: .headline))
+                Text("The backend did not return any alerts for the last 7 days.")
+                    .font(.cowtailSans(13, relativeTo: .footnote))
                     .foregroundStyle(.secondary)
-                }
-                .accessibilityIdentifier("card.inbox.empty")
-                .cowtailCard()
-            } else {
-                attentionSection
-                recentActivitySection
+            }
+            .accessibilityIdentifier("card.inbox.empty")
+            .cowtailCard()
+        } else {
+            VStack(alignment: .leading, spacing: 18) {
+                needsYouSection
+                inProgressSection
+                recentSection
             }
         }
     }
 
-    private var attentionSection: some View {
+    private var needsYouSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            InboxSectionHeader(title: "Needs Attention", detail: "\(actionableAlerts.count)")
+            InboxSectionHeader(title: "Needs You", detail: "\(needsYouAlerts.count)")
 
-            if actionableAlerts.isEmpty {
-                Text("No active alerts")
-                    .font(.cowtailSans(15, relativeTo: .subheadline))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                .cowtailCard()
+            if needsYouAlerts.isEmpty {
+                sectionEmptyState("Nothing needs your decision")
             } else {
-                ForEach(visibleActionableAlerts) { alert in
-                    InboxAlertNavigationRow(
-                        accessibilityIdentifier: "row.alert.\(alert.id)",
-                        action: {
-                            universalLinkRouter.inboxPath = [.alert(alert.id)]
-                        }
-                    ) {
+                ForEach(visibleNeedsYou) { alert in
+                    alertNavigationRow(alert) {
                         PrimaryAlertCard(alert: alert)
                     }
                 }
 
-                if actionableAlerts.count > 3 {
+                if needsYouAlerts.count > 3 {
                     InboxSectionToggleButton(
-                        isExpanded: showsAllActionableAlerts,
-                        collapsedTitle: "Show \(actionableAlerts.count - visibleActionableAlerts.count) More Active Alerts",
-                        expandedTitle: "Show Fewer Active Alerts"
+                        isExpanded: showsAllNeedsYou,
+                        collapsedTitle: "Show \(needsYouAlerts.count - visibleNeedsYou.count) More",
+                        expandedTitle: "Show Fewer"
                     ) {
-                        showsAllActionableAlerts.toggle()
+                        showsAllNeedsYou.toggle()
                     }
-                    .accessibilityIdentifier("button.inbox.show-more.active-alerts")
+                    .accessibilityIdentifier("button.inbox.show-more.needs-you")
                 }
             }
         }
     }
 
-    private var recentActivitySection: some View {
+    private var inProgressSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            InboxSectionHeader(title: "Recent Activity", detail: "\(recentActivityAlerts.count)")
+            InboxSectionHeader(title: "In Progress", detail: "\(inProgressAlerts.count)")
 
-            if recentActivityAlerts.isEmpty {
-                Text("No recent activity")
-                    .font(.cowtailSans(15, relativeTo: .subheadline))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                .cowtailCard()
+            if inProgressAlerts.isEmpty {
+                sectionEmptyState("No active investigations")
+            } else {
+                ForEach(visibleInProgress) { alert in
+                    alertNavigationRow(alert) {
+                        PrimaryAlertCard(alert: alert)
+                    }
+                }
+
+                if inProgressAlerts.count > 3 {
+                    InboxSectionToggleButton(
+                        isExpanded: showsAllInProgress,
+                        collapsedTitle: "Show \(inProgressAlerts.count - visibleInProgress.count) More",
+                        expandedTitle: "Show Fewer"
+                    ) {
+                        showsAllInProgress.toggle()
+                    }
+                    .accessibilityIdentifier("button.inbox.show-more.in-progress")
+                }
+            }
+        }
+    }
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            InboxSectionHeader(title: "Recent", detail: "\(recentAlerts.count)")
+
+            if recentAlerts.isEmpty {
+                sectionEmptyState("No recent completed alerts")
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(visibleRecentActivityAlerts.enumerated()), id: \.element.id) { index, alert in
-                        InboxAlertNavigationRow(
-                            accessibilityIdentifier: "row.alert.\(alert.id)",
-                            action: {
-                                universalLinkRouter.inboxPath = [.alert(alert.id)]
-                            }
-                        ) {
+                    ForEach(Array(visibleRecent.enumerated()), id: \.element.id) { index, alert in
+                        alertNavigationRow(alert) {
                             CompactActivityRow(alert: alert)
                         }
 
-                        if index < visibleRecentActivityAlerts.count - 1 {
-                            Divider()
-                                .padding(.leading, 42)
+                        if index < visibleRecent.count - 1 {
+                            Divider().padding(.leading, 42)
                         }
                     }
 
-                    if recentActivityAlerts.count > 8 {
-                        Divider()
-                            .padding(.top, 10)
-
+                    if recentAlerts.count > 8 {
+                        Divider().padding(.top, 10)
                         InboxSectionToggleButton(
-                            isExpanded: showsAllRecentActivity,
-                            collapsedTitle: "Show \(recentActivityAlerts.count - visibleRecentActivityAlerts.count) More Activity Items",
-                            expandedTitle: "Show Fewer Activity Items"
+                            isExpanded: showsAllRecent,
+                            collapsedTitle: "Show \(recentAlerts.count - visibleRecent.count) More",
+                            expandedTitle: "Show Fewer"
                         ) {
-                            showsAllRecentActivity.toggle()
+                            showsAllRecent.toggle()
                         }
-                        .accessibilityIdentifier("button.inbox.show-more.recent-activity")
+                        .accessibilityIdentifier("button.inbox.show-more.recent")
                         .padding(.top, 14)
                     }
                 }
                 .cowtailCard()
             }
         }
+    }
+
+    private func sectionEmptyState(_ message: String) -> some View {
+        Text(message)
+            .font(.cowtailSans(15, relativeTo: .subheadline))
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cowtailCard()
+    }
+
+    private func alertNavigationRow<Content: View>(
+        _ alert: AlertItem,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Button {
+            universalLinkRouter.inboxPath = [.alert(alert.id)]
+        } label: {
+            content()
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("row.alert.\(alert.id)")
     }
 
     private func errorCard(message: String) -> some View {
@@ -221,30 +239,6 @@ struct AlertInboxView: View {
                 .foregroundStyle(.red)
         }
         .accessibilityIdentifier("card.inbox.error")
-    }
-}
-
-private struct InboxAlertNavigationRow<Content: View>: View {
-    let accessibilityIdentifier: String?
-    let action: () -> Void
-    let content: () -> Content
-
-    init(
-        accessibilityIdentifier: String? = nil,
-        action: @escaping () -> Void,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.accessibilityIdentifier = accessibilityIdentifier
-        self.action = action
-        self.content = content
-    }
-
-    var body: some View {
-        Button(action: action) {
-            content()
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
 }
 

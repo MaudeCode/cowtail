@@ -1,13 +1,13 @@
 import SwiftUI
 
 struct AlertClassificationHeader: View {
-    let outcome: AlertOutcome
+    let state: AlertWorkflowState
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: outcome.symbolName)
+            Image(systemName: state.symbolName)
                 .font(.caption.weight(.semibold))
-            CowtailMonoLabel(text: outcome.label, tint: outcome.tint)
+            CowtailMonoLabel(text: state.label, tint: state.tint)
         }
     }
 }
@@ -36,11 +36,7 @@ struct PrimaryAlertCard: View {
                 HStack(alignment: .center, spacing: 8) {
                     CowtailMonoLabel(text: alert.severity.label, tint: alert.severity.tint)
 
-                    if alert.outcome.prefersStrongBadge {
-                        CowtailStatusBadge(title: alert.outcome.label, tint: alert.outcome.tint)
-                    } else {
-                        CowtailMonoLabel(text: alert.outcome.label, tint: alert.outcome.tint)
-                    }
+                    CowtailMonoLabel(text: alert.outcome.label, tint: alert.outcome.tint)
                 }
 
                 if !alert.sourceLine.isEmpty {
@@ -54,7 +50,7 @@ struct PrimaryAlertCard: View {
 
     private var topRow: some View {
         HStack(alignment: .center, spacing: 8) {
-            AlertClassificationHeader(outcome: alert.outcome)
+            AlertClassificationHeader(state: alert.workflowState)
             Spacer()
             CowtailMonoLabel(text: alert.timestamp.formatted(.relative(presentation: .named)))
         }

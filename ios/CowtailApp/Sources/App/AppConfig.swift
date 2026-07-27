@@ -11,6 +11,7 @@ enum AppConfig {
     static let pushUnregistrationURL = requiredURL("CowtailPushUnregistrationURL")
     static let roundupTimeZoneIdentifier = requiredString("CowtailRoundupTimeZone")
     static let publicSiteHost = publicSiteURL.host?.lowercased() ?? ""
+    static let alertAPIBaseURL = alertWriteURL.deletingLastPathComponent()
 
     static func alertDetailURL(for alertID: String) -> URL? {
         let encodedID = alertID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? alertID

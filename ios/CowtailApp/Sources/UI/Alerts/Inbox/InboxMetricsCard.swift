@@ -1,18 +1,18 @@
 import SwiftUI
 
 struct InboxMetricsCard: View {
-    let openCount: Int
-    let criticalCount: Int
+    let needsYouCount: Int
+    let inProgressCount: Int
 
     var body: some View {
         CowtailMetricStrip(items: [
-            .init(value: "\(openCount)", label: "Open Alerts", emphasis: .neutral),
-            .init(value: "\(criticalCount)", label: "Critical", emphasis: .accent)
+            .init(value: "\(needsYouCount)", label: "Needs You", emphasis: .accent),
+            .init(value: "\(inProgressCount)", label: "In Progress", emphasis: .neutral)
         ])
     }
 }
 
 #Preview {
-    InboxMetricsCard(openCount: 12, criticalCount: 4)
+    InboxMetricsCard(needsYouCount: 2, inProgressCount: 4)
         .environment(\.cowtailPalette, ThemeCatalog.definition(for: .cowtail).darkPalette)
 }

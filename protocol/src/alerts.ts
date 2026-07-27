@@ -5,7 +5,32 @@ import { alertOutcomes, alertStatuses, nonEmptyStringSchema, timestampSchema } f
 export const alertOutcomeSchema = z.enum(alertOutcomes);
 export const alertStatusSchema = z.enum(alertStatuses);
 export const alertSourceSchema = z.enum(["alertmanager", "hermes", "manual", "weekly-review"]);
+export const alertInvestigationStatusSchema = z.enum([
+  "queued",
+  "claimed",
+  "done",
+  "failed",
+  "deadletter",
+]);
+export const alertInvestigationPrioritySchema = z.enum(["low", "normal", "high"]);
+export const alertHumanActionSchema = z.enum(["retry-investigation", "mark-noise", "escalate"]);
 const rawStringRecordSchema = z.record(z.string(), z.unknown());
+
+export const alertInvestigationSchema = z.object({
+  id: nonEmptyStringSchema,
+  status: alertInvestigationStatusSchema,
+  priority: alertInvestigationPrioritySchema,
+  attempts: z.number().int().nonnegative(),
+  maxAttempts: z.number().int().positive(),
+  nextAttemptAt: timestampSchema,
+  claimedAt: timestampSchema.optional(),
+  leaseUntil: timestampSchema.optional(),
+  lastError: nonEmptyStringSchema.optional(),
+  lastErrorPhase: nonEmptyStringSchema.optional(),
+  completedAt: timestampSchema.optional(),
+  deadletteredAt: timestampSchema.optional(),
+  updatedAt: timestampSchema,
+});
 
 export const alertCreateRequestSchema = z.object({
   timestamp: timestampSchema.optional(),
@@ -47,6 +72,20 @@ export const alertRecordSchema = z.object({
   annotations: rawStringRecordSchema.optional(),
   lastReceivedAt: timestampSchema.optional(),
   occurrenceCount: z.number().int().positive().optional(),
+  investigation: alertInvestigationSchema.optional(),
+  ownerDisposition: z.enum(["noise", "escalated"]).optional(),
+  ownerNote: z.string().optional(),
+  ownerUpdatedAt: timestampSchema.optional(),
+});
+
+export const alertHumanActionRequestSchema = z.object({
+  action: alertHumanActionSchema,
+  note: z.string().trim().max(500).optional(),
+});
+
+export const alertHumanActionResponseSchema = z.object({
+  ok: z.literal(true),
+  alert: alertRecordSchema,
 });
 
 export const alertListQuerySchema = z.object({
@@ -78,3 +117,8 @@ export type AlertGetResponse = z.infer<typeof alertGetResponseSchema>;
 export type AlertOutcome = z.infer<typeof alertOutcomeSchema>;
 export type AlertStatus = z.infer<typeof alertStatusSchema>;
 export type AlertSource = z.infer<typeof alertSourceSchema>;
+export type AlertInvestigation = z.infer<typeof alertInvestigationSchema>;
+export type AlertInvestigationStatus = z.infer<typeof alertInvestigationStatusSchema>;
+export type AlertHumanAction = z.infer<typeof alertHumanActionSchema>;
+export type AlertHumanActionRequest = z.infer<typeof alertHumanActionRequestSchema>;
+export type AlertHumanActionResponse = z.infer<typeof alertHumanActionResponseSchema>;

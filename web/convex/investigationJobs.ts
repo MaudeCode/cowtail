@@ -33,12 +33,11 @@ export const createOrCoalesceForAlert = internalMutation({
       return null;
     }
 
-    const active = await ctx.db
+    const jobs = await ctx.db
       .query("investigationJobs")
-      .withIndex("by_fingerprint_status", (q) =>
-        q.eq("fingerprint", args.fingerprint).eq("status", "queued"),
-      )
-      .first();
+      .withIndex("by_alertId", (q) => q.eq("alertId", args.alertId))
+      .collect();
+    const active = jobs.find((job) => job.status === "queued" || job.status === "claimed");
     if (active) {
       await ctx.db.patch(active._id, {
         sourceEventId: args.sourceEventId,
@@ -145,7 +144,7 @@ export const complete = internalMutation({
 export const fail = internalMutation({
   args: {
     id: v.id("investigationJobs"),
-    claimToken: v.optional(v.string()),
+    claimToken: v.string(),
     phase: v.string(),
     error: v.string(),
     retryable: v.boolean(),
@@ -156,7 +155,7 @@ export const fail = internalMutation({
     if (!job) {
       throw new Error("job not found");
     }
-    if (job.status === "claimed" && job.claimToken !== args.claimToken) {
+    if (job.status !== "claimed" || job.claimToken !== args.claimToken) {
       throw new Error("job is not claimed by this token");
     }
 
@@ -206,10 +205,14 @@ export const requeue = internalMutation({
     await ctx.db.patch(args.id, {
       status: "queued",
       nextAttemptAt: args.now,
+      attempts: 0,
       claimedBy: undefined,
       claimToken: undefined,
       claimedAt: undefined,
       leaseUntil: undefined,
+      lastError: undefined,
+      errorHistory: [],
+      completedAt: undefined,
       deadletteredAt: undefined,
       deadletterReason: undefined,
       updatedAt: args.now,

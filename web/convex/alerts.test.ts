@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { mergeLifecycleDuplicateGroup, upsertFromAlertmanager } from "./alerts";
+import {
+  getById,
+  mergeLifecycleDuplicateGroup,
+  updateOutcome,
+  upsertFromAlertmanager,
+} from "./alerts";
 
 type AlertRow = Record<string, any> & { _id: string; _creationTime: number };
 type ConvexFunctionForTest = {
@@ -294,5 +299,124 @@ describe("Alertmanager lifecycle duplicate migration", () => {
       ["alert-firing"],
       ["alert-firing"],
     ]);
+  });
+});
+
+describe("owner-facing alert workflow", () => {
+  test("does not let a late worker result overwrite an owner disposition", async () => {
+    const alert = {
+      _id: "alert-1",
+      ownerDisposition: "noise",
+      outcome: "noise",
+      summary: "Owner classified",
+      action: "Marked as noise.",
+    };
+    const ctx = {
+      db: {
+        get: async () => alert,
+        patch: async (_id: string, value: Record<string, unknown>) => Object.assign(alert, value),
+      },
+    };
+
+    const result = await convexHandler(updateOutcome)(ctx, {
+      id: "alert-1",
+      outcome: "fixed",
+      summary: "Worker finished late",
+      action: "Applied a fix",
+      messaged: true,
+    });
+
+    expect(result).toEqual({ ok: true, updated: false, reason: "owner-disposition" });
+    expect(alert).toMatchObject({
+      ownerDisposition: "noise",
+      outcome: "noise",
+      summary: "Owner classified",
+    });
+  });
+
+  test("returns the latest sanitized durable investigation", async () => {
+    const alert = {
+      _id: "alert-1",
+      timestamp: 100,
+      alertname: "Probe",
+      severity: "warning",
+      status: "firing",
+      outcome: "pending",
+      summary: "Probe firing",
+      ownerDisposition: "escalated",
+      ownerNote: "Private owner note",
+      ownerUpdatedAt: 203,
+    };
+    const jobs = [
+      {
+        _id: "job-old",
+        _creationTime: 1,
+        alertId: "alert-1",
+        status: "done",
+        priority: "normal",
+        attempts: 1,
+        maxAttempts: 5,
+        nextAttemptAt: 100,
+        lastError: "",
+        errorHistory: [],
+        updatedAt: 100,
+        claimToken: "private-old-token",
+        claimedBy: "old-worker",
+      },
+      {
+        _id: "job-new",
+        _creationTime: 2,
+        alertId: "alert-1",
+        status: "claimed",
+        priority: "high",
+        attempts: 2,
+        maxAttempts: 5,
+        nextAttemptAt: 200,
+        claimedAt: 201,
+        leaseUntil: 300,
+        lastError: "postgres://user:password@internal/database",
+        errorHistory: [
+          {
+            at: 201,
+            phase: "Probe",
+            error: "postgres://user:password@internal/database",
+            retryable: true,
+          },
+        ],
+        updatedAt: 202,
+        claimToken: "private-current-token",
+        claimedBy: "worker-1",
+      },
+    ];
+    const ctx = {
+      db: {
+        get: async () => alert,
+        query: () => ({
+          withIndex: (_index: string, apply: (query: any) => unknown) => {
+            const query = { eq: () => query };
+            apply(query);
+            return { collect: async () => jobs };
+          },
+        }),
+      },
+    };
+
+    const result = (await convexHandler(getById)(ctx, { id: "alert-1" })) as Record<string, any>;
+
+    expect(result.investigation).toMatchObject({
+      id: "job-new",
+      status: "claimed",
+      priority: "high",
+      attempts: 2,
+      claimedAt: 201,
+      leaseUntil: 300,
+      lastError: "The investigation worker reported a failure.",
+      lastErrorPhase: "probe",
+    });
+    expect(JSON.stringify(result.investigation)).not.toContain("password");
+    expect("claimToken" in result.investigation).toBe(false);
+    expect(result.ownerDisposition).toBe("escalated");
+    expect("ownerNote" in result).toBe(false);
+    expect("claimedBy" in result.investigation).toBe(false);
   });
 });

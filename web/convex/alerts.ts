@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
   alertLifecycleDedupeKey,
   preservesInvestigationOutcome,
@@ -27,6 +27,61 @@ function newestAlert(alerts: Doc<"alerts">[]): Doc<"alerts"> {
 
 function uniqueAlertIds(ids: Id<"alerts">[]): Id<"alerts">[] {
   return [...new Map(ids.map((id) => [String(id), id])).values()];
+}
+
+function newestInvestigationJob(
+  jobs: Doc<"investigationJobs">[],
+): Doc<"investigationJobs"> | undefined {
+  return jobs.reduce<Doc<"investigationJobs"> | undefined>((current, job) => {
+    if (!current || job.updatedAt > current.updatedAt) return job;
+    if (job.updatedAt < current.updatedAt) return current;
+    if (job._creationTime > current._creationTime) return job;
+    if (job._creationTime < current._creationTime) return current;
+    return String(job._id) > String(current._id) ? job : current;
+  }, undefined);
+}
+
+async function latestInvestigationForAlert(ctx: QueryCtx, alertId: Id<"alerts">) {
+  const jobs = await ctx.db
+    .query("investigationJobs")
+    .withIndex("by_alertId", (q) => q.eq("alertId", alertId))
+    .collect();
+  const latest = newestInvestigationJob(jobs);
+  if (!latest) return undefined;
+
+  const rawPhase = latest.errorHistory?.at(-1)?.phase.trim();
+  const lastErrorPhase =
+    rawPhase && /^[a-z0-9_-]{1,40}$/i.test(rawPhase) ? rawPhase.toLowerCase() : undefined;
+  const hasLastError = Boolean(latest.lastError?.trim());
+
+  return {
+    id: String(latest._id),
+    status: latest.status,
+    priority: latest.priority,
+    attempts: latest.attempts,
+    maxAttempts: latest.maxAttempts,
+    nextAttemptAt: latest.nextAttemptAt,
+    claimedAt: latest.claimedAt,
+    leaseUntil: latest.leaseUntil,
+    lastError: hasLastError ? "The investigation worker reported a failure." : undefined,
+    lastErrorPhase,
+    completedAt: latest.completedAt,
+    deadletteredAt: latest.deadletteredAt,
+    updatedAt: latest.updatedAt,
+  };
+}
+
+async function withLatestInvestigation(
+  ctx: QueryCtx,
+  alert: Doc<"alerts">,
+  includeOwnerNote = false,
+) {
+  const ownerSafeAlert = { ...alert };
+  if (!includeOwnerNote) delete ownerSafeAlert.ownerNote;
+  return {
+    ...ownerSafeAlert,
+    investigation: await latestInvestigationForAlert(ctx, alert._id),
+  };
 }
 
 async function mergeLifecycleDocuments(
@@ -282,6 +337,12 @@ export const updateOutcome = internalMutation({
     messaged: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const alert = await ctx.db.get(args.id);
+    if (!alert) throw new Error("alert not found");
+    if (alert.ownerDisposition) {
+      return { ok: true, updated: false, reason: "owner-disposition" };
+    }
+
     await ctx.db.patch(args.id, {
       outcome: args.outcome,
       summary: args.summary,
@@ -289,28 +350,154 @@ export const updateOutcome = internalMutation({
       rootCause: args.rootCause,
       messaged: args.messaged,
     });
-    return { ok: true };
+    return { ok: true, updated: true };
+  },
+});
+
+export const applyOwnerAction = internalMutation({
+  args: {
+    id: v.id("alerts"),
+    action: v.union(
+      v.literal("retry-investigation"),
+      v.literal("mark-noise"),
+      v.literal("escalate"),
+    ),
+    note: v.optional(v.string()),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const alert = await ctx.db.get(args.id);
+    if (!alert) throw new Error("alert not found");
+    const jobs = await ctx.db
+      .query("investigationJobs")
+      .withIndex("by_alertId", (q) => q.eq("alertId", args.id))
+      .collect();
+    const job = newestInvestigationJob(jobs);
+
+    if (args.action === "retry-investigation") {
+      if (!job) throw new Error("this alert has no investigation to retry");
+      if (
+        jobs.some((candidate) => candidate.status === "queued" || candidate.status === "claimed")
+      ) {
+        throw new Error("this investigation is already in progress");
+      }
+
+      await ctx.db.patch(args.id, {
+        outcome: "pending",
+        action: "Investigation retried by owner.",
+        ownerDisposition: undefined,
+        ownerNote: undefined,
+        ownerUpdatedAt: undefined,
+      });
+      await ctx.db.patch(job._id, {
+        status: "queued",
+        nextAttemptAt: args.now,
+        attempts: 0,
+        claimedBy: undefined,
+        claimToken: undefined,
+        claimedAt: undefined,
+        leaseUntil: undefined,
+        lastError: undefined,
+        errorHistory: [],
+        completedAt: undefined,
+        deadletteredAt: undefined,
+        deadletterReason: undefined,
+        updatedAt: args.now,
+      });
+
+      const delivery = await ctx.db
+        .query("jobDeliveries")
+        .withIndex("by_jobId", (q) => q.eq("jobId", job._id))
+        .first();
+      if (delivery && delivery.status !== "delivered") {
+        await ctx.db.patch(delivery._id, {
+          status: "pending",
+          attempts: 0,
+          lastAttemptAt: undefined,
+          nextAttemptAt: args.now,
+          lastStatusCode: undefined,
+          lastError: undefined,
+          updatedAt: args.now,
+        });
+      } else {
+        await ctx.db.insert("jobDeliveries", {
+          jobId: job._id,
+          target: "hermes:cowtail-alert-job",
+          status: "pending",
+          attempts: 0,
+          nextAttemptAt: args.now,
+          createdAt: args.now,
+          updatedAt: args.now,
+        });
+      }
+      return { ok: true, status: "queued" };
+    }
+
+    const disposition = args.action === "mark-noise" ? "noise" : "escalated";
+    const label = disposition === "noise" ? "Marked as noise" : "Escalated for owner review";
+    await ctx.db.patch(args.id, {
+      outcome: disposition,
+      action: `${label}.`,
+      messaged: true,
+      ownerDisposition: disposition,
+      ownerNote: args.note,
+      ownerUpdatedAt: args.now,
+    });
+    for (const candidate of jobs) {
+      if (candidate.status !== "done") {
+        await ctx.db.patch(candidate._id, {
+          status: "done",
+          completedAt: args.now,
+          nextAttemptAt: args.now,
+          claimedBy: undefined,
+          claimToken: undefined,
+          claimedAt: undefined,
+          leaseUntil: undefined,
+          updatedAt: args.now,
+        });
+      }
+    }
+    return { ok: true, status: "done" };
   },
 });
 
 export const getByTimeRange = query({
   args: { from: v.number(), to: v.number() },
-  handler: async (ctx, args) =>
-    await ctx.db
+  handler: async (ctx, args) => {
+    const alerts = await ctx.db
       .query("alerts")
       .withIndex("by_timestamp", (q) => q.gte("timestamp", args.from).lte("timestamp", args.to))
-      .collect(),
+      .collect();
+    return await Promise.all(
+      alerts.map(async (alert) => await withLatestInvestigation(ctx, alert)),
+    );
+  },
 });
 
 export const getById = query({
   args: { id: v.id("alerts") },
-  handler: async (ctx, args) => await ctx.db.get(args.id),
+  handler: async (ctx, args) => {
+    const alert = await ctx.db.get(args.id);
+    return alert ? await withLatestInvestigation(ctx, alert) : null;
+  },
+});
+
+export const getByIdForOwner = internalQuery({
+  args: { id: v.id("alerts") },
+  handler: async (ctx, args) => {
+    const alert = await ctx.db.get(args.id);
+    return alert ? await withLatestInvestigation(ctx, alert, true) : null;
+  },
 });
 
 export const getAll = query({
   args: {},
-  handler: async (ctx) =>
-    await ctx.db.query("alerts").withIndex("by_timestamp").order("desc").collect(),
+  handler: async (ctx) => {
+    const alerts = await ctx.db.query("alerts").withIndex("by_timestamp").order("desc").collect();
+    return await Promise.all(
+      alerts.map(async (alert) => await withLatestInvestigation(ctx, alert)),
+    );
+  },
 });
 
 export const deleteAll = internalMutation({

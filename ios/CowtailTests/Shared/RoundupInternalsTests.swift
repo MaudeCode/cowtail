@@ -52,10 +52,12 @@ final class RoundupInternalsTests: XCTestCase {
             alerts: seed.roundupAlerts,
             fixes: seed.roundupFixes
         )
+        let store = CowtailStore(alerts: [])
         let host = UIHostingController(
             rootView: RoundupHost(
                 roundupRoute: RoundupRoute(from: "2026-04-14", to: "2026-04-14"),
-                client: client
+                client: client,
+                store: store
             )
         )
         let window = UIWindow(frame: UIScreen.main.bounds)
@@ -76,6 +78,10 @@ final class RoundupInternalsTests: XCTestCase {
         XCTAssertEqual(snapshot.fixRequestRange?.to, expectedRange.to)
         XCTAssertEqual(snapshot.lastAlerts.map(\.id), seed.roundupAlerts.map(\.id))
         XCTAssertEqual(snapshot.lastFixes.map(\.id), seed.roundupFixes.map(\.id))
+        XCTAssertEqual(
+            seed.roundupAlerts.compactMap { store.alert(withID: $0.id)?.id },
+            seed.roundupAlerts.map(\.id)
+        )
 
         window.isHidden = true
     }
@@ -122,10 +128,12 @@ final class RoundupInternalsTests: XCTestCase {
 private struct RoundupHost: View {
     let roundupRoute: RoundupRoute
     let client: any RoundupDataClient
+    let store: CowtailStore
 
     var body: some View {
         RoundupView(roundupRoute: roundupRoute)
             .environment(\.roundupDataClient, client)
+            .environmentObject(store)
     }
 }
 

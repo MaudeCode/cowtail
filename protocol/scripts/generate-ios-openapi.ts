@@ -6,15 +6,14 @@ import { OpenApiGeneratorV3, OpenAPIRegistry } from "@asteasolutions/zod-to-open
 import { z } from "zod";
 
 import {
+  alertHumanActionRequestSchema,
+  alertHumanActionResponseSchema,
+  alertInvestigationSchema,
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
   healthResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
-  openclawDisplayPreferencesResponseSchema,
-  openclawDisplayPreferencesUpdateRequestSchema,
-  openclawMessageWithActionsListResponseSchema,
-  openclawThreadListResponseSchema,
   pushRegisterRequestSchema,
   pushRegisterResponseSchema,
   pushUnregisterRequestSchema,
@@ -43,6 +42,10 @@ const convexAlertRecordSchema = z
     rootCause: z.string().optional(),
     resolvedAt: timestampSchema.optional(),
     messaged: z.boolean().optional(),
+    investigation: alertInvestigationSchema.optional(),
+    ownerDisposition: z.enum(["noise", "escalated"]).optional(),
+    ownerNote: z.string().optional(),
+    ownerUpdatedAt: timestampSchema.optional(),
   })
   .meta({ id: "ConvexAlertRecord" });
 
@@ -148,22 +151,27 @@ const NotificationPreferencesResponse = notificationPreferencesResponseSchema.me
 const NotificationPreferencesUpdateRequest = notificationPreferencesUpdateRequestSchema.meta({
   id: "NotificationPreferencesUpdateRequest",
 });
-const OpenClawDisplayPreferencesResponse = openclawDisplayPreferencesResponseSchema.meta({
-  id: "OpenClawDisplayPreferencesResponse",
-});
-const OpenClawDisplayPreferencesUpdateRequest = openclawDisplayPreferencesUpdateRequestSchema.meta({
-  id: "OpenClawDisplayPreferencesUpdateRequest",
-});
-const OpenClawThreadListResponse = openclawThreadListResponseSchema.meta({
-  id: "OpenClawThreadListResponse",
-});
-const OpenClawMessageWithActionsListResponse = openclawMessageWithActionsListResponseSchema.meta({
-  id: "OpenClawMessageWithActionsListResponse",
-});
 const PushRegisterRequest = pushRegisterRequestSchema.meta({ id: "PushRegisterRequest" });
 const PushRegisterResponse = pushRegisterResponseSchema.meta({ id: "PushRegisterResponse" });
 const PushUnregisterRequest = pushUnregisterRequestSchema.meta({ id: "PushUnregisterRequest" });
 const PushUnregisterResponse = pushUnregisterResponseSchema.meta({ id: "PushUnregisterResponse" });
+const AlertHumanActionRequest = alertHumanActionRequestSchema.meta({
+  id: "AlertHumanActionRequest",
+});
+const AlertHumanActionResponse = alertHumanActionResponseSchema.meta({
+  id: "AlertHumanActionResponse",
+});
+const ErrorResponse = z
+  .object({
+    ok: z.literal(false),
+    error: nonEmptyStringSchema,
+  })
+  .meta({ id: "ErrorResponse" });
+registry.registerComponent("securitySchemes", "appSession", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "Cowtail app session",
+});
 
 function jsonContent(schema: z.ZodTypeAny) {
   return {
@@ -291,60 +299,26 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  method: "get",
-  path: "/me/openclaw-preferences",
-  operationId: "getOpenClawPreferences",
-  tags: ["openclaw"],
-  summary: "Fetch the current account-scoped OpenClaw preferences",
-  responses: {
-    200: jsonResponse("The account OpenClaw preferences.", OpenClawDisplayPreferencesResponse),
-  },
-});
-
-registry.registerPath({
-  method: "put",
-  path: "/me/openclaw-preferences",
-  operationId: "updateOpenClawPreferences",
-  tags: ["openclaw"],
-  summary: "Update the current account-scoped OpenClaw preferences",
+  method: "post",
+  path: "/me/alerts/{id}/actions",
+  operationId: "performAlertAction",
+  tags: ["alerts"],
+  summary: "Apply an owner disposition or retry an alert investigation",
+  security: [{ appSession: [] }],
   request: {
+    params: z.object({ id: nonEmptyStringSchema }),
     body: {
       required: true,
-      content: jsonContent(OpenClawDisplayPreferencesUpdateRequest),
+      content: jsonContent(AlertHumanActionRequest),
     },
   },
   responses: {
-    200: jsonResponse(
-      "The updated account OpenClaw preferences.",
-      OpenClawDisplayPreferencesResponse,
-    ),
-  },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/openclaw/threads",
-  operationId: "listOpenClawThreads",
-  tags: ["openclaw"],
-  summary: "List OpenClaw threads for the current app session",
-  responses: {
-    200: jsonResponse("OpenClaw thread list.", OpenClawThreadListResponse),
-  },
-});
-
-registry.registerPath({
-  method: "get",
-  path: "/openclaw/threads/{threadId}/messages",
-  operationId: "listOpenClawThreadMessages",
-  tags: ["openclaw"],
-  summary: "List OpenClaw messages and actions for a thread",
-  request: {
-    params: z.object({
-      threadId: nonEmptyStringSchema,
-    }),
-  },
-  responses: {
-    200: jsonResponse("OpenClaw thread message list.", OpenClawMessageWithActionsListResponse),
+    200: jsonResponse("The updated alert.", AlertHumanActionResponse),
+    400: jsonResponse("Invalid owner action request.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+    404: jsonResponse("Alert not found.", ErrorResponse),
+    409: jsonResponse("Alert workflow state conflict.", ErrorResponse),
   },
 });
 

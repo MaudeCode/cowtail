@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 import OpenAPIURLSession
 import OSLog
@@ -8,6 +9,23 @@ protocol CowtailAPIClient: Sendable {
     func fetchAlert(id: String) async throws -> AlertItem?
     func fetchFixes(alertIDs: [String]) async throws -> [AlertFix]
     func fetchHealthSummary() async throws -> HealthSummary
+    func performAlertAction(
+        alertID: String,
+        action: AlertHumanAction,
+        note: String?,
+        sessionToken: String
+    ) async throws -> AlertItem
+}
+
+extension CowtailAPIClient {
+    func performAlertAction(
+        alertID _: String,
+        action _: AlertHumanAction,
+        note _: String?,
+        sessionToken _: String
+    ) async throws -> AlertItem {
+        throw CowtailAPIError.requestFailed("Alert actions are not supported by this API client.")
+    }
 }
 
 actor CowtailAPI: CowtailAPIClient {
@@ -53,6 +71,14 @@ actor CowtailAPI: CowtailAPIClient {
         Client(
             serverURL: AppConfig.baseURL(for: AppConfig.pushUnregistrationURL, droppingLastPathComponents: 2),
             transport: transport
+        )
+    }
+
+    private func alertActionClient(sessionToken: String) -> Client {
+        Client(
+            serverURL: AppConfig.alertAPIBaseURL,
+            transport: transport,
+            middlewares: [AppSessionAuthorizationMiddleware(sessionToken: sessionToken)]
         )
     }
 
@@ -330,6 +356,42 @@ actor CowtailAPI: CowtailAPIClient {
         return AppNotificationPreferences(dailyRoundupEnabled: response.preferences.dailyRoundupEnabled)
     }
 
+    func performAlertAction(
+        alertID: String,
+        action: AlertHumanAction,
+        note: String?,
+        sessionToken: String
+    ) async throws -> AlertItem {
+        let generatedAction: AlertHumanActionRequest.ActionPayload = switch action {
+        case .retryInvestigation: .retryInvestigation
+        case .markNoise: .markNoise
+        case .escalate: .escalate
+        }
+        let output = try await alertActionClient(sessionToken: sessionToken).performAlertAction(
+            .init(
+                path: .init(id: alertID),
+                body: .json(AlertHumanActionRequest(action: generatedAction, note: note))
+            )
+        )
+
+        switch output {
+        case .ok(let response):
+            return makeAlertItem(try response.body.json.alert)
+        case .badRequest(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .notFound(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .conflict(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Request failed with HTTP \(statusCode).")
+        }
+    }
+
     private func makeAlertItem(_ record: Components.Schemas.ConvexAlertRecord) -> AlertItem {
         AlertItem(
             id: record._id,
@@ -344,8 +406,106 @@ actor CowtailAPI: CowtailAPIClient {
             actionTaken: record.action ?? "",
             status: AlertLifecycleStatus(rawValue: record.status) ?? .unknown,
             resolvedAt: record.resolvedAt.map { Date(timeIntervalSince1970: $0 / 1000) },
-            messaged: record.messaged ?? false
+            messaged: record.messaged ?? false,
+            investigation: record.investigation.map {
+                makeInvestigation(
+                    id: $0.id,
+                    status: $0.status.rawValue,
+                    priority: $0.priority.rawValue,
+                    attempts: $0.attempts,
+                    maxAttempts: $0.maxAttempts,
+                    nextAttemptAt: $0.nextAttemptAt,
+                    claimedAt: $0.claimedAt,
+                    leaseUntil: $0.leaseUntil,
+                    lastError: $0.lastError,
+                    lastErrorPhase: $0.lastErrorPhase,
+                    completedAt: $0.completedAt,
+                    deadletteredAt: $0.deadletteredAt,
+                    updatedAt: $0.updatedAt
+                )
+            },
+            ownerDisposition: record.ownerDisposition.flatMap { AlertOwnerDisposition(rawValue: $0.rawValue) },
+            ownerNote: record.ownerNote ?? "",
+            ownerUpdatedAt: record.ownerUpdatedAt.map(millisecondsToDate)
         )
+    }
+
+    private func makeAlertItem(_ record: AlertHumanActionResponse.AlertPayload) -> AlertItem {
+        AlertItem(
+            id: record.id,
+            timestamp: millisecondsToDate(record.timestamp),
+            alertName: record.alertname,
+            severity: AlertSeverity(rawValue: record.severity) ?? .unknown,
+            namespace: record.namespace,
+            node: record.node ?? "",
+            outcome: AlertOutcome(rawValue: record.outcome.rawValue) ?? .unknown,
+            summary: record.summary,
+            rootCause: record.rootCause ?? "",
+            actionTaken: record.action,
+            status: AlertLifecycleStatus(rawValue: record.status.rawValue) ?? .unknown,
+            resolvedAt: record.resolvedAt.map(millisecondsToDate),
+            messaged: record.messaged,
+            investigation: record.investigation.map {
+                makeInvestigation(
+                    id: $0.id,
+                    status: $0.status.rawValue,
+                    priority: $0.priority.rawValue,
+                    attempts: $0.attempts,
+                    maxAttempts: $0.maxAttempts,
+                    nextAttemptAt: $0.nextAttemptAt,
+                    claimedAt: $0.claimedAt,
+                    leaseUntil: $0.leaseUntil,
+                    lastError: $0.lastError,
+                    lastErrorPhase: $0.lastErrorPhase,
+                    completedAt: $0.completedAt,
+                    deadletteredAt: $0.deadletteredAt,
+                    updatedAt: $0.updatedAt
+                )
+            },
+            ownerDisposition: record.ownerDisposition.flatMap { AlertOwnerDisposition(rawValue: $0.rawValue) },
+            ownerNote: record.ownerNote ?? "",
+            ownerUpdatedAt: record.ownerUpdatedAt.map(millisecondsToDate)
+        )
+    }
+
+    private func makeInvestigation(
+        id: String,
+        status: String,
+        priority: String,
+        attempts: Int,
+        maxAttempts: Int,
+        nextAttemptAt: Int,
+        claimedAt: Int?,
+        leaseUntil: Int?,
+        lastError: String?,
+        lastErrorPhase: String?,
+        completedAt: Int?,
+        deadletteredAt: Int?,
+        updatedAt: Int
+    ) -> AlertInvestigation {
+        AlertInvestigation(
+            id: id,
+            status: AlertInvestigationStatus(rawValue: status) ?? .failed,
+            priority: AlertInvestigationPriority(rawValue: priority) ?? .normal,
+            attempts: attempts,
+            maxAttempts: maxAttempts,
+            nextAttemptAt: millisecondsToDate(nextAttemptAt),
+            claimedAt: claimedAt.map(millisecondsToDate),
+            leaseUntil: leaseUntil.map(millisecondsToDate),
+            lastError: lastError ?? "",
+            lastErrorPhase: lastErrorPhase ?? "",
+            completedAt: completedAt.map(millisecondsToDate),
+            deadletteredAt: deadletteredAt.map(millisecondsToDate),
+            updatedAt: millisecondsToDate(updatedAt)
+        )
+    }
+
+    private func millisecondsToDate<T: BinaryInteger>(_ value: T) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(value) / 1000)
+    }
+
+    private func millisecondsToDate(_ value: Double) -> Date {
+        Date(timeIntervalSince1970: value / 1000)
     }
 
     private func makeAlertFix(_ record: Components.Schemas.ConvexFixRecord) -> AlertFix {
@@ -508,12 +668,30 @@ enum CowtailAPIError: LocalizedError {
     }
 }
 
+struct AppSessionAuthorizationMiddleware: ClientMiddleware {
+    let sessionToken: String
+
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        var request = request
+        request.headerFields[.authorization] = "Bearer \(sessionToken)"
+        return try await next(request, body, baseURL)
+    }
+}
+
 typealias PushRegistrationResponse = Components.Schemas.PushRegisterResponse
 typealias PushUnregistrationResponse = Components.Schemas.PushUnregisterResponse
 typealias AuthSessionCreateRequest = Components.Schemas.AuthSessionCreateRequest
 typealias AuthSessionCreateResponse = Components.Schemas.AuthSessionCreateResponse
 typealias NotificationPreferencesResponse = Components.Schemas.NotificationPreferencesResponse
 typealias NotificationPreferencesUpdateRequest = Components.Schemas.NotificationPreferencesUpdateRequest
+typealias AlertHumanActionRequest = Components.Schemas.AlertHumanActionRequest
+typealias AlertHumanActionResponse = Components.Schemas.AlertHumanActionResponse
 
 struct AppAuthSession: Sendable {
     let token: String

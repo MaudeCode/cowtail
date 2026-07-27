@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   isBearerTokenAuthorized,
   parseInvestigationOutcome,
+  requireCowtailOwner,
   shouldCreateInvestigationJobForReceiver,
 } from "./http";
 
@@ -33,6 +34,28 @@ describe("trusted Cowtail write credentials", () => {
       false,
     );
     expect(isBearerTokenAuthorized("Bearer worker-token", [undefined, " "])).toBe(false);
+  });
+});
+
+describe("owner alert actions", () => {
+  test("requires the configured Cowtail owner", () => {
+    const previousOwner = process.env.COWTAIL_OWNER_USER_ID;
+    const previousOpenClawOwner = process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
+    try {
+      process.env.COWTAIL_OWNER_USER_ID = "owner-user";
+      delete process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
+
+      expect(requireCowtailOwner({ userId: "owner-user" })).toBeNull();
+      expect(requireCowtailOwner({ userId: "different-user" })?.status).toBe(403);
+
+      delete process.env.COWTAIL_OWNER_USER_ID;
+      expect(requireCowtailOwner({ userId: "owner-user" })?.status).toBe(500);
+    } finally {
+      if (previousOwner === undefined) delete process.env.COWTAIL_OWNER_USER_ID;
+      else process.env.COWTAIL_OWNER_USER_ID = previousOwner;
+      if (previousOpenClawOwner === undefined) delete process.env.COWTAIL_OPENCLAW_OWNER_USER_ID;
+      else process.env.COWTAIL_OPENCLAW_OWNER_USER_ID = previousOpenClawOwner;
+    }
   });
 });
 

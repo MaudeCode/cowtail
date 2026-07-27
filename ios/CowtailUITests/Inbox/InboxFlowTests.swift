@@ -13,29 +13,29 @@ final class InboxFlowTests: XCTestCase {
         )
     }
 
-    func testInboxPopulatedCanExpandActiveAlerts() {
+    func testInboxPopulatedCanExpandNeedsYouAlerts() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
 
         app.launch()
 
-        let showMoreButton = app.buttons["button.inbox.show-more.active-alerts"]
+        let showMoreButton = app.buttons["button.inbox.show-more.needs-you"]
         let fourthAlertRow = app.buttons["row.alert.preview-alert-5"]
 
         XCTAssertTrue(
             showMoreButton.waitForExistence(timeout: 5),
-            "The active alerts show-more button should appear once the seeded inbox includes more than three actionable alerts."
+            "The Needs You show-more button should appear once the seeded inbox includes more than three owner decisions."
         )
 
         XCTAssertFalse(
             fourthAlertRow.exists,
-            "The fourth actionable alert should stay hidden before expanding the section."
+            "The fourth Needs You alert should stay hidden before expanding the section."
         )
 
         showMoreButton.tap()
 
         XCTAssertTrue(
             fourthAlertRow.waitForExistence(timeout: 5),
-            "Expanding active alerts should reveal the fourth actionable alert row."
+            "Expanding Needs You should reveal the fourth alert row."
         )
     }
 
@@ -59,6 +59,27 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["CephHealthWarning"].waitForExistence(timeout: 5),
             "The routed detail screen should show the tapped preview alert."
+        )
+    }
+
+    func testFailedInvestigationCanBeRetriedFromDetail() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let alertRow = app.buttons["row.alert.preview-alert"]
+        XCTAssertTrue(alertRow.waitForExistence(timeout: 5))
+        alertRow.tap()
+
+        let retryButton = app.buttons["button.alert.retry-investigation"]
+        XCTAssertTrue(
+            retryButton.waitForExistence(timeout: 5),
+            "A deadlettered investigation should expose the retry action."
+        )
+        retryButton.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Queued"].waitForExistence(timeout: 5),
+            "Retrying should move the seeded durable job back to Queued."
         )
     }
 

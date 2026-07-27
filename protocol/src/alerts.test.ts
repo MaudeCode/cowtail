@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { alertCreateRequestSchema, alertRecordSchema } from "./alerts.js";
+import {
+  alertCreateRequestSchema,
+  alertHumanActionRequestSchema,
+  alertRecordSchema,
+} from "./alerts.js";
 
 describe("alert protocol schemas", () => {
   test("accepts pending and recorded outcomes for durable ingest", () => {
@@ -90,5 +94,53 @@ describe("alert protocol schemas", () => {
     expect(parsed.alertmanagerFingerprint).toBe("7a7995c29114e866");
     expect(parsed.labels?.pod).toBe("external-dns-unifi-56cc4ff699-hw9n9");
     expect(parsed.occurrenceCount).toBe(2);
+  });
+
+  test("accepts owner alert actions and bounded notes", () => {
+    expect(
+      alertHumanActionRequestSchema.parse({
+        action: "retry-investigation",
+        note: "Retry after correcting the credential.",
+      }),
+    ).toEqual({
+      action: "retry-investigation",
+      note: "Retry after correcting the credential.",
+    });
+    expect(alertHumanActionRequestSchema.safeParse({ action: "resolve" }).success).toBe(false);
+    expect(
+      alertHumanActionRequestSchema.safeParse({ action: "mark-noise", note: "x".repeat(501) })
+        .success,
+    ).toBe(false);
+  });
+
+  test("exposes safe investigation state without worker credentials", () => {
+    const alert = alertRecordSchema.parse({
+      id: "alert-1",
+      timestamp: 1,
+      alertname: "TargetDown",
+      severity: "warning",
+      namespace: "observability",
+      status: "firing",
+      outcome: "pending",
+      summary: "Target is down.",
+      action: "Investigation queued.",
+      messaged: false,
+      investigation: {
+        id: "job-1",
+        status: "deadletter",
+        priority: "high",
+        attempts: 5,
+        maxAttempts: 5,
+        nextAttemptAt: 2,
+        lastError: "Probe timed out.",
+        lastErrorPhase: "probe",
+        deadletteredAt: 3,
+        updatedAt: 3,
+      },
+    });
+
+    expect(alert.investigation?.status).toBe("deadletter");
+    expect("claimToken" in (alert.investigation ?? {})).toBe(false);
+    expect("claimedBy" in (alert.investigation ?? {})).toBe(false);
   });
 });
