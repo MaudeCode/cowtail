@@ -283,6 +283,18 @@ export const upsertFromAlertmanager = internalMutation({
   },
 });
 
+export const getBySourceEventId = internalQuery({
+  args: {
+    sourceEventId: v.id("alertmanagerEvents"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("alerts")
+      .withIndex("by_sourceEventId", (q) => q.eq("sourceEventId", args.sourceEventId))
+      .collect();
+  },
+});
+
 export const listLifecycleDuplicateGroups = internalQuery({
   args: {},
   handler: async (ctx) => {

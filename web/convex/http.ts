@@ -45,6 +45,7 @@ import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
+import { selectInvestigationCandidateIndex } from "./alertmanagerBatching";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { validateOpenClawLimit } from "./openclawModel";
@@ -902,11 +903,16 @@ app.post("/api/alerts/webhook", async (c) => {
   const deliveryIds: string[] = [];
 
   const shouldCreateInvestigationJobs = shouldCreateInvestigationJobForReceiver(payload.receiver);
+  const normalizedAlerts = alerts.map((rawAlert) =>
+    normalizeAlertmanagerAlert(rawAlert as AlertmanagerAlert, receivedAt),
+  );
+  const investigationCandidateIndex = shouldCreateInvestigationJobs
+    ? selectInvestigationCandidateIndex(normalizedAlerts)
+    : undefined;
 
   try {
-    for (const rawAlert of alerts) {
-      const normalized = normalizeAlertmanagerAlert(rawAlert as AlertmanagerAlert, receivedAt);
-      const investigationPending = shouldCreateInvestigationJobs && normalized.status === "firing";
+    for (const [index, normalized] of normalizedAlerts.entries()) {
+      const investigationPending = index === investigationCandidateIndex;
       const alertId = await c.env.runMutation((internal as any).alerts.upsertFromAlertmanager, {
         sourceEventId: eventId,
         investigationPending,
@@ -976,10 +982,16 @@ async function loadInvestigationJobContext(c: RouteContext, job: any) {
   const sourceEvent = job?.sourceEventId
     ? await c.env.runQuery((api as any).alertmanagerEvents.getById, { id: job.sourceEventId })
     : null;
+  const relatedAlerts = job?.sourceEventId
+    ? await c.env.runQuery((internal as any).alerts.getBySourceEventId, {
+        sourceEventId: job.sourceEventId,
+      })
+    : [];
 
   return {
     job,
     alert: alert ? mapAlertRecord(alert as any) : null,
+    relatedAlerts: relatedAlerts.map((relatedAlert: any) => mapAlertRecord(relatedAlert)),
     sourceEvent: sourceEvent
       ? {
           id: String(sourceEvent._id),
