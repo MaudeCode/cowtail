@@ -32,14 +32,27 @@ export const markNormalized = internalMutation({
     id: v.id("alertmanagerEvents"),
     createdAlertIds: v.array(v.id("alerts")),
     createdJobIds: v.array(v.id("investigationJobs")),
+    investigationAlertIds: v.array(v.id("alerts")),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.id, {
       createdAlertIds: args.createdAlertIds,
       createdJobIds: args.createdJobIds,
+      investigationAlertIds: args.investigationAlertIds,
       ingestStatus: "normalized",
       error: undefined,
     });
+    return { ok: true };
+  },
+});
+
+export const markJobsCreated = internalMutation({
+  args: {
+    id: v.id("alertmanagerEvents"),
+    createdJobIds: v.array(v.id("investigationJobs")),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { createdJobIds: args.createdJobIds });
     return { ok: true };
   },
 });

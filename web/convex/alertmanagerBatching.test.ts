@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { selectInvestigationCandidateIndex } from "./alertmanagerBatching";
+import {
+  planAlertmanagerInvestigation,
+  selectInvestigationCandidateIndex,
+} from "./alertmanagerBatching";
 
 describe("Alertmanager investigation batching", () => {
   test("selects one representative from a batch of firing alerts", () => {
@@ -23,14 +26,17 @@ describe("Alertmanager investigation batching", () => {
     ).toBe(2);
   });
 
-  test("keeps a 60-alert storm to one critical representative", () => {
-    const alerts = Array.from({ length: 60 }, () => ({
+  test("keeps a 200-alert storm to one critical representative", () => {
+    const alerts = Array.from({ length: 200 }, () => ({
       status: "firing",
       severity: "warning",
     }));
-    alerts[47] = { status: "firing", severity: "critical" };
+    alerts[147] = { status: "firing", severity: "critical" };
 
-    expect(selectInvestigationCandidateIndex(alerts)).toBe(47);
+    const plan = planAlertmanagerInvestigation(alerts);
+    expect(plan.candidateIndex).toBe(147);
+    expect(plan.firingIndexes).toHaveLength(200);
+    expect(new Set(plan.firingIndexes).size).toBe(200);
   });
 
   test("does not schedule an investigation for a resolved-only batch", () => {

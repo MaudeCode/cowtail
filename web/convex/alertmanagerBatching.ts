@@ -38,3 +38,15 @@ export function selectInvestigationCandidateIndex(
 
   return selectedIndex;
 }
+
+export function planAlertmanagerInvestigation(candidates: AlertmanagerInvestigationCandidate[]): {
+  candidateIndex: number | undefined;
+  firingIndexes: number[];
+} {
+  return {
+    candidateIndex: selectInvestigationCandidateIndex(candidates),
+    firingIndexes: candidates.flatMap((candidate, index) =>
+      candidate.status === "firing" ? [index] : [],
+    ),
+  };
+}

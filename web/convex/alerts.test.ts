@@ -232,8 +232,16 @@ describe("Alertmanager lifecycle duplicate migration", () => {
         },
       ],
       alertmanagerEvents: [
-        { _id: "event-firing", createdAlertIds: ["alert-firing"] },
-        { _id: "event-resolved", createdAlertIds: ["alert-resolved"] },
+        {
+          _id: "event-firing",
+          createdAlertIds: ["alert-firing"],
+          investigationAlertIds: ["alert-firing"],
+        },
+        {
+          _id: "event-resolved",
+          createdAlertIds: ["alert-resolved"],
+          investigationAlertIds: ["alert-resolved"],
+        },
       ],
     };
 
@@ -296,6 +304,10 @@ describe("Alertmanager lifecycle duplicate migration", () => {
     });
     expect(tables.fixes[0]?.alertIds).toEqual(["alert-firing"]);
     expect(tables.alertmanagerEvents.map((event) => event.createdAlertIds)).toEqual([
+      ["alert-firing"],
+      ["alert-firing"],
+    ]);
+    expect(tables.alertmanagerEvents.map((event) => event.investigationAlertIds)).toEqual([
       ["alert-firing"],
       ["alert-firing"],
     ]);

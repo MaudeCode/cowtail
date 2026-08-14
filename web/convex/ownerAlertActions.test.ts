@@ -8,9 +8,19 @@ function createContext(options?: { delivery?: Record<string, unknown> }) {
     outcome: "pending",
     action: "",
   };
+  const sibling: Record<string, unknown> = {
+    _id: "alert-2",
+    outcome: "pending",
+    action: "",
+  };
+  const sourceEvent: Record<string, unknown> = {
+    _id: "event-1",
+    investigationAlertIds: ["alert-1", "alert-2"],
+  };
   const job: Record<string, unknown> = {
     _id: "job-1",
     alertId: "alert-1",
+    sourceEventId: "event-1",
     status: "claimed",
     attempts: 2,
     claimedBy: "worker-1",
@@ -25,11 +35,14 @@ function createContext(options?: { delivery?: Record<string, unknown> }) {
     db: {
       get: async (id: string) => {
         if (id === "alert-1") return alert;
+        if (id === "alert-2") return sibling;
+        if (id === "event-1") return sourceEvent;
         if (id === "job-1") return job;
         return null;
       },
       patch: async (id: string, patch: Record<string, unknown>) => {
         if (id === "alert-1") Object.assign(alert, patch);
+        else if (id === "alert-2") Object.assign(sibling, patch);
         else if (id === "job-1") Object.assign(job, patch);
         else {
           const delivery = deliveries.find((candidate) => candidate._id === id);
@@ -50,12 +63,12 @@ function createContext(options?: { delivery?: Record<string, unknown> }) {
     },
   };
 
-  return { ctx, alert, job, deliveries };
+  return { ctx, alert, sibling, job, deliveries };
 }
 
 describe("atomic owner alert actions", () => {
   test("classifies the alert and invalidates an active worker claim together", async () => {
-    const { ctx, alert, job } = createContext();
+    const { ctx, alert, sibling, job } = createContext();
 
     const result = await (applyOwnerAction as any)._handler(ctx, {
       id: "alert-1",
@@ -70,6 +83,12 @@ describe("atomic owner alert actions", () => {
       ownerDisposition: "noise",
       ownerNote: "Expected maintenance",
       ownerUpdatedAt: 300,
+      action: "Marked as noise.",
+    });
+    expect(sibling).toMatchObject({
+      outcome: "noise",
+      ownerDisposition: "noise",
+      ownerNote: "Expected maintenance",
       action: "Marked as noise.",
     });
     expect(job).toMatchObject({ status: "done", completedAt: 300, updatedAt: 300 });

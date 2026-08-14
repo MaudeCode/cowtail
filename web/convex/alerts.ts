@@ -130,11 +130,22 @@ async function mergeLifecycleDocuments(
 
   const events = await ctx.db.query("alertmanagerEvents").collect();
   for (const event of events) {
-    if (!event.createdAlertIds.some((id) => duplicateIds.has(String(id)))) continue;
+    const createdAlertIdsChanged = event.createdAlertIds.some((id) => duplicateIds.has(String(id)));
+    const investigationAlertIdsChanged = event.investigationAlertIds?.some((id) =>
+      duplicateIds.has(String(id)),
+    );
+    if (!createdAlertIdsChanged && !investigationAlertIdsChanged) continue;
     await ctx.db.patch(event._id, {
       createdAlertIds: uniqueAlertIds(
         event.createdAlertIds.map((id) => (duplicateIds.has(String(id)) ? survivor._id : id)),
       ),
+      investigationAlertIds: event.investigationAlertIds
+        ? uniqueAlertIds(
+            event.investigationAlertIds.map((id) =>
+              duplicateIds.has(String(id)) ? survivor._id : id,
+            ),
+          )
+        : undefined,
     });
   }
 
@@ -295,6 +306,15 @@ export const getBySourceEventId = internalQuery({
   },
 });
 
+export const getByIds = internalQuery({
+  args: {
+    ids: v.array(v.id("alerts")),
+  },
+  handler: async (ctx, args) => {
+    return (await Promise.all(args.ids.map((id) => ctx.db.get(id)))).filter(Boolean);
+  },
+});
+
 export const listLifecycleDuplicateGroups = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -447,14 +467,25 @@ export const applyOwnerAction = internalMutation({
 
     const disposition = args.action === "mark-noise" ? "noise" : "escalated";
     const label = disposition === "noise" ? "Marked as noise" : "Escalated for owner review";
-    await ctx.db.patch(args.id, {
-      outcome: disposition,
-      action: `${label}.`,
-      messaged: true,
-      ownerDisposition: disposition,
-      ownerNote: args.note,
-      ownerUpdatedAt: args.now,
-    });
+    const memberIds = new Set<string>([String(args.id)]);
+    for (const candidate of jobs) {
+      const sourceEvent = await ctx.db.get(candidate.sourceEventId);
+      for (const memberId of sourceEvent?.investigationAlertIds ?? []) {
+        memberIds.add(String(memberId));
+      }
+    }
+    for (const memberId of memberIds) {
+      const member = await ctx.db.get(memberId as Id<"alerts">);
+      if (!member) continue;
+      await ctx.db.patch(member._id, {
+        outcome: disposition,
+        action: `${label}.`,
+        messaged: true,
+        ownerDisposition: disposition,
+        ownerNote: args.note,
+        ownerUpdatedAt: args.now,
+      });
+    }
     for (const candidate of jobs) {
       if (candidate.status !== "done") {
         await ctx.db.patch(candidate._id, {

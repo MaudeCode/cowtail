@@ -37,13 +37,13 @@ export const createOrCoalesceForAlert = internalMutation({
       .query("investigationJobs")
       .withIndex("by_alertId", (q) => q.eq("alertId", args.alertId))
       .collect();
-    const active = jobs.find((job) => job.status === "queued" || job.status === "claimed");
-    if (active) {
-      await ctx.db.patch(active._id, {
+    const queued = jobs.find((job) => job.status === "queued");
+    if (queued) {
+      await ctx.db.patch(queued._id, {
         sourceEventId: args.sourceEventId,
         updatedAt: args.now,
       });
-      return active._id;
+      return queued._id;
     }
 
     return await ctx.db.insert("investigationJobs", {
@@ -138,6 +138,70 @@ export const complete = internalMutation({
       updatedAt: args.now,
     });
     return { ok: true };
+  },
+});
+
+export const completeBatch = internalMutation({
+  args: {
+    id: v.id("investigationJobs"),
+    claimToken: v.string(),
+    results: v.array(
+      v.object({
+        alertId: v.id("alerts"),
+        outcome: v.string(),
+        summary: v.string(),
+        action: v.string(),
+        rootCause: v.optional(v.string()),
+        messaged: v.boolean(),
+      }),
+    ),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.id);
+    if (!job || job.status !== "claimed" || job.claimToken !== args.claimToken) {
+      throw new Error("job is not claimed by this token");
+    }
+
+    const sourceEvent = await ctx.db.get(job.sourceEventId);
+    const expected = new Set((sourceEvent?.investigationAlertIds ?? [job.alertId]).map(String));
+    const received = new Set(args.results.map((result) => String(result.alertId)));
+    if (args.results.some((result) => result.outcome === "pending")) {
+      throw new Error("batch results require terminal outcomes; pending is not terminal");
+    }
+    if (
+      received.size !== args.results.length ||
+      received.size !== expected.size ||
+      [...expected].some((alertId) => !received.has(alertId))
+    ) {
+      throw new Error(
+        "batch results must cover every firing alert in the source event exactly once",
+      );
+    }
+
+    for (const result of args.results) {
+      const alert = await ctx.db.get(result.alertId);
+      if (!alert) throw new Error("alert not found");
+      if (alert.ownerDisposition) continue;
+      await ctx.db.patch(result.alertId, {
+        outcome: result.outcome,
+        summary: result.summary,
+        action: result.action,
+        rootCause: result.rootCause,
+        messaged: result.messaged,
+      });
+    }
+
+    await ctx.db.patch(args.id, {
+      status: "done",
+      completedAt: args.now,
+      claimedBy: undefined,
+      claimToken: undefined,
+      claimedAt: undefined,
+      leaseUntil: undefined,
+      updatedAt: args.now,
+    });
+    return { ok: true, completedAlertCount: args.results.length };
   },
 });
 

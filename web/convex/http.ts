@@ -45,7 +45,7 @@ import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
-import { selectInvestigationCandidateIndex } from "./alertmanagerBatching";
+import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { validateOpenClawLimit } from "./openclawModel";
@@ -899,31 +899,46 @@ app.post("/api/alerts/webhook", async (c) => {
   });
 
   const alertIds: string[] = [];
+  const storedAlertIds: any[] = [];
   const jobIds: string[] = [];
   const deliveryIds: string[] = [];
+  const investigationAlertIds: string[] = [];
 
   const shouldCreateInvestigationJobs = shouldCreateInvestigationJobForReceiver(payload.receiver);
   const normalizedAlerts = alerts.map((rawAlert) =>
     normalizeAlertmanagerAlert(rawAlert as AlertmanagerAlert, receivedAt),
   );
-  const investigationCandidateIndex = shouldCreateInvestigationJobs
-    ? selectInvestigationCandidateIndex(normalizedAlerts)
-    : undefined;
+  const investigationPlan = shouldCreateInvestigationJobs
+    ? planAlertmanagerInvestigation(normalizedAlerts)
+    : { candidateIndex: undefined, firingIndexes: [] };
+  const investigationIndexes = new Set(investigationPlan.firingIndexes);
 
   try {
     for (const [index, normalized] of normalizedAlerts.entries()) {
-      const investigationPending = index === investigationCandidateIndex;
+      const investigationPending = index === investigationPlan.candidateIndex;
       const alertId = await c.env.runMutation((internal as any).alerts.upsertFromAlertmanager, {
         sourceEventId: eventId,
         investigationPending,
         ...normalized,
       });
       alertIds.push(String(alertId));
+      storedAlertIds.push(alertId);
 
-      if (!investigationPending) {
-        continue;
+      if (investigationIndexes.has(index)) {
+        investigationAlertIds.push(String(alertId));
       }
+    }
 
+    await c.env.runMutation((internal as any).alertmanagerEvents.markNormalized, {
+      id: eventId,
+      createdAlertIds: alertIds,
+      createdJobIds: [],
+      investigationAlertIds: [...new Set(investigationAlertIds)],
+    });
+
+    if (investigationPlan.candidateIndex !== undefined) {
+      const normalized = normalizedAlerts[investigationPlan.candidateIndex];
+      const alertId = storedAlertIds[investigationPlan.candidateIndex];
       const jobId = await c.env.runMutation(
         (internal as any).investigationJobs.createOrCoalesceForAlert,
         {
@@ -939,6 +954,10 @@ app.post("/api/alerts/webhook", async (c) => {
 
       if (jobId) {
         jobIds.push(String(jobId));
+        await c.env.runMutation((internal as any).alertmanagerEvents.markJobsCreated, {
+          id: eventId,
+          createdJobIds: jobIds,
+        });
         const deliveryId = await c.env.runMutation((internal as any).jobDeliveries.enqueue, {
           jobId,
           now: receivedAt,
@@ -946,12 +965,6 @@ app.post("/api/alerts/webhook", async (c) => {
         deliveryIds.push(String(deliveryId));
       }
     }
-
-    await c.env.runMutation((internal as any).alertmanagerEvents.markNormalized, {
-      id: eventId,
-      createdAlertIds: alertIds,
-      createdJobIds: jobIds,
-    });
 
     for (const deliveryId of deliveryIds) {
       await attemptHermesJobDelivery(c, deliveryId);
@@ -982,11 +995,15 @@ async function loadInvestigationJobContext(c: RouteContext, job: any) {
   const sourceEvent = job?.sourceEventId
     ? await c.env.runQuery((api as any).alertmanagerEvents.getById, { id: job.sourceEventId })
     : null;
-  const relatedAlerts = job?.sourceEventId
-    ? await c.env.runQuery((internal as any).alerts.getBySourceEventId, {
-        sourceEventId: job.sourceEventId,
+  const relatedAlerts = sourceEvent?.investigationAlertIds
+    ? await c.env.runQuery((internal as any).alerts.getByIds, {
+        ids: sourceEvent.investigationAlertIds,
       })
-    : [];
+    : job?.sourceEventId
+      ? await c.env.runQuery((internal as any).alerts.getBySourceEventId, {
+          sourceEventId: job.sourceEventId,
+        })
+      : [];
 
   return {
     job,
@@ -1097,11 +1114,8 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
     return jsonError("Invalid JSON body");
   }
   const claimToken = nonEmptyString(body.claimToken);
-  const outcome = parseInvestigationOutcome(body.outcome);
-  const summary = nonEmptyString(body.summary);
-  const action = nonEmptyString(body.action);
-  if (!claimToken || !outcome || !summary || !action) {
-    return jsonError("claimToken, a valid outcome, summary, and action are required");
+  if (!claimToken) {
+    return jsonError("claimToken is required");
   }
 
   const job = await c.env.runQuery((api as any).investigationJobs.getById, {
@@ -1111,21 +1125,69 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
     return jsonError("Investigation job not found", 404);
   }
 
-  await c.env.runMutation((internal as any).alerts.updateOutcome, {
-    id: job.alertId,
-    outcome,
-    summary,
-    action,
-    rootCause: nonEmptyString(body.rootCause),
-    messaged: typeof body.messaged === "boolean" ? body.messaged : false,
-  });
-  await c.env.runMutation((internal as any).investigationJobs.complete, {
-    id: c.req.param("id") as any,
-    claimToken,
-    now: Date.now(),
-  });
+  let rawResults: unknown[];
+  if (Array.isArray(body.results)) {
+    rawResults = body.results;
+  } else {
+    const outcome = parseInvestigationOutcome(body.outcome);
+    const summary = nonEmptyString(body.summary);
+    const action = nonEmptyString(body.action);
+    if (!outcome || !summary || !action) {
+      return jsonError("results, or a valid legacy outcome with summary and action, are required");
+    }
+    rawResults = [
+      {
+        alertId: String(job.alertId),
+        outcome,
+        summary,
+        action,
+        rootCause: nonEmptyString(body.rootCause),
+        messaged: typeof body.messaged === "boolean" ? body.messaged : false,
+      },
+    ];
+  }
 
-  return c.json({ ok: true });
+  const results = [];
+  for (const value of rawResults) {
+    const result =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    const resultOutcome = parseInvestigationOutcome(result?.outcome);
+    const alertId = nonEmptyString(result?.alertId);
+    const resultSummary = nonEmptyString(result?.summary);
+    const resultAction = nonEmptyString(result?.action);
+    if (!result || !resultOutcome || !alertId || !resultSummary || !resultAction) {
+      return jsonError("each batch result requires alertId, a valid outcome, summary, and action");
+    }
+    results.push({
+      alertId,
+      outcome: resultOutcome,
+      summary: resultSummary,
+      action: resultAction,
+      rootCause: nonEmptyString(result.rootCause),
+      messaged: typeof result.messaged === "boolean" ? result.messaged : false,
+    });
+  }
+
+  try {
+    const result = await c.env.runMutation((internal as any).investigationJobs.completeBatch, {
+      id: c.req.param("id") as any,
+      claimToken,
+      results,
+      now: Date.now(),
+    });
+    return c.json({ ok: true, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      message.includes("batch results must cover every firing alert") ||
+      message.includes("pending is not terminal")
+    ) {
+      return jsonError(message, 409);
+    }
+    throw error;
+  }
 });
 
 app.post("/api/investigation-jobs/:id/fail", async (c) => {

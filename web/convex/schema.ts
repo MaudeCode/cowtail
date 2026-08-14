@@ -63,6 +63,7 @@ export default defineSchema({
     payloadHash: v.string(),
     createdAlertIds: v.array(v.id("alerts")),
     createdJobIds: v.array(v.id("investigationJobs")),
+    investigationAlertIds: v.optional(v.array(v.id("alerts"))),
     ingestStatus: v.union(v.literal("stored"), v.literal("normalized"), v.literal("failed")),
     error: v.optional(v.string()),
   })
