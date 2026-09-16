@@ -121,11 +121,20 @@ export default defineSchema({
     nextAttemptAt: v.number(),
     lastStatusCode: v.optional(v.number()),
     lastError: v.optional(v.string()),
+    claimCheckState: v.optional(v.union(v.literal("waiting"), v.literal("finished"))),
+    recoveryAttempt: v.optional(v.number()),
+    recoveredFrom: v.optional(v.id("jobDeliveries")),
+    jobAttempts: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_status_nextAttemptAt", ["status", "nextAttemptAt"])
     .index("by_jobId", ["jobId"])
+    .index("by_status_claimCheckState_nextAttemptAt", [
+      "status",
+      "claimCheckState",
+      "nextAttemptAt",
+    ])
     .index("by_target_status", ["target", "status"]),
 
   deviceRegistrations: defineTable({

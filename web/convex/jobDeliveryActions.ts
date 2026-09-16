@@ -105,6 +105,9 @@ async function attemptHermesJobDelivery(
   if (!delivery || delivery.status !== "pending") {
     return { delivered: false, skipped: true, error: "Delivery is not pending" };
   }
+  if (delivery.nextAttemptAt > Date.now()) {
+    return { delivered: false, skipped: true, error: "Delivery is not due" };
+  }
 
   const job = await ctx.runQuery((api as any).investigationJobs.getById, {
     id: delivery.jobId,
@@ -116,6 +119,13 @@ async function attemptHermesJobDelivery(
   if (job.status !== "queued") {
     const result = await recordAttempt(ctx, delivery._id, true, undefined, 204);
     return { ...result, skipped: true };
+  }
+  if (job.nextAttemptAt > Date.now()) {
+    await ctx.runMutation((internal as any).jobDeliveries.deferUntilJobDue, {
+      id: delivery._id,
+      now: Date.now(),
+    });
+    return { delivered: false, skipped: true, error: "Investigation job is not due" };
   }
 
   const alert = await ctx.runQuery((api as any).alerts.getById, { id: job.alertId });
@@ -185,6 +195,10 @@ export const deliverOne = internalAction({
 export const retryDue = internalAction({
   args: {},
   handler: async (ctx): Promise<RetrySummary> => {
+    await ctx.runMutation((internal as any).jobDeliveries.recoverUnclaimed, {
+      now: Date.now(),
+      limit: DELIVERY_BATCH_SIZE,
+    });
     const deliveries: PendingDelivery[] = await ctx.runQuery(
       (api as any).jobDeliveries.getPending,
       {
