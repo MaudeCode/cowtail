@@ -1244,6 +1244,7 @@ app.post("/api/investigation-jobs/:id/requeue", async (c) => {
   await c.env.runMutation((internal as any).jobDeliveries.enqueue, {
     jobId: id,
     now: Date.now(),
+    freshAttempt: true,
   });
   return c.json({ ok: true, ...result });
 });
