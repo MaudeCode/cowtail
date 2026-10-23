@@ -241,6 +241,19 @@ export const fail = internalMutation({
         errorHistory,
         updatedAt: args.now,
       });
+      // The previous delivery acknowledged the preceding claim. Retrying that
+      // request ID would only hit Hermes deduplication, so persist a fresh one
+      // atomically with releasing the claim. The existing cron drains it.
+      await ctx.db.insert("jobDeliveries", {
+        jobId: job._id,
+        target: "hermes:cowtail-alert-job",
+        status: "pending",
+        attempts: 0,
+        jobAttempts: job.attempts,
+        nextAttemptAt: args.now + delayMs,
+        createdAt: args.now,
+        updatedAt: args.now,
+      });
       return { status: "queued" };
     }
 

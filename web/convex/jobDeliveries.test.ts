@@ -3,7 +3,7 @@ import { getFunctionName } from "convex/server";
 
 import * as deliveries from "./jobDeliveries";
 import { deliverOne, retryDue } from "./jobDeliveryActions";
-import { claim } from "./investigationJobs";
+import { claim, fail } from "./investigationJobs";
 
 const run = (fn: any, ctx: any, args: any) => fn._handler(ctx, args);
 const GRACE = 5 * 60_000;
@@ -101,6 +101,71 @@ afterEach(() => {
 });
 
 describe("accepted but unclaimed delivery recovery", () => {
+  test("retry cron delivers a fresh request after a claimed failure at its backoff deadline", async () => {
+    const f = fixture();
+    const sent: string[] = [];
+    process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL = "https://example.invalid/webhook";
+    process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN = "test-token";
+    Date.now = () => 0;
+    globalThis.fetch = (async (_url: any, options: any) => {
+      const id = options.headers["x-request-id"];
+      sent.push(id);
+      return Response.json({ status: "accepted", delivery_id: id }, { status: 202 });
+    }) as typeof fetch;
+    const first = await f.enqueue();
+    await run(deliverOne, f.ctx, { deliveryId: first });
+    const claimArgs = {
+      jobId: "job",
+      workerId: "worker",
+      claimToken: "first-claim",
+      leaseSeconds: 900,
+      now: 1,
+    };
+    expect(await run(claim, f.ctx, claimArgs)).not.toBeNull();
+    const original = { ...f.rows[first] };
+    const failure = {
+      id: "job",
+      claimToken: "first-claim",
+      phase: "dependency",
+      error: "temporary dependency failure",
+      retryable: true,
+      now: 100,
+    };
+    await run(fail, f.ctx, failure);
+    const next = f.all().at(-1);
+    expect(next._id).not.toBe(first);
+    expect(next.jobAttempts).toBe(1);
+    expect(next.nextAttemptAt).toBe(f.rows.job.nextAttemptAt);
+    // A coalesced notification and replayed failure cannot add a successor
+    // or shorten the existing backoff.
+    expect(await f.enqueue(101)).toBe(next._id);
+    await expect(run(fail, f.ctx, failure)).rejects.toThrow("job is not claimed by this token");
+    Date.now = () => 60_099;
+    await run(retryDue, f.ctx, {});
+    expect(sent).toEqual([first]);
+    Date.now = () => 60_100;
+    await run(retryDue, f.ctx, {});
+    expect(sent).toEqual([first, next._id]);
+    expect(f.rows[first]).toEqual(original);
+    expect(next.status).toBe("delivered");
+    expect(f.rows.job.attempts).toBe(1);
+    expect(f.rows.job.errorHistory).toEqual([
+      { at: 100, phase: "dependency", error: failure.error, retryable: true },
+    ]);
+    expect(
+      await run(claim, f.ctx, {
+        ...claimArgs,
+        claimToken: "second-claim",
+        now: 60_100,
+      }),
+    ).not.toBeNull();
+    expect(f.rows.job.attempts).toBe(2);
+    expect(await run(claim, f.ctx, { ...claimArgs, now: 60_100 })).toBeNull();
+    await run(retryDue, f.ctx, {});
+    expect(sent).toHaveLength(2);
+    expect(f.all()).toHaveLength(2);
+  });
+
   test("retry cron sends a fresh request ID after an ACK and pre-claim exit", async () => {
     const f = fixture();
     const sent: string[] = [];
