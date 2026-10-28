@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { ConvexError } from "convex/values";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { type HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
@@ -1179,6 +1180,12 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
     });
     return c.json({ ok: true, ...result });
   } catch (error) {
+    if (error instanceof ConvexError && error.data?.code === "INVESTIGATION_MEMBERS_UNRESOLVED") {
+      return jsonError("Investigation completion requires every member alert to be resolved", 409, {
+        code: error.data.code,
+        unresolvedAlertIds: error.data.unresolvedAlertIds,
+      });
+    }
     const message = error instanceof Error ? error.message : String(error);
     if (
       message.includes("batch results must cover every firing alert") ||

@@ -100,7 +100,7 @@ describe("durable investigation job transitions", () => {
     expect(job.deadletterReason).toBeUndefined();
   });
 
-  test("completes every firing alert in a batch atomically", async () => {
+  test("completes every resolved alert in a batch atomically", async () => {
     const tables: Record<string, Record<string, any>> = {
       "job-1": {
         _id: "job-1",
@@ -113,9 +113,9 @@ describe("durable investigation job transitions", () => {
         _id: "event-1",
         investigationAlertIds: ["alert-1", "alert-2", "alert-3"],
       },
-      "alert-1": { _id: "alert-1", sourceEventId: "event-1", status: "firing" },
-      "alert-2": { _id: "alert-2", sourceEventId: "event-1", status: "firing" },
-      "alert-3": { _id: "alert-3", sourceEventId: "event-1", status: "firing" },
+      "alert-1": { _id: "alert-1", sourceEventId: "event-1", status: "resolved" },
+      "alert-2": { _id: "alert-2", sourceEventId: "event-1", status: "resolved" },
+      "alert-3": { _id: "alert-3", sourceEventId: "event-1", status: "resolved" },
     };
     const ctx = {
       db: {

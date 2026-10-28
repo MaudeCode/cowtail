@@ -1,5 +1,34 @@
 import { internalMutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+
+async function investigationMemberIds(ctx: MutationCtx, job: Doc<"investigationJobs">) {
+  const sourceEvent = await ctx.db.get(job.sourceEventId);
+  return sourceEvent?.investigationAlertIds ?? [job.alertId];
+}
+
+async function resolvedMembers(ctx: MutationCtx, memberIds: Id<"alerts">[]) {
+  // Read the immutable membership and current statuses in the completion transaction.
+  // Outcomes and owner dispositions never substitute for lifecycle resolution.
+  const alerts = await Promise.all(
+    memberIds.map(async (id) => {
+      const alert = await ctx.db.get(id);
+      if (!alert) throw new Error("alert not found");
+      return alert;
+    }),
+  );
+  const unresolvedAlertIds = alerts
+    .filter((alert) => alert.status !== "resolved")
+    .map((alert) => alert._id);
+  if (unresolvedAlertIds.length > 0) {
+    throw new ConvexError({
+      code: "INVESTIGATION_MEMBERS_UNRESOLVED",
+      unresolvedAlertIds,
+    });
+  }
+  return alerts;
+}
 
 const jobStatusValidator = v.union(
   v.literal("queued"),
@@ -128,6 +157,7 @@ export const complete = internalMutation({
     if (!job || job.status !== "claimed" || job.claimToken !== args.claimToken) {
       throw new Error("job is not claimed by this token");
     }
+    await resolvedMembers(ctx, await investigationMemberIds(ctx, job));
     await ctx.db.patch(args.id, {
       status: "done",
       completedAt: args.now,
@@ -163,8 +193,8 @@ export const completeBatch = internalMutation({
       throw new Error("job is not claimed by this token");
     }
 
-    const sourceEvent = await ctx.db.get(job.sourceEventId);
-    const expected = new Set((sourceEvent?.investigationAlertIds ?? [job.alertId]).map(String));
+    const memberIds = await investigationMemberIds(ctx, job);
+    const expected = new Set(memberIds.map(String));
     const received = new Set(args.results.map((result) => String(result.alertId)));
     if (args.results.some((result) => result.outcome === "pending")) {
       throw new Error("batch results require terminal outcomes; pending is not terminal");
@@ -179,9 +209,11 @@ export const completeBatch = internalMutation({
       );
     }
 
+    // Validate every member before the first write, including owner-disposition alerts.
+    const alerts = await resolvedMembers(ctx, memberIds);
+    const byId = new Map(alerts.map((alert) => [String(alert._id), alert]));
     for (const result of args.results) {
-      const alert = await ctx.db.get(result.alertId);
-      if (!alert) throw new Error("alert not found");
+      const alert = byId.get(String(result.alertId))!;
       if (alert.ownerDisposition) continue;
       await ctx.db.patch(result.alertId, {
         outcome: result.outcome,
