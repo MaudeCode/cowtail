@@ -1,9 +1,9 @@
 name: Release
 run-name: Release ${{ inputs.tag }}
 
-# Tag-last release (see RELEASES.md in MaudeCode/.github): dispatched with a version, it publishes everything and
-# creates the tag as its last step. A failed release leaves no tag, and every publishing job can run again for the
-# same version from the same commit.
+# Tag-last release (see RELEASES.md in MaudeCode/.github): dispatched with a version and any commit on main after the
+# last release, it publishes that commit and creates the tag as its last step. A failed release leaves no tag, and every
+# publishing job can run again for the same version from the same commit.
 on:
   workflow_dispatch:
     inputs:
@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       sha:
-        description: Full SHA of the commit to release; empty for the head of main
+        description: Full SHA of the commit on main to release; empty for the head of main
         required: false
         type: string
 
@@ -31,44 +31,61 @@ jobs:
   preflight:
     name: Preflight
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read # to look up checks that already passed
     outputs:
       tag: ${{ steps.check.outputs.tag }}
       version: ${{ steps.check.outputs.version }}
       sha: ${{ steps.check.outputs.sha }}
       prerelease: ${{ steps.check.outputs.prerelease }}
+      checks: ${{ steps.check.outputs.checks }}
     steps:
       - id: check
-        uses: MaudeCode/.github/actions/release-preflight@3e8fc1995784e2d3004e4de05205a767472efb7c
+        uses: MaudeCode/.github/actions/release-preflight@7142f8bc63e5e63cdc7d0c4605f3a283de59624c
         with:
           tag: ${{ inputs.tag }}
           sha: ${{ inputs.sha }}
+          # Each verify workflow's job, as its push run on main names it. A job that already passed on the commit is
+          # reused; the release runs the others below. Path filters mean a push run may not exist for a commit.
+          checks: |
+            global-verify.yml: verify
+            web-verify.yml: verify
+            ios-verify.yml: iOS Verify
+            cli-verify.yml: CLI Verify
 
   global-verify:
     needs: [preflight]
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['global-verify.yml: verify'] }}"
     uses: ./.github/workflows/global-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
 
   web-verify:
     needs: [preflight]
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['web-verify.yml: verify'] }}"
     uses: ./.github/workflows/web-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
 
   ios-verify:
     needs: [preflight]
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['ios-verify.yml: iOS Verify'] }}"
     uses: ./.github/workflows/ios-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
 
   cli-verify:
     needs: [preflight]
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['cli-verify.yml: CLI Verify'] }}"
     uses: ./.github/workflows/cli-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
       version: ${{ needs.preflight.outputs.tag }}
 
   web-docker-build:
+    # A skipped verify passed on this commit already; a failed one stops the release.
+    if: &verified ${{ !failure() && !cancelled() }}
     needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
     uses: ./.github/workflows/docker-build.yml
     with:
@@ -76,6 +93,7 @@ jobs:
       version: ${{ needs.preflight.outputs.tag }}
 
   cli-build:
+    if: *verified
     needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
     uses: ./.github/workflows/cli-build.yml
     with:
@@ -83,6 +101,7 @@ jobs:
       version: ${{ needs.preflight.outputs.tag }}
 
   ios-build:
+    if: *verified
     needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
     uses: ./.github/workflows/ios-build.yml
     with:
@@ -92,6 +111,7 @@ jobs:
 
   validate:
     name: Validate Artifacts
+    if: *verified
     runs-on: ubuntu-latest
     needs:
       - preflight
@@ -165,6 +185,7 @@ jobs:
   # success, so the release can run again; the testflight environment, limited to main, gates it.
   publish-ios:
     name: Publish iOS App
+    if: *verified
     runs-on: xcode-27
     needs: [preflight, ios-build, validate]
     environment: testflight
@@ -201,6 +222,7 @@ jobs:
 
   publish-npm:
     name: Publish CLI to npm
+    if: *verified
     runs-on: ubuntu-latest
     needs: [preflight, validate]
     permissions:
@@ -240,6 +262,7 @@ jobs:
 
   publish-images:
     name: Publish Web Image (${{ matrix.arch }})
+    if: *verified
     runs-on: ubuntu-latest
     needs: [preflight, validate]
     permissions:
@@ -294,6 +317,7 @@ jobs:
 
   publish-image-manifest:
     name: Publish Web Image Manifest
+    if: *verified
     runs-on: ubuntu-latest
     needs: [preflight, publish-images]
     permissions:
@@ -324,6 +348,7 @@ jobs:
 
   deploy-convex:
     name: Deploy Convex
+    if: *verified
     needs: [preflight, publish-ios, publish-npm, publish-image-manifest]
     uses: ./.github/workflows/convex-deploy.yml
     with:
@@ -332,6 +357,7 @@ jobs:
 
   publish-github-release:
     name: Tag and Publish GitHub Release
+    if: *verified
     runs-on: ubuntu-latest
     needs: [preflight, publish-ios, publish-npm, publish-images, publish-image-manifest, deploy-convex]
     permissions:
@@ -355,7 +381,7 @@ jobs:
           shasum -a 256 ./*.tar.gz > checksums.txt
 
       - name: Create the version tag
-        uses: MaudeCode/.github/actions/release-tag@3e8fc1995784e2d3004e4de05205a767472efb7c
+        uses: MaudeCode/.github/actions/release-tag@7142f8bc63e5e63cdc7d0c4605f3a283de59624c
         with:
           tag: ${{ needs.preflight.outputs.tag }}
           sha: ${{ needs.preflight.outputs.sha }}

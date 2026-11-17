@@ -84,10 +84,11 @@ Releases are tag-last: the release workflow is dispatched with a version, publis
 
 - Workflow: [`.github/workflows/release.yml`](./.github/workflows/release.yml), run titled `Release <tag>`
 - Trigger:
-  - `workflow_dispatch` on `main` with a required `tag` (`vX.Y.Z`, optional prerelease suffix) and an optional `sha` (empty releases the head of `main` when the run starts)
+  - `workflow_dispatch` on `main` with a required `tag` (`vX.Y.Z`, optional prerelease suffix) and an optional `sha`: any commit on `main` after the last release whose workflow files match `main`'s (empty releases the head of `main` when the run starts); the run stays on that commit
   - from a terminal: `gh workflow run release.yml --ref main -f tag=vX.Y.Z -f sha="$(git rev-parse origin/main)"`
 - Runtime:
-  - `preflight` runs the shared `release-preflight` action first, and every other job needs it; it refuses a run off `main`, a `sha` that `main` has moved past, and a tag that exists or does not come after the latest version tag
+  - `preflight` runs the shared `release-preflight` action first, and every other job needs it; it refuses a run off `main`, a `sha` that is not on `main` after the last release or whose workflow files differ from `main`'s, and a tag that exists or does not come after the latest version tag
+  - preflight's `checks` names each verify workflow's job; one that already passed in that workflow's push run on the commit is reused, and the release runs the others itself. Path filters mean a commit may have no push run for a workflow, so the release runs it. The release never waits on another run, and the build and publish jobs treat a skipped verify as a pass and a failed one as a stop
   - every job reads the commit from preflight's `sha` output and the version from its `tag` or `version` output, never from `github.ref_name` or the inputs; the reusable workflows take them as `ref` and `version`
   - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context, labelled with the commit as `org.opencontainers.image.revision`
   - builds CLI release binaries and the CLI npm package from [`cli/`](./cli)
