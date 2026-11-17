@@ -3,6 +3,7 @@
 
 --disable blankLineAfterImports
 --disable blankLinesBetweenScopes
+--disable contentBuilder
 --disable andOperator
 --disable elseOnSameLine
 --disable environmentEntry
@@ -24,6 +25,7 @@
 --disable redundantSelf
 --disable redundantSendable
 --disable redundantViewBuilder
+--disable repeatedGuard
 --disable sortImports
 --disable spaceAroundOperators
 --disable trailingCommas
