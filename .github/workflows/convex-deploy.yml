@@ -3,6 +3,12 @@ name: Deploy Convex
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        description: Commit to check out; empty for the commit the run is on.
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
 
 concurrency:
@@ -26,6 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Setup Bun

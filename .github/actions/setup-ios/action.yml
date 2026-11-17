@@ -1,0 +1,18 @@
+# Shared by ios-verify.yml and ios-build.yml, which run on GitHub's hosted Xcode image.
+name: Set up iOS tools
+description: Select the pinned Xcode and install the tools the iOS project scripts call.
+runs:
+  using: composite
+  steps:
+    - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+      with:
+        xcode-version: "27.1"
+
+    - name: Install XcodeGen, SwiftLint and SwiftFormat
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+        HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      run: |
+        brew install --quiet xcodegen swiftlint swiftformat
+        xcodebuild -version

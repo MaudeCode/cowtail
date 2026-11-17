@@ -52,9 +52,16 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 - Run iOS unit tests with `bun run test:ios:unit`.
 - Run iOS UI tests with `bun run test:ios:ui`.
 
+## CI Runners
+
+- Workflows run on GitHub-hosted runners: `ubuntu-latest` or `ubuntu-24.04`, `ubuntu-24.04-arm` for the arm64 image, and the hosted `xcode-27` image for iOS.
+- The iOS jobs set up Xcode and install XcodeGen, SwiftLint and SwiftFormat through [`.github/actions/setup-ios`](./.github/actions/setup-ios/action.yml); the pinned Xcode version lives there.
+- iOS Verify tests on the newest runtime's `iPhone 17`, which the hosted image provides.
+- Only the Convex deploy stays on a self-hosted runner, because its deployment URL is reachable only from inside the cluster.
+
 ## Convex Deploy Path
 
-Convex deploys are part of the release workflow for version tags.
+Convex deploys are part of the release workflow.
 
 - Workflow: [`.github/workflows/convex-deploy.yml`](./.github/workflows/convex-deploy.yml)
 - Trigger:
@@ -73,19 +80,25 @@ Important implementation detail:
 
 ## Release Path
 
-The release workflow builds and publishes the repo-owned release artifacts.
+Releases are tag-last: the release workflow is dispatched with a version, publishes everything, and creates the version tag as its last step. The shared contract is `RELEASES.md` in the organization's public `.github` repository. Never push a `v*` tag by hand; a tag means the release shipped.
 
-- Workflow: [`.github/workflows/release.yml`](./.github/workflows/release.yml)
+- Workflow: [`.github/workflows/release.yml`](./.github/workflows/release.yml), run titled `Release <tag>`
 - Trigger:
-  - push of a version tag matching `v*`
+  - `workflow_dispatch` on `main` with a required `tag` (`vX.Y.Z`, optional prerelease suffix) and an optional `sha` (empty releases the head of `main` when the run starts)
+  - from a terminal: `gh workflow run release.yml --ref main -f tag=vX.Y.Z -f sha="$(git rev-parse origin/main)"`
 - Runtime:
-  - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context
-  - builds CLI release binaries from [`cli/`](./cli)
-  - builds and publishes the CLI npm package from [`cli/`](./cli)
-  - publishes multi-architecture container images
-  - creates a GitHub Release for the tag and attaches the CLI artifacts
-  - deploys Convex from [`web/`](./web) after artifact publication succeeds
-  - passes the Git tag into both the web and CLI builds as the canonical release version
+  - `preflight` runs the shared `release-preflight` action first, and every other job needs it; it refuses a run off `main`, a `sha` that `main` has moved past, and a tag that exists or does not come after the latest version tag
+  - every job reads the commit from preflight's `sha` output and the version from its `tag` or `version` output, never from `github.ref_name` or the inputs; the reusable workflows take them as `ref` and `version`
+  - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context, labelled with the commit as `org.opencontainers.image.revision`
+  - builds CLI release binaries and the CLI npm package from [`cli/`](./cli)
+  - builds the iOS app with the commit time as its build number, so every build of a commit has the same number
+  - publishes the iOS app to TestFlight, the npm package, and the multi-architecture container images
+  - deploys Convex from [`web/`](./web) after those publish
+  - last, `publish-github-release` creates the tag with the shared `release-tag` action and then the GitHub Release with the CLI artifacts
+- Running again:
+  - re-run the failed jobs, or dispatch the same version again from the same commit
+  - [`script/release/published.mjs`](./script/release/published.mjs) checks TestFlight, npm and the registry before each publish: an artifact already published from this commit is skipped, one from another commit fails the job
+  - after something published from a commit that has since changed, release the next version
 
 Important boundary:
 
@@ -102,5 +115,5 @@ Before changing deploy behavior:
 
 - Read the relevant workflow file first.
 - Preserve Bun-based install and build steps unless there is a strong reason to change them.
-- Keep release-time Convex deploys sequenced after artifact publication succeeds.
+- Keep release-time Convex deploys sequenced after artifact publication succeeds, and the tag and GitHub Release after everything else.
 - Avoid adding environment-specific values or identifying infrastructure details to this repository.

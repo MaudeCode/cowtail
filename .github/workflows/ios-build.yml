@@ -3,6 +3,11 @@ name: iOS Build
 on:
   workflow_call:
     inputs:
+      ref:
+        description: Commit to check out; empty for the commit the run is on.
+        required: false
+        type: string
+        default: ""
       version:
         required: false
         type: string
@@ -15,6 +20,13 @@ on:
         required: false
         type: boolean
         default: true
+    outputs:
+      marketing_version:
+        description: The app's marketing version.
+        value: ${{ jobs.build.outputs.marketing_version }}
+      build_number:
+        description: The app's build number.
+        value: ${{ jobs.build.outputs.build_number }}
   workflow_dispatch:
     inputs:
       version:
@@ -23,7 +35,7 @@ on:
         type: string
         default: 0.0.0
       build_number:
-        description: App build number. Defaults to the GitHub run number.
+        description: App build number. Defaults to the commit time, so every build of a commit gets the same number.
         required: false
         type: string
         default: ""
@@ -39,16 +51,20 @@ permissions:
 jobs:
   build:
     name: Build iOS App
-    if: >
-      github.event_name != 'workflow_dispatch' ||
-      (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
-    runs-on: maude-mac
+    runs-on: xcode-27
+    outputs:
+      marketing_version: ${{ steps.build-version.outputs.marketing_version }}
+      build_number: ${{ steps.build-version.outputs.build_number }}
     env:
       IOS_BUILD_DIR: build/ios
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: ./.github/actions/setup-ios
 
       - uses: oven-sh/setup-bun@v2
 
@@ -56,6 +72,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Resolve build version
+        id: build-version
         run: |
           version_input="${{ inputs.version }}"
           build_number_input="${{ inputs.build_number }}"
@@ -66,7 +83,8 @@ jobs:
             exit 1
           fi
 
-          build_number="${build_number_input:-${GITHUB_RUN_NUMBER}}"
+          # Rebuilding the same commit gives the same build number, which the release uses to recognise an upload.
+          build_number="${build_number_input:-$(git log -1 --format=%ct)}"
           if ! [[ "${build_number}" =~ ^[0-9]+$ ]]; then
             echo "Invalid iOS build number: ${build_number}" >&2
             exit 1
@@ -74,6 +92,8 @@ jobs:
 
           echo "COWTAIL_IOS_MARKETING_VERSION=${marketing_version}" >> "${GITHUB_ENV}"
           echo "COWTAIL_IOS_BUILD_NUMBER=${build_number}" >> "${GITHUB_ENV}"
+          echo "marketing_version=${marketing_version}" >> "${GITHUB_OUTPUT}"
+          echo "build_number=${build_number}" >> "${GITHUB_OUTPUT}"
 
       - name: Write iOS project env
         env:
@@ -110,9 +130,8 @@ jobs:
 
       - name: Install Apple signing intermediates
         run: |
-          for certificate in \
-            /Applications/Xcode.app/Contents/SharedFrameworks/DVTFoundation.framework/Versions/A/Resources/AppleWWDRCA-2030.cer \
-            /Applications/Xcode.app/Contents/SharedFrameworks/DVTFoundation.framework/Versions/A/Resources/AppleWWDRCAG6.cer
+          resources="$(xcode-select -p)/../SharedFrameworks/DVTFoundation.framework/Versions/A/Resources"
+          for certificate in "${resources}/AppleWWDRCA-2030.cer" "${resources}/AppleWWDRCAG6.cer"
           do
             if [ -f "${certificate}" ]; then
               security import "${certificate}" -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || true

@@ -1,64 +1,100 @@
 name: Release
+run-name: Release ${{ inputs.tag }}
 
+# Tag-last release (see RELEASES.md in MaudeCode/.github): dispatched with a version, it publishes everything and
+# creates the tag as its last step. A failed release leaves no tag, and every publishing job can run again for the
+# same version from the same commit.
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version to release, such as v1.2.3
+        required: true
+        type: string
+      sha:
+        description: Full SHA of the commit to release; empty for the head of main
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   WEB_IMAGE_NAME: maudecode/cowtail
 
 jobs:
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      version: ${{ steps.check.outputs.version }}
+      sha: ${{ steps.check.outputs.sha }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - id: check
+        uses: MaudeCode/.github/actions/release-preflight@3e8fc1995784e2d3004e4de05205a767472efb7c
+        with:
+          tag: ${{ inputs.tag }}
+          sha: ${{ inputs.sha }}
+
   global-verify:
+    needs: [preflight]
     uses: ./.github/workflows/global-verify.yml
+    with:
+      ref: ${{ needs.preflight.outputs.sha }}
 
   web-verify:
+    needs: [preflight]
     uses: ./.github/workflows/web-verify.yml
+    with:
+      ref: ${{ needs.preflight.outputs.sha }}
 
   ios-verify:
+    needs: [preflight]
     uses: ./.github/workflows/ios-verify.yml
+    with:
+      ref: ${{ needs.preflight.outputs.sha }}
 
   cli-verify:
+    needs: [preflight]
     uses: ./.github/workflows/cli-verify.yml
     with:
-      version: ${{ github.ref_name }}
+      ref: ${{ needs.preflight.outputs.sha }}
+      version: ${{ needs.preflight.outputs.tag }}
 
   web-docker-build:
-    needs:
-      - global-verify
-      - web-verify
-      - ios-verify
-      - cli-verify
+    needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
     uses: ./.github/workflows/docker-build.yml
     with:
-      version: ${{ github.ref_name }}
+      ref: ${{ needs.preflight.outputs.sha }}
+      version: ${{ needs.preflight.outputs.tag }}
 
   cli-build:
-    needs:
-      - global-verify
-      - web-verify
-      - ios-verify
-      - cli-verify
+    needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
     uses: ./.github/workflows/cli-build.yml
     with:
-      version: ${{ github.ref_name }}
+      ref: ${{ needs.preflight.outputs.sha }}
+      version: ${{ needs.preflight.outputs.tag }}
 
   ios-build:
-    needs:
-      - global-verify
-      - web-verify
-      - ios-verify
-      - cli-verify
+    needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
     uses: ./.github/workflows/ios-build.yml
     with:
-      version: ${{ github.ref_name }}
+      ref: ${{ needs.preflight.outputs.sha }}
+      version: ${{ needs.preflight.outputs.tag }}
     secrets: inherit
 
   validate:
     name: Validate Artifacts
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     needs:
+      - preflight
       - global-verify
       - web-verify
       - ios-verify
@@ -128,17 +164,36 @@ jobs:
   publish-ios:
     name: Publish iOS App
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [preflight, ios-build, validate]
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          sparse-checkout: script/release
+          persist-credentials: false
+
+      - name: Check TestFlight for this build
+        id: published
+        env:
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          BUNDLE_ID: ${{ secrets.COWTAIL_PRODUCT_BUNDLE_IDENTIFIER }}
+          MARKETING_VERSION: ${{ needs.ios-build.outputs.marketing_version }}
+          BUILD_NUMBER: ${{ needs.ios-build.outputs.build_number }}
+        run: node script/release/published.mjs testflight "${BUNDLE_ID}" "${MARKETING_VERSION}" "${BUILD_NUMBER}"
+
       - name: Download iOS IPA
+        if: steps.published.outputs.publish == 'true'
         uses: actions/download-artifact@v8
         with:
           name: ios-ipa
           path: ios-ipa
 
       - name: Resolve iOS IPA path
+        if: steps.published.outputs.publish == 'true'
         id: ios-ipa
         run: |
           ipa_path="$(find ios-ipa -maxdepth 1 -name '*.ipa' -type f | head -n 1)"
@@ -146,6 +201,7 @@ jobs:
           echo "path=${ipa_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload iOS app to TestFlight
+        if: steps.published.outputs.publish == 'true'
         uses: apple-actions/upload-testflight-build@v4
         with:
           app-path: ${{ steps.ios-ipa.outputs.path }}
@@ -160,25 +216,37 @@ jobs:
   publish-npm:
     name: Publish CLI to npm
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [preflight, validate]
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Check npm for this version
+        id: published
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          SHA: ${{ needs.preflight.outputs.sha }}
+        run: node script/release/published.mjs npm "$(node -p 'require("./cli/package.json").name')" "${VERSION}" "${SHA}"
+
       - name: Download CLI npm package
+        if: steps.published.outputs.publish == 'true'
         uses: actions/download-artifact@v8
         with:
           name: cli-npm-package
           path: cli-npm-package
 
       - name: Publish npm package
+        if: steps.published.outputs.publish == 'true'
         run: |
           tarball="$(realpath "$(ls cli-npm-package/*.tgz)")"
           echo "Publishing ${tarball}"
@@ -187,7 +255,7 @@ jobs:
   publish-images:
     name: Publish Web Image (${{ matrix.arch }})
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [preflight, validate]
     permissions:
       contents: read
       packages: write
@@ -198,11 +266,11 @@ jobs:
           - arch: amd64
           - arch: arm64
     steps:
-      - name: Download image
-        uses: actions/download-artifact@v8
+      - uses: actions/checkout@v6
         with:
-          name: docker-${{ matrix.arch }}
-          path: docker-${{ matrix.arch }}
+          ref: ${{ needs.preflight.outputs.sha }}
+          sparse-checkout: script/release
+          persist-credentials: false
 
       - name: Log in to Container Registry
         uses: docker/login-action@v4
@@ -211,21 +279,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Load and push architecture image
+      - name: Check the registry for this image
+        id: published
+        env:
+          TAG: ${{ needs.preflight.outputs.tag }}
+          SHA: ${{ needs.preflight.outputs.sha }}
         run: |
-          artifact_dir="docker-${{ matrix.arch }}"
-          load_output="$(docker load -i "${artifact_dir}/image.tar")"
+          image="${REGISTRY}/${WEB_IMAGE_NAME}:${{ matrix.arch }}-${TAG}"
+          echo "IMAGE=${image}" >> "${GITHUB_ENV}"
+          node script/release/published.mjs image "${image}" "${SHA}"
+
+      - name: Download image
+        if: steps.published.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: docker-${{ matrix.arch }}
+          path: docker-${{ matrix.arch }}
+
+      - name: Load and push architecture image
+        if: steps.published.outputs.publish == 'true'
+        run: |
+          load_output="$(docker load -i "docker-${{ matrix.arch }}/image.tar")"
           printf '%s\n' "$load_output"
           image_ref="$(printf '%s\n' "$load_output" | awk -F': ' '/Loaded image/{ref=$2} END{print ref}')"
           test -n "$image_ref"
-          tag="${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:${{ matrix.arch }}-${{ github.ref_name }}"
-          docker tag "$image_ref" "$tag"
-          docker push "$tag"
+          docker tag "$image_ref" "${IMAGE}"
+          docker push "${IMAGE}"
 
   publish-image-manifest:
     name: Publish Web Image Manifest
     runs-on: ubuntu-latest
-    needs: [publish-images]
+    needs: [preflight, publish-images]
     permissions:
       contents: read
       packages: write
@@ -240,38 +324,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}
-          tags: |
-            type=match,pattern=v(.*),group=1
-            type=raw,value=latest
-
+      # publish-images has checked that both architecture images are from this commit. Pointing the version and
+      # latest at them again gives the same manifest, so this step can run again.
       - name: Create and push multi-arch manifest
+        env:
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
         run: |
-          printf '%s\n' '${{ steps.meta.outputs.tags }}' | tr ',' '\n' | while IFS= read -r tag; do
-            test -n "$tag"
-            docker buildx imagetools create -t "$tag" \
-              ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:amd64-${{ github.ref_name }} \
-              ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:arm64-${{ github.ref_name }}
+          image="${REGISTRY}/${WEB_IMAGE_NAME}"
+          for tag in "${VERSION}" latest; do
+            docker buildx imagetools create -t "${image}:${tag}" "${image}:amd64-${TAG}" "${image}:arm64-${TAG}"
           done
 
+  deploy-convex:
+    name: Deploy Convex
+    needs: [preflight, publish-ios, publish-npm, publish-image-manifest]
+    uses: ./.github/workflows/convex-deploy.yml
+    with:
+      ref: ${{ needs.preflight.outputs.sha }}
+    secrets: inherit
+
   publish-github-release:
-    name: Publish GitHub Release
+    name: Tag and Publish GitHub Release
     runs-on: ubuntu-latest
-    needs:
-      - publish-ios
-      - publish-npm
-      - publish-image-manifest
+    needs: [preflight, publish-ios, publish-npm, publish-images, publish-image-manifest, deploy-convex]
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - name: Download CLI release artifacts
         uses: actions/download-artifact@v8
         with:
@@ -289,20 +368,24 @@ jobs:
           cd cli-release
           shasum -a 256 ./*.tar.gz > checksums.txt
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+      - name: Create the version tag
+        uses: MaudeCode/.github/actions/release-tag@3e8fc1995784e2d3004e4de05205a767472efb7c
         with:
-          generate_release_notes: true
-          files: |
-            cli-release/cowtail-darwin-arm64.tar.gz
-            cli-release/cowtail-darwin-x64.tar.gz
-            cli-release/cowtail-linux-arm64.tar.gz
-            cli-release/cowtail-linux-x64.tar.gz
-            cli-release/checksums.txt
-            cli-npm-package/*.tgz
+          tag: ${{ needs.preflight.outputs.tag }}
+          sha: ${{ needs.preflight.outputs.sha }}
 
-  deploy-convex:
-    name: Deploy Convex
-    needs: [publish-github-release]
-    uses: ./.github/workflows/convex-deploy.yml
-    secrets: inherit
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+        run: |
+          files=(cli-release/*.tar.gz cli-release/checksums.txt cli-npm-package/*.tgz)
+          # A release left by an earlier attempt only needs its assets.
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            gh release upload "${TAG}" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
+          else
+            flags=(--verify-tag --generate-notes)
+            if [[ "${PRERELEASE}" == true ]]; then flags+=(--prerelease); fi
+            gh release create "${TAG}" "${files[@]}" --repo "${GITHUB_REPOSITORY}" "${flags[@]}"
+          fi

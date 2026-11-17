@@ -3,6 +3,11 @@ name: CLI Verify
 on:
   workflow_call:
     inputs:
+      ref:
+        description: Commit to check out; empty for the commit the run is on.
+        required: false
+        type: string
+        default: ""
       version:
         required: false
         type: string
@@ -30,9 +35,11 @@ on:
 jobs:
   verify:
     name: CLI Verify
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-node@v6
         with:

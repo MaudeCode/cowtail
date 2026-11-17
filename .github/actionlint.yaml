@@ -1,10 +1,10 @@
 self-hosted-runner:
   # Labels of self-hosted runner in array of strings.
   labels:
-    - blacksmith-4vcpu-ubuntu-2404
-    - blacksmith-4vcpu-ubuntu-2404-arm
+    # The in-cluster runner that deploys Convex.
     - ghar-set-maudecode
-    - maude-mac
+    # GitHub's hosted Xcode 27 image, newer than actionlint's runner-label table.
+    - xcode-27
 
 # Configuration variables in array of strings defined in your repository or
 # organization. `null` means disabling configuration variables check.

@@ -65,7 +65,7 @@ Set `COWTAIL_VERSION=vX.Y.Z` to pin a specific release tag. Set `INSTALL_DIR=/yo
 npm install -g @maudecode/cowtail-cli
 ```
 
-The npm package exposes the `cowtail` command. Tagged releases publish the package through the root release workflow, with the npm version derived from the Git tag by removing the leading `v`.
+The npm package exposes the `cowtail` command. Releases publish the package through the root release workflow, with the npm version taken from the release version by removing the leading `v`.
 
 ## Config
 The CLI reads runtime settings from a JSON config file.
@@ -89,7 +89,7 @@ Example config:
 
 `cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
-Tagged release builds embed the Git tag as the canonical CLI version. Local builds default to `dev` unless `COWTAIL_VERSION` is set.
+Release builds embed the release version, such as `v1.2.3`, as the canonical CLI version. Local builds default to `dev` unless `COWTAIL_VERSION` is set.
 
 ## Planned command shape
 - `cowtail version`
