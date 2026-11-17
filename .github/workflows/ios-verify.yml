@@ -38,26 +38,16 @@ permissions:
 jobs:
   verify:
     name: iOS Verify
-    if: >
-      github.event_name == 'push' ||
-      github.workflow_ref == format('{0}/.github/workflows/release.yml@refs/heads/{1}', github.repository, github.event.repository.default_branch) ||
-      (
-        github.event_name == 'workflow_dispatch' &&
-        (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
-      )
-    runs-on: maude-mac
+    runs-on: xcode-27
     env:
-      COWTAIL_IOS_TEST_DEVICE_NAME: iPhone 17 Pro
-      COWTAIL_IOS_TEST_OS: "26.5"
+      COWTAIL_IOS_TEST_DEVICE_NAME: iPhone 17
+      # The newest runtime on the hosted image that has this device.
+      COWTAIL_IOS_TEST_OS: latest
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/setup-ios
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
 

@@ -42,21 +42,23 @@ jobs:
         include:
           - platform: linux/amd64
             arch: amd64
-            runner: blacksmith-4vcpu-ubuntu-2404
+            runner: ubuntu-24.04
           - platform: linux/arm64
             arch: arm64
-            runner: blacksmith-4vcpu-ubuntu-2404-arm
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
       - name: Build image
-        uses: useblacksmith/build-push-action@v2
+        uses: docker/build-push-action@v7
         with:
+          # A plain image manifest: the docker exporter takes no attestations.
+          provenance: false
           context: .
           file: ${{ inputs.dockerfile }}
           tags: local/${{ inputs.image_name }}:${{ matrix.arch }}-${{ inputs.version }}

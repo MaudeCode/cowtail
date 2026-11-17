@@ -51,12 +51,7 @@ permissions:
 jobs:
   build:
     name: Build iOS App
-    # The release workflow passed preflight, so it may run here whoever dispatched it.
-    if: >
-      github.event_name != 'workflow_dispatch' ||
-      github.workflow_ref == format('{0}/.github/workflows/release.yml@refs/heads/{1}', github.repository, github.event.repository.default_branch) ||
-      (github.actor == 'kiliantyler' || github.actor == 'MaudeBot')
-    runs-on: maude-mac
+    runs-on: xcode-27
     outputs:
       marketing_version: ${{ steps.build-version.outputs.marketing_version }}
       build_number: ${{ steps.build-version.outputs.build_number }}
@@ -68,6 +63,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
+
+      - uses: ./.github/actions/setup-ios
 
       - uses: oven-sh/setup-bun@v2
 
@@ -133,9 +130,8 @@ jobs:
 
       - name: Install Apple signing intermediates
         run: |
-          for certificate in \
-            /Applications/Xcode.app/Contents/SharedFrameworks/DVTFoundation.framework/Versions/A/Resources/AppleWWDRCA-2030.cer \
-            /Applications/Xcode.app/Contents/SharedFrameworks/DVTFoundation.framework/Versions/A/Resources/AppleWWDRCAG6.cer
+          resources="$(xcode-select -p)/../SharedFrameworks/DVTFoundation.framework/Versions/A/Resources"
+          for certificate in "${resources}/AppleWWDRCA-2030.cer" "${resources}/AppleWWDRCAG6.cer"
           do
             if [ -f "${certificate}" ]; then
               security import "${certificate}" -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || true
