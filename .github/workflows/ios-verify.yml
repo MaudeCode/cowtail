@@ -43,6 +43,8 @@ jobs:
       COWTAIL_IOS_TEST_DEVICE_NAME: iPhone 17
       # The newest runtime on the hosted image that has this device.
       COWTAIL_IOS_TEST_OS: latest
+      # A hosted runner's first simulator boot can take minutes.
+      COWTAIL_IOS_SIMULATOR_BOOT_TIMEOUT: "600"
     steps:
       - uses: actions/checkout@v6
         with:
