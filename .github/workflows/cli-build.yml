@@ -3,6 +3,11 @@ name: CLI Build
 on:
   workflow_call:
     inputs:
+      ref:
+        description: Commit to check out; empty for the commit the run is on.
+        required: false
+        type: string
+        default: ""
       version:
         required: false
         type: string
@@ -21,6 +26,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: oven-sh/setup-bun@v2
 
@@ -59,13 +66,15 @@ jobs:
             tar -C "${asset_dir}" -czf "./release/${asset_name}.tar.gz" cowtail
           done
 
-      - name: Set npm package version from tag
+      - name: Set npm package version
         working-directory: cli
+        env:
+          COWTAIL_VERSION: ${{ inputs.version }}
         run: |
           node <<'NODE'
           const fs = require("node:fs");
 
-          const version = process.env.GITHUB_REF_NAME?.replace(/^v/, "") || "${{ inputs.version }}".replace(/^v/, "");
+          const version = process.env.COWTAIL_VERSION.replace(/^v/, "");
           const packageJsonPath = "package.json";
           const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
           packageJson.version = version;

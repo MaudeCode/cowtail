@@ -3,6 +3,11 @@ name: Docker Build
 on:
   workflow_call:
     inputs:
+      ref:
+        description: Commit to check out; empty for the commit the run is on.
+        required: false
+        type: string
+        default: ""
       version:
         required: false
         type: string
@@ -43,6 +48,8 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404-arm
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@v1
@@ -53,6 +60,8 @@ jobs:
           context: .
           file: ${{ inputs.dockerfile }}
           tags: local/${{ inputs.image_name }}:${{ matrix.arch }}-${{ inputs.version }}
+          labels: |
+            org.opencontainers.image.revision=${{ inputs.ref || github.sha }}
           build-args: |
             COWTAIL_VERSION=${{ inputs.version }}
           platforms: ${{ matrix.platform }}
