@@ -80,7 +80,7 @@ function appStoreConnectToken() {
   return `${input}.${signature.toString("base64url")}`;
 }
 
-async function testflightBuilds(bundleId, version) {
+async function testflightBuilds(bundleId, version, build) {
   const headers = { authorization: `Bearer ${appStoreConnectToken()}` };
   const api = (path, query) =>
     getJson(
@@ -99,11 +99,20 @@ async function testflightBuilds(bundleId, version) {
     "fields[builds]": "version,processingState",
     limit: "200",
   });
-  // An invalid build never counts as published, so a release cannot pass on it.
-  return (builds?.data ?? []).map(({ attributes }) =>
-    attributes.processingState === "INVALID"
-      ? `invalid build ${attributes.version}`
-      : attributes.version,
+  const found = (builds?.data ?? []).map(({ attributes }) => attributes);
+  // Uploading again cannot help a build Apple is still processing; it counts once processing has succeeded.
+  if (
+    found.some(
+      (existing) => existing.version === build && existing.processingState === "PROCESSING",
+    )
+  ) {
+    throw new Error(
+      `TestFlight build ${version} (${build}) is still processing. Re-run this job once it has finished.`,
+    );
+  }
+  // Only a successfully processed build counts as published, so a release cannot pass on a failed one.
+  return found.map(({ version: number, processingState }) =>
+    processingState === "VALID" ? number : `${processingState.toLowerCase()} build ${number}`,
   );
 }
 
@@ -116,7 +125,7 @@ const sources = {
   image: async (ref, sha) => [ref, imagePublishedFrom(ref), sha],
   testflight: async (bundleId, version, build) => [
     `TestFlight ${version} (${build})`,
-    await testflightBuilds(bundleId, version),
+    await testflightBuilds(bundleId, version, build),
     build,
   ],
 };
