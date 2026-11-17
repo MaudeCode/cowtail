@@ -38,6 +38,8 @@
 	<string>$(COWTAIL_PUSH_UNREGISTRATION_URL)</string>
 	<key>CowtailRoundupTimeZone</key>
 	<string>$(COWTAIL_ROUNDUP_TIMEZONE)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk-Regular.ttf</string>

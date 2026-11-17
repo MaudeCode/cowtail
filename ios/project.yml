@@ -47,6 +47,8 @@ targets:
         CowtailPushRegistrationURL: $(COWTAIL_PUSH_REGISTRATION_URL)
         CowtailPushUnregistrationURL: $(COWTAIL_PUSH_UNREGISTRATION_URL)
         CowtailRoundupTimeZone: $(COWTAIL_ROUNDUP_TIMEZONE)
+        # Declared here rather than on each TestFlight upload: the app uses only exempt encryption.
+        ITSAppUsesNonExemptEncryption: false
         UIAppFonts:
           - SpaceGrotesk-Regular.ttf
           - SpaceGrotesk-Medium.ttf

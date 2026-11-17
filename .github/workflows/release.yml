@@ -104,31 +104,31 @@ jobs:
       - ios-build
     steps:
       - name: Download web Docker amd64
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: docker-amd64
           path: docker-amd64
 
       - name: Download web Docker arm64
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: docker-arm64
           path: docker-arm64
 
       - name: Download CLI release artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: cli-release
           path: cli-release
 
       - name: Download CLI npm package
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: cli-npm-package
           path: cli-npm-package
 
       - name: Download iOS IPA
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ios-ipa
           path: ios-ipa
@@ -141,7 +141,7 @@ jobs:
           echo "path=${ipa_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Download iOS symbols
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ios-dsyms
           path: ios-dsyms
@@ -161,57 +161,43 @@ jobs:
           tar -tf docker-arm64/image.tar > /dev/null
           tar -tzf cli-npm-package/*.tgz > /dev/null
 
+  # Verifies the IPA ios-build handed over and uploads it. Uploading the same version and build number again is
+  # success, so the release can run again; the testflight environment, limited to main, gates it.
   publish-ios:
     name: Publish iOS App
-    runs-on: ubuntu-latest
+    runs-on: xcode-27
     needs: [preflight, ios-build, validate]
+    environment: testflight
+    concurrency:
+      group: cowtail-testflight
+      cancel-in-progress: false
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.sha }}
-          sparse-checkout: script/release
-          persist-credentials: false
-
-      - name: Check TestFlight for this build
-        id: published
-        env:
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          BUNDLE_ID: ${{ secrets.COWTAIL_PRODUCT_BUNDLE_IDENTIFIER }}
-          MARKETING_VERSION: ${{ needs.ios-build.outputs.marketing_version }}
-          BUILD_NUMBER: ${{ needs.ios-build.outputs.build_number }}
-        run: node script/release/published.mjs testflight "${BUNDLE_ID}" "${MARKETING_VERSION}" "${BUILD_NUMBER}"
-
       - name: Download iOS IPA
-        if: steps.published.outputs.publish == 'true'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ios-ipa
           path: ios-ipa
 
       - name: Resolve iOS IPA path
-        if: steps.published.outputs.publish == 'true'
         id: ios-ipa
         run: |
-          ipa_path="$(find ios-ipa -maxdepth 1 -name '*.ipa' -type f | head -n 1)"
+          ipa_path="$(find "${PWD}/ios-ipa" -maxdepth 1 -name '*.ipa' -type f | head -n 1)"
           test -n "${ipa_path}"
           echo "path=${ipa_path}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload iOS app to TestFlight
-        if: steps.published.outputs.publish == 'true'
-        uses: apple-actions/upload-testflight-build@v4
+      - uses: MaudeCode/.github/actions/ios-publish@8af350cd57de98d7f6b4ede375cf8f360fb121a3
         with:
-          app-path: ${{ steps.ios-ipa.outputs.path }}
-          app-type: ios
-          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          uses-non-exempt-encryption: "false"
-          wait-for-processing: "true"
-          backend: AppStoreAPI
+          ipa: ${{ steps.ios-ipa.outputs.path }}
+          bundle-id: ${{ secrets.COWTAIL_PRODUCT_BUNDLE_IDENTIFIER }}
+          version: ${{ needs.ios-build.outputs.marketing_version }}
+          build-number: ${{ needs.ios-build.outputs.build_number }}
+          commit: ${{ needs.ios-build.outputs.commit }}
+          upload: true
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
 
   publish-npm:
     name: Publish CLI to npm
@@ -221,12 +207,12 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.preflight.outputs.sha }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
@@ -240,7 +226,7 @@ jobs:
 
       - name: Download CLI npm package
         if: steps.published.outputs.publish == 'true'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: cli-npm-package
           path: cli-npm-package
@@ -266,14 +252,14 @@ jobs:
           - arch: amd64
           - arch: arm64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.preflight.outputs.sha }}
           sparse-checkout: script/release
           persist-credentials: false
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -291,7 +277,7 @@ jobs:
 
       - name: Download image
         if: steps.published.outputs.publish == 'true'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: docker-${{ matrix.arch }}
           path: docker-${{ matrix.arch }}
@@ -315,10 +301,10 @@ jobs:
       packages: write
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -352,13 +338,13 @@ jobs:
       contents: write
     steps:
       - name: Download CLI release artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: cli-release
           path: cli-release
 
       - name: Download CLI npm package
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: cli-npm-package
           path: cli-npm-package

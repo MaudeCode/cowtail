@@ -5,9 +5,7 @@
 //
 //   published.mjs npm <package> <version> <sha>
 //   published.mjs image <ref> <sha>
-//   published.mjs testflight <bundle id> <version> <build number>   (build numbers come from the commit)
 import { spawnSync } from "node:child_process";
-import { createSign } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -63,59 +61,6 @@ function imagePublishedFrom(ref) {
   );
 }
 
-function appStoreConnectToken() {
-  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
-  const now = Math.floor(Date.now() / 1000);
-  const input = `${encode({ alg: "ES256", kid: process.env.APP_STORE_CONNECT_KEY_ID, typ: "JWT" })}.${encode(
-    {
-      iss: process.env.APP_STORE_CONNECT_ISSUER_ID,
-      aud: "appstoreconnect-v1",
-      iat: now - 60,
-      exp: now + 600,
-    },
-  )}`;
-  const signature = createSign("SHA256")
-    .update(input)
-    .sign({ key: process.env.APP_STORE_CONNECT_PRIVATE_KEY, dsaEncoding: "ieee-p1363" });
-  return `${input}.${signature.toString("base64url")}`;
-}
-
-async function testflightBuilds(bundleId, version, build) {
-  const headers = { authorization: `Bearer ${appStoreConnectToken()}` };
-  const api = (path, query) =>
-    getJson(
-      `https://api.appstoreconnect.apple.com/v1/${path}?${new URLSearchParams(query)}`,
-      headers,
-    );
-  const apps = ((await api("apps", { "filter[bundleId]": bundleId }))?.data ?? []).filter(
-    (app) => app.attributes.bundleId === bundleId,
-  );
-  if (apps.length !== 1)
-    throw new Error(`Expected one App Store Connect app for ${bundleId}, found ${apps.length}.`);
-  const builds = await api("builds", {
-    "filter[app]": apps[0].id,
-    "filter[preReleaseVersion.version]": version,
-    "filter[preReleaseVersion.platform]": "IOS",
-    "fields[builds]": "version,processingState",
-    limit: "200",
-  });
-  const found = (builds?.data ?? []).map(({ attributes }) => attributes);
-  // Uploading again cannot help a build Apple is still processing; it counts once processing has succeeded.
-  if (
-    found.some(
-      (existing) => existing.version === build && existing.processingState === "PROCESSING",
-    )
-  ) {
-    throw new Error(
-      `TestFlight build ${version} (${build}) is still processing. Re-run this job once it has finished.`,
-    );
-  }
-  // Only a successfully processed build counts as published, so a release cannot pass on a failed one.
-  return found.map(({ version: number, processingState }) =>
-    processingState === "VALID" ? number : `${processingState.toLowerCase()} build ${number}`,
-  );
-}
-
 const sources = {
   npm: async (name, version, sha) => [
     `npm ${name}@${version}`,
@@ -123,17 +68,12 @@ const sources = {
     sha,
   ],
   image: async (ref, sha) => [ref, imagePublishedFrom(ref), sha],
-  testflight: async (bundleId, version, build) => [
-    `TestFlight ${version} (${build})`,
-    await testflightBuilds(bundleId, version, build),
-    build,
-  ],
 };
 
 async function main([kind, ...args]) {
   const source = sources[kind];
   if (!source || args.some((arg) => !arg))
-    throw new Error(`Usage: published.mjs npm|image|testflight <arguments>`);
+    throw new Error(`Usage: published.mjs npm|image <arguments>`);
   const [name, publishedFrom, mine] = await source(...args);
   const publish = publishedFrom.length === 0;
   if (!publish && publishedFrom.some((from) => from !== mine)) {
