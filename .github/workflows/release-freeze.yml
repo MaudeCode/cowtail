@@ -2,8 +2,10 @@ name: Release Freeze
 
 # Rule 6 of RELEASES.md in MaudeCode/.github: a pull request that changes a workflow file must not merge while a release
 # runs. The verify workflows run by path, so this one runs on every pull request to give each the release-freeze status.
+# pull_request_target, because a fork's pull_request token cannot post a status. Safe: it checks out and runs no
+# pull request code, only the pinned action, which reads the pull request's number and head commit.
 on:
-  pull_request:
+  pull_request_target:
 
 permissions:
   contents: read
