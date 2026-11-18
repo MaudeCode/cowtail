@@ -55,14 +55,15 @@ jobs:
             cli-verify.yml: CLI Verify
 
   # Fails the release-freeze status on open pull requests that change a workflow file, so none merges mid-release:
-  # GitHub refuses this workflow's token when it tags a commit whose workflow files differ from main's.
+  # GitHub refuses this workflow's token when it tags a commit whose workflow files differ from main's. validate needs
+  # it, and every publishing job needs validate.
   freeze:
     name: Freeze Workflow Changes
     needs: [preflight]
     runs-on: ubuntu-24.04
     permissions: { statuses: write, pull-requests: read, actions: read }
     steps:
-      - uses: MaudeCode/.github/actions/release-freeze@e3a3f4a5a3ee052259af8b7260234b7af12167ed
+      - uses: MaudeCode/.github/actions/release-freeze@20b180ba0237e316fcc65d83ed4e8f19ac5e16a7
         with: { mode: start }
 
   global-verify:
@@ -124,8 +125,10 @@ jobs:
     name: Validate Artifacts
     if: *verified
     runs-on: ubuntu-latest
+    # Every publishing job runs after this one, so a release whose freeze failed publishes nothing.
     needs:
       - preflight
+      - freeze
       - global-verify
       - web-verify
       - ios-verify
@@ -421,5 +424,5 @@ jobs:
     runs-on: ubuntu-24.04
     permissions: { statuses: write, pull-requests: read, actions: read }
     steps:
-      - uses: MaudeCode/.github/actions/release-freeze@e3a3f4a5a3ee052259af8b7260234b7af12167ed
+      - uses: MaudeCode/.github/actions/release-freeze@20b180ba0237e316fcc65d83ed4e8f19ac5e16a7
         with: { mode: end }
