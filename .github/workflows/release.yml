@@ -54,6 +54,17 @@ jobs:
             ios-verify.yml: iOS Verify
             cli-verify.yml: CLI Verify
 
+  # Fails the release-freeze status on open pull requests that change a workflow file, so none merges mid-release:
+  # GitHub refuses this workflow's token when it tags a commit whose workflow files differ from main's.
+  freeze:
+    name: Freeze Workflow Changes
+    needs: [preflight]
+    runs-on: ubuntu-24.04
+    permissions: { statuses: write, pull-requests: read, actions: read }
+    steps:
+      - uses: MaudeCode/.github/actions/release-freeze@e3a3f4a5a3ee052259af8b7260234b7af12167ed
+        with: { mode: start }
+
   global-verify:
     needs: [preflight]
     if: "${{ !fromJSON(needs.preflight.outputs.checks)['global-verify.yml: verify'] }}"
@@ -401,3 +412,14 @@ jobs:
             if [[ "${PRERELEASE}" == true ]]; then flags+=(--prerelease); fi
             gh release create "${TAG}" "${files[@]}" --repo "${GITHUB_REPOSITORY}" "${flags[@]}"
           fi
+
+  # Passes the release-freeze status again however the release ended, unless another release is running.
+  thaw:
+    name: Thaw Workflow Changes
+    needs: [freeze, publish-github-release]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions: { statuses: write, pull-requests: read, actions: read }
+    steps:
+      - uses: MaudeCode/.github/actions/release-freeze@e3a3f4a5a3ee052259af8b7260234b7af12167ed
+        with: { mode: end }

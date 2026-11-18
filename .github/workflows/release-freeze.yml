@@ -1,0 +1,19 @@
+name: Release Freeze
+
+# Rule 6 of RELEASES.md in MaudeCode/.github: a pull request that changes a workflow file must not merge while a release
+# runs. The verify workflows run by path, so this one runs on every pull request to give each the release-freeze status.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  release-freeze:
+    # Named apart from the release-freeze commit status it posts, so a passing job never stands in for that status.
+    name: Set release-freeze status
+    runs-on: ubuntu-24.04
+    permissions: { statuses: write, pull-requests: read, actions: read }
+    steps:
+      - uses: MaudeCode/.github/actions/release-freeze@e3a3f4a5a3ee052259af8b7260234b7af12167ed
+        with: { mode: pull-request }
