@@ -2120,6 +2120,67 @@ extension Components {
             internal var approvalNeedsAuth: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/createdDate`.
             internal var createdDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/fix`.
+            internal struct FixPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/id`.
+                internal var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/timestamp`.
+                internal var timestamp: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/alertIds`.
+                internal var alertIds: [Swift.String]
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/description`.
+                internal var description: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/rootCause`.
+                internal var rootCause: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/scope`.
+                internal enum ScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case reactive = "reactive"
+                    case weekly = "weekly"
+                    case monthly = "monthly"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/scope`.
+                internal var scope: Components.Schemas.ItemRecord.FixPayload.ScopePayload
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/commit`.
+                internal var commit: Swift.String?
+                /// Creates a new `FixPayload`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                ///   - timestamp:
+                ///   - alertIds:
+                ///   - description:
+                ///   - rootCause:
+                ///   - scope:
+                ///   - commit:
+                internal init(
+                    id: Swift.String,
+                    timestamp: Swift.Int,
+                    alertIds: [Swift.String],
+                    description: Swift.String,
+                    rootCause: Swift.String,
+                    scope: Components.Schemas.ItemRecord.FixPayload.ScopePayload,
+                    commit: Swift.String? = nil
+                ) {
+                    self.id = id
+                    self.timestamp = timestamp
+                    self.alertIds = alertIds
+                    self.description = description
+                    self.rootCause = rootCause
+                    self.scope = scope
+                    self.commit = commit
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case id
+                    case timestamp
+                    case alertIds
+                    case description
+                    case rootCause
+                    case scope
+                    case commit
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/fix`.
+            internal var fix: Components.Schemas.ItemRecord.FixPayload?
             /// Creates a new `ItemRecord`.
             ///
             /// - Parameters:
@@ -2157,6 +2218,7 @@ extension Components {
             ///   - investigationResult:
             ///   - approvalNeedsAuth:
             ///   - createdDate:
+            ///   - fix:
             internal init(
                 id: Swift.String,
                 source: Swift.String,
@@ -2191,7 +2253,8 @@ extension Components {
                 alertActions: Components.Schemas.ItemRecord.AlertActionsPayload? = nil,
                 investigationResult: Components.Schemas.ItemRecord.InvestigationResultPayload? = nil,
                 approvalNeedsAuth: Swift.Bool? = nil,
-                createdDate: Swift.String? = nil
+                createdDate: Swift.String? = nil,
+                fix: Components.Schemas.ItemRecord.FixPayload? = nil
             ) {
                 self.id = id
                 self.source = source
@@ -2227,6 +2290,7 @@ extension Components {
                 self.investigationResult = investigationResult
                 self.approvalNeedsAuth = approvalNeedsAuth
                 self.createdDate = createdDate
+                self.fix = fix
             }
             internal enum CodingKeys: String, CodingKey {
                 case id
@@ -2263,6 +2327,7 @@ extension Components {
                 case investigationResult
                 case approvalNeedsAuth
                 case createdDate
+                case fix
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemAction`.
@@ -3086,25 +3151,31 @@ extension Components {
                 internal var count: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/ItemStatsResponse/FiringByNamespacePayload/itemIds`.
                 internal var itemIds: [Swift.String]
+                /// - Remark: Generated from `#/components/schemas/ItemStatsResponse/FiringByNamespacePayload/titles`.
+                internal var titles: [Swift.String]?
                 /// Creates a new `FiringByNamespacePayloadPayload`.
                 ///
                 /// - Parameters:
                 ///   - namespace:
                 ///   - count:
                 ///   - itemIds:
+                ///   - titles:
                 internal init(
                     namespace: Swift.String,
                     count: Swift.Int,
-                    itemIds: [Swift.String]
+                    itemIds: [Swift.String],
+                    titles: [Swift.String]? = nil
                 ) {
                     self.namespace = namespace
                     self.count = count
                     self.itemIds = itemIds
+                    self.titles = titles
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case namespace
                     case count
                     case itemIds
+                    case titles
                 }
             }
             /// - Remark: Generated from `#/components/schemas/ItemStatsResponse/firingByNamespace`.
