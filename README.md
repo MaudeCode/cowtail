@@ -89,6 +89,7 @@ The Hermes plugin needs only Python 3.11 or later. Test it with `python -m unitt
    - `PROMETHEUS_BASE_URL` — optional explicit Prometheus endpoint if it does not live behind `/prometheus`
    - `APNS_TOPIC` — the native app bundle identifier used for APNs
    - `APPLE_AUTH_AUDIENCE` — optional explicit Sign in with Apple audience override; defaults to `APNS_TOPIC`
+   - `COWTAIL_WATCHDOG_MAX_SILENCE_MINUTES` — optional; how long the Alertmanager Watchdog may stay silent before Cowtail raises "Alert pipeline silent" (default `15`)
 
 4. **Optional: sign in with Pocket ID (OIDC).** Cowtail is single-owner, and Pocket ID signs in as the same owner as Sign in with Apple.
    - In Pocket ID, add an OIDC client that is confidential (not public), with PKCE enabled and the callback URL `<COWTAIL_WEB_ORIGIN>/actions/api/auth/oidc/callback`.
@@ -123,6 +124,22 @@ curl -X POST https://your-cowtail-instance/actions/api/alerts \
     "messaged": false
   }'
 ```
+
+### Watching the alert pipeline
+
+kube-prometheus-stack ships `Watchdog`, an alert that always fires. Route it to Cowtail's Alertmanager webhook (`/actions/api/alerts/webhook`, authorized with `COWTAIL_ALERTMANAGER_WEBHOOK_TOKEN`) with a short `repeat_interval`, so Alertmanager re-sends it every few minutes:
+
+```yaml
+route:
+  routes:
+    - receiver: cowtail-direct
+      matchers:
+        - alertname = "Watchdog"
+      group_wait: 0s
+      repeat_interval: 5m
+```
+
+Cowtail stores no alert for it. Each Watchdog records the pipeline's heartbeat, and `GET /api/health` reports it as `alertPipeline: { state, lastWatchdogAt }`, where `state` is `not_configured` before the first Watchdog, `ok` while they arrive, and `silent` once none has arrived for `COWTAIL_WATCHDOG_MAX_SILENCE_MINUTES`. While silent, Cowtail keeps one urgent `Alert pipeline silent` item open, and the next Watchdog resolves it. Keep `repeat_interval` well under the threshold.
 
 ## Design
 

@@ -62,6 +62,7 @@ import { api, internal } from "./_generated/api";
 import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
 import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
+import { WATCHDOG_ALERTNAME } from "./pipelineStatus";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { itemErrorCode } from "./items";
@@ -348,13 +349,6 @@ async function requireAppSession(c: AppSessionContext) {
     session,
     userId: session.userId,
   };
-}
-
-function cowtailOwnerUserId(): string | undefined {
-  return (
-    nonEmptyString(process.env.COWTAIL_OWNER_USER_ID) ??
-    nonEmptyString(process.env.COWTAIL_OPENCLAW_OWNER_USER_ID)
-  );
 }
 
 export function requireOpenClawOwner(auth: { userId: string }) {
@@ -953,12 +947,27 @@ app.post("/api/alerts/webhook", async (c) => {
   }
 
   const payload = body as Record<string, unknown>;
-  const alerts = payload.alerts;
-  if (!Array.isArray(alerts) || alerts.length === 0) {
+  if (!Array.isArray(payload.alerts) || payload.alerts.length === 0) {
     return c.json({ ok: false, error: "No alerts in payload" }, 400);
   }
 
   const receivedAt = Date.now();
+  // The Watchdog is the pipeline's heartbeat, never an alert: it is left out of the batch.
+  const isWatchdog = (alert: unknown) =>
+    asRecord(asRecord(alert).labels).alertname === WATCHDOG_ALERTNAME;
+  if (
+    payload.alerts.some(
+      (alert) =>
+        isWatchdog(alert) && (nonEmptyString(asRecord(alert).status) ?? "firing") === "firing",
+    )
+  ) {
+    await c.env.runMutation((internal as any).pipelineStatus.recordWatchdog, { now: receivedAt });
+  }
+  const alerts = payload.alerts.filter((alert) => !isWatchdog(alert));
+  if (alerts.length === 0) {
+    return c.json({ ok: true, alertIds: [], jobIds: [], deliveryIds: [], count: 0 });
+  }
+
   const payloadHash = await sha256Hex(JSON.stringify(payload));
   const eventId = await c.env.runMutation((internal as any).alertmanagerEvents.insertStored, {
     receivedAt,
@@ -2125,7 +2134,11 @@ app.get("/api/users/:userId/devices", async (c) => {
 // GET /api/health — aggregated cluster health for native clients and web fallback
 app.get("/api/health", async (c) => {
   try {
-    return c.json(healthResponseSchema.parse(await fetchClusterHealth()));
+    const [cluster, alertPipeline] = await Promise.all([
+      fetchClusterHealth(),
+      c.env.runQuery((internal as any).pipelineStatus.get, { now: Date.now() }),
+    ]);
+    return c.json(healthResponseSchema.parse({ ...cluster, alertPipeline }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch cluster health";
     return jsonError(message, 502);

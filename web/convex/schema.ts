@@ -313,6 +313,12 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_idempotencyKey", ["idempotencyKey"]),
 
+  // One row: when the Alertmanager Watchdog first and last reached Cowtail.
+  pipelineStatus: defineTable({
+    firstWatchdogAt: v.number(),
+    lastWatchdogAt: v.number(),
+  }),
+
   openclawState: defineTable({
     key: v.string(),
     nextSequence: v.number(),
