@@ -12,6 +12,7 @@ Keep this document scrubbed:
 ## Working Rules
 
 - Use `bun`, not `npm`.
+- Node is the version named in `.node-version`, the latest LTS line. A version manager that reads that file selects it in every checkout and worktree, with no setup.
 - Treat Kubernetes and runtime infrastructure as GitOps-managed.
 - Do not patch running cluster resources directly when the source of truth lives in a separate infrastructure repo.
 - A checkout's `web/.env` can hold the live Convex deployment's address and admin key, and worktrees get a copy of it. Never run `convex dev`, `convex deploy`, `convex run` or `convex import` from a checkout. Test Convex code in memory, and let the release workflow deploy it.
