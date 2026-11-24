@@ -58,7 +58,7 @@ Browser ──→ nginx ──→ Static files (Vite build)
 ```bash
 pnpm install
 cp web/.env.example web/.env
-# Edit .env with your Convex URL
+# Set COWTAIL_DEV_ACTIONS_URL to your Convex HTTP actions URL; `vite dev` proxies /actions to it
 pnpm run dev:web
 ```
 
