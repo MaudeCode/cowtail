@@ -25,6 +25,7 @@ import {
   fixListResponseSchema,
   fixCreateRequestSchema,
   healthResponseSchema,
+  hermesHookPayloadSchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
   itemCreateResponseSchema,
@@ -65,6 +66,7 @@ import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
 import { WATCHDOG_ALERTNAME } from "./pipelineStatus";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
+import { hermesHookItem } from "./hermesHooks";
 import { itemErrorCode } from "./items";
 import { resolveItemStatsRange } from "./itemStats";
 import {
@@ -1431,6 +1433,52 @@ app.post("/api/items", async (c) => {
     now: Date.now(),
   });
   return c.json(itemCreateResponseSchema.parse({ ok: true, ...result }));
+});
+
+// Hermes signs each outbound webhook GitHub-style: `sha256=<hex HMAC-SHA256 of the raw body>`.
+// `crypto.subtle.verify` compares the MAC in constant time.
+async function verifyHermesSignature(secret: string, body: ArrayBuffer, header?: string) {
+  const hex = header?.trim().match(/^sha256=([0-9a-f]{64})$/i)?.[1];
+  if (!hex) return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const signature = Uint8Array.from(hex.match(/../g)!, (byte) => Number.parseInt(byte, 16));
+  return await crypto.subtle.verify("HMAC", key, signature, body);
+}
+
+// POST /api/hermes/hooks — Hermes outbound webhooks; the events Cowtail knows become items
+app.post("/api/hermes/hooks", async (c) => {
+  const secret = process.env.COWTAIL_HERMES_HOOK_SECRET;
+  if (!secret?.trim()) return jsonError("Hermes hook secret is not configured", 500);
+
+  const body = await c.req.arrayBuffer();
+  if (!(await verifyHermesSignature(secret, body, c.req.header("x-hermes-signature-256")))) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(new TextDecoder().decode(body));
+  } catch {
+    return jsonError("Invalid JSON body");
+  }
+  const parsed = hermesHookPayloadSchema.safeParse(json);
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const hook = hermesHookItem(parsed.data);
+  if (hook) {
+    await c.env.runMutation((internal as any).hermesHooks.ingest, {
+      deliveryId: parsed.data.delivery_id,
+      ...hook,
+      now: Date.now(),
+    });
+  }
+  return c.json(okResponseSchema.parse({ ok: true }));
 });
 
 // POST /api/items/:id/events — a producer's progress note, or its resolution or expiry

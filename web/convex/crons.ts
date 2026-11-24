@@ -32,4 +32,11 @@ crons.interval(
   {},
 );
 
+crons.interval(
+  "prune Hermes hook deliveries",
+  { hours: 1 },
+  (internal as any).hermesHooks.pruneDeliveries,
+  {},
+);
+
 export default crons;

@@ -75,6 +75,14 @@ export default defineSchema({
     sentAt: v.optional(v.number()),
   }).index("by_sentAt", ["sentAt"]),
 
+  // Hermes outbound webhook deliveries already ingested, so a redelivery stores nothing.
+  hermesHookDeliveries: defineTable({
+    deliveryId: v.string(),
+    receivedAt: v.number(),
+  })
+    .index("by_deliveryId", ["deliveryId"])
+    .index("by_receivedAt", ["receivedAt"]),
+
   alertmanagerEvents: defineTable({
     receivedAt: v.number(),
     source: v.literal("alertmanager"),
