@@ -53,6 +53,7 @@ final class CowtailStore: ObservableObject {
 
     private let api: any CowtailAPIClient
     private let appSessionManager: AppSessionManager
+    private let now: () -> Date
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "store"
@@ -66,10 +67,12 @@ final class CowtailStore: ObservableObject {
         health: HealthSummary? = nil,
         fixesByAlertID: [String: [AlertFix]] = [:],
         errorMessage: String? = nil,
-        hasLoaded: Bool = false
+        hasLoaded: Bool = false,
+        now: @escaping () -> Date = Date.init
     ) {
         self.api = api
         self.appSessionManager = appSessionManager
+        self.now = now
         self.alerts = alerts
         self.alertCacheByID = Dictionary(uniqueKeysWithValues: alerts.map { ($0.id, $0) })
         self.alertLoadErrors = [:]
@@ -102,13 +105,13 @@ final class CowtailStore: ObservableObject {
             isLoading = false
         }
 
-        let now = Date()
-        let start = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
+        let end = now()
+        let start = Calendar.current.date(byAdding: .day, value: -7, to: end) ?? end
 
         await withTaskGroup(of: RefreshResult.self) { [api] group in
             group.addTask {
                 do {
-                    return .alerts(.success(try await api.fetchAlerts(from: start, to: now)))
+                    return .alerts(.success(try await api.fetchAlerts(from: start, to: end)))
                 } catch {
                     return .alerts(.failure(error))
                 }
@@ -130,7 +133,7 @@ final class CowtailStore: ObservableObject {
                         alertCacheByID[alert.id] = alert
                         alertLoadErrors.removeValue(forKey: alert.id)
                     }
-                    lastUpdated = .now
+                    lastUpdated = now()
                     hasLoaded = true
 
                 case .alerts(.failure(let error)):
@@ -140,7 +143,7 @@ final class CowtailStore: ObservableObject {
 
                 case .health(.success(let fetchedHealth)):
                     health = fetchedHealth
-                    lastUpdated = .now
+                    lastUpdated = now()
                     hasLoaded = true
 
                 case .health(.failure(let error)):

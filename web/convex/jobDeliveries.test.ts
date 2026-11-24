@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { getFunctionName } from "convex/server";
 
 import * as deliveries from "./jobDeliveries";
@@ -88,12 +88,11 @@ function fixture() {
 }
 
 const originalFetch = globalThis.fetch;
-const originalNow = Date.now;
 const originalUrl = process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL;
 const originalToken = process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN;
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  Date.now = originalNow;
+  vi.useRealTimers();
   if (originalUrl === undefined) delete process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL;
   else process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL = originalUrl;
   if (originalToken === undefined) delete process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN;
@@ -106,7 +105,7 @@ describe("accepted but unclaimed delivery recovery", () => {
     const sent: string[] = [];
     process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL = "https://example.invalid/webhook";
     process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN = "test-token";
-    Date.now = () => 0;
+    vi.useFakeTimers({ now: 0 });
     globalThis.fetch = (async (_url: any, options: any) => {
       const id = options.headers["x-request-id"];
       sent.push(id);
@@ -140,10 +139,10 @@ describe("accepted but unclaimed delivery recovery", () => {
     // or shorten the existing backoff.
     expect(await f.enqueue(101)).toBe(next._id);
     await expect(run(fail, f.ctx, failure)).rejects.toThrow("job is not claimed by this token");
-    Date.now = () => 60_099;
+    vi.setSystemTime(60_099);
     await run(retryDue, f.ctx, {});
     expect(sent).toEqual([first]);
-    Date.now = () => 60_100;
+    vi.setSystemTime(60_100);
     await run(retryDue, f.ctx, {});
     expect(sent).toEqual([first, next._id]);
     expect(f.rows[first]).toEqual(original);
@@ -171,7 +170,7 @@ describe("accepted but unclaimed delivery recovery", () => {
     const sent: string[] = [];
     process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL = "https://example.invalid/webhook";
     process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN = "test-token";
-    Date.now = () => 0;
+    vi.useFakeTimers({ now: 0 });
     globalThis.fetch = (async (_url: any, options: any) => {
       const id = options.headers["x-request-id"];
       sent.push(id);
@@ -180,10 +179,10 @@ describe("accepted but unclaimed delivery recovery", () => {
     const first = await f.enqueue();
     await run(deliverOne, f.ctx, { deliveryId: first });
     const original = { ...f.rows[first] };
-    Date.now = () => GRACE - 1;
+    vi.setSystemTime(GRACE - 1);
     await run(retryDue, f.ctx, {});
     expect(sent).toEqual([first]);
-    Date.now = () => GRACE;
+    vi.setSystemTime(GRACE);
     await run(retryDue, f.ctx, {});
     expect(sent.length).toBe(2);
     expect(sent[1]).not.toBe(first);
@@ -207,7 +206,7 @@ describe("accepted but unclaimed delivery recovery", () => {
     };
     expect(await run(claim, f.ctx, args)).not.toBeNull();
     expect(await run(claim, f.ctx, { ...args, workerId: "other" })).toBeNull();
-    Date.now = () => GRACE + 60 * 60_000;
+    vi.setSystemTime(GRACE + 60 * 60_000);
     await run(retryDue, f.ctx, {});
     expect(sent).toHaveLength(2);
     expect(f.rows.job.status).toBe("claimed");
@@ -324,7 +323,7 @@ describe("accepted but unclaimed delivery recovery", () => {
 
   test("deferred jobs do not keep starving a ready delivery behind the batch", async () => {
     const f = fixture();
-    Date.now = () => 0;
+    vi.useFakeTimers({ now: 0 });
     process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_URL = "https://example.invalid/webhook";
     process.env.COWTAIL_HERMES_ALERT_JOB_WEBHOOK_TOKEN = "test-token";
     const sent: string[] = [];

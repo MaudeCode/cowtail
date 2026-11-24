@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Cowtail
 
@@ -27,6 +28,10 @@ final class InboxRefreshBehaviorTests: XCTestCase {
             storageUnit: "TiB"
         )
 
+        let healthPublished = expectation(description: "health published while alerts are pending")
+        let subscription = store.$health.first { $0 == expectedHealth }.sink { _ in healthPublished.fulfill() }
+        defer { subscription.cancel() }
+
         let refreshTask = Task {
             await store.refresh()
         }
@@ -34,8 +39,7 @@ final class InboxRefreshBehaviorTests: XCTestCase {
         await api.waitUntilStarted()
         await api.completeHealth(with: expectedHealth)
 
-        try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(store.health, expectedHealth)
+        await fulfillment(of: [healthPublished], timeout: 5)
 
         await api.completeAlerts(with: [])
         await refreshTask.value
@@ -79,13 +83,13 @@ final class InboxRefreshBehaviorTests: XCTestCase {
 
     func testRepeatedRefreshAdvancesLastUpdated() async throws {
         let api = InstantCowtailAPI()
-        let store = CowtailStore(api: api)
+        var clock = Date(timeIntervalSince1970: 1_000)
+        let store = CowtailStore(api: api, now: { clock })
 
         await store.refresh()
         let firstUpdated = try XCTUnwrap(store.lastUpdated)
 
-        try? await Task.sleep(for: .milliseconds(20))
-
+        clock += 1
         await store.refresh()
         let secondUpdated = try XCTUnwrap(store.lastUpdated)
 
