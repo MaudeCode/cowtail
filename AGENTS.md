@@ -2,12 +2,39 @@
 
 ## Scope
 
-This file explains how deployment works for this repository so future agents do not have to rediscover it.
+This file explains how work is done in this repository and how deployment works, so future agents do not have to rediscover either.
 
 Keep this document scrubbed:
 
 - Do not add org names, personal names, cluster names, internal hostnames, local filesystem paths, or secret values.
 - If infrastructure details are needed, describe the pattern and point to the repo-local workflow or config file instead.
+
+## Working Agreement
+
+**Tracker.** Kanvil project COW is the tracker. Work only on the selected ticket and its required dependencies. Move the ticket to In Progress before editing, to In Review after its commits are verified, and to Done only after its commit is verified on `main`.
+
+**Scopes.** Each ticket carries one or more scope labels, in its native `scopes` and in its labels:
+
+- `app`: the iOS app in `ios/`
+- `web`: everything in `web/`, the React app and the Convex backend alike
+- `cli`: `cli/`
+- `contracts`: `protocol/`, alongside the scopes of the consumers a change touches
+- `plugin`: `hermes-plugin/`
+- `tooling`: CI, release, scripts and agent documentation
+
+**Branches and subjects.** Branches are `<type>/COW-<number>-<slug>`. Commit and pull request subjects are `<type>(<area>): <summary> (COW-<number>)`, as the history already has them.
+
+**Server-owned state.** Clients are display-only. The Convex backend computes every decision, classification, derivation, ordering, filtering and computed value a client shows, and ships each as an explicit field defined in `protocol/`. Client logic is limited to wording, formatting of numbers, dates and units, layout, theme, animation, accessibility, device-local UI state, optimistic display of the user's own writes, offline display of cached fields, and platform integration. Anything else moves to the server and the protocol in the same change.
+
+**Optimistic writes.** A user-initiated write shows its result at once. If the server refuses it, the client rolls back to the last confirmed value and shows the error. An unknown outcome reconciles with the server before the client keeps or rolls back the change, and a non-idempotent write is never replayed blind. Only writes whose result the server must produce keep a busy state, and only on the control that started them.
+
+**Tests.** Tests own synthetic, disposable state and never depend on a live account, cluster or device. Every added or changed test passes the `test-audit` skill's authoring gate. Fixing a bad test writes its rule into that skill in the same change.
+
+**Dependencies.** Add no third-party dependency without the owner's approval.
+
+**Evidence.** Screenshots and other validation evidence go in the pull request, never in git. The mockup page under `docs/mockups/` is the one committed visual spec.
+
+**Human gates.** Releases, deployments, TestFlight uploads, repository administration and changes to live services wait for the owner.
 
 ## Working Rules
 
