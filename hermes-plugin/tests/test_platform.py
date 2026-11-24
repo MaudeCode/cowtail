@@ -102,6 +102,9 @@ class FakeHermes:
             async def handle_message(self, event):
                 hermes.inbound.append(event)
 
+            def toolsets_for_source(self, source):
+                return None
+
             def _mark_connected(self):
                 self._running = True
 
@@ -492,6 +495,13 @@ class PostmortemTest(PlatformTest):
             self.cowtail.posted("/api/hermes/postmortem-requests/pm-1/delivered"),
             [{"claimToken": "claim-pm-1"}],
         )
+
+    def test_an_incident_chat_runs_with_no_tools(self):
+        incident = SimpleNamespace(chat_id="cowtail:incident:inc-7")
+        owner = SimpleNamespace(chat_id="owner")
+
+        self.assertEqual(self.adapter.toolsets_for_source(incident), [])
+        self.assertIsNone(self.adapter.toolsets_for_source(owner))
 
     def test_a_reply_after_delivery_names_the_request_it_answers(self):
         self.cowtail.postmortem_requests = [dict(self.REQUEST)]

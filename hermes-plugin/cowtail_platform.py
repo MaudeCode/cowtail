@@ -345,6 +345,13 @@ class CowtailAdapter(BasePlatformAdapter):
             ))
             await asyncio.to_thread(self._client.postmortem_delivered, request["id"], request["claimToken"])
 
+    def toolsets_for_source(self, source) -> list[str] | None:
+        """An incident's chat runs with no tools: its prompt carries text alert sources and other
+        producers wrote, so nothing in it may steer the agent into acting."""
+        if str(getattr(source, "chat_id", "") or "").startswith(INCIDENT_CHAT_PREFIX):
+            return []
+        return None
+
     async def send_heartbeat(self) -> None:
         snapshot = await asyncio.to_thread(collect_snapshot)
         await asyncio.to_thread(self._client.heartbeat, snapshot)
