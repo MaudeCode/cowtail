@@ -347,13 +347,6 @@ async function requireAppSession(c: AppSessionContext) {
   };
 }
 
-function cowtailOwnerUserId(): string | undefined {
-  return (
-    nonEmptyString(process.env.COWTAIL_OWNER_USER_ID) ??
-    nonEmptyString(process.env.COWTAIL_OPENCLAW_OWNER_USER_ID)
-  );
-}
-
 export function requireOpenClawOwner(auth: { userId: string }) {
   return requireCowtailOwner(auth, "OpenClaw owner user ID is not configured");
 }
