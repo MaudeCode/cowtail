@@ -13,7 +13,7 @@ final class ItemPresentationTests: XCTestCase {
         XCTAssertEqual(text(["decision": "batched"]), "Batched")
     }
 
-    /// Monday 23 November 2026, 09:41, in a fixed zone.
+    /// November 2026 in a fixed zone.
     private static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
@@ -22,27 +22,6 @@ final class ItemPresentationTests: XCTestCase {
 
     private static func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
         calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
-    }
-
-    private static func presets(now: Date) -> [String: Date] {
-        Dictionary(uniqueKeysWithValues: SnoozePreset.presets(now: now, calendar: calendar).map { ($0.title, $0.until) })
-    }
-
-    func testOnAMondayTheSnoozePresetsRunToTheFollowingMonday() {
-        let presets = SnoozePreset.presets(now: Self.date(23, 9, 41), calendar: Self.calendar)
-
-        XCTAssertEqual(presets.map(\.title), ["1 hour", "4 hours", "Tomorrow", "Next Monday"])
-        XCTAssertEqual(
-            presets.map(\.until),
-            [Self.date(23, 10, 41), Self.date(23, 13, 41), Self.date(24, 9), Self.date(30, 9)]
-        )
-    }
-
-    func testOnASundayTomorrowAndNextMondayAreTheSameMorning() {
-        let presets = Self.presets(now: Self.date(29, 20))
-
-        XCTAssertEqual(presets["Tomorrow"], Self.date(30, 9))
-        XCTAssertEqual(presets["Next Monday"], Self.date(30, 9))
     }
 
     func testAReturnTimeNamesTodayThenTheWeekdayThenTheDate() {

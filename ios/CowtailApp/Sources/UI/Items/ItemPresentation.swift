@@ -120,6 +120,26 @@ extension ItemActionRequest {
     }
 }
 
+extension SnoozeOption.Preset {
+    var title: String {
+        switch self {
+        case .oneHour: "1 hour"
+        case .fourHours: "4 hours"
+        case .tomorrow: "Tomorrow"
+        case .nextMonday: "Next Monday"
+        }
+    }
+
+    var identifier: String {
+        switch self {
+        case .oneHour: "1h"
+        case .fourHours: "4h"
+        case .tomorrow: "tomorrow"
+        case .nextMonday: "next-monday"
+        }
+    }
+}
+
 /// A button an item row or the item header shows: one per action the item offers, and the
 /// owner's alert dispositions.
 enum ItemButton: Hashable, Identifiable {

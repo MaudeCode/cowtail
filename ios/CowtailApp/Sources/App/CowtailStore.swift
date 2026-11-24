@@ -341,10 +341,14 @@ final class CowtailStore: ObservableObject {
         case .snooze(let until):
             moved.state = .snoozed
             moved.snoozedUntil = until
+            moved.needsOwnerWhenOpen = item.needsOwner
             moved.needsOwner = false
         case .unsnooze:
+            // The server named where the item returns to.
             moved.state = .open
             moved.snoozedUntil = nil
+            moved.needsOwner = item.needsOwnerWhenOpen == true
+            moved.needsOwnerWhenOpen = nil
         default:
             moved.needsOwner = false
         }
@@ -358,14 +362,21 @@ final class CowtailStore: ObservableObject {
                 // Upcoming is the soonest return first; the server's next read keeps that order.
                 let index = current.upcoming.firstIndex { ($0.snoozedUntil ?? .distantFuture) > until }
                 current.upcoming.insert(moved, at: index ?? current.upcoming.endIndex)
-            case .unsnooze:
-                // The server decides whether it returns to Needs you or to Hermes.
-                break
+            case .unsnooze where moved.needsOwner:
+                current.needsYou.insert(moved, at: 0)
             default:
                 current.withHermes.insert(moved, at: 0)
             }
         }
         details[item.id]?.item = moved
+    }
+
+    /// The snooze picker's presets, worked out by the server in this device's zone.
+    func snoozeOptions(timeZone: TimeZone = .current) async throws -> [SnoozeOption] {
+        guard let token = await sessionToken() else {
+            throw CowtailAPIError.requestFailed(Self.signInMessage)
+        }
+        return try await api.fetchSnoozeOptions(timeZone: timeZone.identifier, sessionToken: token)
     }
 
     /// Face ID or the passcode, for a change that weakens approval protection.

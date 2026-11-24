@@ -198,7 +198,7 @@ struct ItemActionButtons: View {
             }
         }
         .sheet(isPresented: $isSnoozing) {
-            SnoozeSheet { until in
+            SnoozeSheet(load: { try await store.snoozeOptions() }) { until in
                 Task { await store.perform(.snooze(until: until), on: item) }
             }
         }

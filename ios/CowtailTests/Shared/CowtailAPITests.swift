@@ -84,7 +84,7 @@ final class CowtailAPITests: XCTestCase {
     }
 
     private static func itemRecord(_ id: String, snoozedUntil: Int? = nil) -> String {
-        let snooze = snoozedUntil.map { #","state":"snoozed","snoozedUntil":\#($0)"# } ?? #","state":"open""#
+        let snooze = snoozedUntil.map { #","state":"snoozed","snoozedUntil":\#($0),"needsOwnerWhenOpen":true"# } ?? #","state":"open""#
         return """
         {"id":"\(id)","source":"hermes","sourceInfo":{"slug":"hermes","displayName":"Hermes"},\
         "kind":"fyi","urgency":"today","needsOwner":false,"title":"\(id)","body":"","links":[],\
@@ -105,6 +105,7 @@ final class CowtailAPITests: XCTestCase {
 
         XCTAssertEqual(inbox.upcoming.map(\.id), ["later", "sooner"])
         XCTAssertEqual(inbox.upcoming.map(\.snoozedUntil), [Date(timeIntervalSince1970: 1_800_000_000), Date(timeIntervalSince1970: 1_700_000_000)])
+        XCTAssertEqual(inbox.upcoming.map(\.needsOwnerWhenOpen), [true, true])
         XCTAssertEqual(inbox.counts.upcoming, 7)
     }
 
@@ -120,6 +121,22 @@ final class CowtailAPITests: XCTestCase {
         XCTAssertEqual(inbox.upcoming, [])
         XCTAssertEqual(inbox.counts.upcoming, 0)
         XCTAssertEqual(inbox.needsYou.map(\.id), ["open"])
+    }
+
+    func testSnoozeOptionsAskInTheGivenZoneAndKeepTheServersOrder() async throws {
+        let reply = """
+        {"ok":true,"options":[{"preset":"1h","until":1800003600000},{"preset":"4h","until":1800014400000},\
+        {"preset":"tomorrow","until":1800050400000},{"preset":"next_monday","until":1800482400000}]}
+        """
+        let transport = RecordingTransport(routes: ["GET /api/me/snooze-options": .init(json: reply)])
+
+        let options = try await CowtailAPI(transport: transport).fetchSnoozeOptions(timeZone: "Europe/London", sessionToken: "session")
+
+        XCTAssertEqual(options.map(\.preset), [.oneHour, .fourHours, .tomorrow, .nextMonday])
+        XCTAssertEqual(options.first?.until, Date(timeIntervalSince1970: 1_800_003_600))
+        let sent = try XCTUnwrap(transport.requests("GET /api/me/snooze-options").first)
+        let query = URLComponents(string: sent.request.path ?? "")?.queryItems
+        XCTAssertEqual(query, [URLQueryItem(name: "timeZone", value: "Europe/London")])
     }
 
     func testUnsnoozeSendsItsType() async throws {

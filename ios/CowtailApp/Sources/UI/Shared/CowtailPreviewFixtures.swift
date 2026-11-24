@@ -128,7 +128,6 @@ enum CowtailPreviewFixtures {
             kind: .alert,
             urgency: .today,
             state: .snoozed,
-            needsOwner: true,
             title: "CephOSDNearFull · osd.4",
             actions: [.ack, .snooze],
             alertID: "alert-7",
@@ -137,6 +136,7 @@ enum CowtailPreviewFixtures {
                 .now.addingTimeInterval(4 * 60 * 60),
                 Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: .now) ?? .now
             ),
+            needsOwnerWhenOpen: true,
             createdAt: minutesAgo(60),
             subtitle: "storage"
         ),
@@ -147,9 +147,9 @@ enum CowtailPreviewFixtures {
             kind: .fyi,
             urgency: .whenever,
             state: .snoozed,
-            needsOwner: true,
             title: "Check the new disk shipment",
             snoozedUntil: daysAhead(3),
+            needsOwnerWhenOpen: true,
             createdAt: minutesAgo(90)
         ),
         Item(
@@ -163,6 +163,7 @@ enum CowtailPreviewFixtures {
             actions: [.ack, .snooze],
             alertID: "alert-8",
             snoozedUntil: daysAhead(10),
+            needsOwnerWhenOpen: false,
             createdAt: minutesAgo(200)
         ),
     ]

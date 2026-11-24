@@ -94,6 +94,8 @@ struct Item: Identifiable, Hashable, Sendable {
     let expiresAt: Date?
     /// When a snoozed item returns to the inbox.
     var snoozedUntil: Date?
+    /// Snoozed items only: whether the item returns to Needs you, rather than to Hermes.
+    var needsOwnerWhenOpen: Bool?
     let createdAt: Date
     let updatedAt: Date
     let resolvedAt: Date?
@@ -130,6 +132,7 @@ struct Item: Identifiable, Hashable, Sendable {
         approvalNeedsAuth: Bool = false,
         expiresAt: Date? = nil,
         snoozedUntil: Date? = nil,
+        needsOwnerWhenOpen: Bool? = nil,
         createdAt: Date,
         updatedAt: Date? = nil,
         resolvedAt: Date? = nil,
@@ -164,6 +167,7 @@ struct Item: Identifiable, Hashable, Sendable {
         self.approvalNeedsAuth = approvalNeedsAuth
         self.expiresAt = expiresAt
         self.snoozedUntil = snoozedUntil
+        self.needsOwnerWhenOpen = needsOwnerWhenOpen
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.resolvedAt = resolvedAt
@@ -242,6 +246,21 @@ extension ItemInbox {
             handled: handled
         )
     }
+}
+
+/// A snooze picker preset and the time the server worked out for it in the device's zone.
+struct SnoozeOption: Identifiable, Equatable, Sendable {
+    enum Preset: String, Sendable {
+        case oneHour = "1h"
+        case fourHours = "4h"
+        case tomorrow
+        case nextMonday = "next_monday"
+    }
+
+    let preset: Preset
+    let until: Date
+
+    var id: String { preset.rawValue }
 }
 
 /// What the owner sends; `ItemAction` is what an item offers.
