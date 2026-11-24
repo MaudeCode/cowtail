@@ -64,7 +64,7 @@ struct HermesView: View {
             CowtailKeyValueRow(
                 key: "Blocked",
                 value: "\(kanban.blocked)",
-                tint: kanban.blocked > 0 ? palette.warning : nil
+                tint: heartbeat.kanbanBlocked ? palette.warning : nil
             )
             CowtailKeyValueRow(key: "Running", value: "\(kanban.running)")
         } else {

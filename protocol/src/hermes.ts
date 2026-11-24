@@ -120,6 +120,8 @@ export const hermesStatusResponseSchema = z.object({
       // The snapshot's open incidents, in Hermes's order.
       incidents: z.array(hermesStatusIncidentSchema).optional(),
       incidentCount: z.number().int().nonnegative().optional(),
+      // Hermes has blocked kanban work, which the apps show as a warning.
+      kanbanBlocked: z.boolean().optional(),
       // The snapshot's budget and rate-limit keys in the order to show them.
       budgetOrder: z.array(z.string()).optional(),
       rateLimitOrder: z.array(z.string()).optional(),

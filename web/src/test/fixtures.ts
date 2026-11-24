@@ -121,6 +121,7 @@ export const hermesStatus: HermesStatusResponse = {
     cronJobCount: 2,
     failingCronCount: 1,
     incidentCount: 1,
+    kanbanBlocked: true,
     budgetOrder: ["today"],
     rateLimitOrder: ["anthropic"],
     incidents: [

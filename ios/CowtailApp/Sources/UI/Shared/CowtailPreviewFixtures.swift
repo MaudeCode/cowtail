@@ -307,6 +307,7 @@ enum CowtailPreviewFixtures {
             ],
             incidentCount: 1,
             kanban: HermesStatus.Kanban(blocked: 2, running: 1),
+            kanbanBlocked: true,
             budget: [HermesStatus.Limit(key: "today", value: "62%")],
             rateLimits: [HermesStatus.Limit(key: "anthropic", value: "ok")]
         ),

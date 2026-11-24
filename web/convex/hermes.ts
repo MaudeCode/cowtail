@@ -243,6 +243,7 @@ export const getStatus = internalQuery({
         failingCronCount: jobs.filter((job) => job.failing).length,
         incidents: linkedIncidents,
         incidentCount: linkedIncidents.length,
+        kanbanBlocked: (snapshot.kanban?.blocked ?? 0) > 0,
         budgetOrder: Object.keys(snapshot.budget ?? {}).sort(),
         rateLimitOrder: Object.keys(snapshot.rateLimits ?? {}).sort(),
       },

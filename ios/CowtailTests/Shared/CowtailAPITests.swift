@@ -34,6 +34,7 @@ final class CowtailAPITests: XCTestCase {
         "cronJobCount": 2,
         "failingCronCount": 1,
         "incidentCount": 2,
+        "kanbanBlocked": true,
         "budgetOrder": ["spent", "capped"],
         "rateLimitOrder": ["anthropic"],
         "incidents": [
@@ -61,6 +62,7 @@ final class CowtailAPITests: XCTestCase {
             [heartbeat.cronJobCount, heartbeat.failingCronCount, heartbeat.incidentCount],
             [2, 1, 2]
         )
+        XCTAssertTrue(heartbeat.kanbanBlocked)
         XCTAssertEqual(heartbeat.incidents.map(\.itemID), ["item-7", nil])
         XCTAssertEqual(heartbeat.incidents.map(\.jobName), ["backup-verify", "job-gone"])
         XCTAssertEqual(

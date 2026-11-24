@@ -177,6 +177,7 @@ extension CowtailAPI {
                     },
                     incidentCount: status.incidentCount ?? 0,
                     kanban: snapshot.kanban.map { HermesStatus.Kanban(blocked: $0.blocked, running: $0.running) },
+                    kanbanBlocked: status.kanbanBlocked ?? false,
                     budget: limits(
                         snapshot.budget?.additionalProperties.mapValues { limitText($0?.value1, $0?.value2, $0?.value3) },
                         order: status.budgetOrder

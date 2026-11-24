@@ -3057,6 +3057,8 @@ extension Components {
                 internal var incidents: [Components.Schemas.HermesIncident]?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/incidentCount`.
                 internal var incidentCount: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/kanbanBlocked`.
+                internal var kanbanBlocked: Swift.Bool?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/budgetOrder`.
                 internal var budgetOrder: [Swift.String]?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/rateLimitOrder`.
@@ -3073,6 +3075,7 @@ extension Components {
                 ///   - failingCronCount:
                 ///   - incidents:
                 ///   - incidentCount:
+                ///   - kanbanBlocked:
                 ///   - budgetOrder:
                 ///   - rateLimitOrder:
                 internal init(
@@ -3085,6 +3088,7 @@ extension Components {
                     failingCronCount: Swift.Int? = nil,
                     incidents: [Components.Schemas.HermesIncident]? = nil,
                     incidentCount: Swift.Int? = nil,
+                    kanbanBlocked: Swift.Bool? = nil,
                     budgetOrder: [Swift.String]? = nil,
                     rateLimitOrder: [Swift.String]? = nil
                 ) {
@@ -3097,6 +3101,7 @@ extension Components {
                     self.failingCronCount = failingCronCount
                     self.incidents = incidents
                     self.incidentCount = incidentCount
+                    self.kanbanBlocked = kanbanBlocked
                     self.budgetOrder = budgetOrder
                     self.rateLimitOrder = rateLimitOrder
                 }
@@ -3110,6 +3115,7 @@ extension Components {
                     case failingCronCount
                     case incidents
                     case incidentCount
+                    case kanbanBlocked
                     case budgetOrder
                     case rateLimitOrder
                 }

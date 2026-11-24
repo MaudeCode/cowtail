@@ -53,6 +53,8 @@ struct HermesStatus: Equatable, Sendable {
         var incidents: [Incident] = []
         var incidentCount = 0
         var kanban: Kanban?
+        /// Hermes has blocked kanban work, shown as a warning.
+        var kanbanBlocked = false
         var budget: [Limit] = []
         var rateLimits: [Limit] = []
     }

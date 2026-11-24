@@ -361,6 +361,15 @@ describe("Hermes status for the owner", () => {
     expect(current).toMatchObject({ cronJobCount: 3, failingCronCount: 2, incidentCount: 2 });
   });
 
+  test("blocked kanban work is flagged, and none is not", async () => {
+    const t = await newBackendWithSources();
+    await heartbeat(t, { ...snapshot, kanban: { blocked: 1, running: 0 } });
+    expect((await status(t))?.kanbanBlocked).toBe(true);
+
+    await heartbeat(t, { ...snapshot, kanban: { blocked: 0, running: 4 } });
+    expect((await status(t))?.kanbanBlocked).toBe(false);
+  });
+
   test("budget and rate-limit keys come in name order", async () => {
     const t = await newBackendWithSources();
     await heartbeat(t, {

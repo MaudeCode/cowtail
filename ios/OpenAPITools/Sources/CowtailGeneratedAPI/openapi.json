@@ -2011,6 +2011,9 @@
                 "type": "integer",
                 "minimum": 0
               },
+              "kanbanBlocked": {
+                "type": "boolean"
+              },
               "budgetOrder": {
                 "type": "array",
                 "items": {

@@ -138,7 +138,7 @@ function StatusSection({ status, now }: { status: Status | null; now: number }) 
       </KeyValue>
       {snapshot.kanban && (
         <KeyValue label="Kanban">
-          <span className={snapshot.kanban.blocked > 0 ? "text-warn" : ""}>
+          <span className={status.kanbanBlocked ? "text-warn" : ""}>
             {snapshot.kanban.blocked} blocked
           </span>
           · {snapshot.kanban.running} running
