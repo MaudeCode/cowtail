@@ -185,6 +185,9 @@ importers:
 
   .:
     devDependencies:
+      '@maudecode/ci':
+        specifier: github:MaudeCode/.github#418695a65b056488bad5f6a769e49c638832bca9
+        version: https://codeload.github.com/MaudeCode/.github/tar.gz/418695a65b056488bad5f6a769e49c638832bca9
       oxfmt:
         specifier: ^0.79.0
         version: 0.79.0
@@ -636,6 +639,12 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@maudecode/ci@https://codeload.github.com/MaudeCode/.github/tar.gz/418695a65b056488bad5f6a769e49c638832bca9':
+    resolution: {gitHosted: true, integrity: sha512-y2VULZNsOsrgU6DqMXt0ZSRpe3SdPSBKrRpgkn0eFBbxTgUHFcDObJg7QUhJcgE6xYJjw5qa3OGFlW6HTEwkgA==, tarball: https://codeload.github.com/MaudeCode/.github/tar.gz/418695a65b056488bad5f6a769e49c638832bca9}
+    version: 0.0.0
+    engines: {node: '>=22.5.0'}
+    hasBin: true
 
   '@napi-rs/wasm-runtime@1.2.6':
     resolution: {integrity: sha512-mRyDmEw9/fCDXCGfL1sbgIw/GUK0PVxRW4YwgPN61F3LQ+fSyoBFarJVzgGyhF6kRzEQZ0FejDqm4WLXSeqQmw==}
@@ -1924,6 +1933,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.3
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@maudecode/ci@https://codeload.github.com/MaudeCode/.github/tar.gz/418695a65b056488bad5f6a769e49c638832bca9': {}
 
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@2.0.0-beta.2)(@emnapi/runtime@2.0.0-beta.2)':
     dependencies:

@@ -1,5 +1,6 @@
 name: iOS Verify
 
+# Called by ci.yml when a change reaches the ios suite, and by the release.
 on:
   workflow_call:
     inputs:
@@ -8,30 +9,6 @@ on:
         required: false
         type: string
         default: ""
-  push:
-    branches:
-      - "main"
-    paths:
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "protocol/**"
-      - "ios/**"
-      - ".github/workflows/ios-build.yml"
-      - ".github/workflows/ios-verify.yml"
-      - ".github/workflows/release.yml"
-  pull_request:
-    branches:
-      - "main"
-    paths:
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "protocol/**"
-      - "ios/**"
-      - ".github/workflows/ios-build.yml"
-      - ".github/workflows/ios-verify.yml"
-      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 permissions:
@@ -41,15 +18,12 @@ jobs:
   verify:
     name: iOS Verify
     runs-on: xcode-27
-    env:
-      # setup-ios sets COWTAIL_IOS_TEST_OS to the pinned Xcode's simulator SDK version.
-      COWTAIL_IOS_TEST_DEVICE_NAME: iPhone 17
-      # A hosted runner's first simulator boot can take minutes.
-      COWTAIL_IOS_SIMULATOR_BOOT_TIMEOUT: "600"
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-ios
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -57,6 +31,14 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
+      # SwiftPM's repository cache, which xcodebuild resolves through, and the OpenAPI generator's build.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ios/OpenAPITools/.build
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('ios/OpenAPITools/Package.resolved', 'ios/project.yml') }}
 
       - name: Write iOS verify project env
         run: install -m 600 ios/Config/project.env.example ios/Config/project.env
@@ -73,12 +55,10 @@ jobs:
         working-directory: ios
         run: scripts/test-check-ios26-imports.sh
 
-      - name: Reset simulator before unit tests
+      # One project generation and one build for both targets.
+      - name: Run iOS Unit and UI Tests
         working-directory: ios
-        run: scripts/reset-simulator.sh
-
-      - name: Run iOS Unit Tests
-        run: pnpm run test:ios:unit
+        run: scripts/test.sh CowtailTests CowtailUITests
 
       # The hosted image has no iOS 26 simulator, so this static check is CI's proof the app still launches on iOS 26.
       - name: Check the app has no strong iOS 27-only imports
@@ -99,10 +79,3 @@ jobs:
             echo "::error::Run 'cd ios && ./generate.sh' and commit the result."
             exit 1
           fi
-
-      - name: Reset simulator before UI tests
-        working-directory: ios
-        run: scripts/reset-simulator.sh
-
-      - name: Run iOS UI Tests
-        run: pnpm run test:ios:ui

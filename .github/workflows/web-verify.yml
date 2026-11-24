@@ -1,5 +1,6 @@
 name: Web Verify
 
+# Called by ci.yml when a change reaches the web suite, and by the release.
 on:
   workflow_call:
     inputs:
@@ -8,28 +9,6 @@ on:
         required: false
         type: string
         default: ""
-  push:
-    branches:
-      - "main"
-    paths:
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "protocol/**"
-      - "web/**"
-      - ".github/workflows/web-verify.yml"
-      - ".github/workflows/release.yml"
-  pull_request:
-    branches:
-      - "main"
-    paths:
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "protocol/**"
-      - "web/**"
-      - ".github/workflows/web-verify.yml"
-      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 permissions:
@@ -38,10 +17,12 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

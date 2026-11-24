@@ -35,24 +35,16 @@ Then open `ios/Cowtail.xcodeproj` in Xcode.
 The project generation step also refreshes `OpenAPITools/Sources/CowtailGeneratedAPI/openapi.json` from the shared protocol package.
 When building in Xcode, a pre-build script refreshes the OpenAPI spec from the shared protocol package and then regenerates Swift client/types into `OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources` automatically.
 
-## UI Tests
-Generate the project first:
+## Tests
+Run the unit and UI suites on the `iPhone 17` simulator, the device CI tests on:
 
 ```bash
 cd ios
-./generate.sh
+scripts/test.sh CowtailTests CowtailUITests
 ```
 
-Then run the full UI suite on the preferred simulator:
-
-```bash
-cd ios
-xcodebuild test \
-  -project Cowtail.xcodeproj \
-  -scheme Cowtail \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.2' \
-  -only-testing:CowtailUITests
-```
+`scripts/test.sh` generates the project and builds once for every test target it is given. Set
+`COWTAIL_IOS_TEST_DESTINATION` to an `xcodebuild -destination` value to test on another simulator.
 
 The UI test suite launches the app in deterministic test mode using seeded scenarios.
 It should pass on repeated runs without manually resetting the simulator.

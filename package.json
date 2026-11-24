@@ -15,12 +15,13 @@
     "test:cli": "pnpm --dir cli run test",
     "test:script": "vitest run script",
     "test:ios:unit": "cd ios && scripts/test.sh CowtailTests",
-    "lint:ts": "oxlint web cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release",
-    "lint:ts:fix": "oxlint --fix web cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release",
-    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts web/vitest.config.ts web/test web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release",
-    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/vitest.config.ts web/test web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release"
+    "lint:ts": "oxlint web cli/src cli/tests cli/scripts protocol/src protocol/scripts script",
+    "lint:ts:fix": "oxlint --fix web cli/src cli/tests cli/scripts protocol/src protocol/scripts script",
+    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts web/vitest.config.ts web/test web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script",
+    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/vitest.config.ts web/test web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script"
   },
   "devDependencies": {
+    "@maudecode/ci": "github:MaudeCode/.github#418695a65b056488bad5f6a769e49c638832bca9",
     "oxfmt": "^0.79.0",
     "oxlint": "^1.94.0",
     "vitest": "^5.1.1"
