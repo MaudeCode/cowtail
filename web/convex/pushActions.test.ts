@@ -82,6 +82,14 @@ describe("item push payloads", () => {
     }
   }
 
+  test("an approval asks for Face ID on the lock screen while the owner requires it", () => {
+    const protectedApproval = { ...item("approval", "now"), approvalNeedsAuth: true };
+    const protectedAlert = { ...item("alert", "now"), approvalNeedsAuth: true };
+
+    expect(payload(itemPush(protectedApproval, 0)).aps.category).toBe("ITEM_APPROVAL_AUTH");
+    expect(payload(itemPush(protectedAlert, 0)).aps.category).toBe("ITEM_ACK");
+  });
+
   test("a push for the longest item a producer may send stays inside APNs' 4 KB", () => {
     const source = {
       slug: "s".repeat(32),

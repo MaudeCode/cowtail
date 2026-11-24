@@ -38,7 +38,14 @@ export const notificationPreferencesSchema = z.object({
 });
 
 // The iOS notification category each item push carries; the app registers one per value.
-export const itemNotificationCategories = ["ITEM_APPROVAL", "ITEM_QUESTION", "ITEM_ACK"] as const;
+// An approval goes as ITEM_APPROVAL_AUTH while the owner requires Face ID for approvals, so
+// every device asks for it on the lock screen whatever settings it last loaded.
+export const itemNotificationCategories = [
+  "ITEM_APPROVAL",
+  "ITEM_APPROVAL_AUTH",
+  "ITEM_QUESTION",
+  "ITEM_ACK",
+] as const;
 export const itemNotificationCategorySchema = z.enum(itemNotificationCategories);
 
 // The custom data of a push for one item. The app opens the alert when there is one. Item
@@ -60,6 +67,9 @@ export const itemBatchPushDataSchema = z.object({
 export const notificationPreferencesResponseSchema = z.object({
   ok: z.literal(true),
   preferences: notificationPreferencesSchema,
+  // The urgency override keys in the order to show them. Optional so a client still decodes
+  // a server from before it.
+  urgencyOverrideOrder: z.array(itemSourceSchema).optional(),
 });
 
 // Fields left out keep their stored value; `quietHours: null` turns quiet hours off.

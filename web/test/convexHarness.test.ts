@@ -66,7 +66,20 @@ test("notification preferences need a session", async () => {
       urgencyOverrides: {},
       requireAuthForApprovals: false,
     },
+    urgencyOverrideOrder: [],
   });
+
+  // The server orders the overrides: a source before its `source:kind` refinements.
+  const saved = await request(t, "/api/me/notification-preferences", {
+    method: "PUT",
+    bearer,
+    body: { urgencyOverrides: { "hermes:failure": "now", factory: "whenever", hermes: "today" } },
+  });
+  expect(notificationPreferencesResponseSchema.parse(saved.json).urgencyOverrideOrder).toEqual([
+    "factory",
+    "hermes",
+    "hermes:failure",
+  ]);
 });
 
 test("a failed Hermes delivery is retried when the clock reaches the retry cron", async () => {

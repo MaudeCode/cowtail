@@ -1333,21 +1333,27 @@ extension Components {
             }
             /// - Remark: Generated from `#/components/schemas/NotificationPreferencesResponse/preferences`.
             internal var preferences: Components.Schemas.NotificationPreferencesResponse.PreferencesPayload
+            /// - Remark: Generated from `#/components/schemas/NotificationPreferencesResponse/urgencyOverrideOrder`.
+            internal var urgencyOverrideOrder: [Swift.String]?
             /// Creates a new `NotificationPreferencesResponse`.
             ///
             /// - Parameters:
             ///   - ok:
             ///   - preferences:
+            ///   - urgencyOverrideOrder:
             internal init(
                 ok: Swift.Bool,
-                preferences: Components.Schemas.NotificationPreferencesResponse.PreferencesPayload
+                preferences: Components.Schemas.NotificationPreferencesResponse.PreferencesPayload,
+                urgencyOverrideOrder: [Swift.String]? = nil
             ) {
                 self.ok = ok
                 self.preferences = preferences
+                self.urgencyOverrideOrder = urgencyOverrideOrder
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case preferences
+                case urgencyOverrideOrder
             }
         }
         /// - Remark: Generated from `#/components/schemas/NotificationPreferencesUpdateRequest`.

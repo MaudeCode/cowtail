@@ -98,7 +98,7 @@ final class NotificationManager: NSObject, ObservableObject {
         UNUserNotificationCenter.current().delegate = self
         // The last setting the server sent holds until it answers again.
         preferences.requireAuthForApprovals = defaults.bool(forKey: requireAuthForApprovalsKey)
-        registerItemCategories(requireAuthForApprovals: preferences.requireAuthForApprovals)
+        UNUserNotificationCenter.current().setNotificationCategories(ItemNotifications.categories())
         deviceToken = persistedString(for: deviceTokenKey)
         if deviceToken != nil {
             registrationState = .registered
@@ -108,17 +108,8 @@ final class NotificationManager: NSObject, ObservableObject {
             await refreshAuthorizationStatus()
             resumeNotificationSetupIfNeeded()
             await syncDeviceRegistration()
-            // Brings the item categories in line with the server's approval setting.
             await loadDailyRoundupPreference()
         }
-    }
-
-    /// Registers the item categories, and remembers the setting for the next launch.
-    private func registerItemCategories(requireAuthForApprovals: Bool) {
-        defaults.set(requireAuthForApprovals, forKey: requireAuthForApprovalsKey)
-        UNUserNotificationCenter.current().setNotificationCategories(
-            ItemNotifications.categories(requireAuthForApprovals: requireAuthForApprovals)
-        )
     }
 
     var dailyRoundupEnabled: Bool {
@@ -135,15 +126,12 @@ final class NotificationManager: NSObject, ObservableObject {
         self.preferences = preferences
         unconfirmedPreviousPreferences = nil
         dailyRoundupPreferenceRequiresSignIn = false
-        syncItemCategories()
+        rememberApprovalAuthentication()
     }
 
-    /// Lock-screen Approve and Deny follow the same rule as in-app ones, unconfirmed changes
-    /// included.
-    private func syncItemCategories() {
-        if requiresApprovalAuthentication != defaults.bool(forKey: requireAuthForApprovalsKey) {
-            registerItemCategories(requireAuthForApprovals: requiresApprovalAuthentication)
-        }
+    /// Remembers the in-app approval rule, unconfirmed changes included, for the next launch.
+    private func rememberApprovalAuthentication() {
+        defaults.set(requiresApprovalAuthentication, forKey: requireAuthForApprovalsKey)
     }
 
     /// Sends a notification action to the item actions endpoint.
@@ -612,7 +600,13 @@ final class NotificationManager: NSObject, ObservableObject {
         change.request.urgencyOverrides = .init(
             additionalProperties: overrides.compactMapValues { .init(rawValue: $0.rawValue) }
         )
-        await updatePreferences(change) { $0.urgencyOverrides = overrides }
+        await updatePreferences(change) { preferences in
+            // Shown at once: kept keys hold their place and a new one goes last until the server
+            // orders it.
+            let kept = preferences.urgencyOverrideOrder.filter { overrides[$0] != nil }
+            preferences.urgencyOverrides = overrides
+            preferences.urgencyOverrideOrder = kept + overrides.keys.filter { !kept.contains($0) }.sorted()
+        }
     }
 
     /// Shows the change at once and rolls it back if the server refuses it.
@@ -624,7 +618,7 @@ final class NotificationManager: NSObject, ObservableObject {
         apply(&preferences)
         // Until the server answers, either value that asks for Face ID wins.
         unconfirmedPreviousPreferences = unconfirmedPreviousPreferences ?? previous
-        syncItemCategories()
+        rememberApprovalAuthentication()
         isSavingDailyRoundupPreference = true
         dailyRoundupPreferenceError = nil
         defer {
@@ -641,7 +635,7 @@ final class NotificationManager: NSObject, ObservableObject {
               let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
             preferences = previous
             unconfirmedPreviousPreferences = nil
-            syncItemCategories()
+            rememberApprovalAuthentication()
             dailyRoundupPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
             logger.debug("updatePreferences has no session")
             return
@@ -658,7 +652,7 @@ final class NotificationManager: NSObject, ObservableObject {
                 restoring: Self.reverting(change, in: preferences, to: previous)
             )
             unconfirmedPreviousPreferences = nil
-            syncItemCategories()
+            rememberApprovalAuthentication()
         } catch {
             // The change may have landed: read the server before keeping or restoring it.
             logger.error("updatePreferences outcome unknown")

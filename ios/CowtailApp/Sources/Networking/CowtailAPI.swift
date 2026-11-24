@@ -262,7 +262,7 @@ actor CowtailAPI: CowtailAPIClient {
             bearerToken: sessionToken
         )
 
-        return AppNotificationPreferences(response.preferences)
+        return AppNotificationPreferences(response)
     }
 
     func updateNotificationPreferences(
@@ -276,7 +276,7 @@ actor CowtailAPI: CowtailAPIClient {
             bearerToken: sessionToken
         )
 
-        return AppNotificationPreferences(response.preferences)
+        return AppNotificationPreferences(response)
     }
 
     func fetchInbox(sessionToken: String) async throws -> ItemInbox {
@@ -750,20 +750,25 @@ struct AppNotificationPreferences: Equatable, Sendable {
     var requireAuthForApprovals: Bool
     var quietHours: QuietHours?
     var urgencyOverrides: [String: ItemUrgency]
+    /// The override keys in the server's order.
+    var urgencyOverrideOrder: [String]
 
     init(
         dailyRoundupEnabled: Bool = false,
         requireAuthForApprovals: Bool = false,
         quietHours: QuietHours? = nil,
-        urgencyOverrides: [String: ItemUrgency] = [:]
+        urgencyOverrides: [String: ItemUrgency] = [:],
+        urgencyOverrideOrder: [String]? = nil
     ) {
         self.dailyRoundupEnabled = dailyRoundupEnabled
         self.requireAuthForApprovals = requireAuthForApprovals
         self.quietHours = quietHours
         self.urgencyOverrides = urgencyOverrides
+        self.urgencyOverrideOrder = urgencyOverrideOrder ?? Array(urgencyOverrides.keys)
     }
 
-    init(_ preferences: NotificationPreferencesResponse.PreferencesPayload) {
+    init(_ response: NotificationPreferencesResponse) {
+        let preferences = response.preferences
         dailyRoundupEnabled = preferences.dailyRoundupEnabled
         requireAuthForApprovals = preferences.requireAuthForApprovals
         quietHours = preferences.quietHours.map {
@@ -772,6 +777,7 @@ struct AppNotificationPreferences: Equatable, Sendable {
         urgencyOverrides = preferences.urgencyOverrides.additionalProperties.compactMapValues {
             ItemUrgency(rawValue: $0.rawValue)
         }
+        urgencyOverrideOrder = response.urgencyOverrideOrder ?? Array(urgencyOverrides.keys)
     }
 }
 

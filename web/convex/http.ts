@@ -69,7 +69,11 @@ import {
   userDevicesResponseSchema,
   usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
-import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
+import type {
+  HealthNode,
+  HealthResponse,
+  NotificationPreferences,
+} from "@maudecode/cowtail-protocol";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
@@ -2215,12 +2219,23 @@ app.get("/api/me/notification-preferences", async (c) => {
     });
 
   return c.json(
-    notificationPreferencesResponseSchema.parse({
-      ok: true,
-      preferences: { dailyRoundupEnabled, quietHours, urgencyOverrides, requireAuthForApprovals },
+    preferencesResponse({
+      dailyRoundupEnabled,
+      quietHours,
+      urgencyOverrides,
+      requireAuthForApprovals,
     }),
   );
 });
+
+// Overrides show by key: a source before its `source:kind` refinements.
+function preferencesResponse(preferences: NotificationPreferences) {
+  return notificationPreferencesResponseSchema.parse({
+    ok: true,
+    preferences,
+    urgencyOverrideOrder: Object.keys(preferences.urgencyOverrides).sort(),
+  });
+}
 
 // PUT /api/me/notification-preferences — update account-scoped notification preferences
 app.put("/api/me/notification-preferences", async (c) => {
@@ -2242,7 +2257,7 @@ app.put("/api/me/notification-preferences", async (c) => {
     ...parsed.data,
   });
 
-  return c.json(notificationPreferencesResponseSchema.parse({ ok: true, preferences }));
+  return c.json(preferencesResponse(preferences));
 });
 
 // GET /api/me/devices — the signed-in account's enabled push devices

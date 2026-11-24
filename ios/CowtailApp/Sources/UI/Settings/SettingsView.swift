@@ -164,7 +164,7 @@ struct SettingsView: View {
             .accessibilityIdentifier("button.settings.add-override")
         }
         let overrides = notificationManager.preferences.urgencyOverrides
-        ForEach(overrides.keys.sorted(), id: \.self) { key in
+        ForEach(notificationManager.preferences.urgencyOverrideOrder, id: \.self) { key in
             HStack {
                 Text(key).font(.cowtailMono(13, relativeTo: .footnote))
                 Spacer()

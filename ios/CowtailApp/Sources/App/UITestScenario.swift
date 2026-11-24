@@ -113,7 +113,8 @@ private enum SeedFactory {
         dailyRoundupEnabled: true,
         requireAuthForApprovals: true,
         quietHours: QuietHours(start: "22:00", end: "07:30", timeZone: TimeZone.current.identifier),
-        urgencyOverrides: ["factory": .whenever, "hermes:failure": .now, "deployer:done": .whenever]
+        urgencyOverrides: ["factory": .whenever, "hermes:failure": .now, "deployer:done": .whenever],
+        urgencyOverrideOrder: ["deployer:done", "factory", "hermes:failure"]
     )
 
     private static let scenarioDefaults = UITestScenario.Seed(

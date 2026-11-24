@@ -5,6 +5,8 @@ import UserNotifications
 enum ItemNotifications {
     enum Category {
         static let approval = "ITEM_APPROVAL"
+        /// The server sends approvals in this one while the owner requires Face ID.
+        static let approvalWithAuth = "ITEM_APPROVAL_AUTH"
         static let question = "ITEM_QUESTION"
         static let ack = "ITEM_ACK"
     }
@@ -19,22 +21,12 @@ enum ItemNotifications {
 
     static let snoozeInterval: TimeInterval = 60 * 60
 
-    /// Approve and Deny ask for Face ID or the passcode while the owner requires it.
-    static func categories(requireAuthForApprovals: Bool) -> Set<UNNotificationCategory> {
-        let approval: UNNotificationActionOptions = requireAuthForApprovals ? [.authenticationRequired] : []
-        return [
-            UNNotificationCategory(
-                identifier: Category.approval,
-                actions: [
-                    UNNotificationAction(identifier: Action.approve.rawValue, title: "Approve", options: approval),
-                    UNNotificationAction(
-                        identifier: Action.deny.rawValue,
-                        title: "Deny",
-                        options: approval.union(.destructive)
-                    ),
-                ],
-                intentIdentifiers: []
-            ),
+    /// Every item category. The server picks the approval one per push from the owner's
+    /// setting, so each device protects Approve and Deny alike.
+    static func categories() -> Set<UNNotificationCategory> {
+        [
+            approvalCategory(Category.approval, options: []),
+            approvalCategory(Category.approvalWithAuth, options: [.authenticationRequired]),
             UNNotificationCategory(
                 identifier: Category.question,
                 actions: [
@@ -57,6 +49,24 @@ enum ItemNotifications {
                 intentIdentifiers: []
             ),
         ]
+    }
+
+    private static func approvalCategory(
+        _ identifier: String,
+        options: UNNotificationActionOptions
+    ) -> UNNotificationCategory {
+        UNNotificationCategory(
+            identifier: identifier,
+            actions: [
+                UNNotificationAction(identifier: Action.approve.rawValue, title: "Approve", options: options),
+                UNNotificationAction(
+                    identifier: Action.deny.rawValue,
+                    title: "Deny",
+                    options: options.union(.destructive)
+                ),
+            ],
+            intentIdentifiers: []
+        )
     }
 
     /// The action a notification button sends; nil for a tap, a dismissal or an empty reply.

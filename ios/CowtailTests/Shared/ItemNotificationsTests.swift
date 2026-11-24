@@ -6,32 +6,33 @@ import XCTest
 @testable import Cowtail
 
 final class ItemNotificationsTests: XCTestCase {
-    private func actions(_ category: String, requireAuth: Bool) -> [UNNotificationAction] {
-        ItemNotifications.categories(requireAuthForApprovals: requireAuth)
-            .first { $0.identifier == category }?.actions ?? []
+    private func actions(_ category: String) -> [UNNotificationAction] {
+        ItemNotifications.categories().first { $0.identifier == category }?.actions ?? []
     }
 
-    func testRegistersTheThreeItemCategoriesWithTheirActions() {
-        let categories = ItemNotifications.categories(requireAuthForApprovals: false)
-
+    func testRegistersEveryItemCategoryTheServerSendsWithItsActions() {
         XCTAssertEqual(
-            Set(categories.map(\.identifier)),
-            ["ITEM_APPROVAL", "ITEM_QUESTION", "ITEM_ACK"]
+            Set(ItemNotifications.categories().map(\.identifier)),
+            ["ITEM_APPROVAL", "ITEM_APPROVAL_AUTH", "ITEM_QUESTION", "ITEM_ACK"]
         )
-        XCTAssertEqual(actions("ITEM_APPROVAL", requireAuth: false).map(\.title), ["Approve", "Deny"])
-        XCTAssertEqual(actions("ITEM_ACK", requireAuth: false).map(\.title), ["Acknowledge", "Snooze 1h"])
+        XCTAssertEqual(actions("ITEM_APPROVAL").map(\.title), ["Approve", "Deny"])
+        XCTAssertEqual(actions("ITEM_APPROVAL_AUTH").map(\.title), ["Approve", "Deny"])
+        XCTAssertEqual(actions("ITEM_ACK").map(\.title), ["Acknowledge", "Snooze 1h"])
 
-        let reply = actions("ITEM_QUESTION", requireAuth: false)
+        let reply = actions("ITEM_QUESTION")
         XCTAssertEqual(reply.map(\.title), ["Reply"])
         XCTAssertEqual((reply.first as? UNTextInputNotificationAction)?.textInputButtonTitle, "Send")
     }
 
-    func testApproveAndDenyRequireAuthenticationExactlyWhenTheSettingIsOn() {
-        for requireAuth in [false, true] {
-            let all = ItemNotifications.categories(requireAuthForApprovals: requireAuth).flatMap(\.actions)
-            let authenticated = all.filter { $0.options.contains(.authenticationRequired) }.map(\.title)
-            XCTAssertEqual(authenticated, requireAuth ? ["Approve", "Deny"] : [], "requireAuth=\(requireAuth)")
-        }
+    func testOnlyTheProtectedApprovalCategoryRequiresAuthentication() {
+        let authenticated = ItemNotifications.categories()
+            .flatMap { category in
+                category.actions
+                    .filter { $0.options.contains(.authenticationRequired) }
+                    .map { "\(category.identifier) \($0.title)" }
+            }
+            .sorted()
+        XCTAssertEqual(authenticated, ["ITEM_APPROVAL_AUTH Approve", "ITEM_APPROVAL_AUTH Deny"])
     }
 
     func testEachActionPostsItsBodyToTheItemActionsEndpoint() async throws {
