@@ -86,9 +86,9 @@ export function useDashboard() {
     writeUrlParams(dateRange.start, dateRange.end);
   }, [dateRange]);
 
-  // Query Convex for alerts in the date range
+  // Query Convex for alerts in the date range; an empty bound leaves that side open.
   const from = dateRange.start ? parseLocalDate(dateRange.start).getTime() : 0;
-  const to = dateRange.end ? parseLocalDateEnd(dateRange.end).getTime() : Date.now();
+  const to = dateRange.end ? parseLocalDateEnd(dateRange.end).getTime() : Number.MAX_SAFE_INTEGER;
 
   const { data: convexAlerts } = useQuery(convexQuery(api.alerts.getByTimeRange, { from, to }));
 

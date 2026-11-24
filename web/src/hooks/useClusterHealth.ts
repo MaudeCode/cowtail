@@ -1,5 +1,5 @@
 import { healthResponseSchema } from "@maudecode/cowtail-protocol";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import type { ClusterHealth } from "../types";
 
 async function fetchClusterHealth(): Promise<ClusterHealth> {
@@ -24,21 +24,28 @@ export function useClusterHealth(refreshIntervalMs = 30000) {
   const [health, setHealth] = useState<ClusterHealth | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await fetchClusterHealth();
-      setHealth(data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-    }
-  }, []);
-
   useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      fetchClusterHealth().then(
+        (data) => {
+          if (!active) return;
+          setHealth(data);
+          setError(null);
+        },
+        (e: unknown) => {
+          if (active) setError(e instanceof Error ? e.message : "Unknown error");
+        },
+      );
+    };
+
     refresh();
     const interval = setInterval(refresh, refreshIntervalMs);
-    return () => clearInterval(interval);
-  }, [refresh, refreshIntervalMs]);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [refreshIntervalMs]);
 
   return { health, error };
 }

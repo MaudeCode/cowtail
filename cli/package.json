@@ -28,13 +28,13 @@
     "test": "vitest run"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=26"
   },
   "devDependencies": {
     "@maudecode/cowtail-protocol": "workspace:*",
-    "@types/node": "^25.6.0",
+    "@types/node": "^26.6.6",
     "clipanion": "^4.0.0-rc.4",
     "esbuild": "^0.28.2",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }

@@ -21,8 +21,8 @@
     "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release"
   },
   "devDependencies": {
-    "oxfmt": "^0.46.0",
-    "oxlint": "^1.61.0",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
     "vitest": "^5.1.1"
   }
 }
