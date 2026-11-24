@@ -58,6 +58,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /me/alerts/{id}/actions`.
     /// - Remark: Generated from `#/paths//me/alerts/{id}/actions/post(performAlertAction)`.
     func performAlertAction(_ input: Operations.PerformAlertAction.Input) async throws -> Operations.PerformAlertAction.Output
+    /// Ack, snooze or answer an item
+    ///
+    /// - Remark: HTTP `POST /me/items/{id}/actions`.
+    /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
+    func performItemAction(_ input: Operations.PerformItemAction.Input) async throws -> Operations.PerformItemAction.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -178,6 +183,21 @@ extension APIProtocol {
         body: Operations.PerformAlertAction.Input.Body
     ) async throws -> Operations.PerformAlertAction.Output {
         try await performAlertAction(Operations.PerformAlertAction.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Ack, snooze or answer an item
+    ///
+    /// - Remark: HTTP `POST /me/items/{id}/actions`.
+    /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
+    internal func performItemAction(
+        path: Operations.PerformItemAction.Input.Path,
+        headers: Operations.PerformItemAction.Input.Headers = .init(),
+        body: Operations.PerformItemAction.Input.Body
+    ) async throws -> Operations.PerformItemAction.Output {
+        try await performItemAction(Operations.PerformItemAction.Input(
             path: path,
             headers: headers,
             body: body

@@ -793,10 +793,49 @@
             "properties": {
               "dailyRoundupEnabled": {
                 "type": "boolean"
+              },
+              "quietHours": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "start": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "end": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "timeZone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "start",
+                  "end",
+                  "timeZone"
+                ]
+              },
+              "urgencyOverrides": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "now",
+                    "today",
+                    "whenever"
+                  ]
+                }
+              },
+              "requireAuthForApprovals": {
+                "type": "boolean"
               }
             },
             "required": [
-              "dailyRoundupEnabled"
+              "dailyRoundupEnabled",
+              "quietHours",
+              "urgencyOverrides",
+              "requireAuthForApprovals"
             ]
           }
         },
@@ -810,11 +849,44 @@
         "properties": {
           "dailyRoundupEnabled": {
             "type": "boolean"
+          },
+          "quietHours": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "start": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              "end": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              "timeZone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end",
+              "timeZone"
+            ]
+          },
+          "urgencyOverrides": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "now",
+                "today",
+                "whenever"
+              ]
+            }
+          },
+          "requireAuthForApprovals": {
+            "type": "boolean"
           }
-        },
-        "required": [
-          "dailyRoundupEnabled"
-        ]
+        }
       },
       "AlertHumanActionResponse": {
         "type": "object",
@@ -1072,6 +1144,382 @@
         },
         "required": [
           "action"
+        ]
+      },
+      "ItemResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "item": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "alert",
+                  "failure",
+                  "approval",
+                  "question",
+                  "fyi",
+                  "done"
+                ]
+              },
+              "urgency": {
+                "type": "string",
+                "enum": [
+                  "now",
+                  "today",
+                  "whenever"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "acked",
+                  "snoozed",
+                  "resolved",
+                  "expired"
+                ]
+              },
+              "needsOwner": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "body": {
+                "type": "string"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ]
+                }
+              },
+              "context": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "dedupeKey": {
+                "type": "string",
+                "minLength": 1
+              },
+              "occurrenceCount": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "approve"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "deny"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "choose"
+                          ]
+                        },
+                        "options": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "minItems": 1
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "options"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "reply"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "snooze"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "ack"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "open"
+                          ]
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "replyTo": {
+                "type": "object",
+                "additionalProperties": {
+                  "nullable": true
+                }
+              },
+              "alertId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "investigationJobId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "expiresAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "snoozedUntil": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "createdAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "updatedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "resolvedAt": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "kind",
+              "urgency",
+              "state",
+              "needsOwner",
+              "title",
+              "body",
+              "links",
+              "context",
+              "occurrenceCount",
+              "actions",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "item"
+        ]
+      },
+      "ItemActionRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ack"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "snooze"
+                ]
+              },
+              "until": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "type",
+              "until"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "approve"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "deny"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "choose"
+                ]
+              },
+              "option": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "type",
+              "option"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "reply"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ]
+          }
         ]
       }
     },
@@ -1477,6 +1925,103 @@
           },
           "409": {
             "description": "Alert workflow state conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/items/{id}/actions": {
+      "post": {
+        "operationId": "performItemAction",
+        "tags": [
+          "items"
+        ],
+        "summary": "Ack, snooze or answer an item",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The item after the action.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid item action.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The item is closed or does not offer the action.",
             "content": {
               "application/json": {
                 "schema": {

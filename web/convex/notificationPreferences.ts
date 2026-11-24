@@ -1,8 +1,31 @@
+import type { NotificationPreferences } from "@maudecode/cowtail-protocol";
 import { v } from "convex/values";
 
+import type { Doc } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
+import { itemUrgencyValidator, quietHoursValidator } from "./itemValidators";
 
 const ROUNDUP_CLAIM_TTL_MS = 15 * 60 * 1000;
+
+// The stored row with every owner setting at its default where the row has none.
+export function effectivePreferences(
+  row: Doc<"userNotificationPreferences"> | null,
+): NotificationPreferences {
+  return {
+    dailyRoundupEnabled: row?.dailyRoundupEnabled ?? false,
+    quietHours: row?.quietHours ?? null,
+    urgencyOverrides: row?.urgencyOverrides ?? {},
+    requireAuthForApprovals: row?.requireAuthForApprovals ?? false,
+  };
+}
+
+export async function preferencesRow(ctx: QueryCtx, userId: string) {
+  return await ctx.db
+    .query("userNotificationPreferences")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .unique();
+}
 
 export const getByUserId = internalQuery({
   args: {
@@ -21,14 +44,11 @@ export const getEffectiveForUser = internalQuery({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("userNotificationPreferences")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .unique();
+    const existing = await preferencesRow(ctx, args.userId);
 
     return {
       userId: args.userId,
-      dailyRoundupEnabled: existing?.dailyRoundupEnabled ?? false,
+      ...effectivePreferences(existing),
       lastRoundupKeySent: existing?.lastRoundupKeySent,
       inFlightRoundupKey: existing?.inFlightRoundupKey,
       inFlightRoundupClaimedAt: existing?.inFlightRoundupClaimedAt,
@@ -57,41 +77,36 @@ export const listUsersWithDailyRoundupEnabled = internalQuery({
   },
 });
 
+// Writes the settings the update names and returns every setting as stored after it.
 export const upsertForUser = internalMutation({
   args: {
     userId: v.string(),
-    dailyRoundupEnabled: v.boolean(),
+    dailyRoundupEnabled: v.optional(v.boolean()),
+    quietHours: v.optional(v.union(quietHoursValidator, v.null())),
+    urgencyOverrides: v.optional(v.record(v.string(), itemUrgencyValidator)),
+    requireAuthForApprovals: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("userNotificationPreferences")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .unique();
+  handler: async (ctx, { userId, quietHours, ...update }) => {
+    const existing = await preferencesRow(ctx, userId);
     const now = Date.now();
+    // `null` clears quiet hours; a field left out keeps what is stored.
+    const patch = {
+      ...update,
+      ...(quietHours === undefined ? {} : { quietHours: quietHours ?? undefined }),
+      updatedAt: now,
+    };
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        dailyRoundupEnabled: args.dailyRoundupEnabled,
-        updatedAt: now,
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert("userNotificationPreferences", {
+        userId,
+        dailyRoundupEnabled: false,
+        ...patch,
+        createdAt: now,
       });
-
-      return {
-        id: existing._id,
-        created: false,
-      };
     }
-
-    const id = await ctx.db.insert("userNotificationPreferences", {
-      userId: args.userId,
-      dailyRoundupEnabled: args.dailyRoundupEnabled,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    return {
-      id,
-      created: true,
-    };
+    return effectivePreferences(await preferencesRow(ctx, userId));
   },
 });
 

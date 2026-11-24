@@ -391,7 +391,9 @@ describe("alert items", () => {
       context: { namespace: "media", severity: "critical", outcome: "self-resolved" },
     });
     const timeline = await getItem(t, listed.id);
-    expect(timeline.events.map((event) => event.type)).toEqual([
+    // Delivery decisions are itemDelivery.test.ts's; this timeline is the lifecycle.
+    const lifecycle = timeline.events.filter((event) => event.type !== "notified");
+    expect(lifecycle.map((event) => event.type)).toEqual([
       "created",
       "repeated",
       "repeated",

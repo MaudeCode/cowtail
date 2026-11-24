@@ -84,6 +84,7 @@ final class NotificationManager: NSObject, ObservableObject {
     private let syncedUserIDKey = "notifications.syncedUserID"
     private let syncedDeviceTokenKey = "notifications.syncedDeviceToken"
     private let syncedEnvironmentKey = "notifications.syncedEnvironment"
+    private let requireAuthForApprovalsKey = "notifications.requireAuthForApprovals"
     private var isUITesting = false
 
     private override init() {
@@ -93,6 +94,7 @@ final class NotificationManager: NSObject, ObservableObject {
     func configure() {
         isUITesting = false
         UNUserNotificationCenter.current().delegate = self
+        registerItemCategories(requireAuthForApprovals: defaults.bool(forKey: requireAuthForApprovalsKey))
         deviceToken = persistedString(for: deviceTokenKey)
         if deviceToken != nil {
             registrationState = .registered
@@ -102,6 +104,39 @@ final class NotificationManager: NSObject, ObservableObject {
             await refreshAuthorizationStatus()
             resumeNotificationSetupIfNeeded()
             await syncDeviceRegistration()
+            // Brings the item categories in line with the server's approval setting.
+            await loadDailyRoundupPreference()
+        }
+    }
+
+    /// Registers the item categories, and remembers the setting for the next launch.
+    private func registerItemCategories(requireAuthForApprovals: Bool) {
+        defaults.set(requireAuthForApprovals, forKey: requireAuthForApprovalsKey)
+        UNUserNotificationCenter.current().setNotificationCategories(
+            ItemNotifications.categories(requireAuthForApprovals: requireAuthForApprovals)
+        )
+    }
+
+    private func applyServerPreferences(_ preferences: AppNotificationPreferences) {
+        dailyRoundupEnabled = preferences.dailyRoundupEnabled
+        dailyRoundupPreferenceRequiresSignIn = false
+        if preferences.requireAuthForApprovals != defaults.bool(forKey: requireAuthForApprovalsKey) {
+            registerItemCategories(requireAuthForApprovals: preferences.requireAuthForApprovals)
+        }
+    }
+
+    /// Sends a notification action to the item actions endpoint.
+    private func performItemAction(itemID: String, request: Components.Schemas.ItemActionRequest) async {
+        guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
+            lastNotificationResponse = "Sign in with Apple again to act on notifications."
+            return
+        }
+
+        do {
+            try await api.performItemAction(itemID: itemID, request: request, sessionToken: sessionToken)
+        } catch {
+            logger.error("performItemAction failed: \(error.localizedDescription, privacy: .public)")
+            lastNotificationResponse = error.localizedDescription
         }
     }
 
@@ -519,8 +554,7 @@ final class NotificationManager: NSObject, ObservableObject {
 
         do {
             let preferences = try await api.fetchNotificationPreferences(sessionToken: sessionToken)
-            dailyRoundupEnabled = preferences.dailyRoundupEnabled
-            dailyRoundupPreferenceRequiresSignIn = false
+            applyServerPreferences(preferences)
             print("[roundup-debug] NotificationManager.loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled)")
             logger.debug("loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
@@ -566,8 +600,7 @@ final class NotificationManager: NSObject, ObservableObject {
                 sessionToken: sessionToken,
                 dailyRoundupEnabled: enabled
             )
-            dailyRoundupEnabled = preferences.dailyRoundupEnabled
-            dailyRoundupPreferenceRequiresSignIn = false
+            applyServerPreferences(preferences)
             print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled)")
             logger.debug("updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
@@ -740,6 +773,16 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let payload = Self.notificationOpenPayload(from: response)
+        let request = ItemNotifications.request(
+            actionIdentifier: response.actionIdentifier,
+            replyText: (response as? UNTextInputNotificationResponse)?.userText,
+            now: Date()
+        )
+
+        if let request, let itemID = payload.userInfo["itemId"] {
+            await NotificationManager.shared.performItemAction(itemID: itemID, request: request)
+            return
+        }
 
         await MainActor.run {
             NotificationManager.shared.didOpenNotification(payload)

@@ -1,6 +1,6 @@
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { configuredApnsEnvironment, isInvalidDeviceTokenReason } from "./apns";
+import { configuredApnsEnvironment, isInvalidDeviceTokenReason, type ApsExtras } from "./apns";
 import { previewDeviceToken } from "./deviceTokenPreview";
 
 export async function sendPushToUser(
@@ -10,6 +10,7 @@ export async function sendPushToUser(
     title: string;
     body: string;
     data?: Record<string, unknown>;
+    aps?: ApsExtras;
   },
 ) {
   const devices = await ctx.runQuery(internal.push.listEnabledDevicesForUser, {
@@ -50,6 +51,7 @@ export async function sendPushToUser(
       title: args.title,
       body: args.body,
       data: args.data,
+      aps: args.aps,
     });
 
     if (result.ok) {

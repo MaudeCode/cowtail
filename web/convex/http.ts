@@ -71,6 +71,7 @@ import {
   verifyOidcIdToken,
 } from "./oidcIdentity";
 import { validateOpenClawLimit } from "./openclawModel";
+import { cowtailOwnerUserId } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -1822,16 +1823,15 @@ app.get("/api/me/notification-preferences", async (c) => {
   const auth = await requireAppSession(c);
   if ("error" in auth) return auth.error;
 
-  const preference = await c.env.runQuery(internal.notificationPreferences.getEffectiveForUser, {
-    userId: auth.userId,
-  });
+  const { dailyRoundupEnabled, quietHours, urgencyOverrides, requireAuthForApprovals } =
+    await c.env.runQuery(internal.notificationPreferences.getEffectiveForUser, {
+      userId: auth.userId,
+    });
 
   return c.json(
     notificationPreferencesResponseSchema.parse({
       ok: true,
-      preferences: {
-        dailyRoundupEnabled: preference.dailyRoundupEnabled,
-      },
+      preferences: { dailyRoundupEnabled, quietHours, urgencyOverrides, requireAuthForApprovals },
     }),
   );
 });
@@ -1851,17 +1851,12 @@ app.put("/api/me/notification-preferences", async (c) => {
     return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
-  await c.env.runMutation(internal.notificationPreferences.upsertForUser, {
+  const preferences = await c.env.runMutation(internal.notificationPreferences.upsertForUser, {
     userId: auth.userId,
-    dailyRoundupEnabled: parsed.data.dailyRoundupEnabled,
+    ...parsed.data,
   });
 
-  return c.json(
-    notificationPreferencesResponseSchema.parse({
-      ok: true,
-      preferences: parsed.data,
-    }),
-  );
+  return c.json(notificationPreferencesResponseSchema.parse({ ok: true, preferences }));
 });
 
 // GET /api/me/openclaw-preferences — account-scoped OpenClaw preferences

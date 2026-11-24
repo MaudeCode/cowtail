@@ -5,13 +5,20 @@ import { createPrivateKey, sign } from "node:crypto";
 
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { parseApnsEnvironment, type ApnsEnvironment, type PushData } from "./apns";
+import {
+  apsExtrasValidator,
+  parseApnsEnvironment,
+  type ApnsEnvironment,
+  type ApsExtras,
+  type PushData,
+} from "./apns";
 
 type SendApnsNotificationArgs = {
   deviceToken: string;
   title: string;
   body: string;
   data?: PushData;
+  aps?: ApsExtras;
 };
 
 type ApnsConfig = {
@@ -84,6 +91,7 @@ function getApnsOrigin(environment: ApnsConfig["environment"]): string {
 export function buildApnsPayload(args: SendApnsNotificationArgs): string {
   const customData = { ...args.data };
   delete customData.aps;
+  const extras = args.aps ?? {};
 
   return JSON.stringify({
     ...customData,
@@ -93,6 +101,10 @@ export function buildApnsPayload(args: SendApnsNotificationArgs): string {
         body: args.body,
       },
       sound: "default",
+      "interruption-level": extras.interruptionLevel,
+      "thread-id": extras.threadId,
+      badge: extras.badge,
+      category: extras.category,
     },
   });
 }
@@ -199,6 +211,7 @@ export const sendApnsToDevice = internalAction({
     title: v.string(),
     body: v.string(),
     data: v.optional(v.any()),
+    aps: v.optional(apsExtrasValidator),
   },
   handler: async (_ctx, args) => {
     const data = isPushData(args.data) ? args.data : undefined;
@@ -209,6 +222,7 @@ export const sendApnsToDevice = internalAction({
         title: args.title,
         body: args.body,
         data,
+        aps: args.aps,
       });
 
       return {
