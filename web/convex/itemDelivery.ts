@@ -263,6 +263,7 @@ export const planDelivery = internalMutation({
         itemIds: [itemId],
       };
     }
+    // A reminder the owner set pushes even during maintenance; every other covered push waits.
     const held = await heldForMaintenance(ctx, item, now);
     if (held) return await skip("maintenance", held);
     if (item.urgency === "whenever") return await skip("whenever");

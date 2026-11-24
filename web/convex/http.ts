@@ -1508,9 +1508,12 @@ function codedErrorResponse(error: unknown) {
   return jsonError(known[1], known[0], { code });
 }
 
-// A trusted service (the CLI, Hermes) or the owner's app session, and who is acting.
-async function requireOwnerOrService(c: RouteContext): Promise<{ actor: string } | Response> {
-  const serviceTokens = [process.env.PUSH_API_BEARER_TOKEN, process.env.COWTAIL_WORKER_TOKEN];
+// A trusted service or the owner's app session, and who is acting. Reads take the CLI's and
+// Hermes's tokens; a write names the ones it takes.
+async function requireOwnerOrService(
+  c: RouteContext,
+  serviceTokens = [process.env.PUSH_API_BEARER_TOKEN, process.env.COWTAIL_WORKER_TOKEN],
+): Promise<{ actor: string } | Response> {
   if (isBearerTokenAuthorized(c.req.header("authorization"), serviceTokens)) {
     return { actor: "service" };
   }
@@ -1890,7 +1893,7 @@ app.get("/api/me/snooze-options", async (c) => {
 // POST /api/me/maintenance-windows — start a window now; its alerts are silenced in
 // Alertmanager, and a failed silence is recorded on the window rather than refused
 app.post("/api/me/maintenance-windows", async (c) => {
-  const caller = await requireOwnerOrService(c);
+  const caller = await requireOwnerOrService(c, [process.env.PUSH_API_BEARER_TOKEN]);
   if (caller instanceof Response) return caller;
 
   const parsed = maintenanceWindowStartRequestSchema.safeParse(
@@ -1932,7 +1935,7 @@ app.get("/api/me/maintenance-windows", async (c) => {
 // POST /api/me/maintenance-windows/:id/end — end a running window now and expire its
 // silences; a window already over is returned as it is
 app.post("/api/me/maintenance-windows/:id/end", async (c) => {
-  const caller = await requireOwnerOrService(c);
+  const caller = await requireOwnerOrService(c, [process.env.PUSH_API_BEARER_TOKEN]);
   if (caller instanceof Response) return caller;
 
   let ended: { window: { id: string }; silenceIds: string[] };

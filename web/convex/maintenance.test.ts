@@ -13,7 +13,11 @@ const ALERTMANAGER = "https://alertmanager.test";
 
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW });
-  stubEnv({ PUSH_API_BEARER_TOKEN: SERVICE, ALERTMANAGER_BASE_URL: ALERTMANAGER });
+  stubEnv({
+    PUSH_API_BEARER_TOKEN: SERVICE,
+    COWTAIL_WORKER_TOKEN: "worker-token",
+    ALERTMANAGER_BASE_URL: ALERTMANAGER,
+  });
 });
 
 afterEach(() => {
@@ -53,6 +57,17 @@ async function start(t: Backend, body: Record<string, unknown>) {
   expect(response.status).toBe(200);
   return maintenanceWindowResponseSchema.parse(response.json).window;
 }
+
+test("Hermes's worker token cannot start a window", async () => {
+  const calls = fakeAlertmanager();
+  const response = await request(newBackend(), "/api/me/maintenance-windows", {
+    method: "POST",
+    bearer: "worker-token",
+    body: { title: "Cluster upgrade", durationMs: HOUR },
+  });
+
+  expect([response.status, calls]).toEqual([401, []]);
+});
 
 describe("maintenance window silences", () => {
   test("starting a window silences its matchers in Alertmanager for its time", async () => {
