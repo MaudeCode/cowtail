@@ -17,8 +17,8 @@
     "test:ios:unit": "cd ios && scripts/test.sh CowtailTests",
     "lint:ts": "oxlint web cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release",
     "lint:ts:fix": "oxlint --fix web cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release",
-    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release",
-    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release"
+    "fmt:ts": "oxfmt --write web/src web/convex web/vite.config.ts web/vitest.config.ts web/test web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release",
+    "fmt:ts:check": "oxfmt --check web/src web/convex web/vite.config.ts web/vitest.config.ts web/test web/apple-app-site-association.test.ts web/scripts cli/src cli/tests cli/scripts protocol/src protocol/scripts script/codex script/release"
   },
   "devDependencies": {
     "oxfmt": "^0.79.0",
