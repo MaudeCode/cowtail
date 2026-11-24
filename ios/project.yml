@@ -23,10 +23,10 @@ configs:
 packages:
   SwiftOpenAPIRuntime:
     url: https://github.com/apple/swift-openapi-runtime
-    from: 1.9.0
+    exactVersion: 1.13.4
   SwiftOpenAPIURLSession:
     url: https://github.com/apple/swift-openapi-urlsession
-    from: 1.1.0
+    exactVersion: 1.4.0
 targets:
   Cowtail:
     type: application
