@@ -1,3 +1,5 @@
+import type { Doc } from "./_generated/dataModel";
+
 export type AlertDisposition = {
   outcome: string;
   action: string;
@@ -62,4 +64,16 @@ export function resolveAlertLifecyclePatch(
 
 export function preservesInvestigationOutcome(outcome: string): boolean {
   return !nonTerminalOutcomes.has(outcome);
+}
+
+export function newestInvestigationJob(
+  jobs: Doc<"investigationJobs">[],
+): Doc<"investigationJobs"> | undefined {
+  return jobs.reduce<Doc<"investigationJobs"> | undefined>((current, job) => {
+    if (!current || job.updatedAt > current.updatedAt) return job;
+    if (job.updatedAt < current.updatedAt) return current;
+    if (job._creationTime > current._creationTime) return job;
+    if (job._creationTime < current._creationTime) return current;
+    return String(job._id) > String(current._id) ? job : current;
+  }, undefined);
 }

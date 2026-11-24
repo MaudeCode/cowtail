@@ -2,6 +2,8 @@ import { internalMutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import { patchAlert } from "./alerts";
+import { recordAlertDispatch } from "./items";
 
 async function investigationMemberIds(ctx: MutationCtx, job: Doc<"investigationJobs">) {
   const sourceEvent = await ctx.db.get(job.sourceEventId);
@@ -75,7 +77,7 @@ export const createOrCoalesceForAlert = internalMutation({
       return queued._id;
     }
 
-    return await ctx.db.insert("investigationJobs", {
+    const jobId = await ctx.db.insert("investigationJobs", {
       alertId: args.alertId,
       sourceEventId: args.sourceEventId,
       fingerprint: args.fingerprint,
@@ -89,6 +91,8 @@ export const createOrCoalesceForAlert = internalMutation({
       createdAt: args.now,
       updatedAt: args.now,
     });
+    await recordAlertDispatch(ctx, args.alertId, jobId, args.now);
+    return jobId;
   },
 });
 
@@ -215,13 +219,18 @@ export const completeBatch = internalMutation({
     for (const result of args.results) {
       const alert = byId.get(String(result.alertId))!;
       if (alert.ownerDisposition) continue;
-      await ctx.db.patch(result.alertId, {
-        outcome: result.outcome,
-        summary: result.summary,
-        action: result.action,
-        rootCause: result.rootCause,
-        messaged: result.messaged,
-      });
+      await patchAlert(
+        ctx,
+        result.alertId,
+        {
+          outcome: result.outcome,
+          summary: result.summary,
+          action: result.action,
+          rootCause: result.rootCause,
+          messaged: result.messaged,
+        },
+        { actor: "hermes", now: args.now },
+      );
     }
 
     await ctx.db.patch(args.id, {

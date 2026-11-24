@@ -626,6 +626,113 @@ describe("built binary user device commands", () => {
   });
 });
 
+describe("built binary item commands", () => {
+  test("notify creates an item that items list then shows", async () => {
+    // A stand-in for the Cowtail API: POST /api/items stores, GET /api/items lists.
+    const items: Record<string, unknown>[] = [];
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url}`);
+      const reply = (status: number, body: unknown) => {
+        response.writeHead(status, { "content-type": "application/json" });
+        response.end(JSON.stringify(body));
+      };
+      if (request.headers.authorization !== "Bearer secret-token") {
+        reply(401, { ok: false, error: "Unauthorized" });
+        return;
+      }
+      if (request.method === "GET" && request.url === "/actions/api/items?needsOwner=false") {
+        reply(200, { ok: true, count: items.length, items });
+        return;
+      }
+      if (request.method !== "POST" || request.url !== "/actions/api/items") {
+        reply(404, { ok: false, error: "Not found" });
+        return;
+      }
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        const created = JSON.parse(body);
+        items.push({
+          ...created,
+          id: "item-1",
+          state: "open",
+          needsOwner: false,
+          body: created.body ?? "",
+          links: created.links ?? [],
+          context: created.context ?? {},
+          occurrenceCount: 1,
+          actions: [],
+          createdAt: 1_780_000_000_000,
+          updatedAt: 1_780_000_000_000,
+        });
+        reply(200, { ok: true, id: "item-1", created: true, occurrenceCount: 1 });
+      });
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+      const env = { env: { COWTAIL_CONFIG_PATH: configPath } };
+
+      const notify = await runCliBinaryAsync(
+        binaryPath,
+        [
+          "notify",
+          "--title",
+          "Weekly report ready",
+          "--kind",
+          "fyi",
+          "--urgency",
+          "whenever",
+          "--link",
+          "Report=https://reports.example.test/weekly",
+          "--context",
+          "week=47",
+        ],
+        env,
+      );
+      const list = await runCliBinaryAsync(binaryPath, ["items", "list", "--no-needs-owner"], env);
+
+      expect(notify).toMatchObject({ status: 0, stderr: "", stdout: "Created item item-1\n" });
+      expect(items).toMatchObject([
+        {
+          source: "manual",
+          kind: "fyi",
+          urgency: "whenever",
+          title: "Weekly report ready",
+          links: [{ label: "Report", url: "https://reports.example.test/weekly" }],
+          context: { week: "47" },
+        },
+      ]);
+      expect(list.status).toBe(0);
+      expect(list.stderr).toBe("");
+      expect(list.stdout).toBe(
+        "item-1  2026-05-28T20:26:40.000Z  manual/fyi/whenever  open  Weekly report ready\n",
+      );
+      expect(requests).toEqual([
+        "POST /actions/api/items",
+        "GET /actions/api/items?needsOwner=false",
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
+
 describe("built binary validation and updater behavior", () => {
   test("missing required args produce JSON errors on stderr", () => {
     const result = runCliBinary(binaryPath, ["alert", "show", "--json"]);

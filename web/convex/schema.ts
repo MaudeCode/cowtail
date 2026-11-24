@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { openclawEventTypes } from "@maudecode/cowtail-protocol";
 
+import { itemEventTypeValidator, itemFields } from "./itemValidators";
 import { openclawToolCallsValidator } from "./openclawValidators";
 
 export default defineSchema({
@@ -46,6 +47,21 @@ export default defineSchema({
     .index("by_fingerprint_status", ["alertmanagerFingerprint", "status"])
     .index("by_sourceEventId", ["sourceEventId"])
     .index("by_status_timestamp", ["status", "timestamp"]),
+
+  items: defineTable(itemFields)
+    .index("by_state_updatedAt", ["state", "updatedAt"])
+    .index("by_dedupeKey", ["dedupeKey"])
+    .index("by_source_createdAt", ["source", "createdAt"])
+    .index("by_alertId", ["alertId"])
+    .index("by_createdAt", ["createdAt"]),
+
+  itemEvents: defineTable({
+    itemId: v.id("items"),
+    at: v.number(),
+    type: itemEventTypeValidator,
+    actor: v.string(),
+    payload: v.record(v.string(), v.any()),
+  }).index("by_item_at", ["itemId", "at"]),
 
   alertmanagerEvents: defineTable({
     receivedAt: v.number(),

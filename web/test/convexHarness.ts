@@ -8,6 +8,7 @@ import { vi } from "vitest";
 import crons from "../convex/crons";
 import schema from "../convex/schema";
 import { internal } from "../convex/_generated/api";
+import type { Doc, Id } from "../convex/_generated/dataModel";
 
 const modules = import.meta.glob("../convex/**/*.ts");
 
@@ -50,7 +51,13 @@ export async function request(
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return { status: response.status, json: await response.json() };
+  // Convex answers an unhandled error with plain text; keep it so the status assertion fails.
+  const text = await response.text();
+  try {
+    return { status: response.status, json: JSON.parse(text) };
+  } catch {
+    return { status: response.status, json: text };
+  }
 }
 
 type CronSpec = {
@@ -98,4 +105,81 @@ export async function advance(t: Backend, ms: number) {
   }
   vi.advanceTimersByTime(end - Date.now());
   await t.finishInProgressScheduledFunctions();
+}
+
+type Fields<T extends keyof typeof schema.tables> = Omit<Doc<T>, "_id" | "_creationTime">;
+
+export function alertFields(overrides: Partial<Fields<"alerts">> = {}): Fields<"alerts"> {
+  return {
+    timestamp: 50,
+    alertname: "TestAlert",
+    severity: "warning",
+    namespace: "test",
+    status: "firing",
+    outcome: "pending",
+    summary: "Original summary",
+    action: "Original action",
+    messaged: false,
+    ...overrides,
+  };
+}
+
+// Writes rows straight to the tables, as data already stored before the code under test runs.
+export async function seedInvestigation(
+  t: Backend,
+  {
+    alerts = [{}],
+    job = {},
+  }: { alerts?: Partial<Fields<"alerts">>[]; job?: Partial<Fields<"investigationJobs">> } = {},
+) {
+  return await t.run(async (ctx) => {
+    const eventId = await ctx.db.insert("alertmanagerEvents", {
+      receivedAt: 40,
+      source: "alertmanager",
+      status: "firing",
+      groupLabels: {},
+      commonLabels: {},
+      commonAnnotations: {},
+      rawPayload: {},
+      payloadHash: "hash",
+      createdAlertIds: [],
+      createdJobIds: [],
+      ingestStatus: "normalized",
+    });
+    const alertIds: Id<"alerts">[] = [];
+    for (const overrides of alerts) {
+      alertIds.push(
+        await ctx.db.insert("alerts", alertFields({ sourceEventId: eventId, ...overrides })),
+      );
+    }
+    await ctx.db.patch(eventId, { createdAlertIds: alertIds, investigationAlertIds: alertIds });
+    const jobId = await ctx.db.insert("investigationJobs", {
+      alertId: alertIds[0],
+      sourceEventId: eventId,
+      fingerprint: "fingerprint-1",
+      dedupeKey: "dedupe-1",
+      status: "claimed",
+      priority: "normal",
+      claimToken: "claim-1",
+      claimedBy: "test-worker",
+      claimedAt: 100,
+      leaseUntil: 1000,
+      attempts: 2,
+      maxAttempts: 5,
+      nextAttemptAt: 90,
+      errorHistory: [],
+      createdAt: 50,
+      updatedAt: 100,
+      ...job,
+    });
+    return { eventId, alertIds, jobId };
+  });
+}
+
+export async function rows<T extends keyof typeof schema.tables>(t: Backend, table: T) {
+  return (await t.run((ctx) => ctx.db.query(table).collect())) as Doc<T>[];
+}
+
+export async function row<T extends keyof typeof schema.tables>(t: Backend, id: Id<T>) {
+  return (await t.run((ctx) => ctx.db.get(id))) as Doc<T> | null;
 }

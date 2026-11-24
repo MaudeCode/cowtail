@@ -1,136 +1,99 @@
 import { describe, expect, test } from "vitest";
 
-import { applyOwnerAction } from "./alerts";
+import { internal } from "./_generated/api";
+import {
+  type Backend,
+  newBackend,
+  row as get,
+  rows,
+  seedInvestigation,
+} from "../test/convexHarness";
 
-function createContext(options?: { delivery?: Record<string, unknown> }) {
-  const alert: Record<string, unknown> = {
-    _id: "alert-1",
-    outcome: "pending",
-    action: "",
-  };
-  const sibling: Record<string, unknown> = {
-    _id: "alert-2",
-    outcome: "pending",
-    action: "",
-  };
-  const sourceEvent: Record<string, unknown> = {
-    _id: "event-1",
-    investigationAlertIds: ["alert-1", "alert-2"],
-  };
-  const job: Record<string, unknown> = {
-    _id: "job-1",
-    alertId: "alert-1",
-    sourceEventId: "event-1",
-    status: "claimed",
-    attempts: 2,
-    claimedBy: "worker-1",
-    claimToken: "secret-token",
-    claimedAt: 100,
-    leaseUntil: 200,
-    updatedAt: 100,
-  };
-  const deliveries: Record<string, unknown>[] = options?.delivery ? [options.delivery] : [];
-
-  const ctx = {
-    db: {
-      get: async (id: string) => {
-        if (id === "alert-1") return alert;
-        if (id === "alert-2") return sibling;
-        if (id === "event-1") return sourceEvent;
-        if (id === "job-1") return job;
-        return null;
-      },
-      patch: async (id: string, patch: Record<string, unknown>) => {
-        if (id === "alert-1") Object.assign(alert, patch);
-        else if (id === "alert-2") Object.assign(sibling, patch);
-        else if (id === "job-1") Object.assign(job, patch);
-        else {
-          const delivery = deliveries.find((candidate) => candidate._id === id);
-          if (delivery) Object.assign(delivery, patch);
-        }
-      },
-      insert: async (_table: string, value: Record<string, unknown>) => {
-        const id = `delivery-${deliveries.length + 1}`;
-        deliveries.push({ _id: id, ...value });
-        return id;
-      },
-      query: (table: string) => ({
-        withIndex: (_index: string, _apply: unknown) => ({
-          collect: async () => (table === "investigationJobs" ? [job] : []),
-          first: async () => (table === "jobDeliveries" ? (deliveries[0] ?? null) : null),
-        }),
-      }),
-    },
-  };
-
-  return { ctx, alert, sibling, job, deliveries };
+async function createContext(t: Backend) {
+  const { alertIds, jobId } = await seedInvestigation(t, {
+    alerts: [{ action: "" }, { action: "" }],
+    job: { claimToken: "secret-token", claimedBy: "worker-1", leaseUntil: 200 },
+  });
+  return { alertId: alertIds[0], siblingId: alertIds[1], jobId };
 }
 
 describe("atomic owner alert actions", () => {
   test("classifies the alert and invalidates an active worker claim together", async () => {
-    const { ctx, alert, sibling, job } = createContext();
+    const t = newBackend();
+    const { alertId, siblingId, jobId } = await createContext(t);
 
-    const result = await (applyOwnerAction as any)._handler(ctx, {
-      id: "alert-1",
+    const result = await t.mutation(internal.alerts.applyOwnerAction, {
+      id: alertId,
       action: "mark-noise",
       note: "Expected maintenance",
       now: 300,
     });
 
     expect(result).toEqual({ ok: true, status: "done" });
-    expect(alert).toMatchObject({
+    expect(await get(t, alertId)).toMatchObject({
       outcome: "noise",
       ownerDisposition: "noise",
       ownerNote: "Expected maintenance",
       ownerUpdatedAt: 300,
       action: "Marked as noise.",
     });
-    expect(sibling).toMatchObject({
+    expect(await get(t, siblingId)).toMatchObject({
       outcome: "noise",
       ownerDisposition: "noise",
       ownerNote: "Expected maintenance",
       action: "Marked as noise.",
     });
+    const job = await get(t, jobId);
     expect(job).toMatchObject({ status: "done", completedAt: 300, updatedAt: 300 });
-    expect(job.claimedBy).toBeUndefined();
-    expect(job.claimToken).toBeUndefined();
+    expect(job?.claimedBy).toBeUndefined();
+    expect(job?.claimToken).toBeUndefined();
   });
 
   test("requeues the job and its delivery in the same mutation", async () => {
-    const delivery = {
-      _id: "delivery-1",
-      jobId: "job-1",
-      status: "failed",
-      attempts: 3,
-    };
-    const { ctx, alert, job, deliveries } = createContext({ delivery });
-    job.status = "deadletter";
-    alert.ownerDisposition = "escalated";
+    const t = newBackend();
+    const { alertId, jobId } = await createContext(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(jobId, { status: "deadletter" });
+      await ctx.db.patch(alertId, { ownerDisposition: "escalated" });
+      await ctx.db.insert("jobDeliveries", {
+        jobId,
+        target: "hermes:cowtail-alert-job",
+        status: "failed",
+        attempts: 3,
+        nextAttemptAt: 100,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+    });
 
-    const result = await (applyOwnerAction as any)._handler(ctx, {
-      id: "alert-1",
+    const result = await t.mutation(internal.alerts.applyOwnerAction, {
+      id: alertId,
       action: "retry-investigation",
       now: 400,
     });
 
     expect(result).toEqual({ ok: true, status: "queued" });
+    const alert = await get(t, alertId);
     expect(alert).toMatchObject({ outcome: "pending" });
-    expect(alert.ownerDisposition).toBeUndefined();
-    expect(job).toMatchObject({
+    expect(alert?.ownerDisposition).toBeUndefined();
+    expect(await get(t, jobId)).toMatchObject({
       status: "queued",
       attempts: 0,
       nextAttemptAt: 400,
       errorHistory: [],
     });
-    expect(deliveries[0]).toMatchObject({ status: "pending", attempts: 0, nextAttemptAt: 400 });
+    expect(await rows(t, "jobDeliveries")).toMatchObject([
+      { status: "pending", attempts: 0, nextAttemptAt: 400 },
+    ]);
   });
 
   test("rejects a retry if a worker won the claim race", async () => {
-    const { ctx } = createContext();
+    const t = newBackend();
+    const { alertId } = await createContext(t);
 
     await expect(
-      (applyOwnerAction as any)._handler(ctx, {
-        id: "alert-1",
+      t.mutation(internal.alerts.applyOwnerAction, {
+        id: alertId,
         action: "retry-investigation",
         now: 400,
       }),

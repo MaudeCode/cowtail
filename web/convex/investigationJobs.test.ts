@@ -1,6 +1,25 @@
+import { makeFunctionReference } from "convex/server";
 import { describe, expect, test } from "vitest";
 
-import { completeBatch, createOrCoalesceForAlert, fail, requeue } from "./investigationJobs";
+import type { Id } from "./_generated/dataModel";
+import { fail, requeue, completeBatch as completeBatchMutation } from "./investigationJobs";
+import { newBackend, row, seedInvestigation } from "../test/convexHarness";
+
+// The generated api predates this module; Convex resolves it by name.
+const createOrCoalesceForAlert = makeFunctionReference<
+  "mutation",
+  {
+    alertId: Id<"alerts">;
+    sourceEventId: Id<"alertmanagerEvents">;
+    fingerprint: string;
+    dedupeKey: string;
+    alertStatus: string;
+    severity: string;
+    now: number;
+  },
+  Id<"investigationJobs"> | null
+>("investigationJobs:createOrCoalesceForAlert");
+const completeBatch = makeFunctionReference<"mutation">("investigationJobs:completeBatch");
 
 function handler(fn: unknown) {
   return (fn as { _handler: (ctx: unknown, args: unknown) => Promise<unknown> })._handler;
@@ -8,29 +27,27 @@ function handler(fn: unknown) {
 
 describe("durable investigation job transitions", () => {
   test("does not mutate a claimed batch snapshot when a new event arrives", async () => {
-    const job: Record<string, unknown> = {
-      _id: "job-1",
-      alertId: "alert-1",
-      sourceEventId: "event-1",
-      status: "claimed",
-    };
-    const ctx = {
-      db: {
-        query: () => ({
-          withIndex: (_index: string, apply: (query: unknown) => void) => {
-            const query = { eq: () => query };
-            apply(query);
-            return { collect: async () => [job] };
-          },
-        }),
-        patch: async (_id: string, patch: Record<string, unknown>) => Object.assign(job, patch),
-        insert: async () => "job-2",
-      },
-    };
+    const t = newBackend();
+    const { alertIds, eventId, jobId } = await seedInvestigation(t);
+    const laterEventId = await t.run((ctx) =>
+      ctx.db.insert("alertmanagerEvents", {
+        receivedAt: 200,
+        source: "alertmanager",
+        status: "firing",
+        groupLabels: {},
+        commonLabels: {},
+        commonAnnotations: {},
+        rawPayload: {},
+        payloadHash: "hash-2",
+        createdAlertIds: [],
+        createdJobIds: [],
+        ingestStatus: "normalized",
+      }),
+    );
 
-    const result = await handler(createOrCoalesceForAlert)(ctx, {
-      alertId: "alert-1",
-      sourceEventId: "event-2",
+    const result = await t.mutation(createOrCoalesceForAlert, {
+      alertId: alertIds[0],
+      sourceEventId: laterEventId,
       fingerprint: "fingerprint-1",
       dedupeKey: "dedupe-1",
       alertStatus: "firing",
@@ -38,8 +55,8 @@ describe("durable investigation job transitions", () => {
       now: 200,
     });
 
-    expect(result).toBe("job-2");
-    expect(job).toMatchObject({ sourceEventId: "event-1", status: "claimed" });
+    expect(result).not.toBe(jobId);
+    expect(await row(t, jobId)).toMatchObject({ sourceEventId: eventId, status: "claimed" });
   });
 
   test("rejects a late failure after an owner invalidated the claim", async () => {
@@ -101,48 +118,27 @@ describe("durable investigation job transitions", () => {
   });
 
   test("completes every resolved alert in a batch atomically", async () => {
-    const tables: Record<string, Record<string, any>> = {
-      "job-1": {
-        _id: "job-1",
-        alertId: "alert-1",
-        sourceEventId: "event-1",
-        status: "claimed",
-        claimToken: "claim-1",
-      },
-      "event-1": {
-        _id: "event-1",
-        investigationAlertIds: ["alert-1", "alert-2", "alert-3"],
-      },
-      "alert-1": { _id: "alert-1", sourceEventId: "event-1", status: "resolved" },
-      "alert-2": { _id: "alert-2", sourceEventId: "event-1", status: "resolved" },
-      "alert-3": { _id: "alert-3", sourceEventId: "event-1", status: "resolved" },
-    };
-    const ctx = {
-      db: {
-        get: async (id: string) => tables[id] ?? null,
-        patch: async (id: string, patch: Record<string, unknown>) =>
-          Object.assign(tables[id], patch),
-      },
-    };
-    const results = ["alert-1", "alert-2", "alert-3"].map((alertId) => ({
+    const t = newBackend();
+    const { alertIds, jobId } = await seedInvestigation(t, {
+      alerts: [{ status: "resolved" }, { status: "resolved" }, { status: "resolved" }],
+    });
+    const results = alertIds.map((alertId, index) => ({
       alertId,
       outcome: "recorded",
-      summary: `Handled ${alertId}`,
+      summary: `Handled alert-${index + 1}`,
       action: "Investigated as one incident batch",
       messaged: false,
     }));
 
-    await handler(completeBatch)(ctx, {
-      id: "job-1",
-      claimToken: "claim-1",
-      results,
-      now: 500,
-    });
+    await t.mutation(completeBatch, { id: jobId, claimToken: "claim-1", results, now: 500 });
 
-    expect(tables["job-1"]).toMatchObject({ status: "done", completedAt: 500 });
-    expect(tables["alert-1"]).toMatchObject({ outcome: "recorded", summary: "Handled alert-1" });
-    expect(tables["alert-2"]).toMatchObject({ outcome: "recorded", summary: "Handled alert-2" });
-    expect(tables["alert-3"]).toMatchObject({ outcome: "recorded", summary: "Handled alert-3" });
+    expect(await row(t, jobId)).toMatchObject({ status: "done", completedAt: 500 });
+    for (const [index, alertId] of alertIds.entries()) {
+      expect(await row(t, alertId)).toMatchObject({
+        outcome: "recorded",
+        summary: `Handled alert-${index + 1}`,
+      });
+    }
   });
 
   test("refuses to complete a batch with an unhandled sibling", async () => {
@@ -161,7 +157,7 @@ describe("durable investigation job transitions", () => {
     };
 
     await expect(
-      handler(completeBatch)(ctx, {
+      handler(completeBatchMutation)(ctx, {
         id: "job-1",
         claimToken: "claim-1",
         results: [
@@ -194,7 +190,7 @@ describe("durable investigation job transitions", () => {
     };
 
     await expect(
-      handler(completeBatch)(ctx, {
+      handler(completeBatchMutation)(ctx, {
         id: "job-1",
         claimToken: "claim-1",
         results: [
