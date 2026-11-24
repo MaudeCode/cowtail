@@ -197,15 +197,16 @@ export const itemListResponseSchema = z.object({
     .optional(),
 });
 
-// The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked
-// items that do not. Handled: items resolved in the last 24 hours. Each list is the most
-// recently updated first.
 // Every source with an item, in name order.
 export const itemSourcesResponseSchema = z.object({
   ok: z.literal(true),
   sources: z.array(nonEmptyStringSchema),
 });
 
+// The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked
+// items that do not. Handled: items resolved in the last 24 hours. Each list is the most
+// recently updated first. Each reads at most the 500 most recently updated items of its
+// states, and counts are of what it read.
 export const itemInboxHandledWindowMs = 24 * 60 * 60 * 1000;
 export const itemInboxResponseSchema = z.object({
   ok: z.literal(true),

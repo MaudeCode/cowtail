@@ -308,9 +308,16 @@ describe("owner actions", () => {
 
     // The item tells the app to ask for Face ID.
     expect((await getItem(t, id)).item.approvalNeedsAuth).toBe(true);
+    // An older app sends no flag; that is no Face ID too.
+    const unflagged = await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer,
+      body: { type: "approve" },
+    });
     const unprotected = await approve(false);
     const protectedApproval = await approve(true);
 
+    expect(unflagged).toMatchObject({ status: 403, json: { code: "APPROVAL_NEEDS_AUTH" } });
     expect(unprotected).toMatchObject({ status: 403, json: { code: "APPROVAL_NEEDS_AUTH" } });
     expect(protectedApproval.status).toBe(200);
     const { events } = await getItem(t, id);
@@ -464,6 +471,40 @@ describe("inbox", () => {
       [approval.id],
       [acked.id, working.id],
       [today.id],
+    ]);
+  });
+});
+
+describe("inbox bounds", () => {
+  test("a flood of items fills a section only up to the read limit, newest first", async () => {
+    const t = await newBackendWithSources("cron");
+    const bearer = await seedSession(t, OWNER);
+    await t.run(async (ctx) => {
+      for (let n = 0; n < 501; n += 1) {
+        await ctx.db.insert("items", {
+          source: "cron",
+          kind: "fyi",
+          urgency: "whenever",
+          state: "open",
+          title: `Flood ${n}`,
+          body: "",
+          links: [],
+          context: {},
+          occurrenceCount: 1,
+          actions: [],
+          createdAt: NOW + n,
+          updatedAt: NOW + n,
+        });
+      }
+    });
+
+    const response = await request(t, "/api/items/inbox", { bearer });
+
+    const inbox = itemInboxResponseSchema.parse(response.json);
+    expect(inbox.counts.withHermes).toBe(500);
+    expect([inbox.withHermes[0]?.title, inbox.withHermes.at(-1)?.title]).toEqual([
+      "Flood 500",
+      "Flood 1",
     ]);
   });
 });

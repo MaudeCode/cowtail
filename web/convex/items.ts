@@ -555,7 +555,8 @@ export const applyAction = internalMutation({
     requireOpenItem(item);
 
     // An answer sent without Face ID is refused while the owner requires it.
-    if (authenticated === false && (action.type === "approve" || action.type === "deny")) {
+    // An older app sends no flag at all; that counts as no Face ID too.
+    if (authenticated !== true && (action.type === "approve" || action.type === "deny")) {
       if (await approvalsNeedAuth(ctx)) throw new ConvexError({ code: "APPROVAL_NEEDS_AUTH" });
     }
 
@@ -738,7 +739,10 @@ export const sources = internalQuery({
   },
 });
 
-// ponytail: reads every open and acked item per call, like ownerBadgeCount.
+// Each state the inbox reads stops at this many items, so a producer that floods items
+// cannot make the owner's inbox fail.
+const INBOX_READ_LIMIT = 500;
+
 export const inbox = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
@@ -746,7 +750,8 @@ export const inbox = internalQuery({
       ctx.db
         .query("items")
         .withIndex("by_state_updatedAt", (q) => q.eq("state", state))
-        .collect();
+        .order("desc")
+        .take(INBOX_READ_LIMIT);
     const active = [...(await byState("open")), ...(await byState("acked"))].sort(
       (a, b) => b.updatedAt - a.updatedAt,
     );
@@ -763,7 +768,7 @@ export const inbox = internalQuery({
       .query("items")
       .withIndex("by_state_updatedAt", (q) => q.eq("state", "resolved").gte("updatedAt", since))
       .order("desc")
-      .collect();
+      .take(INBOX_READ_LIMIT);
     const handled: ItemRecord[] = [];
     for (const item of recent) {
       if (item.resolvedAt !== undefined && item.resolvedAt >= since) {
