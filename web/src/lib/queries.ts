@@ -64,11 +64,28 @@ export const providersQuery = queryOptions({
   staleTime: Infinity,
 });
 
+// A poll or refocus that reads the inbox while a snooze or unsnooze is on its way shows that
+// write still applied, so the item cannot jump back before the server answers.
 export const inboxQuery = queryOptions({
   queryKey: ["inbox"],
-  queryFn: () => api("/api/items/inbox", itemInboxResponseSchema),
+  queryFn: async ({ client }) =>
+    withPendingSnoozes(client, await api("/api/items/inbox", itemInboxResponseSchema)),
   refetchInterval: LIVE_REFRESH_MS,
 });
+
+type SnoozeAction = Extract<ItemActionRequest, { type: "snooze" | "unsnooze" }>;
+type PendingSnooze = { itemId: string; action: SnoozeAction };
+
+// Snoozes and unsnoozes sent and not yet answered, per query client, oldest first.
+const pendingSnoozes = new WeakMap<QueryClient, Set<PendingSnooze>>();
+
+function withPendingSnoozes(client: QueryClient, inbox: ItemInboxResponse) {
+  let shown = inbox;
+  for (const { itemId, action } of pendingSnoozes.get(client) ?? []) {
+    shown = showSnoozeInInbox(shown, itemId, action) ?? shown;
+  }
+  return shown;
+}
 
 export const healthQuery = queryOptions({
   queryKey: ["health"],
@@ -183,7 +200,7 @@ function sectionsWithout(inbox: ItemInboxResponse, itemId: string): Sections {
 export function showSnoozeInInbox(
   inbox: ItemInboxResponse,
   itemId: string,
-  action: Extract<ItemActionRequest, { type: "snooze" | "unsnooze" }>,
+  action: SnoozeAction,
 ): ItemInboxResponse | undefined {
   const item = inboxSections
     .flatMap((section) => inbox[section] ?? [])
@@ -261,13 +278,20 @@ export function useItemAction(itemId: string) {
     onMutate: async (action) => {
       startWrite(client, "itemAction");
       if (action.type !== "snooze" && action.type !== "unsnooze") return undefined;
+      const pending = { itemId, action };
+      const sent = pendingSnoozes.get(client) ?? new Set<PendingSnooze>();
+      pendingSnoozes.set(client, sent.add(pending));
       await client.cancelQueries({ queryKey: inboxQuery.queryKey });
       const before = client.getQueryData(inboxQuery.queryKey);
       const shown = before && showSnoozeInInbox(before, itemId, action);
       if (shown) client.setQueryData(inboxQuery.queryKey, shown);
-      return { before };
+      return { before, pending };
+    },
+    onSuccess: (_reply, _action, context) => {
+      if (context?.pending) pendingSnoozes.get(client)?.delete(context.pending);
     },
     onError: (error, _action, context) => {
+      if (context?.pending) pendingSnoozes.get(client)?.delete(context.pending);
       const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
       const before = context?.before;
       if (refused && before) {

@@ -1,3 +1,4 @@
+import type { ItemInboxResponse } from "@maudecode/cowtail-protocol";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
@@ -421,6 +422,21 @@ describe("Upcoming on Home", () => {
 
     expect(within(section(/Needs you/)).getByText("CephOSDNearFull")).toBeInTheDocument();
     expect(within(section(/Upcoming/)).queryByText("CephOSDNearFull")).not.toBeInTheDocument();
+  });
+
+  test("an inbox reread while the unsnooze is on its way keeps the item where it moved", async () => {
+    stubApi({ ...routes(), "POST /actions/api/me/items/snoozed-1/actions": new Promise(() => {}) });
+    const { queryClient } = renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unsnooze" }));
+    await queryClient.refetchQueries({ queryKey: ["inbox"] });
+
+    // The reread inbox is what the page renders next.
+    const shown = queryClient.getQueryData<ItemInboxResponse>(["inbox"])!;
+    expect([shown.needsYou, shown.upcoming].map((list) => list?.map((entry) => entry.id))).toEqual([
+      ["snoozed-1"],
+      [],
+    ]);
   });
 
   test("a refused unsnooze puts the item back in Upcoming and says why", async () => {
