@@ -490,6 +490,23 @@ const incidentPath = (id: string) => encodeURIComponent(id);
 // their way applied, so a poll cannot undo one before the server answers.
 const pendingIncidentChanges = new WeakMap<QueryClient, Map<string, IncidentChange[]>>();
 const confirmedIncidents = new WeakMap<QueryClient, Map<string, IncidentGetResponse>>();
+// Changes whose reply was lost: they stay shown until a read from the server says whether they
+// landed.
+const unconfirmedIncidentChanges = new WeakMap<QueryClient, Set<IncidentChange>>();
+
+function unconfirmedChanges(client: QueryClient) {
+  const unconfirmed = unconfirmedIncidentChanges.get(client) ?? new Set<IncidentChange>();
+  unconfirmedIncidentChanges.set(client, unconfirmed);
+  return unconfirmed;
+}
+
+// A read from the server settles every change whose reply was lost.
+function settleUnconfirmed(client: QueryClient, id: string) {
+  const pending = pendingChanges(client, id);
+  const unconfirmed = unconfirmedChanges(client);
+  const kept = pending.filter((change) => !unconfirmed.delete(change));
+  pending.splice(0, pending.length, ...kept);
+}
 
 function pendingChanges(client: QueryClient, id: string) {
   const byIncident = pendingIncidentChanges.get(client) ?? new Map<string, IncidentChange[]>();
@@ -513,12 +530,11 @@ function confirmIncident(client: QueryClient, id: string, detail: IncidentGetRes
 export const incidentQuery = (id: string) =>
   queryOptions({
     queryKey: ["incident", id],
-    queryFn: async ({ client }) =>
-      confirmIncident(
-        client,
-        id,
-        await api(`/api/incidents/${incidentPath(id)}`, incidentGetResponseSchema),
-      ),
+    queryFn: async ({ client }) => {
+      const detail = await api(`/api/incidents/${incidentPath(id)}`, incidentGetResponseSchema);
+      settleUnconfirmed(client, id);
+      return confirmIncident(client, id, detail);
+    },
     refetchInterval: LIVE_REFRESH_MS,
   });
 
@@ -585,8 +601,8 @@ export function showIncidentChange(
 }
 
 // The owner changes an incident. Removing, resolving and asking again show at once and stay
-// shown through rereads; a refusal puts back what the server last confirmed, and any other
-// failure rereads what it kept.
+// shown through rereads; a refusal puts back what the server last confirmed. A change whose
+// reply was lost stays shown until a read from the server says whether it landed.
 // Changes to one incident go one at a time, so an older reply never lands after a newer one.
 export function useIncidentChange(id: string) {
   const client = useQueryClient();
@@ -612,12 +628,15 @@ export function useIncidentChange(id: string) {
       client.setQueryData(queryKey, confirmIncident(client, id, reply));
     },
     onError: (error, change) => {
-      settle(change);
       const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
-      const confirmed = confirmedIncidents.get(client)?.get(id);
-      if (refused && confirmed) {
-        client.setQueryData(queryKey, withPendingChanges(client, id, confirmed));
+      if (!refused) {
+        // It may or may not have landed: it stays shown until a read says which.
+        unconfirmedChanges(client).add(change);
+        return;
       }
+      settle(change);
+      const confirmed = confirmedIncidents.get(client)?.get(id);
+      if (confirmed) client.setQueryData(queryKey, withPendingChanges(client, id, confirmed));
     },
     onSettled: () =>
       Promise.all(

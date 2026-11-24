@@ -1410,6 +1410,32 @@ describe("incidents", () => {
     expect(await screen.findByRole("link", { name: "CephHealthErr" })).toBeInTheDocument();
   });
 
+  test("a later refusal keeps a removal whose reply was lost until a read settles it", async () => {
+    const routes: Record<string, unknown> = signedIn({
+      [INCIDENT]: incidentDetail(),
+      "DELETE /actions/api/me/incidents/incident-1/items/item-2": {
+        status: 502,
+        body: { ok: false, error: "Bad gateway" },
+      },
+      "POST /actions/api/me/incidents/incident-1/postmortem": {
+        status: 409,
+        body: { ok: false, error: "A postmortem is already on its way" },
+      },
+    });
+    stubApi(routes);
+    renderApp("/incidents/incident-1");
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    routes[INCIDENT] = { status: 503, body: { ok: false, error: "Unavailable" } };
+    await userEvent.click(first);
+    await screen.findByText("Bad gateway");
+
+    await userEvent.click(screen.getByRole("button", { name: "Request postmortem again" }));
+    await screen.findByText("A postmortem is already on its way");
+
+    // No read has said whether the removal landed, so it stays shown.
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+  });
+
   test("a refused removal puts the member back and says why", async () => {
     stubApi(
       signedIn({
