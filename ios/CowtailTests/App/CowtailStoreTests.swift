@@ -227,6 +227,38 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.historyItems.count, 120)
     }
 
+    func testTwoLoadMoreTriggersReadTheNextPageOnce() async {
+        let item = { (id: String) in
+            Item(id: id, source: "cron", kind: .fyi, urgency: .today, title: id, createdAt: .now, createdDate: "2026-11-24")
+        }
+        let api = FakeItemAPI(
+            inbox: .empty,
+            pagesByCursor: [
+                "": ItemPage(items: [item("first")], nextCursor: "page-2"),
+                "page-2": ItemPage(items: [item("second")], nextCursor: nil),
+            ]
+        )
+        // A session refresh suspends, as a real one does, so both triggers start before either reads.
+        let store = CowtailStore(
+            api: api,
+            sessionToken: {
+                await Task.yield()
+                return "session-token"
+            },
+            authenticator: FakeAuthenticator(allows: true),
+            requiresApprovalAuthentication: { false }
+        )
+        await store.loadHistory(HistoryFilter())
+
+        async let one: Void = store.loadMoreHistory()
+        async let two: Void = store.loadMoreHistory()
+        _ = await (one, two)
+
+        let cursors = await api.listQueries.map(\.cursor)
+        XCTAssertEqual(cursors, [nil, "page-2"])
+        XCTAssertEqual(store.historyItems.map(\.id), ["first", "second"])
+    }
+
     func testRefreshRetriesHealthAfterTransientFailure() async {
         let api = FakeItemAPI(inbox: .empty, failingHealthRequests: 1)
         let store = store(api: api)

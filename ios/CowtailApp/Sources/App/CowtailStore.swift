@@ -408,12 +408,13 @@ final class CowtailStore: ObservableObject {
     var hasMoreHistory: Bool { historyCursor != nil }
 
     func loadMoreHistory() async {
-        guard let cursor = historyCursor, !isLoadingHistory, let token = await sessionToken() else { return }
-        let filter = historyFilter
-        guard var query = historyQuery else { return }
-        query.cursor = cursor
+        // Reserved before the first suspension, so two triggers never read the same page twice.
+        guard let cursor = historyCursor, var query = historyQuery, !isLoadingHistory else { return }
         isLoadingHistory = true
         defer { isLoadingHistory = false }
+        guard let token = await sessionToken() else { return }
+        let filter = historyFilter
+        query.cursor = cursor
         do {
             let page = try await fetchHistoryPage(query, sessionToken: token)
             guard filter == historyFilter else { return }
