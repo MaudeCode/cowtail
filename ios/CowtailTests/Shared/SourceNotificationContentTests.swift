@@ -38,7 +38,19 @@ final class SourceNotificationContentTests: XCTestCase {
         // INImage compares by its data.
         XCTAssertEqual(sender.image, INImage(imageData: loaded))
         XCTAssertEqual(intent.conversationIdentifier, "deploy:web")
-        XCTAssertEqual(intent.content, "Rolled back to v1.8.1")
+        XCTAssertEqual(intent.content, "web v1.8.2 failed its health check\nRolled back to v1.8.1")
+    }
+
+    func testTheMessageKeepsTheItemTitleAboveItsBody() async {
+        let original = push(source: deployer)
+        let delivered = await SourceNotificationContent.content(
+            for: original,
+            loadIcon: { _ in Data() },
+            donate: { _ in }
+        )
+        // The update replaces the title with the sender's name, so the item's title moves into the text.
+        XCTAssertFalse(delivered === original, "The push becomes a message from its source")
+        XCTAssertEqual(delivered.body, "web v1.8.2 failed its health check\nRolled back to v1.8.1")
     }
 
     func testAPushWithoutASourceIsDeliveredAsSent() async {

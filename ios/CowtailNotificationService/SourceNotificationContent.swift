@@ -21,15 +21,24 @@ enum SourceNotificationContent {
         loadIcon: IconLoader,
         donate: Donor
     ) async -> UNNotificationContent {
-        guard let intent = await intent(for: content, loadIcon: loadIcon) else { return content }
+        guard let intent = await intent(for: content, loadIcon: loadIcon),
+              let message = content.mutableCopy() as? UNMutableNotificationContent
+        else { return content }
+        // The update replaces the title with the sender's name, so the item's title leads the text.
+        message.body = text(of: content)
         let interaction = INInteraction(intent: intent, response: nil)
         interaction.direction = .incoming
         do {
             try await donate(interaction)
-            return try content.updating(from: intent)
+            return try message.updating(from: intent)
         } catch {
             return content
         }
+    }
+
+    /// The item's title above its body: what the message shows under the sender's name.
+    static func text(of content: UNNotificationContent) -> String {
+        [content.title, content.body].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     /// The push's `source`, as the server's `sourceInfo` sends it.
@@ -77,7 +86,7 @@ enum SourceNotificationContent {
         let intent = INSendMessageIntent(
             recipients: nil,
             outgoingMessageType: .outgoingMessageText,
-            content: content.body,
+            content: text(of: content),
             speakableGroupName: nil,
             conversationIdentifier: content.threadIdentifier.isEmpty ? nil : content.threadIdentifier,
             serviceName: nil,
