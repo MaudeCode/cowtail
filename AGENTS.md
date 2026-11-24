@@ -74,6 +74,14 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - Example app/Convex env values live in [`web/.env.example`](./web/.env.example).
 - Example container runtime env values live in [`web/.env.container.example`](./web/.env.container.example).
 
+## Pre-push hook
+
+- Run `script/install-git-hooks` once per clone. It sets `core.hooksPath` to `.githooks`, which linked worktrees share.
+- [`.githooks/pre-push`](./.githooks/pre-push) runs the `prePush` commands of the suites in [`.github/ci-suites.json`](./.github/ci-suites.json) that the push's change from `main` reaches: format, lint and typecheck, no tests. A failing command rejects the push with its output.
+- Fix the failure and push again. Never bypass the hook with `--no-verify`.
+- A fresh worktree needs `pnpm install --frozen-lockfile` at the root before its first push, because the hook runs through the `@maudecode/ci` dev dependency.
+- `swiftlint` and `swiftformat` run only where they are installed; elsewhere the hook prints a one-line notice and skips them, and CI still runs both.
+
 ## Chat Verification
 
 Use these checks when changing shared chat, push, protocol, or iOS surfaces:

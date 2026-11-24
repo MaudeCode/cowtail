@@ -1,9 +1,14 @@
 {
   "suites": {
-    "global": {},
-    "web": {},
-    "cli": {},
-    "ios": {},
+    "global": { "prePush": ["pnpm run fmt:ts:check", "pnpm run lint:ts", "pnpm run check:protocol"] },
+    "web": { "prePush": ["cd web && pnpm exec tsc -b", "cd web && pnpm exec tsc -p convex/tsconfig.json --noEmit"] },
+    "cli": { "prePush": ["pnpm run check:cli"] },
+    "ios": {
+      "prePush": [
+        "cd ios && ../script/ci/if-installed swiftlint lint --strict",
+        "cd ios && ../script/ci/if-installed swiftformat --lint ."
+      ]
+    },
     "docker": {},
     "plugin": {}
   },

@@ -1,0 +1,11 @@
+#!/bin/sh
+# Usage: if-installed <tool> [args...]
+# Runs the tool, or skips it with a one-line notice when it is not installed, for pre-push checks that CI also runs.
+# The pre-push runner shows a passing command's output only on failure, so the notice goes to the terminal too.
+tool="$1"
+if command -v "$tool" >/dev/null 2>&1; then
+  exec "$@"
+fi
+notice="$tool is not installed, so the pre-push hook skips it; CI still runs it."
+{ echo "$notice" >/dev/tty; } 2>/dev/null
+echo "$notice"

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Copy to .githooks/pre-push and run `git config core.hooksPath .githooks` (CI.md). It runs the prePush commands of
+# the suites this push changes, through the @maudecode/ci dev dependency.
+command="$(git rev-parse --show-toplevel)/node_modules/.bin/maudecode-ci"
+if [ ! -x "$command" ]; then
+  echo "maudecode-ci is not installed. Install the dev dependencies with: pnpm install --frozen-lockfile" >&2
+  exit 1
+fi
+exec "$command" pre-push "$@"
