@@ -24,6 +24,17 @@ extension ItemState {
     }
 }
 
+extension Item {
+    /// The symbol shown while the source has no uploaded icon, or while it loads.
+    var sourceSymbol: String {
+        switch source {
+        case "alertmanager": "bell.badge"
+        case "hermes": "sparkles"
+        default: "app.badge"
+        }
+    }
+}
+
 extension ItemOutcome {
     var label: String { rawValue }
 

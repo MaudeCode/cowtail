@@ -6,7 +6,9 @@ Portal and distribution items only.
 - Apple Developer Program membership
 - App Store Connect app record for `Cowtail`
 - Bundle ID / App ID: set in local `Config/project.env`
-- Push Notifications enabled on the App ID
+- Push Notifications and Communication Notifications enabled on the App ID
+- An App ID for the Notification Service Extension: the app's bundle ID plus `.NotificationService`
+- An active App Store profile for each of the two bundle IDs on the release's distribution certificate
 - APNs auth key (`.p8`) with saved Key ID and Team ID
 - TestFlight enabled for private distribution
 

@@ -85,4 +85,42 @@ final class InboxFlowTests: XCTestCase {
 
         XCTAssertTrue(app.element("text.inbox.error").waitForExistence(timeout: 10))
     }
+
+    func testEveryRowStartsWithItsSourcesName() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let expected = ["approval-ingress": "Hermes", "alert-crashloop": "Alertmanager", "done-deploy": "Deployer"]
+        for (id, name) in expected {
+            let row = app.element("row.item.\(id)")
+            XCTAssertTrue(row.waitForExistence(timeout: 10), id)
+            XCTAssertTrue(row.label.hasPrefix(name), "\(id): \(row.label)")
+        }
+    }
+
+    func testTheItemHeaderShowsTheSourcesUploadedIcon() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let row = app.element("row.item.done-deploy")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        let icon = app.images["icon.source.image"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 10))
+        XCTAssertEqual(icon.label, "Deployer")
+    }
+
+    func testTheItemHeaderFallsBackToTheSourcesSymbol() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let row = app.element("row.item.alert-replicas")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        let icon = app.images["icon.source.symbol"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 10))
+        XCTAssertEqual(icon.label, "Alertmanager")
+    }
 }

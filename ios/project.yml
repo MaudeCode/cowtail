@@ -49,6 +49,9 @@ targets:
         CowtailRoundupTimeZone: $(COWTAIL_ROUNDUP_TIMEZONE)
         # Declared here rather than on each TestFlight upload: the app uses only exempt encryption.
         ITSAppUsesNonExemptEncryption: false
+        # Communication Notifications: the extension shows a push's source as its sender.
+        NSUserActivityTypes:
+          - INSendMessageIntent
         UIAppFonts:
           - SpaceGrotesk-Regular.ttf
           - SpaceGrotesk-Medium.ttf
@@ -62,6 +65,7 @@ targets:
       - path: CowtailApp/Sources
       - path: CowtailApp/Resources
     dependencies:
+      - target: CowtailNotificationService
       - package: SwiftOpenAPIRuntime
         product: OpenAPIRuntime
       - package: SwiftOpenAPIURLSession
@@ -97,16 +101,48 @@ targets:
         Release:
           COWTAIL_ASSOCIATED_DOMAIN: ${COWTAIL_ASSOCIATED_DOMAIN_RELEASE}
           CODE_SIGN_ENTITLEMENTS: CowtailApp/Resources/CowtailRelease.entitlements
+          # The release archive names each target's App Store profile; empty signs automatically.
+          PROVISIONING_PROFILE_SPECIFIER: $(COWTAIL_APP_PROFILE)
     scheme:
       testTargets:
         - CowtailTests
         - CowtailUITests
+  CowtailNotificationService:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    info:
+      path: CowtailNotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: Cowtail
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    sources:
+      - path: CowtailNotificationService
+    settings:
+      base:
+        PRODUCT_NAME: CowtailNotificationService
+        PRODUCT_BUNDLE_IDENTIFIER: ${COWTAIL_PRODUCT_BUNDLE_IDENTIFIER}.NotificationService
+        SWIFT_VERSION: 6.0
+        IPHONEOS_DEPLOYMENT_TARGET: 26.0
+        TARGETED_DEVICE_FAMILY: 1
+        CODE_SIGN_STYLE: Automatic
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+      configs:
+        Release:
+          PROVISIONING_PROFILE_SPECIFIER: $(COWTAIL_NOTIFICATION_SERVICE_PROFILE)
   CowtailTests:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "26.0"
     sources:
       - path: CowtailTests
+      # The extension's push logic, tested without the network or a notification center.
+      - path: CowtailNotificationService/SourceNotificationContent.swift
     dependencies:
       - target: Cowtail
     settings:

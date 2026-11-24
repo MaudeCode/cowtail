@@ -98,17 +98,24 @@ struct ItemDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(item.sourceName)
-                .font(.cowtailSans(12, relativeTo: .caption))
-                .foregroundStyle(palette.mutedInk)
-            Text(item.title)
-                .font(.cowtailSans(18, weight: .bold, relativeTo: .title3))
-                .foregroundStyle(palette.ink)
-                .accessibilityIdentifier("text.item.title")
-            if let subtitle = item.subtitle {
-                Text(subtitle)
-                    .font(.cowtailMono(12, relativeTo: .caption))
-                    .foregroundStyle(palette.mutedInk)
+            HStack(alignment: .top, spacing: 10) {
+                ItemSourceIcon(item: item)
+                VStack(alignment: .leading, spacing: 3) {
+                    // The icon already reads as the source's name.
+                    Text(item.sourceName)
+                        .font(.cowtailSans(12, relativeTo: .caption))
+                        .foregroundStyle(palette.mutedInk)
+                        .accessibilityHidden(true)
+                    Text(item.title)
+                        .font(.cowtailSans(18, weight: .bold, relativeTo: .title3))
+                        .foregroundStyle(palette.ink)
+                        .accessibilityIdentifier("text.item.title")
+                    if let subtitle = item.subtitle {
+                        Text(subtitle)
+                            .font(.cowtailMono(12, relativeTo: .caption))
+                            .foregroundStyle(palette.mutedInk)
+                    }
+                }
             }
 
             FlowLayout(spacing: 6) {

@@ -27,9 +27,13 @@ enum CowtailPreviewFixtures {
         return calendar.date(byAdding: .hour, value: hour, to: day) ?? day
     }
 
+    /// The Mac deployer's uploaded icon, inline so the seeded app loads it without a network.
+    static let deployerIcon = URL(string: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAOElEQVR42mOQ6KmgKWIYtWDUglEL8Frwn2hAvgXEuHHUAtpaMBrJoxaMWkDrfDBa4YxaMGoBlRAAN7Xofb/sVJwAAAAASUVORK5CYII=")
+
     static let approval = Item(
         id: "approval-ingress",
         source: "hermes",
+        sourceName: "Hermes",
         kind: .approval,
         urgency: .now,
         needsOwner: true,
@@ -43,6 +47,7 @@ enum CowtailPreviewFixtures {
     static let question = Item(
         id: "question-osd",
         source: "hermes",
+        sourceName: "Hermes",
         kind: .question,
         urgency: .now,
         needsOwner: true,
@@ -54,6 +59,7 @@ enum CowtailPreviewFixtures {
     static let crashLoop = Item(
         id: "alert-crashloop",
         source: "alertmanager",
+        sourceName: "Alertmanager",
         kind: .alert,
         urgency: .now,
         needsOwner: true,
@@ -74,6 +80,7 @@ enum CowtailPreviewFixtures {
         Item(
             id: "alert-memory",
             source: "alertmanager",
+            sourceName: "Alertmanager",
             kind: .alert,
             urgency: .today,
             title: "NodeMemoryPressure · node-2",
@@ -87,6 +94,7 @@ enum CowtailPreviewFixtures {
         Item(
             id: "failure-backup",
             source: "cron",
+            sourceName: "Cron",
             kind: .failure,
             urgency: .today,
             title: "Nightly backup verify failed",
@@ -96,6 +104,7 @@ enum CowtailPreviewFixtures {
         Item(
             id: "factory-merge",
             source: "factory",
+            sourceName: "Factory",
             kind: .failure,
             urgency: .whenever,
             title: "Merge queue stalled 40m",
@@ -107,6 +116,7 @@ enum CowtailPreviewFixtures {
     static let replicas = Item(
         id: "alert-replicas",
         source: "alertmanager",
+        sourceName: "Alertmanager",
         kind: .alert,
         urgency: .today,
         state: .resolved,
@@ -129,6 +139,8 @@ enum CowtailPreviewFixtures {
         Item(
             id: "done-deploy",
             source: "deployer",
+            sourceName: "Deployer",
+            sourceIconURL: deployerIcon,
             kind: .done,
             urgency: .whenever,
             state: .resolved,
@@ -141,6 +153,7 @@ enum CowtailPreviewFixtures {
         Item(
             id: "alert-targetdown",
             source: "alertmanager",
+            sourceName: "Alertmanager",
             kind: .alert,
             urgency: .whenever,
             state: .resolved,
@@ -158,6 +171,7 @@ enum CowtailPreviewFixtures {
         Item(
             id: "alert-nodenotready",
             source: "alertmanager",
+            sourceName: "Alertmanager",
             kind: .alert,
             urgency: .now,
             state: .resolved,
@@ -171,6 +185,7 @@ enum CowtailPreviewFixtures {
         Item(
             id: "alert-cephwarn",
             source: "alertmanager",
+            sourceName: "Alertmanager",
             kind: .alert,
             urgency: .today,
             state: .resolved,

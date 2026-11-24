@@ -16,6 +16,7 @@ extension CowtailAPI {
             id: record.id,
             source: record.source,
             sourceName: record.sourceInfo.displayName,
+            sourceIconURL: record.sourceInfo.iconUrl.flatMap(URL.init(string:)),
             kind: ItemKind(rawValue: record.kind.rawValue) ?? .fyi,
             urgency: ItemUrgency(rawValue: record.urgency.rawValue) ?? .whenever,
             state: ItemState(rawValue: record.state.rawValue) ?? .open,
