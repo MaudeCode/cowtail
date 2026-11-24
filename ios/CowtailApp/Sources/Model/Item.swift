@@ -110,6 +110,9 @@ struct Item: Identifiable, Hashable, Sendable {
     var createdDate: String?
     /// The maintenance window that held back the item's push.
     let maintenanceWindowID: String?
+    /// The incident the item belongs to. In the inbox and History one member stands for its
+    /// whole incident and shows as the incident's row.
+    var incident: IncidentSummary?
 
     init(
         id: String,
@@ -146,7 +149,8 @@ struct Item: Identifiable, Hashable, Sendable {
         outcome: ItemOutcome? = nil,
         resolvedAfter: TimeInterval? = nil,
         createdDate: String? = nil,
-        maintenanceWindowID: String? = nil
+        maintenanceWindowID: String? = nil,
+        incident: IncidentSummary? = nil
     ) {
         self.id = id
         self.source = source
@@ -183,6 +187,7 @@ struct Item: Identifiable, Hashable, Sendable {
         self.resolvedAfter = resolvedAfter
         self.createdDate = createdDate
         self.maintenanceWindowID = maintenanceWindowID
+        self.incident = incident
     }
 }
 
@@ -197,6 +202,9 @@ enum ItemEventType: String, CaseIterable, Sendable {
     case resolved
     case runStarted = "run_started"
     case runFinished = "run_finished"
+    case itemAdded = "item_added"
+    case itemRemoved = "item_removed"
+    case postmortemWritten = "postmortem_written"
 }
 
 /// One step Hermes recorded in an investigation: what it checked, the command and its output.
@@ -215,6 +223,8 @@ struct ItemEvent: Identifiable, Hashable, Sendable {
     let payload: [String: String]
     /// A finished investigation's steps, in order.
     var evidence: [EvidenceStep] = []
+    /// In an incident's timeline: the member the event concerns.
+    var itemTitle: String?
 }
 
 /// An earlier firing of the item's alert, as the server matched it.

@@ -7,6 +7,8 @@ struct CowtailStatusBadge: View {
     let title: String
     var tint: Color?
     var showsDot = false
+    /// A glyph before the title, such as the incident chip's layers.
+    var systemImage: String?
 
     var body: some View {
         HStack(spacing: 5) {
@@ -14,6 +16,11 @@ struct CowtailStatusBadge: View {
                 Circle()
                     .fill(color)
                     .frame(width: 6, height: 6)
+            }
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 9, weight: .semibold))
+                    .accessibilityHidden(true)
             }
             Text(title)
                 .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))

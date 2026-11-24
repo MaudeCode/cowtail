@@ -17,6 +17,14 @@ struct ItemRow: View {
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
+        if let incident = item.incident {
+            IncidentRow(incident: incident)
+        } else {
+            itemRow
+        }
+    }
+
+    private var itemRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 10) {
                 NavigationLink(value: AppRoute.item(item.id)) {
@@ -136,22 +144,70 @@ struct ItemRow: View {
     }
 }
 
+/// The row that stands for a whole incident in any section; it opens the incident.
+struct IncidentRow: View {
+    let incident: IncidentSummary
+
+    @Environment(\.cowtailPalette) private var palette
+
+    var body: some View {
+        NavigationLink(value: AppRoute.incident(incident.id)) {
+            HStack(alignment: .top, spacing: 10) {
+                ItemSourceIcon(symbol: "square.3.layers.3d", name: "Incident")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(incident.title)
+                        .font(.cowtailSans(15, weight: .medium, relativeTo: .subheadline))
+                        .foregroundStyle(palette.ink)
+                        .lineLimit(2)
+                    incident.line(palette)
+                        .font(.cowtailSans(12, relativeTo: .caption))
+                        .foregroundStyle(palette.mutedInk)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.mutedInk)
+                    .padding(.top, 4)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("row.incident.\(incident.id)")
+        .cowtailRow()
+    }
+}
+
 /// The item's source: its uploaded icon in a small rounded square, or the source's symbol.
-/// VoiceOver reads it as the source's display name, so a row starts with who sent it.
+/// VoiceOver reads it as the source's display name, so a row starts with who sent it. An
+/// incident shows its own symbol.
 struct ItemSourceIcon: View {
-    let item: Item
+    let iconURL: URL?
+    let symbol: String
+    let name: String
+
+    init(item: Item) {
+        self.init(iconURL: item.sourceIconURL, symbol: item.sourceSymbol, name: item.sourceName)
+    }
+
+    init(iconURL: URL? = nil, symbol: String, name: String) {
+        self.iconURL = iconURL
+        self.symbol = symbol
+        self.name = name
+    }
 
     @Environment(\.cowtailPalette) private var palette
 
     private static let size: CGFloat = 22
 
     var body: some View {
-        AsyncImage(url: item.sourceIconURL) { phase in
+        AsyncImage(url: iconURL) { phase in
             if let image = phase.image {
                 labeled(image.resizable().scaledToFill(), identifier: "icon.source.image")
             } else {
                 labeled(
-                    Image(systemName: item.sourceSymbol)
+                    Image(systemName: symbol)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(palette.mutedInk),
                     identifier: "icon.source.symbol"
@@ -168,7 +224,7 @@ struct ItemSourceIcon: View {
     private func labeled(_ icon: some View, identifier: String) -> some View {
         icon
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(item.sourceName)
+            .accessibilityLabel(name)
             .accessibilityAddTraits(.isImage)
             .accessibilityIdentifier(identifier)
     }

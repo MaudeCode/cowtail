@@ -29,6 +29,12 @@ import {
   hermesStatusCronJobSchema,
   hermesStatusIncidentSchema,
   hermesStatusResponseSchema,
+  incidentAddItemRequestSchema,
+  incidentCandidatesResponseSchema,
+  incidentEventRecordSchema,
+  incidentGetResponseSchema,
+  incidentRecordSchema,
+  incidentSummarySchema,
   investigationEvidenceStepSchema,
   itemActionQuerySchema,
   itemActionRequestSchema,
@@ -76,6 +82,12 @@ zodToOpenAPIRegistry.add(investigationEvidenceStepSchema, {
   _internal: { refId: "InvestigationEvidenceStep" },
 });
 zodToOpenAPIRegistry.add(priorOccurrenceSchema, { _internal: { refId: "PriorOccurrence" } });
+// An item's incident chip, an incident row and the incident page decode these.
+zodToOpenAPIRegistry.add(incidentSummarySchema, { _internal: { refId: "IncidentSummary" } });
+zodToOpenAPIRegistry.add(incidentRecordSchema, { _internal: { refId: "IncidentRecord" } });
+zodToOpenAPIRegistry.add(incidentEventRecordSchema, {
+  _internal: { refId: "IncidentEventRecord" },
+});
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 
@@ -151,6 +163,11 @@ const MaintenanceWindowResponse = maintenanceWindowResponseSchema.meta({
 const MaintenanceWindowListResponse = maintenanceWindowListResponseSchema.meta({
   id: "MaintenanceWindowListResponse",
 });
+const IncidentGetResponse = incidentGetResponseSchema.meta({ id: "IncidentGetResponse" });
+const IncidentCandidatesResponse = incidentCandidatesResponseSchema.meta({
+  id: "IncidentCandidatesResponse",
+});
+const IncidentAddItemRequest = incidentAddItemRequestSchema.meta({ id: "IncidentAddItemRequest" });
 const ErrorResponse = z
   .object({
     ok: z.literal(false),
@@ -615,6 +632,90 @@ registry.registerPath({
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
     404: jsonResponse("Maintenance window not found.", ErrorResponse),
+  },
+});
+
+const incidentId = z.object({ id: nonEmptyStringSchema });
+const incidentErrors = {
+  401: jsonResponse("App session required.", ErrorResponse),
+  403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  404: jsonResponse("Incident or item not found.", ErrorResponse),
+};
+
+registry.registerPath({
+  method: "get",
+  path: "/incidents/{id}",
+  operationId: "getIncident",
+  tags: ["incidents"],
+  summary: "An incident, its members and the merged timeline",
+  security: [{ appSession: [] }],
+  request: { params: incidentId },
+  responses: { 200: jsonResponse("The incident.", IncidentGetResponse), ...incidentErrors },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/incidents/{id}/candidates",
+  operationId: "listIncidentCandidates",
+  tags: ["incidents"],
+  summary: "The items the owner can add to an incident",
+  security: [{ appSession: [] }],
+  request: { params: incidentId },
+  responses: { 200: jsonResponse("The items.", IncidentCandidatesResponse), ...incidentErrors },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/me/incidents/{id}/items",
+  operationId: "addIncidentItem",
+  tags: ["incidents"],
+  summary: "Add an item to an incident",
+  security: [{ appSession: [] }],
+  request: {
+    params: incidentId,
+    body: { required: true, content: jsonContent(IncidentAddItemRequest) },
+  },
+  responses: {
+    200: jsonResponse("The incident.", IncidentGetResponse),
+    ...incidentErrors,
+    409: jsonResponse("The item belongs to another incident.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/me/incidents/{id}/items/{itemId}",
+  operationId: "removeIncidentItem",
+  tags: ["incidents"],
+  summary: "Take an item out of an incident",
+  security: [{ appSession: [] }],
+  request: { params: z.object({ id: nonEmptyStringSchema, itemId: nonEmptyStringSchema }) },
+  responses: { 200: jsonResponse("The incident.", IncidentGetResponse), ...incidentErrors },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/me/incidents/{id}/resolve",
+  operationId: "resolveIncident",
+  tags: ["incidents"],
+  summary: "Resolve an incident now",
+  security: [{ appSession: [] }],
+  request: { params: incidentId },
+  responses: { 200: jsonResponse("The incident.", IncidentGetResponse), ...incidentErrors },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/me/incidents/{id}/postmortem",
+  operationId: "requestIncidentPostmortem",
+  tags: ["incidents"],
+  summary: "Ask Hermes for the incident's postmortem again",
+  security: [{ appSession: [] }],
+  request: { params: incidentId },
+  responses: {
+    200: jsonResponse("The incident.", IncidentGetResponse),
+    ...incidentErrors,
+    409: jsonResponse("The incident is open, or a postmortem is on its way.", ErrorResponse),
   },
 });
 

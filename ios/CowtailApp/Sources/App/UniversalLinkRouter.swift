@@ -12,6 +12,7 @@ enum AppTab: String, Hashable {
 enum AppRoute: Hashable {
     case item(String)
     case alert(String)
+    case incident(String)
     case roundup(RoundupRoute)
 }
 

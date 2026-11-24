@@ -39,6 +39,65 @@ final class CowtailStoreTests: XCTestCase {
         active: true
     )
 
+    private var storageOutage: IncidentDetail {
+        let summary = IncidentSummary(
+            id: "incident-1",
+            title: "Storage outage",
+            state: .open,
+            memberCount: 1,
+            worstUrgency: .now,
+            startedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            resolvedAt: nil,
+            duration: 600
+        )
+        var member = approval
+        member.incident = summary
+        return IncidentDetail(
+            incident: Incident(
+                summary: summary,
+                postmortemState: .none,
+                postmortem: nil,
+                postmortemAt: nil,
+                availableActions: [.resolve]
+            ),
+            members: [member],
+            events: []
+        )
+    }
+
+    func testRemovingAMemberShowsAtOnceAndARefusalPutsItBack() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let removing = Task { await store.change(.remove(itemID: approval.id), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+        // A poll while the change is on its way keeps it shown.
+        await store.loadIncident(id: "incident-1")
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+
+        await api.releaseIncidentChange(with: CowtailAPIError.refused("Item is not in this incident"))
+        await removing.value
+        XCTAssertEqual(store.incidents["incident-1"], storageOutage)
+        XCTAssertEqual(store.incidentErrors["incident-1"], "Item is not in this incident")
+    }
+
+    func testResolvingShowsTheServersIncidentOnceItAnswers() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        await store.change(.resolve, incidentID: "incident-1")
+
+        XCTAssertEqual(store.incidents["incident-1"]?.incident.summary.state, .resolved)
+        XCTAssertEqual(store.incidents["incident-1"]?.incident.availableActions, [])
+        XCTAssertNil(store.incidentErrors["incident-1"])
+    }
+
     func testEndingAWindowTakesItsBannerAwayBeforeTheServerAnswersAndThroughAPoll() async {
         let api = FakeItemAPI(inbox: .empty)
         await api.runWindows([upgrade])
@@ -786,5 +845,59 @@ private actor FakeItemAPI: CowtailAPIClient {
 
     func fetchRunbookRun(id _: String, sessionToken _: String) async throws -> RunbookRunDetail {
         throw CowtailAPIError.requestFailed("Run not found")
+    }
+
+    // MARK: Incidents
+
+    private var incident: IncidentDetail?
+    private var holdsIncidentChange = false
+    private var heldIncidentChange: CheckedContinuation<Error?, Never>?
+    private var heldIncidentWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func seedIncident(_ detail: IncidentDetail) {
+        incident = detail
+    }
+
+    /// The next change waits at the server until `releaseIncidentChange`.
+    func holdIncidentChange() {
+        holdsIncidentChange = true
+    }
+
+    func waitUntilIncidentChangeHeld() async {
+        if heldIncidentChange != nil {
+            return
+        }
+        await withCheckedContinuation { heldIncidentWaiters.append($0) }
+    }
+
+    /// Answers the held change: with the error, or applied.
+    func releaseIncidentChange(with error: Error?) {
+        heldIncidentChange?.resume(returning: error)
+        heldIncidentChange = nil
+    }
+
+    func fetchIncident(id _: String, sessionToken _: String) async throws -> IncidentDetail? {
+        incident
+    }
+
+    func fetchIncidentCandidates(id _: String, sessionToken _: String) async throws -> [Item] {
+        []
+    }
+
+    func changeIncident(id _: String, change: IncidentChange, sessionToken _: String) async throws -> IncidentDetail {
+        if holdsIncidentChange {
+            holdsIncidentChange = false
+            let error = await withCheckedContinuation { continuation in
+                heldIncidentChange = continuation
+                heldIncidentWaiters.forEach { $0.resume() }
+                heldIncidentWaiters = []
+            }
+            if let error {
+                throw error
+            }
+        }
+        guard let current = incident else { throw CowtailAPIError.refused("Incident not found") }
+        incident = current.showing(change)
+        return incident!
     }
 }

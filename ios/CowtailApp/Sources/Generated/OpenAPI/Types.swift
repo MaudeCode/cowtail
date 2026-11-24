@@ -138,6 +138,36 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /me/maintenance-windows/{id}/end`.
     /// - Remark: Generated from `#/paths//me/maintenance-windows/{id}/end/post(endMaintenanceWindow)`.
     func endMaintenanceWindow(_ input: Operations.EndMaintenanceWindow.Input) async throws -> Operations.EndMaintenanceWindow.Output
+    /// An incident, its members and the merged timeline
+    ///
+    /// - Remark: HTTP `GET /incidents/{id}`.
+    /// - Remark: Generated from `#/paths//incidents/{id}/get(getIncident)`.
+    func getIncident(_ input: Operations.GetIncident.Input) async throws -> Operations.GetIncident.Output
+    /// The items the owner can add to an incident
+    ///
+    /// - Remark: HTTP `GET /incidents/{id}/candidates`.
+    /// - Remark: Generated from `#/paths//incidents/{id}/candidates/get(listIncidentCandidates)`.
+    func listIncidentCandidates(_ input: Operations.ListIncidentCandidates.Input) async throws -> Operations.ListIncidentCandidates.Output
+    /// Add an item to an incident
+    ///
+    /// - Remark: HTTP `POST /me/incidents/{id}/items`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/items/post(addIncidentItem)`.
+    func addIncidentItem(_ input: Operations.AddIncidentItem.Input) async throws -> Operations.AddIncidentItem.Output
+    /// Take an item out of an incident
+    ///
+    /// - Remark: HTTP `DELETE /me/incidents/{id}/items/{itemId}`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/items/{itemId}/delete(removeIncidentItem)`.
+    func removeIncidentItem(_ input: Operations.RemoveIncidentItem.Input) async throws -> Operations.RemoveIncidentItem.Output
+    /// Resolve an incident now
+    ///
+    /// - Remark: HTTP `POST /me/incidents/{id}/resolve`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/resolve/post(resolveIncident)`.
+    func resolveIncident(_ input: Operations.ResolveIncident.Input) async throws -> Operations.ResolveIncident.Output
+    /// Ask Hermes for the incident's postmortem again
+    ///
+    /// - Remark: HTTP `POST /me/incidents/{id}/postmortem`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/postmortem/post(requestIncidentPostmortem)`.
+    func requestIncidentPostmortem(_ input: Operations.RequestIncidentPostmortem.Input) async throws -> Operations.RequestIncidentPostmortem.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -443,6 +473,86 @@ extension APIProtocol {
         headers: Operations.EndMaintenanceWindow.Input.Headers = .init()
     ) async throws -> Operations.EndMaintenanceWindow.Output {
         try await endMaintenanceWindow(Operations.EndMaintenanceWindow.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// An incident, its members and the merged timeline
+    ///
+    /// - Remark: HTTP `GET /incidents/{id}`.
+    /// - Remark: Generated from `#/paths//incidents/{id}/get(getIncident)`.
+    internal func getIncident(
+        path: Operations.GetIncident.Input.Path,
+        headers: Operations.GetIncident.Input.Headers = .init()
+    ) async throws -> Operations.GetIncident.Output {
+        try await getIncident(Operations.GetIncident.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// The items the owner can add to an incident
+    ///
+    /// - Remark: HTTP `GET /incidents/{id}/candidates`.
+    /// - Remark: Generated from `#/paths//incidents/{id}/candidates/get(listIncidentCandidates)`.
+    internal func listIncidentCandidates(
+        path: Operations.ListIncidentCandidates.Input.Path,
+        headers: Operations.ListIncidentCandidates.Input.Headers = .init()
+    ) async throws -> Operations.ListIncidentCandidates.Output {
+        try await listIncidentCandidates(Operations.ListIncidentCandidates.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Add an item to an incident
+    ///
+    /// - Remark: HTTP `POST /me/incidents/{id}/items`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/items/post(addIncidentItem)`.
+    internal func addIncidentItem(
+        path: Operations.AddIncidentItem.Input.Path,
+        headers: Operations.AddIncidentItem.Input.Headers = .init(),
+        body: Operations.AddIncidentItem.Input.Body
+    ) async throws -> Operations.AddIncidentItem.Output {
+        try await addIncidentItem(Operations.AddIncidentItem.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Take an item out of an incident
+    ///
+    /// - Remark: HTTP `DELETE /me/incidents/{id}/items/{itemId}`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/items/{itemId}/delete(removeIncidentItem)`.
+    internal func removeIncidentItem(
+        path: Operations.RemoveIncidentItem.Input.Path,
+        headers: Operations.RemoveIncidentItem.Input.Headers = .init()
+    ) async throws -> Operations.RemoveIncidentItem.Output {
+        try await removeIncidentItem(Operations.RemoveIncidentItem.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Resolve an incident now
+    ///
+    /// - Remark: HTTP `POST /me/incidents/{id}/resolve`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/resolve/post(resolveIncident)`.
+    internal func resolveIncident(
+        path: Operations.ResolveIncident.Input.Path,
+        headers: Operations.ResolveIncident.Input.Headers = .init()
+    ) async throws -> Operations.ResolveIncident.Output {
+        try await resolveIncident(Operations.ResolveIncident.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Ask Hermes for the incident's postmortem again
+    ///
+    /// - Remark: HTTP `POST /me/incidents/{id}/postmortem`.
+    /// - Remark: Generated from `#/paths//me/incidents/{id}/postmortem/post(requestIncidentPostmortem)`.
+    internal func requestIncidentPostmortem(
+        path: Operations.RequestIncidentPostmortem.Input.Path,
+        headers: Operations.RequestIncidentPostmortem.Input.Headers = .init()
+    ) async throws -> Operations.RequestIncidentPostmortem.Output {
+        try await requestIncidentPostmortem(Operations.RequestIncidentPostmortem.Input(
             path: path,
             headers: headers
         ))

@@ -1490,6 +1490,8 @@ extension Components {
             internal var fix: Components.Schemas.FixRecord?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/maintenanceWindowId`.
             internal var maintenanceWindowId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/incident`.
+            internal var incident: Components.Schemas.IncidentSummary?
             /// Creates a new `ItemRecord`.
             ///
             /// - Parameters:
@@ -1530,6 +1532,7 @@ extension Components {
             ///   - createdDate:
             ///   - fix:
             ///   - maintenanceWindowId:
+            ///   - incident:
             internal init(
                 id: Swift.String,
                 source: Swift.String,
@@ -1567,7 +1570,8 @@ extension Components {
                 approvalNeedsAuth: Swift.Bool? = nil,
                 createdDate: Swift.String? = nil,
                 fix: Components.Schemas.FixRecord? = nil,
-                maintenanceWindowId: Swift.String? = nil
+                maintenanceWindowId: Swift.String? = nil,
+                incident: Components.Schemas.IncidentSummary? = nil
             ) {
                 self.id = id
                 self.source = source
@@ -1606,6 +1610,7 @@ extension Components {
                 self.createdDate = createdDate
                 self.fix = fix
                 self.maintenanceWindowId = maintenanceWindowId
+                self.incident = incident
             }
             internal enum CodingKeys: String, CodingKey {
                 case id
@@ -1645,6 +1650,7 @@ extension Components {
                 case createdDate
                 case fix
                 case maintenanceWindowId
+                case incident
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemAction`.
@@ -1934,6 +1940,76 @@ extension Components {
                 case let .case8(value):
                     try value.encode(to: encoder)
                 }
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/IncidentSummary`.
+        internal struct IncidentSummary: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/title`.
+            internal var title: Swift.String
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/state`.
+            internal enum StatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case open = "open"
+                case resolved = "resolved"
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/state`.
+            internal var state: Components.Schemas.IncidentSummary.StatePayload
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/memberCount`.
+            internal var memberCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/worstUrgency`.
+            internal enum WorstUrgencyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case now = "now"
+                case today = "today"
+                case whenever = "whenever"
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/worstUrgency`.
+            internal var worstUrgency: Components.Schemas.IncidentSummary.WorstUrgencyPayload?
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/startedAt`.
+            internal var startedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/resolvedAt`.
+            internal var resolvedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/IncidentSummary/durationMs`.
+            internal var durationMs: Swift.Int
+            /// Creates a new `IncidentSummary`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - title:
+            ///   - state:
+            ///   - memberCount:
+            ///   - worstUrgency:
+            ///   - startedAt:
+            ///   - resolvedAt:
+            ///   - durationMs:
+            internal init(
+                id: Swift.String,
+                title: Swift.String,
+                state: Components.Schemas.IncidentSummary.StatePayload,
+                memberCount: Swift.Int,
+                worstUrgency: Components.Schemas.IncidentSummary.WorstUrgencyPayload? = nil,
+                startedAt: Swift.Int,
+                resolvedAt: Swift.Int? = nil,
+                durationMs: Swift.Int
+            ) {
+                self.id = id
+                self.title = title
+                self.state = state
+                self.memberCount = memberCount
+                self.worstUrgency = worstUrgency
+                self.startedAt = startedAt
+                self.resolvedAt = resolvedAt
+                self.durationMs = durationMs
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case title
+                case state
+                case memberCount
+                case worstUrgency
+                case startedAt
+                case resolvedAt
+                case durationMs
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemActionRequest`.
@@ -2761,7 +2837,9 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/ItemEventRecord/id`.
             internal var id: Swift.String
             /// - Remark: Generated from `#/components/schemas/ItemEventRecord/itemId`.
-            internal var itemId: Swift.String
+            internal var itemId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemEventRecord/incidentId`.
+            internal var incidentId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/ItemEventRecord/at`.
             internal var at: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ItemEventRecord/type`.
@@ -2776,6 +2854,9 @@ extension Components {
                 case resolved = "resolved"
                 case runStarted = "run_started"
                 case runFinished = "run_finished"
+                case itemAdded = "item_added"
+                case itemRemoved = "item_removed"
+                case postmortemWritten = "postmortem_written"
             }
             /// - Remark: Generated from `#/components/schemas/ItemEventRecord/type`.
             internal var _type: Components.Schemas.ItemEventRecord._TypePayload
@@ -2808,6 +2889,7 @@ extension Components {
             /// - Parameters:
             ///   - id:
             ///   - itemId:
+            ///   - incidentId:
             ///   - at:
             ///   - _type:
             ///   - actor:
@@ -2815,7 +2897,8 @@ extension Components {
             ///   - evidence:
             internal init(
                 id: Swift.String,
-                itemId: Swift.String,
+                itemId: Swift.String? = nil,
+                incidentId: Swift.String? = nil,
                 at: Swift.Int,
                 _type: Components.Schemas.ItemEventRecord._TypePayload,
                 actor: Swift.String,
@@ -2824,6 +2907,7 @@ extension Components {
             ) {
                 self.id = id
                 self.itemId = itemId
+                self.incidentId = incidentId
                 self.at = at
                 self._type = _type
                 self.actor = actor
@@ -2833,6 +2917,7 @@ extension Components {
             internal enum CodingKeys: String, CodingKey {
                 case id
                 case itemId
+                case incidentId
                 case at
                 case _type = "type"
                 case actor
@@ -4684,6 +4769,292 @@ extension Components {
                 case matchers
                 case sources
                 case requestId
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/IncidentGetResponse`.
+        internal struct IncidentGetResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IncidentGetResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/IncidentGetResponse/incident`.
+            internal var incident: Components.Schemas.IncidentRecord
+            /// - Remark: Generated from `#/components/schemas/IncidentGetResponse/members`.
+            internal var members: [Components.Schemas.ItemRecord]
+            /// - Remark: Generated from `#/components/schemas/IncidentGetResponse/events`.
+            internal var events: [Components.Schemas.IncidentEventRecord]
+            /// Creates a new `IncidentGetResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - incident:
+            ///   - members:
+            ///   - events:
+            internal init(
+                ok: Swift.Bool,
+                incident: Components.Schemas.IncidentRecord,
+                members: [Components.Schemas.ItemRecord],
+                events: [Components.Schemas.IncidentEventRecord]
+            ) {
+                self.ok = ok
+                self.incident = incident
+                self.members = members
+                self.events = events
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case incident
+                case members
+                case events
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/IncidentRecord`.
+        internal struct IncidentRecord: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/title`.
+            internal var title: Swift.String
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/state`.
+            internal enum StatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case open = "open"
+                case resolved = "resolved"
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/state`.
+            internal var state: Components.Schemas.IncidentRecord.StatePayload
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/memberCount`.
+            internal var memberCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/worstUrgency`.
+            internal enum WorstUrgencyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case now = "now"
+                case today = "today"
+                case whenever = "whenever"
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/worstUrgency`.
+            internal var worstUrgency: Components.Schemas.IncidentRecord.WorstUrgencyPayload?
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/startedAt`.
+            internal var startedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/resolvedAt`.
+            internal var resolvedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/durationMs`.
+            internal var durationMs: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/createdAt`.
+            internal var createdAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/postmortemState`.
+            internal enum PostmortemStatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case none = "none"
+                case requested = "requested"
+                case written = "written"
+                case failed = "failed"
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/postmortemState`.
+            internal var postmortemState: Components.Schemas.IncidentRecord.PostmortemStatePayload
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/postmortem`.
+            internal var postmortem: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/postmortemAt`.
+            internal var postmortemAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/AvailableActionsPayload`.
+            internal enum AvailableActionsPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case resolve = "resolve"
+                case requestPostmortem = "request_postmortem"
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/availableActions`.
+            internal typealias AvailableActionsPayload = [Components.Schemas.IncidentRecord.AvailableActionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/IncidentRecord/availableActions`.
+            internal var availableActions: Components.Schemas.IncidentRecord.AvailableActionsPayload
+            /// Creates a new `IncidentRecord`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - title:
+            ///   - state:
+            ///   - memberCount:
+            ///   - worstUrgency:
+            ///   - startedAt:
+            ///   - resolvedAt:
+            ///   - durationMs:
+            ///   - createdAt:
+            ///   - postmortemState:
+            ///   - postmortem:
+            ///   - postmortemAt:
+            ///   - availableActions:
+            internal init(
+                id: Swift.String,
+                title: Swift.String,
+                state: Components.Schemas.IncidentRecord.StatePayload,
+                memberCount: Swift.Int,
+                worstUrgency: Components.Schemas.IncidentRecord.WorstUrgencyPayload? = nil,
+                startedAt: Swift.Int,
+                resolvedAt: Swift.Int? = nil,
+                durationMs: Swift.Int,
+                createdAt: Swift.Int,
+                postmortemState: Components.Schemas.IncidentRecord.PostmortemStatePayload,
+                postmortem: Swift.String? = nil,
+                postmortemAt: Swift.Int? = nil,
+                availableActions: Components.Schemas.IncidentRecord.AvailableActionsPayload
+            ) {
+                self.id = id
+                self.title = title
+                self.state = state
+                self.memberCount = memberCount
+                self.worstUrgency = worstUrgency
+                self.startedAt = startedAt
+                self.resolvedAt = resolvedAt
+                self.durationMs = durationMs
+                self.createdAt = createdAt
+                self.postmortemState = postmortemState
+                self.postmortem = postmortem
+                self.postmortemAt = postmortemAt
+                self.availableActions = availableActions
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case title
+                case state
+                case memberCount
+                case worstUrgency
+                case startedAt
+                case resolvedAt
+                case durationMs
+                case createdAt
+                case postmortemState
+                case postmortem
+                case postmortemAt
+                case availableActions
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/IncidentEventRecord`.
+        internal struct IncidentEventRecord: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/itemId`.
+            internal var itemId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/incidentId`.
+            internal var incidentId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/at`.
+            internal var at: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/type`.
+            internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case created = "created"
+                case repeated = "repeated"
+                case dispatched = "dispatched"
+                case hermesUpdate = "hermes_update"
+                case notified = "notified"
+                case actionTaken = "action_taken"
+                case stateChanged = "state_changed"
+                case resolved = "resolved"
+                case runStarted = "run_started"
+                case runFinished = "run_finished"
+                case itemAdded = "item_added"
+                case itemRemoved = "item_removed"
+                case postmortemWritten = "postmortem_written"
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/type`.
+            internal var _type: Components.Schemas.IncidentEventRecord._TypePayload
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/actor`.
+            internal var actor: Swift.String
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/payload`.
+            internal struct PayloadPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
+                /// Creates a new `PayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                internal init(from decoder: any Swift.Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                internal func encode(to encoder: any Swift.Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/payload`.
+            internal var payload: Components.Schemas.IncidentEventRecord.PayloadPayload
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/evidence`.
+            internal var evidence: [Components.Schemas.InvestigationEvidenceStep]?
+            /// - Remark: Generated from `#/components/schemas/IncidentEventRecord/itemTitle`.
+            internal var itemTitle: Swift.String?
+            /// Creates a new `IncidentEventRecord`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - itemId:
+            ///   - incidentId:
+            ///   - at:
+            ///   - _type:
+            ///   - actor:
+            ///   - payload:
+            ///   - evidence:
+            ///   - itemTitle:
+            internal init(
+                id: Swift.String,
+                itemId: Swift.String? = nil,
+                incidentId: Swift.String? = nil,
+                at: Swift.Int,
+                _type: Components.Schemas.IncidentEventRecord._TypePayload,
+                actor: Swift.String,
+                payload: Components.Schemas.IncidentEventRecord.PayloadPayload,
+                evidence: [Components.Schemas.InvestigationEvidenceStep]? = nil,
+                itemTitle: Swift.String? = nil
+            ) {
+                self.id = id
+                self.itemId = itemId
+                self.incidentId = incidentId
+                self.at = at
+                self._type = _type
+                self.actor = actor
+                self.payload = payload
+                self.evidence = evidence
+                self.itemTitle = itemTitle
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case itemId
+                case incidentId
+                case at
+                case _type = "type"
+                case actor
+                case payload
+                case evidence
+                case itemTitle
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/IncidentCandidatesResponse`.
+        internal struct IncidentCandidatesResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IncidentCandidatesResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/IncidentCandidatesResponse/items`.
+            internal var items: [Components.Schemas.ItemRecord]
+            /// Creates a new `IncidentCandidatesResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - items:
+            internal init(
+                ok: Swift.Bool,
+                items: [Components.Schemas.ItemRecord]
+            ) {
+                self.ok = ok
+                self.items = items
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case items
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/IncidentAddItemRequest`.
+        internal struct IncidentAddItemRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/IncidentAddItemRequest/itemId`.
+            internal var itemId: Swift.String
+            /// Creates a new `IncidentAddItemRequest`.
+            ///
+            /// - Parameters:
+            ///   - itemId:
+            internal init(itemId: Swift.String) {
+                self.itemId = itemId
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case itemId
             }
         }
     }
