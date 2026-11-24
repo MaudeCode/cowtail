@@ -140,3 +140,12 @@ class CowtailClient:
 
     def heartbeat(self, snapshot: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/hermes/heartbeat", snapshot)
+
+    def claim_runbook_run(self, lease_seconds: int = 60) -> dict[str, Any]:
+        return self._request("POST", "/api/hermes/runbook-runs/claim", {"workerId": self.worker_id, "leaseSeconds": lease_seconds})
+
+    def runbook_output(self, run_id: str, claim_token: str, seq: int, text: str) -> dict[str, Any]:
+        return self._request("POST", f"/api/hermes/runbook-runs/{run_id}/output", {"claimToken": claim_token, "seq": seq, "text": text})
+
+    def complete_runbook_run(self, run_id: str, claim_token: str, exit_code: int) -> dict[str, Any]:
+        return self._request("POST", f"/api/hermes/runbook-runs/{run_id}/complete", {"claimToken": claim_token, "exitCode": exit_code})

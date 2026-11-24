@@ -146,6 +146,7 @@ class FakeCowtail:
         self.requests: list[tuple[str, str, dict | None]] = []
         self.waiting: list[dict] = []
         self.refused_completions = 0
+        self.runs: list[dict] = []
 
     def __call__(self, method, path, body=None, query=None):
         self.requests.append((method, path, body))
@@ -159,6 +160,10 @@ class FakeCowtail:
                 raise CowtailError("Cowtail HTTP 503: unavailable")
             return {"ok": True}
         if (method, path) == ("POST", "/api/hermes/heartbeat"):
+            return {"ok": True}
+        if (method, path) == ("POST", "/api/hermes/runbook-runs/claim"):
+            return {"ok": True, "run": self.runs.pop(0)} if self.runs else {"ok": True}
+        if method == "POST" and path.startswith("/api/hermes/runbook-runs/"):
             return {"ok": True}
         raise AssertionError(f"unexpected Cowtail request {method} {path}")
 
