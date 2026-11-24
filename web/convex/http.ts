@@ -378,6 +378,39 @@ async function requireAppSession(c: AppSessionContext) {
   };
 }
 
+// A push route's user: the app session's when the request carries a bearer, otherwise the
+// Apple identity token's.
+async function requirePushUser(
+  c: AppSessionContext,
+  identityToken: string | undefined,
+): Promise<{ userId: string } | { error: Response }> {
+  if (c.req.header("authorization")?.trim()) {
+    return await requireAppSession(c);
+  }
+
+  if (!identityToken) {
+    return { error: jsonError("Sign in to register this device for pushes", 401) };
+  }
+
+  return await requireAppleUser(identityToken);
+}
+
+async function requireAppleUser(
+  identityToken: string,
+): Promise<{ userId: string } | { error: Response }> {
+  try {
+    return { userId: await verifyAppleIdentityToken(identityToken) };
+  } catch (error) {
+    if (error instanceof AppleIdentityVerificationError) {
+      return { error: jsonError(error.message, error.statusCode) };
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Apple identity token verification failed";
+    return { error: jsonError(message, 500) };
+  }
+}
+
 export function requireOpenClawOwner(auth: { userId: string }) {
   return requireCowtailOwner(auth, "OpenClaw owner user ID is not configured");
 }
@@ -1934,23 +1967,13 @@ app.post("/api/auth/session", async (c) => {
     return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
-  let userId: string;
-  try {
-    userId = await verifyAppleIdentityToken(parsed.data.identityToken);
-  } catch (error) {
-    if (error instanceof AppleIdentityVerificationError) {
-      return jsonError(error.message, error.statusCode);
-    }
-
-    const message =
-      error instanceof Error ? error.message : "Apple identity token verification failed";
-    return jsonError(message, 500);
-  }
+  const apple = await requireAppleUser(parsed.data.identityToken);
+  if ("error" in apple) return apple.error;
 
   return c.json(
     authSessionCreateResponseSchema.parse({
       ok: true,
-      session: await issueSession(c.env, userId),
+      session: await issueSession(c.env, apple.userId),
     }),
   );
 });
@@ -2160,32 +2183,17 @@ app.post("/api/push/register", async (c) => {
     return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
-  const identityToken = nonEmptyString(parsed.data.identityToken);
-  if (!identityToken) {
-    return jsonError("identityToken and deviceToken are required");
-  }
-
   const deviceToken = nonEmptyString(parsed.data.deviceToken);
   if (!deviceToken) {
-    return jsonError("identityToken and deviceToken are required");
+    return jsonError("deviceToken is required");
   }
 
-  let userId: string;
-  try {
-    userId = await verifyAppleIdentityToken(identityToken);
-  } catch (error) {
-    if (error instanceof AppleIdentityVerificationError) {
-      return jsonError(error.message, error.statusCode);
-    }
-
-    const message =
-      error instanceof Error ? error.message : "Apple identity token verification failed";
-    return jsonError(message, 500);
-  }
+  const auth = await requirePushUser(c, parsed.data.identityToken);
+  if ("error" in auth) return auth.error;
 
   const ctx = c.env;
   const result = await ctx.runMutation(internal.push.upsertDeviceRegistration, {
-    userId,
+    userId: auth.userId,
     deviceToken: deviceToken.trim(),
     platform: nonEmptyString(parsed.data.platform) ?? "ios",
     environment: parsed.data.environment ?? configuredApnsEnvironment(),
@@ -2209,22 +2217,12 @@ app.post("/api/push/unregister", async (c) => {
     return jsonError(formatIssues(parsed.error.issues), 400);
   }
 
-  let userId: string;
-  try {
-    userId = await verifyAppleIdentityToken(parsed.data.identityToken);
-  } catch (error) {
-    if (error instanceof AppleIdentityVerificationError) {
-      return jsonError(error.message, error.statusCode);
-    }
-
-    const message =
-      error instanceof Error ? error.message : "Apple identity token verification failed";
-    return jsonError(message, 500);
-  }
+  const auth = await requirePushUser(c, parsed.data.identityToken);
+  if ("error" in auth) return auth.error;
 
   const ctx = c.env;
   const result = await ctx.runMutation(internal.push.disableDeviceRegistrationByToken, {
-    userId,
+    userId: auth.userId,
     deviceToken: parsed.data.deviceToken.trim(),
   });
 

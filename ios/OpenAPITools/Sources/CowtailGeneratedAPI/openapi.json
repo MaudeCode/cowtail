@@ -658,7 +658,6 @@
           }
         },
         "required": [
-          "identityToken",
           "deviceToken"
         ]
       },
@@ -693,7 +692,6 @@
           }
         },
         "required": [
-          "identityToken",
           "deviceToken"
         ]
       },
@@ -2735,6 +2733,12 @@
         "tags": [
           "push"
         ],
+        "security": [
+          {
+            "appSession": []
+          },
+          {}
+        ],
         "summary": "Register or refresh an iOS push device token",
         "requestBody": {
           "required": true,
@@ -2765,6 +2769,12 @@
         "operationId": "unregisterPushDevice",
         "tags": [
           "push"
+        ],
+        "security": [
+          {
+            "appSession": []
+          },
+          {}
         ],
         "summary": "Disable an existing push device token",
         "requestBody": {

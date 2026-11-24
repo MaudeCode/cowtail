@@ -104,14 +104,14 @@ private enum SeedFactory {
 
     private static let pocketIDServer = SeededCowtailAPI.Seed(oidcProviderName: "Pocket ID")
 
-    /// Signed out: push waits for an Apple identity, and preferences for a session.
+    /// Signed out: push and preferences wait for a sign-in.
     private static let signedOutNotification = UITestScenario.NotificationSeed(
         authorizationStatus: .notDetermined,
         registrationState: .idle,
         serverRegistrationState: .waitingForIdentity,
         deviceToken: nil,
         registrationError: nil,
-        serverRegistrationMessage: "Sign in with Apple to attach this device token to a Cowtail identity.",
+        serverRegistrationMessage: "Sign in to attach this device token to a Cowtail identity.",
         preferences: AppNotificationPreferences(),
         dailyRoundupPreferenceRequiresSignIn: true,
         dailyRoundupPreferenceError: nil

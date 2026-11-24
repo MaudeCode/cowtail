@@ -7,7 +7,7 @@ import UserNotifications
 @MainActor
 final class NotificationManager: NSObject, ObservableObject {
     static let shared = NotificationManager()
-    private let api = CowtailAPI()
+    private let api: CowtailAPI
     private let appSessionManager = AppSessionManager.shared
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
@@ -56,7 +56,7 @@ final class NotificationManager: NSObject, ObservableObject {
             case .idle:
                 return "Idle"
             case .waitingForIdentity:
-                return "Waiting for Apple sign in"
+                return "Waiting for sign in"
             case .syncing:
                 return "Syncing with Cowtail"
             case .registered:
@@ -89,7 +89,11 @@ final class NotificationManager: NSObject, ObservableObject {
     private let requireAuthForApprovalsKey = "notifications.requireAuthForApprovals"
     private var isUITesting = false
 
-    private override init() {
+    /// Unit tests make their own manager against a recording server, from a device token APNs
+    /// already returned.
+    init(api: CowtailAPI = CowtailAPI(), deviceToken: String? = nil) {
+        self.api = api
+        self.deviceToken = deviceToken
         super.init()
     }
 
@@ -321,64 +325,13 @@ final class NotificationManager: NSObject, ObservableObject {
             && serverRegistrationState == .registered
     }
 
-    var friendlyStatusTitle: String {
-        if isReadyForRemotePush {
-            return "Notifications are ready"
-        }
-
-        if AppleAccountManager.shared.userID == nil {
-            return "Connect your Apple account"
-        }
-
-        if AppleAccountManager.shared.needsFreshIdentityToken() {
-            return "Refresh your Apple connection"
-        }
-
-        switch authorizationStatus {
-        case .notDetermined:
-            return "Enable notifications"
-        case .denied:
-            return "Notifications are turned off"
-        case .authorized, .provisional, .ephemeral:
-            break
-        @unknown default:
-            return "Notification setup needs attention"
-        }
-
-        switch registrationState {
-        case .idle, .requestingPermission:
-            return "Finishing device setup"
-        case .registering:
-            return "Registering this device"
-        case .registered:
-            break
-        case .failed:
-            return "Device registration failed"
-        }
-
-        switch serverRegistrationState {
-        case .idle, .syncing:
-            return "Connecting to Cowtail"
-        case .waitingForIdentity:
-            return "Connect your Apple account"
-        case .registered:
-            return "Notifications are ready"
-        case .failed:
-            return "Cowtail sync failed"
-        }
-    }
-
     var friendlyStatusMessage: String {
         if isReadyForRemotePush {
             return "Cowtail can send alert notifications to this device."
         }
 
-        if AppleAccountManager.shared.userID == nil {
-            return "Sign in with Apple once so Cowtail has a stable identifier for this device."
-        }
-
-        if AppleAccountManager.shared.needsFreshIdentityToken() {
-            return "Cowtail needs a fresh Apple sign-in before it can verify this device with the backend."
+        if pushUserID == nil {
+            return "Sign in once so Cowtail has a stable identifier for this device."
         }
 
         switch authorizationStatus {
@@ -407,7 +360,7 @@ final class NotificationManager: NSObject, ObservableObject {
         case .idle, .syncing:
             return "Syncing your device token to Cowtail."
         case .waitingForIdentity:
-            return "Sign in with Apple so Cowtail can attach the device token to your account."
+            return Self.signInAgainMessage
         case .registered:
             return "Cowtail can send alert notifications to this device."
         case .failed:
@@ -441,9 +394,9 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        guard let userID = AppleAccountManager.shared.userID else {
+        guard let userID = pushUserID else {
             serverRegistrationState = .waitingForIdentity
-            serverRegistrationMessage = "Sign in with Apple to attach this device token to a Cowtail identity."
+            serverRegistrationMessage = "Sign in to attach this device token to a Cowtail identity."
             return
         }
 
@@ -453,13 +406,13 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        guard let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty else {
+        guard let credential = await pushCredential() else {
             serverRegistrationState = .waitingForIdentity
-            serverRegistrationMessage = "Sign in with Apple again to refresh the secure identity token Cowtail needs."
+            serverRegistrationMessage = Self.signInAgainMessage
             return
         }
 
-        let registrationKey = "\(identityToken.prefix(24))|\(deviceToken)|\(pushEnvironment)"
+        let registrationKey = "\(userID)|\(deviceToken)|\(pushEnvironment)"
         if lastSyncedRegistrationKey == registrationKey, serverRegistrationState == .registered {
             return
         }
@@ -469,7 +422,7 @@ final class NotificationManager: NSObject, ObservableObject {
 
         do {
             let response = try await api.registerPushDevice(
-                identityToken: identityToken,
+                credential: credential,
                 deviceToken: deviceToken,
                 environment: pushEnvironment,
                 deviceName: UIDevice.current.name
@@ -482,6 +435,10 @@ final class NotificationManager: NSObject, ObservableObject {
                 ? "Created Cowtail device registration."
                 : "Updated existing Cowtail device registration."
         } catch {
+            // A session the server no longer accepts ends here, so the next sync signs in afresh.
+            if case .session = credential, error.localizedDescription.localizedCaseInsensitiveContains("Unauthorized") {
+                appSessionManager.invalidateSession()
+            }
             serverRegistrationState = .failed
             serverRegistrationMessage = userFacingServerError(for: error)
         }
@@ -494,9 +451,9 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        guard let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty else {
+        guard let credential = await pushCredential() else {
             serverRegistrationState = .waitingForIdentity
-            serverRegistrationMessage = "Sign in with Apple again to refresh the secure identity token Cowtail needs."
+            serverRegistrationMessage = Self.signInAgainMessage
             return
         }
 
@@ -513,7 +470,7 @@ final class NotificationManager: NSObject, ObservableObject {
 
         do {
             let response = try await api.unregisterPushDevice(
-                identityToken: identityToken,
+                credential: credential,
                 deviceToken: deviceToken
             )
             lastSyncedRegistrationKey = nil
@@ -526,6 +483,28 @@ final class NotificationManager: NSObject, ObservableObject {
             serverRegistrationState = .failed
             serverRegistrationMessage = error.localizedDescription
         }
+    }
+
+    private static let signInAgainMessage = "Sign in again so Cowtail can verify this device."
+
+    /// The session's user when there is a session, else the Apple account's.
+    private var pushUserID: String? {
+        if appSessionManager.hasValidPersistedSession, let userID = appSessionManager.userID {
+            return userID
+        }
+        return AppleAccountManager.shared.userID
+    }
+
+    /// The app session, made from the Apple identity when there is none yet; the Apple
+    /// identity token itself when no session can be had.
+    private func pushCredential() async -> PushCredential? {
+        if let sessionToken = await appSessionManager.refreshSessionIfPossible() {
+            return .session(sessionToken)
+        }
+        if let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty {
+            return .appleIdentity(identityToken)
+        }
+        return nil
     }
 
     func appleIdentityDidChange() {
@@ -676,9 +655,8 @@ final class NotificationManager: NSObject, ObservableObject {
     private func userFacingServerError(for error: Error) -> String {
         let message = error.localizedDescription
 
-        if message.localizedCaseInsensitiveContains("identityToken and deviceToken are required")
-            || message.localizedCaseInsensitiveContains("userId or identityToken is required") {
-            return "Cowtail needs a fresh Apple sign-in before it can register this device."
+        if message.localizedCaseInsensitiveContains("Sign in to register this device for pushes") {
+            return Self.signInAgainMessage
         }
 
         if message.localizedCaseInsensitiveContains("Invalid Apple identity token format") {
@@ -694,7 +672,7 @@ final class NotificationManager: NSObject, ObservableObject {
         }
 
         if message.localizedCaseInsensitiveContains("Unauthorized") {
-            return "Cowtail rejected the registration request. Check the backend auth configuration."
+            return "Cowtail did not accept this sign-in. \(Self.signInAgainMessage)"
         }
 
         return "Cowtail could not save this device right now. Please try again."
