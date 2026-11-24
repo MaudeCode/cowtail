@@ -175,9 +175,6 @@ async function incidents(ctx: QueryCtx, { cronJobs, openIncidents }: HermesSnaps
 
 const RECENT_ANSWERS_WINDOW_MS = 7 * 24 * 60 * 60_000;
 const RECENT_ANSWERS_LIMIT = 20;
-// Each state stops at this many recently updated items, so a flood of items cannot make the
-// status fail.
-const RECENT_ANSWERS_READ_LIMIT = 500;
 const answerTypes = new Set(["approve", "deny", "choose", "reply"]);
 
 // The answer the owner gave, from the newest answer on the item's timeline.
@@ -200,28 +197,16 @@ async function ownerAnswer(ctx: QueryCtx, itemId: Doc<"items">["_id"]) {
 
 async function recentAnswers(ctx: QueryCtx, now: number): Promise<HermesRecentAnswer[]> {
   const since = now - RECENT_ANSWERS_WINDOW_MS;
-  const answered: Doc<"items">[] = [];
-  for (const state of ["open", "acked", "snoozed", "resolved", "expired"] as const) {
-    // Answering updates an item, so an item answered since `since` was updated since then.
-    const items = await ctx.db
-      .query("items")
-      .withIndex("by_state_updatedAt", (q) => q.eq("state", state).gte("updatedAt", since))
-      .order("desc")
-      .take(RECENT_ANSWERS_READ_LIMIT);
-    for (const item of items) {
-      if (
-        (item.kind === "approval" || item.kind === "question") &&
-        item.answeredAt !== undefined &&
-        item.answeredAt >= since
-      ) {
-        answered.push(item);
-      }
-    }
-  }
-  answered.sort((a, b) => b.answeredAt! - a.answeredAt!);
+  // Items the owner never answered have no `answeredAt` and sort before every bound.
+  const answered = await ctx.db
+    .query("items")
+    .withIndex("by_answeredAt", (q) => q.gte("answeredAt", since))
+    .order("desc")
+    .filter((q) => q.or(q.eq(q.field("kind"), "approval"), q.eq(q.field("kind"), "question")))
+    .take(RECENT_ANSWERS_LIMIT);
 
   const answers: HermesRecentAnswer[] = [];
-  for (const item of answered.slice(0, RECENT_ANSWERS_LIMIT)) {
+  for (const item of answered) {
     const answer = await ownerAnswer(ctx, item._id);
     if (answer) {
       answers.push({

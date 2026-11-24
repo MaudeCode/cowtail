@@ -508,7 +508,7 @@ describe("Hermes", () => {
         .getAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual(["Home", "Cluster", "History", "Hermes", "Settings"]);
-    const chip = screen.getByText("hermes");
+    const chip = screen.getByText("hermes").parentElement!;
     await waitFor(() => expect(chip.querySelector("i")).toHaveClass("bg-warn"));
   });
 

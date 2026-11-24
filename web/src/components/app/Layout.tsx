@@ -16,9 +16,10 @@ const links: [string, string, IconName][] = [
 
 function StatusChip({ label, tone }: { label: string; tone: Tone }) {
   return (
-    <Badge>
+    <Badge className="max-[599px]:border-transparent max-[599px]:px-0.5">
       <StatusDot tone={tone} />
-      {label}
+      {/* Below 600 px the chips keep their dots; the labels stay for screen readers. */}
+      <span className="max-[599px]:sr-only">{label}</span>
     </Badge>
   );
 }

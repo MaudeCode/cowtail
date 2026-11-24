@@ -77,7 +77,11 @@ function RecentAnswers({ reply, now }: { reply: HermesStatusResponse; now: numbe
                 {answer.title}
               </Link>
             </td>
-            <td className={toneText[result.tone]}>{result.label}</td>
+            <td
+              className={`${toneText[result.tone]} ${answer.answer.type === "reply" ? "" : "whitespace-nowrap"}`}
+            >
+              {result.label}
+            </td>
             <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
               {formatWhen(answer.answeredAt, now)}
             </td>
