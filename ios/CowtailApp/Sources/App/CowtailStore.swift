@@ -334,6 +334,11 @@ final class CowtailStore: ObservableObject {
         details[item.id]?.item = moved
     }
 
+    /// Face ID or the passcode, for a change that weakens approval protection.
+    func confirmOwner(reason: String) async -> Bool {
+        await authenticator.authenticate(reason: reason)
+    }
+
     func isPerformingAlertAction(on item: Item) -> Bool {
         alertActionsInFlight.contains(item.id)
     }

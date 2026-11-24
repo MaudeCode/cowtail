@@ -109,7 +109,13 @@ struct SettingsView: View {
             isOn: preferences.requireAuthForApprovals,
             identifier: "toggle.settings.require-face-id"
         ) { on in
-            Task { await notificationManager.updateRequireAuthForApprovals(on) }
+            Task { @MainActor in
+                // Only the device owner turns the protection off.
+                if !on, notificationManager.requiresApprovalAuthentication {
+                    guard await store.confirmOwner(reason: "Turn off Face ID for approvals.") else { return }
+                }
+                await notificationManager.updateRequireAuthForApprovals(on)
+            }
         }
         toggleRow(
             CowtailCopy.dailyRoundupTitle,
