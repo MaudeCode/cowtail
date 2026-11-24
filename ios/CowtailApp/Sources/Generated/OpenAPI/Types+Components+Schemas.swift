@@ -1380,6 +1380,8 @@ extension Components {
             internal var expiresAt: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/snoozedUntil`.
             internal var snoozedUntil: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/needsOwnerWhenOpen`.
+            internal var needsOwnerWhenOpen: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/createdAt`.
             internal var createdAt: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ItemRecord/updatedAt`.
@@ -1508,6 +1510,7 @@ extension Components {
             ///   - investigationJobId:
             ///   - expiresAt:
             ///   - snoozedUntil:
+            ///   - needsOwnerWhenOpen:
             ///   - createdAt:
             ///   - updatedAt:
             ///   - resolvedAt:
@@ -1544,6 +1547,7 @@ extension Components {
                 investigationJobId: Swift.String? = nil,
                 expiresAt: Swift.Int? = nil,
                 snoozedUntil: Swift.Int? = nil,
+                needsOwnerWhenOpen: Swift.Bool? = nil,
                 createdAt: Swift.Int,
                 updatedAt: Swift.Int,
                 resolvedAt: Swift.Int? = nil,
@@ -1580,6 +1584,7 @@ extension Components {
                 self.investigationJobId = investigationJobId
                 self.expiresAt = expiresAt
                 self.snoozedUntil = snoozedUntil
+                self.needsOwnerWhenOpen = needsOwnerWhenOpen
                 self.createdAt = createdAt
                 self.updatedAt = updatedAt
                 self.resolvedAt = resolvedAt
@@ -1617,6 +1622,7 @@ extension Components {
                 case investigationJobId
                 case expiresAt
                 case snoozedUntil
+                case needsOwnerWhenOpen
                 case createdAt
                 case updatedAt
                 case resolvedAt
@@ -2175,6 +2181,61 @@ extension Components {
                 case items
                 case nextCursor
                 case days
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse`.
+        internal struct SnoozeOptionsResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload`.
+            internal struct OptionsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload/preset`.
+                internal enum PresetPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case _1h = "1h"
+                    case _4h = "4h"
+                    case tomorrow = "tomorrow"
+                    case nextMonday = "next_monday"
+                }
+                /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload/preset`.
+                internal var preset: Components.Schemas.SnoozeOptionsResponse.OptionsPayloadPayload.PresetPayload
+                /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload/until`.
+                internal var until: Swift.Int
+                /// Creates a new `OptionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - preset:
+                ///   - until:
+                internal init(
+                    preset: Components.Schemas.SnoozeOptionsResponse.OptionsPayloadPayload.PresetPayload,
+                    until: Swift.Int
+                ) {
+                    self.preset = preset
+                    self.until = until
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case preset
+                    case until
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/options`.
+            internal typealias OptionsPayload = [Components.Schemas.SnoozeOptionsResponse.OptionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/options`.
+            internal var options: Components.Schemas.SnoozeOptionsResponse.OptionsPayload
+            /// Creates a new `SnoozeOptionsResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - options:
+            internal init(
+                ok: Swift.Bool,
+                options: Components.Schemas.SnoozeOptionsResponse.OptionsPayload
+            ) {
+                self.ok = ok
+                self.options = options
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case options
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemInboxResponse`.

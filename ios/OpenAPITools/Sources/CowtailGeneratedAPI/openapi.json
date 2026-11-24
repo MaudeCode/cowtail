@@ -1006,6 +1006,9 @@
             "type": "integer",
             "minimum": 0
           },
+          "needsOwnerWhenOpen": {
+            "type": "boolean"
+          },
           "createdAt": {
             "type": "integer",
             "minimum": 0
@@ -1411,6 +1414,46 @@
           "ok",
           "count",
           "items"
+        ]
+      },
+      "SnoozeOptionsResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "preset": {
+                  "type": "string",
+                  "enum": [
+                    "1h",
+                    "4h",
+                    "tomorrow",
+                    "next_monday"
+                  ]
+                },
+                "until": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "preset",
+                "until"
+              ]
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "options"
         ]
       },
       "ItemInboxResponse": {
@@ -3215,6 +3258,72 @@
           },
           "400": {
             "description": "Invalid filter or cursor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/snooze-options": {
+      "get": {
+        "operationId": "getSnoozeOptions",
+        "tags": [
+          "items"
+        ],
+        "summary": "The snooze picker's preset times in the device's time zone",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "timeZone",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The presets, in picker order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnoozeOptionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid time zone.",
             "content": {
               "application/json": {
                 "schema": {

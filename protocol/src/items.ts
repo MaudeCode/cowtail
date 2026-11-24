@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
+import {
+  dateOnlyStringSchema,
+  nonEmptyStringSchema,
+  timestampSchema,
+  timeZoneSchema,
+} from "./shared.ts";
 import { alertHumanActionSchema } from "./alerts.ts";
 import { fixRecordSchema } from "./fixes.ts";
 import { sourceInfoSchema } from "./sources.ts";
@@ -83,6 +88,9 @@ export const itemRecordSchema = z.object({
   investigationJobId: nonEmptyStringSchema.optional(),
   expiresAt: timestampSchema.optional(),
   snoozedUntil: timestampSchema.optional(),
+  // Snoozed items only: whether the item needs the owner once it is open again, so an unsnooze
+  // can show at once which section it returns to.
+  needsOwnerWhenOpen: z.boolean().optional(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
   resolvedAt: timestampSchema.optional(),
@@ -252,6 +260,15 @@ export const itemAnswerSchema = z.discriminatedUnion("type", [
   ...answerActionSchemas,
 ]);
 
+// The snooze picker's choices: an hour and four hours from now, and 09:00 tomorrow and on the
+// first Monday after today in the asking device's time zone. The client names each preset.
+export const snoozePresets = ["1h", "4h", "tomorrow", "next_monday"] as const;
+export const snoozeOptionsQuerySchema = z.object({ timeZone: timeZoneSchema });
+export const snoozeOptionsResponseSchema = z.object({
+  ok: z.literal(true),
+  options: z.array(z.object({ preset: z.enum(snoozePresets), until: timestampSchema })),
+});
+
 // The generated iOS client names these variants by position: keep their order, and add new
 // ones last. `unsnooze` returns a snoozed item to the inbox now.
 export const itemActionRequestSchema = z.discriminatedUnion("type", [
@@ -383,3 +400,5 @@ export type ItemResponse = z.infer<typeof itemResponseSchema>;
 export type ItemOutcome = (typeof itemOutcomes)[number];
 export type ItemStatsQuery = z.infer<typeof itemStatsQuerySchema>;
 export type ItemStatsResponse = z.infer<typeof itemStatsResponseSchema>;
+export type SnoozePreset = (typeof snoozePresets)[number];
+export type SnoozeOptionsResponse = z.infer<typeof snoozeOptionsResponseSchema>;

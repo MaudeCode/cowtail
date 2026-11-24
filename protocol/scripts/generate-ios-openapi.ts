@@ -42,6 +42,8 @@ import {
   itemSourcesResponseSchema,
   itemStatsQuerySchema,
   itemStatsResponseSchema,
+  snoozeOptionsQuerySchema,
+  snoozeOptionsResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
   pushRegisterRequestSchema,
@@ -108,6 +110,7 @@ const ItemListResponse = itemListResponseSchema.meta({ id: "ItemListResponse" })
 const ItemInboxResponse = itemInboxResponseSchema.meta({ id: "ItemInboxResponse" });
 const ItemGetResponse = itemGetResponseSchema.meta({ id: "ItemGetResponse" });
 const ItemStatsResponse = itemStatsResponseSchema.meta({ id: "ItemStatsResponse" });
+const SnoozeOptionsResponse = snoozeOptionsResponseSchema.meta({ id: "SnoozeOptionsResponse" });
 const ItemSourcesResponse = itemSourcesResponseSchema.meta({ id: "ItemSourcesResponse" });
 const UserDevicesResponse = userDevicesResponseSchema.meta({ id: "UserDevicesResponse" });
 const ErrorResponse = z
@@ -369,6 +372,22 @@ registry.registerPath({
   responses: {
     200: jsonResponse("A page of items.", ItemListResponse),
     400: jsonResponse("Invalid filter or cursor.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/me/snooze-options",
+  operationId: "getSnoozeOptions",
+  tags: ["items"],
+  summary: "The snooze picker's preset times in the device's time zone",
+  security: [{ appSession: [] }],
+  request: { query: snoozeOptionsQuerySchema },
+  responses: {
+    200: jsonResponse("The presets, in picker order.", SnoozeOptionsResponse),
+    400: jsonResponse("Invalid time zone.", ErrorResponse),
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
   },

@@ -5,7 +5,10 @@ import {
   type ItemOutcome,
   type ItemState,
   type ItemUrgency,
+  type SnoozePreset,
 } from "@maudecode/cowtail-protocol";
+
+import { addDaysToDateOnly, dateOnlyForInstant, zonedDateTimeToUtcTimestamp } from "./roundup";
 
 // The states the apps derived on the client before items existed. The server owns them now.
 export type AlertWorkflowState =
@@ -140,6 +143,29 @@ export function itemOutcome(
       : (alert.ownerDisposition ?? alert.outcome)
     : item.context.disposition;
   return outcome !== undefined && knownOutcomes.has(outcome) ? (outcome as ItemOutcome) : "other";
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+// The snooze picker's presets in `timeZone`: an hour and four hours from now, and 09:00
+// tomorrow and on the first Monday after today.
+export function snoozeOptions(
+  now: number,
+  timeZone: string,
+): { preset: SnoozePreset; until: number }[] {
+  const today = dateOnlyForInstant(new Date(now), timeZone);
+  const nineAm = (daysAhead: number) => {
+    const [year, month, day] = addDaysToDateOnly(today, daysAhead).split("-").map(Number);
+    return zonedDateTimeToUtcTimestamp(year, month, day, 9, 0, 0, timeZone);
+  };
+  const [year, month, day] = today.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return [
+    { preset: "1h", until: now + HOUR_MS },
+    { preset: "4h", until: now + 4 * HOUR_MS },
+    { preset: "tomorrow", until: nineAm(1) },
+    { preset: "next_monday", until: nineAm((8 - weekday) % 7 || 7) },
+  ];
 }
 
 // An alert item's second line: where it fired.

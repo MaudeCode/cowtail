@@ -149,7 +149,13 @@ const deliveryReasonValidator = v.union(
   v.literal("reminder"),
 );
 
-type DeliverItemArgs = { itemId: Id<"items">; reason: ItemDeliveryReason; attempt?: number };
+// A re-send carries when its chain's first push went out.
+type DeliverItemArgs = {
+  itemId: Id<"items">;
+  reason: ItemDeliveryReason;
+  attempt?: number;
+  chainStartedAt?: number;
+};
 const deliverItemRef = makeFunctionReference<"action", DeliverItemArgs>("itemDelivery:deliverItem");
 const flushBatchRef = makeFunctionReference<"action", { batchId: Id<"itemPushBatches"> }>(
   "itemDelivery:flushBatch",
@@ -158,7 +164,13 @@ const flushBatchRef = makeFunctionReference<"action", { batchId: Id<"itemPushBat
 type Planned = { userId: string; push: Push; itemIds: Id<"items">[] } | null;
 const planDeliveryRef = makeFunctionReference<
   "mutation",
-  { itemId: Id<"items">; reason: ItemDeliveryReason; attempt: number; now: number },
+  {
+    itemId: Id<"items">;
+    reason: ItemDeliveryReason;
+    attempt: number;
+    chainStartedAt?: number;
+    now: number;
+  },
   Planned
 >("itemDelivery:planDelivery");
 const planBatchRef = makeFunctionReference<
@@ -198,6 +210,27 @@ async function joinTodayBatch(ctx: MutationCtx, itemId: Id<"items">, now: number
   return batchId;
 }
 
+// Drops the item from the `today` batch still waiting to send, which a snooze outlasted.
+async function leaveTodayBatch(ctx: MutationCtx, itemId: Id<"items">) {
+  const pending = await ctx.db
+    .query("itemPushBatches")
+    .withIndex("by_sentAt", (q) => q.eq("sentAt", undefined))
+    .collect();
+  for (const batch of pending) {
+    if (batch.itemIds.includes(itemId)) {
+      await ctx.db.patch(batch._id, { itemIds: batch.itemIds.filter((id) => id !== itemId) });
+    }
+  }
+}
+
+async function snoozedSince(ctx: QueryCtx, itemId: Id<"items">, since: number) {
+  const events = await ctx.db
+    .query("itemEvents")
+    .withIndex("by_item_at", (q) => q.eq("itemId", itemId).gte("at", since))
+    .collect();
+  return events.some((event) => event.type === "state_changed" && event.payload.to === "snoozed");
+}
+
 /**
  * Decides what one delivery of an item does and records it as a `notified` event: skip it,
  * add it to the open `today` batch, or push it now and schedule the next re-send.
@@ -207,9 +240,10 @@ export const planDelivery = internalMutation({
     itemId: v.id("items"),
     reason: deliveryReasonValidator,
     attempt: v.number(),
+    chainStartedAt: v.optional(v.number()),
     now: v.number(),
   },
-  handler: async (ctx, { itemId, reason, attempt, now }): Promise<Planned> => {
+  handler: async (ctx, { itemId, reason, attempt, chainStartedAt, now }): Promise<Planned> => {
     const item = await ctx.db.get(itemId);
     if (!item) return null;
     const decided = { trigger: reason, attempt };
@@ -222,7 +256,9 @@ export const planDelivery = internalMutation({
     if (!userId) return await skip("no_owner");
     if (item.state !== "open") return await skip("not_open");
     // The owner asked to be reminded at this time: one push now, at least as loud as `today`.
+    // Pushes planned before the snooze give way to it.
     if (reason === "reminder") {
+      await leaveTodayBatch(ctx, itemId);
       const urgency = item.urgency === "now" ? "now" : "today";
       return {
         userId,
@@ -232,6 +268,13 @@ export const planDelivery = internalMutation({
     }
     if (item.urgency === "whenever") return await skip("whenever");
     if (reason === "resend" && item.urgency !== "now") return await skip("not_now");
+    if (
+      reason === "resend" &&
+      chainStartedAt !== undefined &&
+      (await snoozedSince(ctx, itemId, chainStartedAt))
+    ) {
+      return await skip("snoozed");
+    }
 
     if (item.urgency === "today") {
       const batchId = await joinTodayBatch(ctx, itemId, now);
@@ -250,6 +293,7 @@ export const planDelivery = internalMutation({
         itemId,
         reason: "resend",
         attempt: attempt + 1,
+        chainStartedAt: chainStartedAt ?? now,
       });
     }
     return {
@@ -353,12 +397,14 @@ export const deliverItem = internalAction({
     itemId: v.id("items"),
     reason: deliveryReasonValidator,
     attempt: v.optional(v.number()),
+    chainStartedAt: v.optional(v.number()),
   },
-  handler: async (ctx, { itemId, reason, attempt = 0 }) => {
+  handler: async (ctx, { itemId, reason, attempt = 0, chainStartedAt }) => {
     const planned = await ctx.runMutation(planDeliveryRef, {
       itemId,
       reason,
       attempt,
+      chainStartedAt,
       now: Date.now(),
     });
     if (planned) await sendPlanned(ctx, planned, { trigger: reason, attempt });

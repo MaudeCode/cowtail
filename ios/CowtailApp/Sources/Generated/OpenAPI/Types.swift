@@ -73,6 +73,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /items`.
     /// - Remark: Generated from `#/paths//items/get(listItems)`.
     func listItems(_ input: Operations.ListItems.Input) async throws -> Operations.ListItems.Output
+    /// The snooze picker's preset times in the device's time zone
+    ///
+    /// - Remark: HTTP `GET /me/snooze-options`.
+    /// - Remark: Generated from `#/paths//me/snooze-options/get(getSnoozeOptions)`.
+    func getSnoozeOptions(_ input: Operations.GetSnoozeOptions.Input) async throws -> Operations.GetSnoozeOptions.Output
     /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
     ///
     /// - Remark: HTTP `GET /items/inbox`.
@@ -267,6 +272,19 @@ extension APIProtocol {
         headers: Operations.ListItems.Input.Headers = .init()
     ) async throws -> Operations.ListItems.Output {
         try await listItems(Operations.ListItems.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// The snooze picker's preset times in the device's time zone
+    ///
+    /// - Remark: HTTP `GET /me/snooze-options`.
+    /// - Remark: Generated from `#/paths//me/snooze-options/get(getSnoozeOptions)`.
+    internal func getSnoozeOptions(
+        query: Operations.GetSnoozeOptions.Input.Query,
+        headers: Operations.GetSnoozeOptions.Input.Headers = .init()
+    ) async throws -> Operations.GetSnoozeOptions.Output {
+        try await getSnoozeOptions(Operations.GetSnoozeOptions.Input(
             query: query,
             headers: headers
         ))

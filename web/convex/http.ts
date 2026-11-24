@@ -35,6 +35,8 @@ import {
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
+  snoozeOptionsQuerySchema,
+  snoozeOptionsResponseSchema,
   itemCreateResponseSchema,
   itemEventAppendRequestSchema,
   itemGetResponseSchema,
@@ -98,6 +100,7 @@ import { validateOpenClawLimit } from "./openclawModel";
 import { cowtailOwnerUserId, cowtailWebOrigin } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
 import { resolveRoundupTimeZone } from "./roundup";
+import { snoozeOptions } from "./itemModel";
 import { SOURCE_TOKEN_PREFIX, sourceIconError } from "./sources";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -1802,6 +1805,23 @@ app.get("/api/sources/:slug/icon", async (c) => {
   const headers = { "cache-control": "public, max-age=86400", etag };
   if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers });
   return new Response(icon, { headers: { ...headers, "content-type": "image/png" } });
+});
+
+// GET /api/me/snooze-options — the snooze picker's preset times in the device's time zone
+app.get("/api/me/snooze-options", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+  const ownerError = requireCowtailOwner(auth);
+  if (ownerError) return ownerError;
+
+  const parsed = snoozeOptionsQuerySchema.safeParse({ timeZone: c.req.query("timeZone") });
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  return c.json(
+    snoozeOptionsResponseSchema.parse({
+      ok: true,
+      options: snoozeOptions(Date.now(), parsed.data.timeZone),
+    }),
+  );
 });
 
 // POST /api/me/items/:id/actions — the owner acks, snoozes or answers an item

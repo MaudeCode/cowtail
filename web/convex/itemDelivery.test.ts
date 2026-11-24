@@ -265,6 +265,40 @@ describe("reminders", () => {
     ]);
   });
 
+  test("a today item snoozed out of its batch pushes only its reminder", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "today", title: "Cert renews in 9 days" });
+    await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 2 * MINUTE },
+    });
+
+    await advance(t, 30 * MINUTE);
+
+    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect((await triggers(t, id)).filter(([, decision]) => decision === "pushed")).toEqual([
+      ["reminder", "pushed"],
+    ]);
+  });
+
+  test("a now item snoozed between its re-sends pushes its reminder and no older re-send", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "now", title: "Restart ingress in edge?" });
+    await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 2 * MINUTE },
+    });
+
+    await advance(t, 60 * MINUTE);
+
+    expect((await triggers(t, id)).filter(([, decision]) => decision === "pushed")).toEqual([
+      ["created", "pushed"],
+      ["reminder", "pushed"],
+    ]);
+  });
+
   test("an item created with a future remindAt sends nothing until then, then returns the same way", async () => {
     const t = await newBackendWithSources("cron");
     const id = await createItem(t, {

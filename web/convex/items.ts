@@ -402,6 +402,8 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
     needsOwner: itemNeedsOwner(item, workflow),
+    needsOwnerWhenOpen:
+      item.state === "snoozed" ? itemNeedsOwner({ ...item, state: "open" }, workflow) : undefined,
     availableActions: itemAvailableActions(item),
     contextOrder: Object.keys(item.context).sort(),
     alertActions: jobs ? alertOwnerActions(jobs) : undefined,

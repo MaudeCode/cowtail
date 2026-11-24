@@ -5,6 +5,7 @@ import {
   itemListResponseSchema,
   itemResponseSchema,
   itemSourcesResponseSchema,
+  snoozeOptionsResponseSchema,
   type ItemGetResponse,
 } from "@maudecode/cowtail-protocol";
 import { makeFunctionReference } from "convex/server";
@@ -226,6 +227,7 @@ describe("owner actions", () => {
     expect(itemResponseSchema.parse(snoozed.json).item).toMatchObject({
       state: "snoozed",
       snoozedUntil: NOW + 3_600_000,
+      needsOwnerWhenOpen: true,
     });
     const timeline = await getItem(t, id);
     expect(timeline.events.map((event) => [event.type, event.actor])).toEqual([
@@ -277,6 +279,26 @@ describe("owner actions", () => {
     });
 
     expect((await getItem(t, id)).item).toMatchObject({ state: "open" });
+  });
+
+  test("snooze options are an hour, four hours, and 09:00 tomorrow and next Monday in the asking zone", async () => {
+    const t = await newBackendWithSources("cron");
+    const bearer = await seedSession(t, OWNER);
+    // NOW is Tuesday 24 Nov 2026 at 13:00 in Berlin.
+    const read = (timeZone: string) =>
+      request(t, `/api/me/snooze-options?timeZone=${encodeURIComponent(timeZone)}`, { bearer });
+
+    const berlin = await read("Europe/Berlin");
+    const invalid = await read("Mars/Olympus_Mons");
+
+    expect(berlin.status).toBe(200);
+    expect(snoozeOptionsResponseSchema.parse(berlin.json).options).toEqual([
+      { preset: "1h", until: NOW + 3_600_000 },
+      { preset: "4h", until: NOW + 4 * 3_600_000 },
+      { preset: "tomorrow", until: Date.UTC(2026, 10, 25, 8, 0) },
+      { preset: "next_monday", until: Date.UTC(2026, 10, 30, 8, 0) },
+    ]);
+    expect(invalid.status).toBe(400);
   });
 
   test("a snooze must end in the future", async () => {

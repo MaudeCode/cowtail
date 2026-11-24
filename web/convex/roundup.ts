@@ -77,7 +77,7 @@ function getOffsetMilliseconds(instant: Date, timeZone: string): number {
   return sign === "-" ? -magnitude : magnitude;
 }
 
-function zonedDateTimeToUtcTimestamp(
+export function zonedDateTimeToUtcTimestamp(
   year: number,
   month: number,
   day: number,
