@@ -5,6 +5,7 @@ final class AppRuntime {
     let appleAccountManager: AppleAccountManager
     let appSessionManager: AppSessionManager
     let cowtailStore: CowtailStore
+    let oidcSignIn: OIDCSignIn
     let notificationManager: NotificationManager
     let themeSettings: ThemeSettings
     let universalLinkRouter: UniversalLinkRouter
@@ -16,6 +17,7 @@ final class AppRuntime {
         appleAccountManager: AppleAccountManager,
         appSessionManager: AppSessionManager,
         cowtailStore: CowtailStore,
+        oidcSignIn: OIDCSignIn,
         notificationManager: NotificationManager,
         themeSettings: ThemeSettings,
         universalLinkRouter: UniversalLinkRouter,
@@ -24,6 +26,7 @@ final class AppRuntime {
         self.appleAccountManager = appleAccountManager
         self.appSessionManager = appSessionManager
         self.cowtailStore = cowtailStore
+        self.oidcSignIn = oidcSignIn
         self.notificationManager = notificationManager
         self.themeSettings = themeSettings
         self.universalLinkRouter = universalLinkRouter
@@ -44,6 +47,7 @@ final class AppRuntime {
         switch configuration.mode {
         case .normal:
             let api = CowtailAPI()
+            appSessionManager.api = api
             appleAccountManager.configure()
             appSessionManager.configure()
             notificationManager.configure()
@@ -51,6 +55,7 @@ final class AppRuntime {
                 appleAccountManager: appleAccountManager,
                 appSessionManager: appSessionManager,
                 cowtailStore: CowtailStore(api: api),
+                oidcSignIn: OIDCSignIn(api: api),
                 notificationManager: notificationManager,
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,
@@ -66,6 +71,7 @@ final class AppRuntime {
 
             let scenario = UITestScenario(named: scenarioName)
             let seededAPI = SeededCowtailAPI(seed: scenario.seed.server)
+            appSessionManager.api = seededAPI
 
             appleAccountManager.seedForUITesting(
                 signInState: scenario.seed.apple.signInState,
@@ -80,7 +86,8 @@ final class AppRuntime {
                 token: scenario.seed.session.token,
                 userID: scenario.seed.session.userID,
                 expiresAt: scenario.seed.session.expiresAt,
-                lastError: scenario.seed.session.lastError
+                lastError: scenario.seed.session.lastError,
+                provider: scenario.seed.session.provider
             )
             notificationManager.seedForUITesting(
                 authorizationStatus: scenario.seed.notification.authorizationStatus,
@@ -101,6 +108,7 @@ final class AppRuntime {
                 appleAccountManager: appleAccountManager,
                 appSessionManager: appSessionManager,
                 cowtailStore: CowtailStore(api: seededAPI, authenticator: SeededApprovalAuthenticator()),
+                oidcSignIn: OIDCSignIn(api: seededAPI),
                 notificationManager: notificationManager,
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,

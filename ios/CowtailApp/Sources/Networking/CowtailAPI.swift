@@ -29,7 +29,18 @@ protocol CowtailAPIClient: Sendable {
     func fetchDevices(sessionToken: String) async throws -> [UserDevice]
 }
 
-actor CowtailAPI: CowtailAPIClient {
+/// Sign-in and sign-out, for Apple and the server's OIDC provider alike.
+protocol AuthAPIClient: Sendable {
+    func createAuthSession(identityToken: String) async throws -> AppAuthSession
+    /// The OIDC provider's name, or nil when the server offers only Sign in with Apple.
+    func fetchOIDCProviderName() async throws -> String?
+    /// Trades the code from the OIDC callback and its PKCE verifier for a session.
+    func redeemOIDCHandoff(code: String, verifier: String) async throws -> AppAuthSession
+    /// Revokes the session on the server.
+    func logout(sessionToken: String) async throws
+}
+
+actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "network"
@@ -77,6 +88,10 @@ actor CowtailAPI: CowtailAPIClient {
             serverURL: AppConfig.baseURL(for: AppConfig.pushUnregistrationURL, droppingLastPathComponents: 2),
             transport: transport
         )
+    }
+
+    private var authClient: Client {
+        Client(serverURL: AppConfig.alertAPIBaseURL, transport: transport)
     }
 
     private func sessionClient(sessionToken: String) -> Client {
@@ -259,6 +274,46 @@ actor CowtailAPI: CowtailAPIClient {
             userID: response.session.userId,
             expiresAt: Date(timeIntervalSince1970: TimeInterval(response.session.expiresAt) / 1000)
         )
+    }
+
+    func fetchOIDCProviderName() async throws -> String? {
+        switch try await authClient.getAuthProviders() {
+        case .ok(let response):
+            return try response.body.json.oidc?.name
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Sign-in options request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func redeemOIDCHandoff(code: String, verifier: String) async throws -> AppAuthSession {
+        switch try await authClient.redeemOidcHandoff(body: .json(.init(code: code, verifier: verifier))) {
+        case .ok(let response):
+            let session = try response.body.json.session
+            return AppAuthSession(
+                token: session.token,
+                userID: session.userId,
+                expiresAt: Date(timeIntervalSince1970: TimeInterval(session.expiresAt) / 1000)
+            )
+        case .badRequest(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .notFound(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Sign-in failed with HTTP \(statusCode).")
+        }
+    }
+
+    func logout(sessionToken: String) async throws {
+        switch try await sessionClient(sessionToken: sessionToken).logout() {
+        case .ok:
+            return
+        case .unauthorized(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Sign-out failed with HTTP \(statusCode).")
+        }
     }
 
     func fetchNotificationPreferences(sessionToken: String) async throws -> AppNotificationPreferences {

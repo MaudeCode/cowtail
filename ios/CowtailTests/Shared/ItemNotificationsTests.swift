@@ -59,7 +59,7 @@ final class ItemNotificationsTests: XCTestCase {
             let action = testCase.action
             let replyText = testCase.replyText
             let expected = testCase.body
-            let transport = RecordingTransport()
+            let transport = RecordingTransport(routes: ["POST /api/me/items/item-1/actions": .init(json: Self.actedItem)])
             let request = try XCTUnwrap(
                 ItemNotifications.request(actionIdentifier: action.rawValue, replyText: replyText, now: now)
             )
@@ -108,36 +108,14 @@ final class ItemNotificationsTests: XCTestCase {
     }
 }
 
-/// Answers every request as the server answers a successful item action.
-private final class RecordingTransport: ClientTransport, @unchecked Sendable {
-    private let lock = NSLock()
-    private var recorded: [(request: HTTPRequest, body: Data)] = []
-
-    var requests: [(request: HTTPRequest, body: Data)] {
-        lock.withLock { recorded }
-    }
-
-    func send(
-        _ request: HTTPRequest,
-        body: HTTPBody?,
-        baseURL: URL,
-        operationID _: String
-    ) async throws -> (HTTPResponse, HTTPBody?) {
-        var full = request
-        full.path = baseURL.path + (request.path ?? "")
-        let bytes = body == nil ? Data() : try await Data(collecting: body!, upTo: 65_536)
-        lock.withLock { recorded.append((full, bytes)) }
-
-        let item = """
-        {"ok":true,"item":{"id":"item-1","source":"hermes",\
-        "sourceInfo":{"slug":"hermes","displayName":"Hermes"},"kind":"approval","urgency":"now",\
-        "state":"open","needsOwner":true,"title":"Restart ingress in edge?","body":"","links":[],\
-        "context":{},"occurrenceCount":1,"actions":[{"type":"approve"},{"type":"deny"}],\
-        "availableActions":[{"type":"approve"},{"type":"deny"}],\
-        "createdAt":1,"updatedAt":2}}
-        """
-        var headers = HTTPFields()
-        headers[.contentType] = "application/json"
-        return (HTTPResponse(status: .ok, headerFields: headers), HTTPBody(item))
-    }
+private extension ItemNotificationsTests {
+    /// The server's answer to a successful item action.
+    static let actedItem = """
+    {"ok":true,"item":{"id":"item-1","source":"hermes",\
+    "sourceInfo":{"slug":"hermes","displayName":"Hermes"},"kind":"approval","urgency":"now",\
+    "state":"open","needsOwner":true,"title":"Restart ingress in edge?","body":"","links":[],\
+    "context":{},"occurrenceCount":1,"actions":[{"type":"approve"},{"type":"deny"}],\
+    "availableActions":[{"type":"approve"},{"type":"deny"}],\
+    "createdAt":1,"updatedAt":2}}
+    """
 }

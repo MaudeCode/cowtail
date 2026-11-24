@@ -1,7 +1,7 @@
 import Foundation
 
 /// The UI-test server: answers like Cowtail from seeded items, and applies the owner's actions.
-actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
+actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
     struct Seed: Sendable {
         var items: [Item] = CowtailPreviewFixtures.items
         var health = CowtailPreviewFixtures.health
@@ -11,6 +11,8 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
         var roundupFixes = CowtailPreviewFixtures.roundupFixes
         /// Every item request fails with this message.
         var itemErrorMessage: String?
+        /// The server's OIDC provider; nil offers only Sign in with Apple.
+        var oidcProviderName: String?
     }
 
     private var seed: Seed
@@ -135,6 +137,26 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
     func fetchDevices(sessionToken _: String) async throws -> [UserDevice] {
         seed.devices
     }
+
+    func createAuthSession(identityToken _: String) async throws -> AppAuthSession {
+        Self.session
+    }
+
+    func fetchOIDCProviderName() async throws -> String? {
+        seed.oidcProviderName
+    }
+
+    func redeemOIDCHandoff(code _: String, verifier _: String) async throws -> AppAuthSession {
+        Self.session
+    }
+
+    func logout(sessionToken _: String) async throws {}
+
+    private static let session = AppAuthSession(
+        token: "ui-test-session-token",
+        userID: "ui-test-apple-user",
+        expiresAt: .now.addingTimeInterval(60 * 60)
+    )
 
     func fetchRoundupAlerts(from _: Date, to _: Date) async throws -> [AlertItem] {
         seed.roundupAlerts.sorted { $0.timestamp > $1.timestamp }

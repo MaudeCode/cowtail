@@ -241,7 +241,6 @@ struct ItemChoiceButtons: View {
     let item: Item
 
     @EnvironmentObject private var store: CowtailStore
-    @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
         if let options {
@@ -250,12 +249,7 @@ struct ItemChoiceButtons: View {
                     Button(option) {
                         Task { await store.perform(.choose(option), on: item) }
                     }
-                    .font(.cowtailSans(13, weight: .medium, relativeTo: .footnote))
-                    .foregroundStyle(palette.ink)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .overlay(Capsule().stroke(palette.border, lineWidth: 1))
-                    .buttonStyle(.plain)
+                    .buttonStyle(CowtailTextButtonStyle())
                     .accessibilityIdentifier("button.item.choose.\(item.id).\(option)")
                 }
             }

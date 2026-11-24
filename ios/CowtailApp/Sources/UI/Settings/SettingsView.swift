@@ -4,11 +4,13 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("developerModeEnabled") private var developerModeEnabled = false
     @Environment(\.cowtailPalette) private var palette
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var themeSettings: ThemeSettings
     @EnvironmentObject private var store: CowtailStore
+    @EnvironmentObject private var oidcSignIn: OIDCSignIn
 
     @State private var isAddingOverride = false
 
@@ -31,6 +33,9 @@ struct SettingsView: View {
             .presentationDetents([.medium])
         }
         .task {
+            await oidcSignIn.loadProviders()
+        }
+        .task {
             await appleAccountManager.refreshCredentialState()
             await notificationManager.refreshAuthorizationStatus()
             notificationManager.resumeNotificationSetupIfNeeded()
@@ -46,15 +51,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var account: some View {
         CowtailSectionHeader(title: "Account")
-        if needsAppleAccountConnection {
-            appleSignInButton
-                .cowtailRow()
-        } else {
+        if isSignedIn {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Signed in with Apple")
+                    Text("Signed in with \(signInProvider)")
                         .font(.cowtailSans(14, relativeTo: .body))
-                    if let name = appleAccountManager.displayName ?? appleAccountManager.email, !name.isEmpty {
+                        .accessibilityIdentifier("text.settings.signed-in")
+                    if signInProvider == AppSessionManager.appleProvider,
+                       let name = appleAccountManager.displayName ?? appleAccountManager.email, !name.isEmpty {
                         Text(name)
                             .font(.cowtailSans(12, relativeTo: .caption))
                             .foregroundStyle(palette.mutedInk)
@@ -62,14 +66,34 @@ struct SettingsView: View {
                 }
                 Spacer()
                 CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right") {
-                    appSessionManager.invalidateSession()
+                    appSessionManager.signOut()
                     appleAccountManager.clearIdentity()
                 }
                 .accessibilityIdentifier("button.settings.sign-out")
             }
             .cowtailRow()
+        } else {
+            VStack(spacing: 8) {
+                appleSignInButton
+                if let providerName = oidcSignIn.providerName {
+                    Button("Sign in with \(providerName)") {
+                        Task {
+                            await oidcSignIn.signIn()
+                            await notificationManager.loadDailyRoundupPreference()
+                            await store.loadDevices()
+                        }
+                    }
+                    .buttonStyle(CowtailTextButtonStyle(fullWidth: true))
+                    .disabled(oidcSignIn.isSigningIn)
+                    .accessibilityIdentifier("button.settings.oidc-sign-in")
+                }
+            }
+            .cowtailRow()
         }
         if let error = appleAccountManager.lastError, appleAccountManager.signInState == .failed {
+            note(error, tint: palette.accent)
+        }
+        if !isSignedIn, let error = oidcSignIn.lastError {
             note(error, tint: palette.accent)
         }
     }
@@ -377,7 +401,7 @@ struct SettingsView: View {
     }
 
     private var appleSignInButton: some View {
-        SignInWithAppleButton(.continue) { request in
+        SignInWithAppleButton(.signIn) { request in
             appleAccountManager.configure(request)
         } onCompletion: { result in
             appleAccountManager.handleCompletion(result)
@@ -390,7 +414,8 @@ struct SettingsView: View {
                 await notificationManager.loadDailyRoundupPreference()
             }
         }
-        .signInWithAppleButtonStyle(.black)
+        // Black on a light screen and white on a dark one, as Apple's guidelines and the figure draw it.
+        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
         .frame(height: 44)
         .accessibilityIdentifier("button.notifications.apple-sign-in")
     }
@@ -413,20 +438,32 @@ struct SettingsView: View {
     // MARK: Push setup state
 
     private var preferencesLocked: Bool {
-        needsAppleAccountConnection
+        !isSignedIn
             || notificationManager.dailyRoundupPreferenceRequiresSignIn
             || notificationManager.isLoadingDailyRoundupPreference
             // One settings write at a time, so a refusal never meets a newer change.
             || notificationManager.isSavingDailyRoundupPreference
     }
 
+    private var isSignedIn: Bool {
+        appleAccountManager.userID != nil || appSessionManager.hasValidPersistedSession
+    }
+
+    private var signInProvider: String {
+        appSessionManager.provider ?? AppSessionManager.appleProvider
+    }
+
+    /// Push registration still proves the device's owner with an Apple identity.
     private var needsAppleAccountConnection: Bool {
         appleAccountManager.userID == nil
     }
 
+    /// Offers Sign in with Apple under Notifications when push needs it and Account does not show it.
     private var requiresAppleConfirmationForPushSetup: Bool {
-        appleAccountManager.userID != nil
-            && appleAccountManager.needsFreshIdentityToken()
+        if needsAppleAccountConnection {
+            return isSignedIn
+        }
+        return appleAccountManager.needsFreshIdentityToken()
             && notificationManager.serverRegistrationState == .waitingForIdentity
     }
 
@@ -475,7 +512,9 @@ struct SettingsView: View {
             return nil
         }
         if needsAppleAccountConnection {
-            return "Sign in once so Cowtail can bind alerts to this device."
+            return isSignedIn
+                ? "Pushes still need Sign in with Apple to verify this device."
+                : "Sign in once so Cowtail can bind alerts to this device."
         }
         if requiresAppleConfirmationForPushSetup {
             return "Apple needs a fresh confirmation before Cowtail can verify this device."

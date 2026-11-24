@@ -58,6 +58,26 @@ extension View {
     }
 }
 
+/// A text button, for the actions whose words carry what an icon cannot: sign-in, a question's answers.
+struct CowtailTextButtonStyle: ButtonStyle {
+    /// A full-width button, as tall as Sign in with Apple beside it.
+    var fullWidth = false
+
+    @Environment(\.cowtailPalette) private var palette
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.cowtailSans(fullWidth ? 15 : 13, weight: fullWidth ? .semibold : .medium, relativeTo: .footnote))
+            .foregroundStyle(palette.ink)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: fullWidth ? 44 : nil)
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(palette.border, lineWidth: 1))
+            .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
 /// Every action is an icon with an accessible name.
 struct CowtailIconButton: View {
     @Environment(\.cowtailPalette) private var palette

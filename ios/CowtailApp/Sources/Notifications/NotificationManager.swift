@@ -546,14 +546,12 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        print("[roundup-debug] NotificationManager.loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil)")
-        logger.debug("loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil, privacy: .public)")
-        guard let _ = AppleAccountManager.shared.userID else {
+        // Preferences belong to the session, whichever provider signed in.
+        guard AppleAccountManager.shared.userID != nil || appSessionManager.hasValidPersistedSession else {
             preferences = AppNotificationPreferences()
             dailyRoundupPreferenceRequiresSignIn = true
             dailyRoundupPreferenceError = nil
-            print("[roundup-debug] NotificationManager.loadDailyRoundupPreference no Apple account")
-            logger.debug("loadDailyRoundupPreference no Apple account")
+            logger.debug("loadDailyRoundupPreference signed out")
             return
         }
 
@@ -642,8 +640,7 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        guard AppleAccountManager.shared.userID != nil,
-              let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
+        guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
             preferences = previous
             unconfirmedPreviousPreferences = earlierUnconfirmed
             rememberApprovalAuthentication()

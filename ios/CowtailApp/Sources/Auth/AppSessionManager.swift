@@ -20,13 +20,19 @@ final class AppSessionManager: ObservableObject {
     @Published private(set) var userID: String?
     @Published private(set) var expiresAt: Date?
     @Published private(set) var lastError: String?
+    /// The sign-in method that produced the session, as the account row names it.
+    @Published private(set) var provider: String?
 
-    private let api = CowtailAPI()
+    nonisolated static let appleProvider = "Apple"
+
+    /// AppRuntime points this at the seeded server for UI tests.
+    var api: any AuthAPIClient = CowtailAPI()
     private let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
     private let defaults = UserDefaults.standard
     private let tokenKey = "appSession.token"
     private let userIDKey = "appSession.userID"
     private let expiresAtKey = "appSession.expiresAt"
+    private let providerKey = "appSession.provider"
     private var isUITesting = false
     private var sessionToken: String?
     private var refreshTask: Task<String?, Never>?
@@ -38,6 +44,7 @@ final class AppSessionManager: ObservableObject {
         isUITesting = false
         sessionToken = keychain.string(for: tokenKey)
         userID = keychain.string(for: userIDKey) ?? defaults.string(forKey: userIDKey)
+        provider = defaults.string(forKey: providerKey)
 
         if let rawExpiresAt = defaults.object(forKey: expiresAtKey) as? Double {
             expiresAt = Date(timeIntervalSince1970: rawExpiresAt)
@@ -67,11 +74,16 @@ final class AppSessionManager: ObservableObject {
             return false
         }
 
-        if let appleUserID = AppleAccountManager.shared.userID, appleUserID != userID {
+        if isAppleSession, let appleUserID = AppleAccountManager.shared.userID, appleUserID != userID {
             return false
         }
 
         return true
+    }
+
+    /// Sessions stored before providers were recorded came from Apple.
+    private var isAppleSession: Bool {
+        (provider ?? Self.appleProvider) == Self.appleProvider
     }
 
     func validSessionToken() -> String? {
@@ -128,9 +140,7 @@ final class AppSessionManager: ObservableObject {
                 await MainActor.run {
                     print("[roundup-debug] AppSessionManager.refreshSessionIfPossible session created userID=\(session.userID)")
                     self.logger.debug("refreshSessionIfPossible session created for user \(session.userID, privacy: .public)")
-                    self.store(session)
-                    self.sessionState = .ready
-                    self.lastError = nil
+                    self.store(session, provider: Self.appleProvider)
                 }
                 return session.token
             } catch {
@@ -163,7 +173,8 @@ final class AppSessionManager: ObservableObject {
             token: nil,
             userID: nil,
             expiresAt: nil,
-            lastError: nil
+            lastError: nil,
+            provider: nil
         )
     }
 
@@ -176,7 +187,27 @@ final class AppSessionManager: ObservableObject {
         clearSession()
     }
 
+    /// Ends the session for either provider: clears it at once, then revokes it on the server.
+    @discardableResult
+    func signOut() -> Task<Void, Never>? {
+        let token = sessionToken
+        invalidateSession()
+        guard let token, !token.isEmpty else { return nil }
+        return Task { [api, logger] in
+            do {
+                try await api.logout(sessionToken: token)
+            } catch {
+                logger.error("signOut logout failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     func appleIdentityDidChange() {
+        // An Apple identity change leaves a session from another provider alone.
+        if !isAppleSession, hasValidPersistedSession {
+            return
+        }
+
         if AppleAccountManager.shared.userID == nil {
             invalidateSession()
             return
@@ -193,15 +224,20 @@ final class AppSessionManager: ObservableObject {
         }
     }
 
-    private func store(_ session: AppAuthSession) {
+    /// The one place a new session is kept, whichever provider signed in.
+    func store(_ session: AppAuthSession, provider: String) {
         sessionToken = session.token
         userID = session.userID
         expiresAt = session.expiresAt
+        self.provider = provider
+        sessionState = .ready
+        lastError = nil
 
         keychain.set(session.token, for: tokenKey)
         keychain.set(session.userID, for: userIDKey)
         defaults.set(session.userID, forKey: userIDKey)
         defaults.set(session.expiresAt.timeIntervalSince1970, forKey: expiresAtKey)
+        defaults.set(provider, forKey: providerKey)
     }
 
     func resetForUITesting() {
@@ -215,7 +251,8 @@ final class AppSessionManager: ObservableObject {
             token: nil,
             userID: nil,
             expiresAt: nil,
-            lastError: nil
+            lastError: nil,
+            provider: nil
         )
     }
 
@@ -224,7 +261,8 @@ final class AppSessionManager: ObservableObject {
         token: String?,
         userID: String?,
         expiresAt: Date?,
-        lastError: String?
+        lastError: String?,
+        provider: String? = nil
     ) {
         isUITesting = true
         refreshTask?.cancel()
@@ -235,7 +273,8 @@ final class AppSessionManager: ObservableObject {
             token: token,
             userID: userID,
             expiresAt: expiresAt,
-            lastError: lastError
+            lastError: lastError,
+            provider: provider
         )
     }
 
@@ -244,6 +283,7 @@ final class AppSessionManager: ObservableObject {
         keychain.remove(userIDKey)
         defaults.removeObject(forKey: userIDKey)
         defaults.removeObject(forKey: expiresAtKey)
+        defaults.removeObject(forKey: providerKey)
     }
 
     private func applyUITestState(
@@ -251,8 +291,10 @@ final class AppSessionManager: ObservableObject {
         token: String?,
         userID: String?,
         expiresAt: Date?,
-        lastError: String?
+        lastError: String?,
+        provider: String?
     ) {
+        self.provider = provider
         self.sessionToken = token
         self.userID = userID
         self.expiresAt = expiresAt

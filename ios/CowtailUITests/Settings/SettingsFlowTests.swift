@@ -40,6 +40,31 @@ final class SettingsFlowTests: XCTestCase {
 
         XCTAssertTrue(app.buttons["button.notifications.apple-sign-in"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["button.notifications.primary-action"].exists)
+        // This server lists no OIDC provider.
+        XCTAssertFalse(app.buttons["button.settings.oidc-sign-in"].exists)
+    }
+
+    func testSignedOutOffersTheServersOIDCProviderAfterApple() {
+        let app = AppLaunching.configuredApp(scenario: "signed_out_with_oidc", startTab: "settings")
+        app.launch()
+
+        let oidc = app.buttons["button.settings.oidc-sign-in"]
+        XCTAssertTrue(oidc.waitForExistence(timeout: 10))
+        XCTAssertEqual(oidc.label, "Sign in with Pocket ID")
+        let apple = app.buttons["button.notifications.apple-sign-in"]
+        XCTAssertEqual(app.buttons.matching(identifier: "button.notifications.apple-sign-in").count, 1)
+        XCTAssertLessThan(apple.frame.minY, oidc.frame.minY, "Sign in with Apple comes first")
+    }
+
+    func testSignedInWithOIDCNamesTheProviderAndOffersSignOut() {
+        let app = AppLaunching.configuredApp(scenario: "signed_in_with_oidc", startTab: "settings")
+        app.launch()
+
+        let row = app.element("text.settings.signed-in")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(row.label, "Signed in with Pocket ID")
+        XCTAssertEqual(app.buttons["button.settings.sign-out"].label, "Sign out")
+        XCTAssertFalse(app.buttons["button.settings.oidc-sign-in"].exists)
     }
 
     func testNotificationsSyncErrorOffersRetry() {

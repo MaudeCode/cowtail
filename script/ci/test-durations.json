@@ -18,6 +18,8 @@
     "SettingsFlowTests::testNotificationsDeniedOffersSystemSettings": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "SettingsFlowTests::testNotificationsNeedsAppleOffersAppleSignIn": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "SettingsFlowTests::testNotificationsSyncErrorOffersRetry": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "SettingsFlowTests::testSettingsShowsItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests"
+    "SettingsFlowTests::testSettingsShowsItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "SettingsFlowTests::testSignedInWithOIDCNamesTheProviderAndOffersSignOut": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "SettingsFlowTests::testSignedOutOffersTheServersOIDCProviderAfterApple": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests"
   }
 }
