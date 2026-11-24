@@ -46,13 +46,13 @@ jobs:
         with:
           tag: ${{ inputs.tag }}
           sha: ${{ inputs.sha }}
-          # Each verify workflow's job, as its push run on main names it. A job that already passed on the commit is
-          # reused; the release runs the others below. Path filters mean a push run may not exist for a commit.
+          # Each suite's jobs, as ci.yml's push run on main names them. A suite that already passed on the commit is
+          # reused; the release runs the others below. A suite the push run skipped has no result to reuse.
           checks: |
-            global-verify.yml: verify
-            web-verify.yml: verify
-            ios-verify.yml: iOS Verify
-            cli-verify.yml: CLI Verify
+            ci.yml: global / *
+            ci.yml: web / *
+            ci.yml: ios / *
+            ci.yml: cli / *
 
   # Fails the release-freeze status on open pull requests that change a workflow file, so none merges mid-release:
   # GitHub refuses this workflow's token when it tags a commit whose workflow files differ from main's. validate needs
@@ -68,28 +68,28 @@ jobs:
 
   global-verify:
     needs: [preflight]
-    if: "${{ !fromJSON(needs.preflight.outputs.checks)['global-verify.yml: verify'] }}"
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['ci.yml: global / *'] }}"
     uses: ./.github/workflows/global-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
 
   web-verify:
     needs: [preflight]
-    if: "${{ !fromJSON(needs.preflight.outputs.checks)['web-verify.yml: verify'] }}"
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['ci.yml: web / *'] }}"
     uses: ./.github/workflows/web-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
 
   ios-verify:
     needs: [preflight]
-    if: "${{ !fromJSON(needs.preflight.outputs.checks)['ios-verify.yml: iOS Verify'] }}"
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['ci.yml: ios / *'] }}"
     uses: ./.github/workflows/ios-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
 
   cli-verify:
     needs: [preflight]
-    if: "${{ !fromJSON(needs.preflight.outputs.checks)['cli-verify.yml: CLI Verify'] }}"
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['ci.yml: cli / *'] }}"
     uses: ./.github/workflows/cli-verify.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}

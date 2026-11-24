@@ -95,11 +95,18 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 
 The owner declined the physical-phone validation gate, in advance, for every ticket of the item rewrite epic (decision of 2026-11-23). For those tickets, record the device result as `declined`, offer no phone build, and merge on the simulator unit and UI tests in CI. The owner tries the finished app on a phone once, after the epic. A ticket outside that epic follows the usual gate.
 
-## CI Runners
+## CI
 
-- Workflows run on GitHub-hosted runners: `ubuntu-latest` or `ubuntu-24.04`, `ubuntu-24.04-arm` for the arm64 image, and the hosted `xcode-27` image for iOS.
-- The iOS jobs set up Xcode and install XcodeGen, SwiftLint and SwiftFormat through [`.github/actions/setup-ios`](./.github/actions/setup-ios/action.yml); the pinned Xcode version lives there.
-- iOS Verify tests on the newest runtime's `iPhone 17`, which the hosted image provides.
+CI follows `CI.md` in the organization's public `.github` repository: a change runs only the suites it reaches.
+
+- [`.github/ci-suites.json`](./.github/ci-suites.json) names the suites, `global` (lint, format, protocol, script tests), `web`, `cli`, `ios` and `docker`, and the ordered rules that route a changed path to them. The first rule that matches a path decides it, so narrow rules come before broad ones. A path no rule matches runs every suite; [`script/ci/suites.test.ts`](./script/ci/suites.test.ts) fails when a tracked path is matched by no rule.
+- [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs on every pull request, every push to `main` and by hand. Its `changes` job selects the suites with the shared `ci-suites` action, one job per suite calls `.github/workflows/<suite>-verify.yml`, and `CI Gate` passes only when every selected suite passed. A suite's checks are named `<suite> / <job>`.
+- The verify workflows run only when `ci.yml` or the release calls them, or by hand; they have no `push` or `pull_request` trigger of their own.
+- To add a suite: add it and its rules to `ci-suites.json`, add its `<suite>-verify.yml` with `workflow_call`, add a job with the suite's name to `ci.yml` and to `CI Gate`'s `needs`, and, when the release should reuse it, add `ci.yml: <suite> / *` to the release preflight's `checks`.
+- The shared actions and the `@maudecode/ci` dev dependency pin the same commit of the `.github` repository; bump them together.
+- `CI Gate` and `release-freeze` are `main`'s required status checks.
+- Every job runs on a GitHub-hosted runner, `ubuntu-latest` or `ubuntu-24.04`, `ubuntu-24.04-arm` for the arm64 image, and the hosted `xcode-27` image for iOS. A runner is a new machine for each job: no job prepares or cleans up state for a later one, and every job sets `timeout-minutes`.
+- The iOS job sets up Xcode and installs XcodeGen, SwiftLint and SwiftFormat through [`.github/actions/setup-ios`](./.github/actions/setup-ios/action.yml), where the pinned Xcode version lives. It runs `ios/scripts/test.sh CowtailTests CowtailUITests` once, on the `iPhone 17` simulator the hosted image provides, and caches SwiftPM's packages.
 - Only the Convex deploy stays on a self-hosted runner, because its deployment URL is reachable only from inside the cluster.
 
 ## Convex Deploy Path
@@ -131,9 +138,9 @@ Releases are tag-last: the release workflow is dispatched with a version, publis
   - from a terminal: `gh workflow run release.yml --ref main -f tag=vX.Y.Z -f sha="$(git rev-parse origin/main)"`
 - Runtime:
   - `preflight` runs the shared `release-preflight` action first, and every other job needs it; it refuses a run off `main`, a `sha` that is not on `main` after the last release or whose workflow files differ from `main`'s, and a tag that exists or does not come after the latest version tag
-  - preflight's `checks` names each verify workflow's job; one that already passed in that workflow's push run on the commit is reused, and the release runs the others itself. Path filters mean a commit may have no push run for a workflow, so the release runs it. The release never waits on another run, and the build and publish jobs treat a skipped verify as a pass and a failed one as a stop
+  - preflight's `checks` names the `global`, `web`, `ios` and `cli` suites as `ci.yml: <suite> / *`; a suite that already passed in `ci.yml`'s push run on the commit is reused, and the release runs the others itself through their verify workflows. A push run skips the suites its change does not reach, so a commit may have no result for a suite, and the release runs it. The release never waits on another run, and the build and publish jobs treat a skipped verify as a pass and a failed one as a stop
   - `freeze`, right after preflight, fails the `release-freeze` commit status on every open pull request that changes a workflow file. `validate` needs it and every publishing job needs `validate`, so a release whose freeze failed publishes nothing. The last job, `thaw`, runs with `if: always()` and passes the status again however the release ended. GitHub refuses the workflow's token when it tags a commit whose workflow files differ from `main`'s, so a workflow change merged mid-release would leave the release untagged
-  - [`.github/workflows/release-freeze.yml`](./.github/workflows/release-freeze.yml) runs on `pull_request_target` for every pull request, whatever it changes, because the verify workflows run by path; it gives each pull request the `release-freeze` status, forks and Dependabot included. It checks out nothing and never runs pull request code. `release-freeze` belongs in `main`'s required status checks
+  - [`.github/workflows/release-freeze.yml`](./.github/workflows/release-freeze.yml) runs on `pull_request_target` for every pull request, whatever it changes; it gives each pull request the `release-freeze` status, forks and Dependabot included. It checks out nothing and never runs pull request code. `release-freeze` belongs in `main`'s required status checks
   - every job reads the commit from preflight's `sha` output and the version from its `tag` or `version` output, never from `github.ref_name` or the inputs; the reusable workflows take them as `ref` and `version`
   - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context, labelled with the commit as `org.opencontainers.image.revision`
   - builds the CLI npm package from [`cli/`](./cli)

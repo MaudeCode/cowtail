@@ -1,0 +1,86 @@
+name: CI
+
+# CI.md in MaudeCode/.github: the router selects the suites a change reaches from .github/ci-suites.json, each suite
+# runs its verify workflow, and CI Gate, a required check, passes when every selected suite passed.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A pull request's first attempt replaces its older runs, a push to main queues behind the one before it, and a
+  # re-run or a manual run stands alone.
+  group: >-
+    ci-${{ github.run_attempt == '1' && (github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number)
+    || github.event_name == 'push' && github.ref) || format('run-{0}-{1}', github.run_id, github.run_attempt) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == '1' }}
+
+jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # a push compares with the last commit this workflow passed on
+    outputs:
+      suites: ${{ steps.suites.outputs.suites }}
+      global: ${{ steps.suites.outputs.global }}
+      web: ${{ steps.suites.outputs.web }}
+      cli: ${{ steps.suites.outputs.cli }}
+      ios: ${{ steps.suites.outputs.ios }}
+      docker: ${{ steps.suites.outputs.docker }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - id: suites
+        uses: MaudeCode/.github/actions/ci-suites@418695a65b056488bad5f6a769e49c638832bca9
+
+  global:
+    name: global
+    needs: changes
+    if: needs.changes.outputs.global == 'true'
+    uses: ./.github/workflows/global-verify.yml
+
+  web:
+    name: web
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    uses: ./.github/workflows/web-verify.yml
+
+  cli:
+    name: cli
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    uses: ./.github/workflows/cli-verify.yml
+
+  ios:
+    name: ios
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    uses: ./.github/workflows/ios-verify.yml
+
+  docker:
+    name: docker
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    uses: ./.github/workflows/docker-verify.yml
+
+  gate:
+    name: CI Gate
+    needs: [changes, global, web, cli, ios, docker]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: MaudeCode/.github/actions/ci-gate@418695a65b056488bad5f6a769e49c638832bca9
+        with:
+          needs: ${{ toJSON(needs) }}
+          selected: ${{ needs.changes.outputs.suites }}
