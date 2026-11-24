@@ -2218,7 +2218,7 @@ app.post("/api/hermes/incidents/:id/postmortem", async (c) => {
   try {
     await c.env.runMutation((internal as any).incidents.recordPostmortem, {
       id: c.req.param("id"),
-      text: parsed.data.text,
+      ...parsed.data,
       now: Date.now(),
     });
   } catch (error) {

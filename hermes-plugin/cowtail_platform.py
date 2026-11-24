@@ -247,6 +247,10 @@ class CowtailAdapter(BasePlatformAdapter):
         self._applied: dict[str, str] = {}
         # Runbook runs in progress; each one streams on its own thread until its script exits.
         self._runs: set[asyncio.Task] = set()
+        # The postmortem request last handed to Hermes in each incident chat, so its reply names
+        # the request it answers. ponytail: in memory; after a restart a reply names none and
+        # Cowtail takes it for the incident's newest request.
+        self._postmortem_requests: dict[str, str] = {}
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
         if not cowtail_available():
@@ -334,6 +338,7 @@ class CowtailAdapter(BasePlatformAdapter):
                 chat_id=request["chatId"], chat_name="Cowtail incident", chat_type="dm",
                 user_id="cowtail", user_name="Cowtail",
             )
+            self._postmortem_requests[request["chatId"]] = request["id"]
             await self.handle_message(MessageEvent(
                 text=request["prompt"], message_type=MessageType.TEXT, source=source,
                 message_id=f"cowtail-postmortem-{request['id']}",
@@ -362,7 +367,12 @@ class CowtailAdapter(BasePlatformAdapter):
             # Hermes's reply to a postmortem request is the incident's postmortem, not an item.
             incident_id = chat_id[len(INCIDENT_CHAT_PREFIX):]
             try:
-                await asyncio.to_thread(self._client.post_postmortem, incident_id, content[:POSTMORTEM_LIMIT])
+                await asyncio.to_thread(
+                    self._client.post_postmortem,
+                    incident_id,
+                    content[:POSTMORTEM_LIMIT],
+                    self._postmortem_requests.get(chat_id),
+                )
             except CowtailError as error:
                 return SendResult(success=False, error=str(error))
             return SendResult(success=True, message_id=f"postmortem:{incident_id}")

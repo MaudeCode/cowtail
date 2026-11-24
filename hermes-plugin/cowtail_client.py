@@ -156,5 +156,8 @@ class CowtailClient:
     def postmortem_delivered(self, request_id: str, claim_token: str) -> dict[str, Any]:
         return self._request("POST", f"/api/hermes/postmortem-requests/{request_id}/delivered", {"claimToken": claim_token})
 
-    def post_postmortem(self, incident_id: str, text: str) -> dict[str, Any]:
-        return self._request("POST", f"/api/hermes/incidents/{incident_id}/postmortem", {"text": text})
+    def post_postmortem(self, incident_id: str, text: str, request_id: str | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"text": text}
+        if request_id:
+            body["requestId"] = request_id
+        return self._request("POST", f"/api/hermes/incidents/{incident_id}/postmortem", body)

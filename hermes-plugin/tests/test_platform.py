@@ -493,6 +493,17 @@ class PostmortemTest(PlatformTest):
             [{"claimToken": "claim-pm-1"}],
         )
 
+    def test_a_reply_after_delivery_names_the_request_it_answers(self):
+        self.cowtail.postmortem_requests = [dict(self.REQUEST)]
+        self.run_async(self.adapter.deliver_postmortem_requests())
+
+        self.run_async(self.adapter.send("cowtail:incident:inc-7", "## Summary"))
+
+        self.assertEqual(
+            self.cowtail.posted("/api/hermes/incidents/inc-7/postmortem"),
+            [{"text": "## Summary", "requestId": "pm-1"}],
+        )
+
     def test_the_agents_reply_in_an_incident_chat_is_posted_as_its_postmortem_not_an_item(self):
         result = self.run_async(
             self.adapter.send("cowtail:incident:inc-7", "## Summary\nosd.4 dropped off the cluster.")

@@ -92,8 +92,11 @@ export const postmortemRequestDeliveredRequestSchema = z.object({
   claimToken: nonEmptyStringSchema,
 });
 
+// `requestId` names the request the reply answers, as the plugin delivered it. Without it the
+// reply answers the incident's newest request.
 export const incidentPostmortemPostRequestSchema = z.object({
   text: nonEmptyStringSchema.max(50_000),
+  requestId: nonEmptyStringSchema.optional(),
 });
 
 export type IncidentPostmortemState = z.infer<typeof incidentPostmortemStateSchema>;

@@ -500,23 +500,36 @@ async function requestsInFlight(ctx: QueryCtx, incidentId: Id<"incidents">) {
   );
 }
 
-// Hermes's reply in the incident's chat. The first reply to a request, or a late one after it
-// failed, records the postmortem on the timeline; a later message in the chat replaces the text.
+// Hermes's reply in the incident's chat, for the request it answers; without one, for the
+// newest request. A reply to an older request completes only that request: it never replaces
+// the result of a newer one. The first reply to a request, or a late one after it failed,
+// records the postmortem on the timeline; a later message in the chat replaces the text.
 export const recordPostmortem = internalMutation({
-  args: { id: v.string(), text: v.string(), now: v.number() },
-  handler: async (ctx, { id, text, now }) => {
+  args: { id: v.string(), text: v.string(), requestId: v.optional(v.string()), now: v.number() },
+  handler: async (ctx, { id, text, requestId, now }) => {
     const incident = await requireIncident(ctx, id);
-    const inFlight = await requestsInFlight(ctx, incident._id);
-    for (const request of inFlight) {
-      await ctx.db.patch(request._id, { status: "written", updatedAt: now });
+    const requests = (
+      await ctx.db
+        .query("postmortemRequests")
+        .withIndex("by_incidentId", (q) => q.eq("incidentId", incident._id))
+        .collect()
+    ).sort((a, b) => a._creationTime - b._creationTime);
+    const newest = requests.at(-1);
+    const answered = requestId ? requests.find((request) => request._id === requestId) : newest;
+    if (requestId && !answered) codedError("POSTMORTEM_REQUEST_NOT_FOUND");
+    const inFlight = answered?.status === "pending" || answered?.status === "delivered";
+    if (answered && inFlight) {
+      await ctx.db.patch(answered._id, { status: "written", updatedAt: now });
     }
+    if (answered !== newest) return;
+
     await ctx.db.patch(incident._id, {
       postmortem: text,
       postmortemAt: now,
       postmortemState: "written",
       updatedAt: now,
     });
-    if (inFlight.length > 0 || incident.postmortemState !== "written") {
+    if (inFlight || incident.postmortemState !== "written") {
       await ctx.db.insert("itemEvents", {
         incidentId: incident._id,
         at: now,

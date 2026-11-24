@@ -378,6 +378,34 @@ describe("postmortems", () => {
     expect((await rows(t, "postmortemRequests")).map((entry) => entry.status)).toEqual(["written"]);
   });
 
+  test("a reply to an older request never completes a newer one", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await resolvedIncident(t);
+    const first = await claim(t);
+    const [member] = await rows(t, "items");
+    await t.run(async (ctx) => {
+      await transitionItem(ctx, (await ctx.db.get(member._id))!, "open", {
+        actor: "alertmanager",
+        at: Date.now(),
+      });
+    });
+    await resolveItem(t, String(member._id));
+
+    const response = await request(t, `/api/hermes/incidents/${id}/postmortem`, {
+      method: "POST",
+      bearer: WORKER,
+      body: { text: "## Summary\nThe first outage.", requestId: first!.id },
+    });
+    expect(response.status).toBe(200);
+    expect((await rows(t, "postmortemRequests")).map((entry) => entry.status)).toEqual([
+      "written",
+      "pending",
+    ]);
+    const { incident } = await getIncident(t, id);
+    expect(incident).toMatchObject({ postmortemState: "requested", availableActions: [] });
+    expect(incident.postmortem).toBeUndefined();
+  });
+
   test("no postmortem within 30 minutes fails the request", async () => {
     const t = await newBackendWithSources("cron");
     const id = await resolvedIncident(t);
