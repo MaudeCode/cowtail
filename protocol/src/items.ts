@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
+import { alertHumanActionSchema } from "./alerts.ts";
 import { sourceInfoSchema } from "./sources.ts";
 
 export const itemKinds = ["alert", "failure", "approval", "question", "fyi", "done"] as const;
@@ -99,6 +100,14 @@ export const itemRecordSchema = z.object({
   // Resolved items only: how it ended, and how long after creation.
   outcome: itemOutcomeSchema.optional(),
   resolvedAfterMs: z.number().int().nonnegative().optional(),
+  // The context keys in the order to show them.
+  contextOrder: z.array(z.string()).optional(),
+  // Alert items: the owner's calls on the alert the server accepts now, and the
+  // investigation's recorded root cause and action.
+  alertActions: z.array(alertHumanActionSchema).optional(),
+  investigationResult: z
+    .object({ rootCause: z.string().optional(), action: z.string().optional() })
+    .optional(),
   // List results only: the day the item was created, in the server's time zone.
   createdDate: dateOnlyStringSchema.optional(),
 });
@@ -303,6 +312,9 @@ export const itemStatsResponseSchema = z.object({
       bySource: z.record(z.string(), countSchema),
     }),
   ),
+  // Every source in dailyVolume, most items first, in the order to stack and list them.
+  // Optional so a client still decodes a server from before it.
+  volumeSources: z.array(z.string()).optional(),
   firingCount: countSchema,
   // Most firing first.
   firingByNamespace: z.array(

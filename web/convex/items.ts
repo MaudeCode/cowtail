@@ -15,6 +15,7 @@ import { newestInvestigationJob } from "./alertLifecycle";
 import {
   alertItemState,
   alertItemUrgency,
+  alertOwnerActions,
   alertWorkflowState,
   itemAvailableActions,
   itemInvestigationStep,
@@ -348,7 +349,17 @@ async function alertContext(ctx: QueryCtx, item: Doc<"items">) {
     .query("investigationJobs")
     .withIndex("by_alertId", (q) => q.eq("alertId", alertId))
     .collect();
-  return { alert, workflow: alertWorkflowState(alert, newestInvestigationJob(jobs)?.status) };
+  return {
+    alert,
+    jobs,
+    workflow: alertWorkflowState(alert, newestInvestigationJob(jobs)?.status),
+  };
+}
+
+function investigationResult(alert: Doc<"alerts">) {
+  const rootCause = alert.rootCause?.trim() || undefined;
+  const action = alert.action.trim() || undefined;
+  return rootCause || action ? { rootCause, action } : undefined;
 }
 
 // The app badge: open items that need the owner.
@@ -380,7 +391,7 @@ async function latestHermesUpdate(ctx: QueryCtx, itemId: Id<"items">) {
 
 async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
   const { _id, _creationTime, alertId, investigationJobId, ...fields } = item;
-  const { alert, workflow } = await alertContext(ctx, item);
+  const { alert, jobs, workflow } = await alertContext(ctx, item);
   const resolvedAt = item.state === "resolved" ? item.resolvedAt : undefined;
   return {
     ...fields,
@@ -390,6 +401,9 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
     needsOwner: itemNeedsOwner(item, workflow),
     availableActions: itemAvailableActions(item),
+    contextOrder: Object.keys(item.context).sort(),
+    alertActions: jobs ? alertOwnerActions(jobs) : undefined,
+    investigationResult: alert ? investigationResult(alert) : undefined,
     subtitle: itemSubtitle(item),
     latestUpdate: await latestHermesUpdate(ctx, _id),
     investigationStep: terminalItemStates.has(item.state)

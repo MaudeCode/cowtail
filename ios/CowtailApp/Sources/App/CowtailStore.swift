@@ -91,6 +91,8 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var historyError: String?
     @Published private(set) var isLoadingHistory = false
     private var historyCursor: String?
+    /// The query the current history pages came from; continuations reuse its bounds.
+    private var historyQuery: ItemListQuery?
 
     @Published private(set) var devices: [UserDevice] = []
 
@@ -363,6 +365,7 @@ final class CowtailStore: ObservableObject {
             let (loadedPage, loadedStats, loadedSources) = try await (page, stats, sources)
             guard filter == historyFilter else { return }
             historySources = loadedSources
+            historyQuery = query
             historyItems = loadedPage.items
             historyDayCounts = Self.dayCounts(loadedPage.days)
             historyCursor = loadedPage.nextCursor
@@ -379,7 +382,7 @@ final class CowtailStore: ObservableObject {
     func loadMoreHistory() async {
         guard let cursor = historyCursor, !isLoadingHistory, let token = await sessionToken() else { return }
         let filter = historyFilter
-        var query = filter.query(now: .now)
+        guard var query = historyQuery else { return }
         query.cursor = cursor
         isLoadingHistory = true
         defer { isLoadingHistory = false }

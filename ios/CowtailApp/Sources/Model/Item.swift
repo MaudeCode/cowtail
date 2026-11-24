@@ -73,11 +73,18 @@ struct Item: Identifiable, Hashable, Sendable {
     let body: String
     let links: [ItemLink]
     let context: [String: String]
+    /// The context keys in the server's order.
+    let contextOrder: [String]
     let occurrenceCount: Int
     let actions: [ItemAction]
     /// What the server still lets the owner do: no answer once answered, only links once closed.
     var availableActions: [ItemAction]
     let alertID: String?
+    /// The owner's calls on the linked alert that the server accepts now.
+    let alertActions: [AlertHumanAction]
+    /// The linked alert's investigation results.
+    let rootCause: String?
+    let actionTaken: String?
     let expiresAt: Date?
     let createdAt: Date
     let updatedAt: Date
@@ -102,10 +109,14 @@ struct Item: Identifiable, Hashable, Sendable {
         body: String = "",
         links: [ItemLink] = [],
         context: [String: String] = [:],
+        contextOrder: [String]? = nil,
         occurrenceCount: Int = 1,
         actions: [ItemAction] = [],
         availableActions: [ItemAction]? = nil,
         alertID: String? = nil,
+        alertActions: [AlertHumanAction] = [],
+        rootCause: String? = nil,
+        actionTaken: String? = nil,
         expiresAt: Date? = nil,
         createdAt: Date,
         updatedAt: Date? = nil,
@@ -128,10 +139,14 @@ struct Item: Identifiable, Hashable, Sendable {
         self.body = body
         self.links = links
         self.context = context
+        self.contextOrder = contextOrder ?? context.keys.sorted()
         self.occurrenceCount = occurrenceCount
         self.actions = actions
         self.availableActions = availableActions ?? actions
         self.alertID = alertID
+        self.alertActions = alertActions
+        self.rootCause = rootCause
+        self.actionTaken = actionTaken
         self.expiresAt = expiresAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
@@ -285,6 +300,8 @@ struct ItemStats: Equatable, Sendable {
     let timeToResolve: [KindResolveTime]
     let repeatOffenders: [RepeatOffender]
     let dailyVolume: [DailyVolume]
+    /// The sources to stack and list, in the server's order.
+    var volumeSources: [String] = []
     let firingCount: Int
     let firingByNamespace: [NamespaceCount]
 }

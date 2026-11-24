@@ -764,6 +764,7 @@ final class NotificationManager: NSObject, ObservableObject {
         }
         if change.request.urgencyOverrides != nil {
             reverted.urgencyOverrides = previous.urgencyOverrides
+            reverted.urgencyOverrideOrder = previous.urgencyOverrideOrder
         }
         return reverted
     }

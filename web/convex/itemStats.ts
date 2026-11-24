@@ -171,7 +171,9 @@ export const stats = internalQuery({
       days.set(day, { total: 0, bySource: new Map() });
       day = addDaysToDateOnly(day, 1);
     }
+    const sourceTotals = new Map<string, number>();
     for (const item of created) {
+      sourceTotals.set(item.source, (sourceTotals.get(item.source) ?? 0) + 1);
       const day = days.get(dateOnlyForInstant(new Date(item.createdAt), timeZone))!;
       day.total += 1;
       day.bySource.set(item.source, (day.bySource.get(item.source) ?? 0) + 1);
@@ -201,6 +203,9 @@ export const stats = internalQuery({
         total: day.total,
         bySource: Object.fromEntries(day.bySource),
       })),
+      volumeSources: [...sourceTotals]
+        .sort(([a, totalA], [b, totalB]) => totalB - totalA || a.localeCompare(b))
+        .map(([name]) => name),
       firingCount: firing.length,
       firingByNamespace,
     };

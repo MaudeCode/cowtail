@@ -88,9 +88,11 @@ struct ClusterView: View {
         )
         Chart {
             ForEach(stats.dailyVolume, id: \.date) { day in
-                ForEach(day.bySource.sorted(by: { $0.key < $1.key }), id: \.key) { source, count in
-                    BarMark(x: .value("Day", dayLabel(day.date)), y: .value("Items", count))
-                        .foregroundStyle(by: .value("Source", source))
+                ForEach(stats.volumeSources, id: \.self) { source in
+                    if let count = day.bySource[source] {
+                        BarMark(x: .value("Day", dayLabel(day.date)), y: .value("Items", count))
+                            .foregroundStyle(by: .value("Source", source))
+                    }
                 }
                 // The day's total, above its bar.
                 PointMark(x: .value("Day", dayLabel(day.date)), y: .value("Items", day.total))
@@ -102,7 +104,10 @@ struct ClusterView: View {
                     }
             }
         }
-        .chartForegroundStyleScale(range: [palette.accent, palette.info, palette.mutedInk, palette.warning, palette.success])
+        .chartForegroundStyleScale(
+            domain: stats.volumeSources,
+            range: [palette.accent, palette.info, palette.mutedInk, palette.warning, palette.success]
+        )
         .chartLegend(position: .bottom, alignment: .leading)
         .frame(height: 150)
         .padding(.vertical, 8)

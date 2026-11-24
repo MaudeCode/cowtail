@@ -2073,6 +2073,43 @@ extension Components {
             internal var outcome: Components.Schemas.ItemRecord.OutcomePayload?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/resolvedAfterMs`.
             internal var resolvedAfterMs: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/contextOrder`.
+            internal var contextOrder: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/AlertActionsPayload`.
+            internal enum AlertActionsPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case retryInvestigation = "retry-investigation"
+                case markNoise = "mark-noise"
+                case escalate = "escalate"
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/alertActions`.
+            internal typealias AlertActionsPayload = [Components.Schemas.ItemRecord.AlertActionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/alertActions`.
+            internal var alertActions: Components.Schemas.ItemRecord.AlertActionsPayload?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/investigationResult`.
+            internal struct InvestigationResultPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/investigationResult/rootCause`.
+                internal var rootCause: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/investigationResult/action`.
+                internal var action: Swift.String?
+                /// Creates a new `InvestigationResultPayload`.
+                ///
+                /// - Parameters:
+                ///   - rootCause:
+                ///   - action:
+                internal init(
+                    rootCause: Swift.String? = nil,
+                    action: Swift.String? = nil
+                ) {
+                    self.rootCause = rootCause
+                    self.action = action
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case rootCause
+                    case action
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/investigationResult`.
+            internal var investigationResult: Components.Schemas.ItemRecord.InvestigationResultPayload?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/createdDate`.
             internal var createdDate: Swift.String?
             /// Creates a new `ItemRecord`.
@@ -2107,6 +2144,9 @@ extension Components {
             ///   - investigationStep:
             ///   - outcome:
             ///   - resolvedAfterMs:
+            ///   - contextOrder:
+            ///   - alertActions:
+            ///   - investigationResult:
             ///   - createdDate:
             internal init(
                 id: Swift.String,
@@ -2138,6 +2178,9 @@ extension Components {
                 investigationStep: Components.Schemas.ItemRecord.InvestigationStepPayload? = nil,
                 outcome: Components.Schemas.ItemRecord.OutcomePayload? = nil,
                 resolvedAfterMs: Swift.Int? = nil,
+                contextOrder: [Swift.String]? = nil,
+                alertActions: Components.Schemas.ItemRecord.AlertActionsPayload? = nil,
+                investigationResult: Components.Schemas.ItemRecord.InvestigationResultPayload? = nil,
                 createdDate: Swift.String? = nil
             ) {
                 self.id = id
@@ -2169,6 +2212,9 @@ extension Components {
                 self.investigationStep = investigationStep
                 self.outcome = outcome
                 self.resolvedAfterMs = resolvedAfterMs
+                self.contextOrder = contextOrder
+                self.alertActions = alertActions
+                self.investigationResult = investigationResult
                 self.createdDate = createdDate
             }
             internal enum CodingKeys: String, CodingKey {
@@ -2201,6 +2247,9 @@ extension Components {
                 case investigationStep
                 case outcome
                 case resolvedAfterMs
+                case contextOrder
+                case alertActions
+                case investigationResult
                 case createdDate
             }
         }
@@ -3013,6 +3062,8 @@ extension Components {
             internal typealias DailyVolumePayload = [Components.Schemas.ItemStatsResponse.DailyVolumePayloadPayload]
             /// - Remark: Generated from `#/components/schemas/ItemStatsResponse/dailyVolume`.
             internal var dailyVolume: Components.Schemas.ItemStatsResponse.DailyVolumePayload
+            /// - Remark: Generated from `#/components/schemas/ItemStatsResponse/volumeSources`.
+            internal var volumeSources: [Swift.String]?
             /// - Remark: Generated from `#/components/schemas/ItemStatsResponse/firingCount`.
             internal var firingCount: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ItemStatsResponse/FiringByNamespacePayload`.
@@ -3062,6 +3113,7 @@ extension Components {
             ///   - timeToResolve:
             ///   - repeatOffenders:
             ///   - dailyVolume:
+            ///   - volumeSources:
             ///   - firingCount:
             ///   - firingByNamespace:
             internal init(
@@ -3076,6 +3128,7 @@ extension Components {
                 timeToResolve: Components.Schemas.ItemStatsResponse.TimeToResolvePayload,
                 repeatOffenders: Components.Schemas.ItemStatsResponse.RepeatOffendersPayload,
                 dailyVolume: Components.Schemas.ItemStatsResponse.DailyVolumePayload,
+                volumeSources: [Swift.String]? = nil,
                 firingCount: Swift.Int,
                 firingByNamespace: Components.Schemas.ItemStatsResponse.FiringByNamespacePayload
             ) {
@@ -3090,6 +3143,7 @@ extension Components {
                 self.timeToResolve = timeToResolve
                 self.repeatOffenders = repeatOffenders
                 self.dailyVolume = dailyVolume
+                self.volumeSources = volumeSources
                 self.firingCount = firingCount
                 self.firingByNamespace = firingByNamespace
             }
@@ -3105,6 +3159,7 @@ extension Components {
                 case timeToResolve
                 case repeatOffenders
                 case dailyVolume
+                case volumeSources
                 case firingCount
                 case firingByNamespace
             }

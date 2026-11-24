@@ -143,6 +143,29 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.historyItems.map(\.id), ["older"])
     }
 
+    func testAHistoryContinuationKeepsTheFirstPagesDateBounds() async {
+        let item = { (id: String) in
+            Item(id: id, source: "cron", kind: .fyi, urgency: .today, title: id, createdAt: .now, createdDate: "2026-11-24")
+        }
+        let api = FakeItemAPI(
+            inbox: .empty,
+            pagesByCursor: [
+                "": ItemPage(items: [item("first")], nextCursor: "page-2"),
+                "page-2": ItemPage(items: [item("second")], nextCursor: nil),
+            ]
+        )
+        let store = store(api: api)
+        await store.loadHistory(HistoryFilter(range: .day))
+
+        await store.loadMoreHistory()
+
+        let queries = await api.listQueries
+        XCTAssertEqual(store.historyItems.map(\.id), ["first", "second"])
+        XCTAssertEqual(queries.map(\.cursor), [nil, "page-2"])
+        XCTAssertEqual(queries.map(\.from).count, 2)
+        XCTAssertEqual(queries.first?.from, queries.last?.from)
+    }
+
     func testRefreshRetriesHealthAfterTransientFailure() async {
         let api = FakeItemAPI(inbox: .empty, failingHealthRequests: 1)
         let store = store(api: api)
@@ -180,6 +203,7 @@ private actor FakeItemAPI: CowtailAPIClient {
     private let pagesByCursor: [String: ItemPage]
     private(set) var sentActions: [(itemID: String, request: ItemActionRequest)] = []
     private(set) var actionAttempts = 0
+    private(set) var listQueries: [ItemListQuery] = []
     private(set) var healthRequests = 0
 
     /// `pagesByCursor[""]` is the first page.
@@ -238,6 +262,7 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {
+        listQueries.append(query)
         guard let page = pagesByCursor[query.cursor ?? ""] else {
             throw CowtailAPIError.refused("Invalid cursor")
         }

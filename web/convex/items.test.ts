@@ -510,6 +510,8 @@ describe("alert items", () => {
     needsOwner: boolean;
     step?: "queued" | "investigating" | "failed";
     outcome?: string;
+    // The newest investigation is over, so the owner may run it again.
+    retry?: true;
   }> = [
     {
       workflow: "investigation failed",
@@ -518,6 +520,7 @@ describe("alert items", () => {
       state: "open",
       needsOwner: true,
       step: "failed",
+      retry: true,
     },
     {
       workflow: "investigation deadlettered",
@@ -526,6 +529,7 @@ describe("alert items", () => {
       state: "open",
       needsOwner: true,
       step: "failed",
+      retry: true,
     },
     {
       workflow: "needs review (owner escalated)",
@@ -561,6 +565,7 @@ describe("alert items", () => {
       job: "done",
       state: "open",
       needsOwner: false,
+      retry: true,
     },
     { workflow: "active", alert: { outcome: "recorded" }, state: "open", needsOwner: false },
     {
@@ -632,6 +637,12 @@ describe("alert items", () => {
     const [item] = await listItems(t);
     expect(item).toMatchObject({ state: example.state, needsOwner: example.needsOwner });
     expect([item.investigationStep, item.outcome]).toEqual([example.step, example.outcome]);
+    expect(item.alertActions).toEqual([
+      ...(example.retry ? ["retry-investigation"] : []),
+      "mark-noise",
+      "escalate",
+    ]);
+    expect(item.investigationResult).toEqual({ action: "Original action" });
     expect(item.context.disposition).toBe(example.workflow === "noise" ? "noise" : undefined);
     expectTimelineReplaysState(await getItem(t, item.id));
   });

@@ -26,10 +26,14 @@ extension CowtailAPI {
                 URL(string: link.url).map { ItemLink(label: link.label, url: $0) }
             },
             context: record.context.additionalProperties,
+            contextOrder: record.contextOrder,
             occurrenceCount: record.occurrenceCount,
             actions: record.actions.compactMap(makeAction),
             availableActions: (record.availableActions ?? []).compactMap(makeAction),
             alertID: record.alertId,
+            alertActions: (record.alertActions ?? []).compactMap { AlertHumanAction(rawValue: $0.rawValue) },
+            rootCause: record.investigationResult?.rootCause,
+            actionTaken: record.investigationResult?.action,
             expiresAt: record.expiresAt.map(date),
             createdAt: date(record.createdAt),
             updatedAt: date(record.updatedAt),
@@ -108,6 +112,7 @@ extension CowtailAPI {
             dailyVolume: response.dailyVolume.map {
                 ItemStats.DailyVolume(date: $0.date, total: $0.total, bySource: $0.bySource.additionalProperties)
             },
+            volumeSources: response.volumeSources ?? [],
             firingCount: response.firingCount,
             firingByNamespace: response.firingByNamespace.map {
                 ItemStats.NamespaceCount(namespace: $0.namespace, count: $0.count)

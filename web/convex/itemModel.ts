@@ -71,6 +71,17 @@ export function alertItemUrgency(severity: string): ItemUrgency {
 
 export const terminalItemStates = new Set<ItemState>(["resolved", "expired"]);
 
+// The owner's calls on an alert: a retry once its newest investigation is no longer queued
+// or running, as alerts.applyOwnerAction accepts; noise and escalation always.
+export function alertOwnerActions(jobs: { status: string }[]) {
+  const running = jobs.some((job) => job.status === "queued" || job.status === "claimed");
+  return [
+    ...(jobs.length > 0 && !running ? (["retry-investigation"] as const) : []),
+    "mark-noise" as const,
+    "escalate" as const,
+  ];
+}
+
 const answerTypes = new Set(["approve", "deny", "choose", "reply"]);
 
 // What the owner can still do with an item: a closed item keeps only its links, and an

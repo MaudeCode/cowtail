@@ -64,6 +64,7 @@ enum CowtailPreviewFixtures {
         occurrenceCount: 6,
         actions: [.ack, .snooze],
         alertID: "alert-1",
+        alertActions: [.retryInvestigation, .markNoise, .escalate],
         createdAt: minutesAgo(30),
         subtitle: "media / transcoder",
         investigationStep: .failed
@@ -230,6 +231,7 @@ enum CowtailPreviewFixtures {
             let counts = ["alertmanager": 6 + offset, "hermes": 2 + offset % 3, "cron": offset % 2]
             return .init(date: formatter.string(from: day), total: counts.values.reduce(0, +), bySource: counts)
         },
+        volumeSources: ["alertmanager", "hermes", "cron"],
         firingCount: 7,
         firingByNamespace: [
             .init(namespace: "media", count: 3),

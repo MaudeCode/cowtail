@@ -244,6 +244,8 @@ describe("item stats", () => {
       { date: "2026-11-23", total: 3, bySource: { alertmanager: 2, hermes: 1 } },
       { date: "2026-11-24", total: 2, bySource: { cron: 1, constructor: 1 } },
     ]);
+    // The chart stacks and lists sources by their total, most first.
+    expect(result.volumeSources).toEqual(["alertmanager", "constructor", "cron", "hermes"]);
   });
 
   test("groups alerts still firing by namespace, acked and snoozed included", async () => {
@@ -290,6 +292,7 @@ describe("item stats", () => {
         { date: "2026-11-23", total: 0, bySource: {} },
         { date: "2026-11-24", total: 0, bySource: {} },
       ],
+      volumeSources: [],
       firingCount: 0,
       firingByNamespace: [],
     });

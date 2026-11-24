@@ -192,11 +192,14 @@ struct ItemActionButtons: View {
 
     private var buttons: [ItemButton] {
         var buttons = ItemButton.buttons(for: item)
-        if includesAlertActions, item.alertID != nil {
-            if item.investigationStep == .failed {
-                buttons.append(.retryInvestigation)
+        if includesAlertActions {
+            buttons += item.alertActions.map { action in
+                switch action {
+                case .retryInvestigation: .retryInvestigation
+                case .markNoise: .markNoise
+                case .escalate: .escalate
+                }
             }
-            buttons += [.markNoise, .escalate]
         }
         return buttons
     }

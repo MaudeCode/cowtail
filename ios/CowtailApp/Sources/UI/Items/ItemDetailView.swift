@@ -172,10 +172,16 @@ struct ItemDetailView: View {
                 .foregroundStyle(palette.ink)
                 .padding(.vertical, 8)
         }
+        if let rootCause = item.rootCause {
+            result("Root cause", rootCause)
+        }
+        if let actionTaken = item.actionTaken {
+            result("Action", actionTaken)
+        }
         if !item.context.isEmpty {
             FlowLayout(spacing: 6) {
-                ForEach(item.context.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
-                    CowtailStatusBadge(title: "\(key)=\(value)")
+                ForEach(item.contextOrder, id: \.self) { key in
+                    CowtailStatusBadge(title: "\(key)=\(item.context[key] ?? "")")
                 }
             }
             .padding(.vertical, 6)
@@ -193,6 +199,16 @@ struct ItemDetailView: View {
             }
             .cowtailRow()
         }
+    }
+
+    private func result(_ title: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            CowtailMonoLabel(text: title)
+            Text(text)
+                .font(.cowtailSans(14, relativeTo: .body))
+                .foregroundStyle(palette.ink)
+        }
+        .cowtailRow()
     }
 
     private func markdown(_ text: String) -> AttributedString {
