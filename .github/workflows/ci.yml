@@ -35,12 +35,15 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           BRANCH: ${{ github.head_ref }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           workflow="$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .workflow_id)"
-          gh api --paginate "repos/$REPO/actions/workflows/$workflow/runs?event=pull_request&branch=$BRANCH&per_page=100" \
+          # The branch can hold URL-significant characters, so it goes as a query field. Another pull request from
+          # the same branch, to another base, keeps its runs.
+          gh api --method GET --paginate "repos/$REPO/actions/workflows/$workflow/runs" \
+            -f event=pull_request -f branch="$BRANCH" -F per_page=100 \
             --jq ".workflow_runs[] | select(.id < $RUN_ID and .status != \"completed\"
-              and .head_repository.full_name == \"$HEAD_REPO\") | .id" |
+              and any(.pull_requests[]; .number == $PR)) | .id" |
             while read -r id; do
               gh api -X POST "repos/$REPO/actions/runs/$id/cancel" >/dev/null && echo "Cancelled run $id"
             done
