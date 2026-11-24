@@ -87,6 +87,35 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.incidentErrors["incident-1"], "Item is not in this incident")
     }
 
+    func testASecondChangeWaitsForTheFirstAndBothShowAtOnce() async {
+        var outage = storageOutage
+        var second = Item(id: "approval-2", source: "hermes", kind: .approval, urgency: .now, title: "Second", createdAt: approval.createdAt)
+        second.incident = outage.incident.summary
+        outage.members.append(second)
+        outage.incident.summary.memberCount = 2
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(outage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let first = Task { await store.change(.remove(itemID: approval.id), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        let next = Task { await store.change(.remove(itemID: "approval-2"), incidentID: "incident-1") }
+        await Task.yield()
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+        // A poll while both are on their way keeps both shown.
+        await store.loadIncident(id: "incident-1")
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+
+        await api.releaseIncidentChange(with: nil)
+        await first.value
+        await next.value
+        let sent = await api.sentIncidentChanges
+        XCTAssertEqual(sent, [.remove(itemID: approval.id), .remove(itemID: "approval-2")])
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+    }
+
     func testAnAddWaitingOnTheServerShowsAddAnItemBusy() async {
         let api = FakeItemAPI(inbox: .empty)
         await api.seedIncident(storageOutage)
@@ -868,6 +897,7 @@ private actor FakeItemAPI: CowtailAPIClient {
     // MARK: Incidents
 
     private var incident: IncidentDetail?
+    private(set) var sentIncidentChanges: [IncidentChange] = []
     private var holdsIncidentChange = false
     private var heldIncidentChange: CheckedContinuation<Error?, Never>?
     private var heldIncidentWaiters: [CheckedContinuation<Void, Never>] = []
@@ -903,6 +933,7 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func changeIncident(id _: String, change: IncidentChange, sessionToken _: String) async throws -> IncidentDetail {
+        sentIncidentChanges.append(change)
         if holdsIncidentChange {
             holdsIncidentChange = false
             let error = await withCheckedContinuation { continuation in

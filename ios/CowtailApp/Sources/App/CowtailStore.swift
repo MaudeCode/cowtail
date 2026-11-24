@@ -120,8 +120,18 @@ final class CowtailStore: ObservableObject {
 
     @Published private(set) var incidents: [String: IncidentDetail] = [:]
     @Published private(set) var incidentErrors: [String: String] = [:]
-    /// The change on its way for each incident; a second change waits for the first to settle.
+    /// The change at the server for each incident; the next one waits for it to settle.
     @Published private(set) var incidentChangesInFlight: [String: IncidentChange] = [:]
+    /// Changes sent or waiting their turn, oldest first; every read shows them still applied.
+    private var pendingIncidentChanges: [String: [PendingIncidentChange]] = [:]
+    private struct PendingIncidentChange {
+        let id = UUID()
+        let change: IncidentChange
+    }
+    /// What the server last said about each incident.
+    private var confirmedIncidents: [String: IncidentDetail] = [:]
+    /// The last change sent or queued for each incident; the next one waits for it.
+    private var incidentChangeQueues: [String: Task<Void, Never>] = [:]
 
     /// The run the Hermes tab follows once the owner started or picked one; the newest otherwise.
     @Published private(set) var selectedRunID: String?
@@ -355,10 +365,7 @@ final class CowtailStore: ObservableObject {
         }
         do {
             if let detail = try await api.fetchIncident(id: id, sessionToken: token) {
-                // A read while a change is on its way would show the change undone.
-                if incidentChangesInFlight[id] == nil {
-                    incidents[id] = detail
-                }
+                confirm(detail, incidentID: id)
                 incidentErrors[id] = nil
             } else {
                 incidentErrors[id] = "This incident could not be found."
@@ -366,6 +373,17 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             incidentErrors[id] = error.localizedDescription
+        }
+    }
+
+    /// Shows what the server confirmed with every change still on its way applied, so a read
+    /// cannot undo a change before the server answers it.
+    private func confirm(_ detail: IncidentDetail?, incidentID id: String) {
+        if let detail {
+            confirmedIncidents[id] = detail
+        }
+        incidents[id] = (pendingIncidentChanges[id] ?? []).reduce(confirmedIncidents[id]) { shown, pending in
+            shown?.showing(pending.change)
         }
     }
 
@@ -386,29 +404,45 @@ final class CowtailStore: ObservableObject {
         return try await api.fetchIncidentCandidates(id: id, sessionToken: token)
     }
 
-    /// Removing, resolving and asking again show at once; a refusal puts back what the server
-    /// last confirmed, and any other failure rereads what it kept.
+    /// Every change shows at once and waits for the one before it to settle, so changes reach
+    /// the server in the order the owner made them. A refusal puts back what the server last
+    /// confirmed, with the later changes still shown; any other failure rereads what it kept.
     func change(_ change: IncidentChange, incidentID id: String) async {
-        guard incidentChangesInFlight[id] == nil else { return }
-        incidentChangesInFlight[id] = change
-        defer { incidentChangesInFlight[id] = nil }
         incidentErrors[id] = nil
         guard let token = await sessionToken() else {
             incidentErrors[id] = Self.signInMessage
             return
         }
-        let before = incidents[id]
-        incidents[id] = before?.showing(change)
+        let pending = PendingIncidentChange(change: change)
+        pendingIncidentChanges[id, default: []].append(pending)
+        confirm(nil, incidentID: id)
+        let previous = incidentChangeQueues[id]
+        let send = Task {
+            await previous?.value
+            await self.send(pending, incidentID: id, sessionToken: token)
+        }
+        incidentChangeQueues[id] = send
+        await send.value
+    }
+
+    private func send(_ pending: PendingIncidentChange, incidentID id: String, sessionToken token: String) async {
+        incidentChangesInFlight[id] = pending.change
+        defer { incidentChangesInFlight[id] = nil }
+        let settle = { self.pendingIncidentChanges[id]?.removeAll { $0.id == pending.id } }
         do {
-            incidents[id] = try await api.changeIncident(id: id, change: change, sessionToken: token)
+            let reply = try await api.changeIncident(id: id, change: pending.change, sessionToken: token)
+            settle()
+            confirm(reply, incidentID: id)
             await reloadInbox(sessionToken: token)
         } catch CowtailAPIError.refused(let message) {
-            incidents[id] = before
+            settle()
+            confirm(nil, incidentID: id)
             incidentErrors[id] = message
         } catch {
+            settle()
+            confirm(nil, incidentID: id)
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             incidentErrors[id] = error.localizedDescription
-            incidentChangesInFlight[id] = nil
             await loadIncident(id: id)
         }
     }

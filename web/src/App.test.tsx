@@ -1,4 +1,4 @@
-import type { ItemInboxResponse } from "@maudecode/cowtail-protocol";
+import type { IncidentGetResponse, ItemInboxResponse } from "@maudecode/cowtail-protocol";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
@@ -1369,6 +1369,23 @@ describe("incidents", () => {
     expect(calls.filter((call) => call.method === "DELETE").map((call) => call.path)).toEqual([
       "/actions/api/me/incidents/incident-1/items/item-2",
     ]);
+  });
+
+  test("a reread while a removal is on its way keeps the member gone", async () => {
+    stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "DELETE /actions/api/me/incidents/incident-1/items/item-2": new Promise(() => {}),
+      }),
+    );
+    const { queryClient } = renderApp("/incidents/incident-1");
+
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    await userEvent.click(first);
+    await queryClient.refetchQueries({ queryKey: ["incident", "incident-1"], exact: true });
+
+    const shown = queryClient.getQueryData<IncidentGetResponse>(["incident", "incident-1"])!;
+    expect(shown.members.map((member) => member.id)).toEqual(["item-1"]);
   });
 
   test("a refused removal puts the member back and says why", async () => {

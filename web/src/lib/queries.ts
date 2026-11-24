@@ -485,11 +485,40 @@ export function useItemActionError(itemId: string): unknown {
 
 const incidentPath = (id: string) => encodeURIComponent(id);
 
+// Changes sent and not yet answered, per query client and incident, oldest first, and the
+// incident as the server last confirmed it. Every read and reply shows the changes still on
+// their way applied, so a poll cannot undo one before the server answers.
+const pendingIncidentChanges = new WeakMap<QueryClient, Map<string, IncidentChange[]>>();
+const confirmedIncidents = new WeakMap<QueryClient, Map<string, IncidentGetResponse>>();
+
+function pendingChanges(client: QueryClient, id: string) {
+  const byIncident = pendingIncidentChanges.get(client) ?? new Map<string, IncidentChange[]>();
+  pendingIncidentChanges.set(client, byIncident);
+  const pending = byIncident.get(id) ?? [];
+  byIncident.set(id, pending);
+  return pending;
+}
+
+function withPendingChanges(client: QueryClient, id: string, confirmed: IncidentGetResponse) {
+  return pendingChanges(client, id).reduce(showIncidentChange, confirmed);
+}
+
+function confirmIncident(client: QueryClient, id: string, detail: IncidentGetResponse) {
+  const byIncident = confirmedIncidents.get(client) ?? new Map<string, IncidentGetResponse>();
+  confirmedIncidents.set(client, byIncident.set(id, detail));
+  return withPendingChanges(client, id, detail);
+}
+
 // An incident's page follows its members and Hermes's postmortem.
 export const incidentQuery = (id: string) =>
   queryOptions({
     queryKey: ["incident", id],
-    queryFn: () => api(`/api/incidents/${incidentPath(id)}`, incidentGetResponseSchema),
+    queryFn: async ({ client }) =>
+      confirmIncident(
+        client,
+        id,
+        await api(`/api/incidents/${incidentPath(id)}`, incidentGetResponseSchema),
+      ),
     refetchInterval: LIVE_REFRESH_MS,
   });
 
@@ -555,12 +584,17 @@ export function showIncidentChange(
   }
 }
 
-// The owner changes an incident. Removing, resolving and asking again show at once; a refusal
-// puts back what the server last confirmed, and any other failure rereads what it kept.
+// The owner changes an incident. Removing, resolving and asking again show at once and stay
+// shown through rereads; a refusal puts back what the server last confirmed, and any other
+// failure rereads what it kept.
 // Changes to one incident go one at a time, so an older reply never lands after a newer one.
 export function useIncidentChange(id: string) {
   const client = useQueryClient();
   const queryKey = incidentQuery(id).queryKey;
+  const settle = (change: IncidentChange) => {
+    const pending = pendingChanges(client, id);
+    pending.splice(pending.indexOf(change), 1);
+  };
   return useMutation({
     scope: { id: `incident-${id}` },
     mutationFn: (change: IncidentChange) => {
@@ -568,15 +602,22 @@ export function useIncidentChange(id: string) {
       return api(path, incidentGetResponseSchema, { method, body });
     },
     onMutate: async (change) => {
+      pendingChanges(client, id).push(change);
       await client.cancelQueries({ queryKey });
-      const before = client.getQueryData(queryKey);
-      if (before) client.setQueryData(queryKey, showIncidentChange(before, change));
-      return { before };
+      const shown = client.getQueryData(queryKey);
+      if (shown) client.setQueryData(queryKey, showIncidentChange(shown, change));
     },
-    onSuccess: (reply) => client.setQueryData(queryKey, reply),
-    onError: (error, _change, context) => {
+    onSuccess: (reply, change) => {
+      settle(change);
+      client.setQueryData(queryKey, confirmIncident(client, id, reply));
+    },
+    onError: (error, change) => {
+      settle(change);
       const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
-      if (refused && context?.before) client.setQueryData(queryKey, context.before);
+      const confirmed = confirmedIncidents.get(client)?.get(id);
+      if (refused && confirmed) {
+        client.setQueryData(queryKey, withPendingChanges(client, id, confirmed));
+      }
     },
     onSettled: () =>
       Promise.all(
