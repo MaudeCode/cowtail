@@ -135,8 +135,14 @@ final class NotificationManager: NSObject, ObservableObject {
         self.preferences = preferences
         unconfirmedPreviousPreferences = nil
         dailyRoundupPreferenceRequiresSignIn = false
-        if preferences.requireAuthForApprovals != defaults.bool(forKey: requireAuthForApprovalsKey) {
-            registerItemCategories(requireAuthForApprovals: preferences.requireAuthForApprovals)
+        syncItemCategories()
+    }
+
+    /// Lock-screen Approve and Deny follow the same rule as in-app ones, unconfirmed changes
+    /// included.
+    private func syncItemCategories() {
+        if requiresApprovalAuthentication != defaults.bool(forKey: requireAuthForApprovalsKey) {
+            registerItemCategories(requireAuthForApprovals: requiresApprovalAuthentication)
         }
     }
 
@@ -616,6 +622,9 @@ final class NotificationManager: NSObject, ObservableObject {
     ) async {
         let previous = preferences
         apply(&preferences)
+        // Until the server answers, either value that asks for Face ID wins.
+        unconfirmedPreviousPreferences = unconfirmedPreviousPreferences ?? previous
+        syncItemCategories()
         isSavingDailyRoundupPreference = true
         dailyRoundupPreferenceError = nil
         defer {
@@ -623,6 +632,7 @@ final class NotificationManager: NSObject, ObservableObject {
         }
 
         if isUITesting {
+            unconfirmedPreviousPreferences = nil
             dailyRoundupPreferenceRequiresSignIn = false
             return
         }
@@ -630,6 +640,8 @@ final class NotificationManager: NSObject, ObservableObject {
         guard AppleAccountManager.shared.userID != nil,
               let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
             preferences = previous
+            unconfirmedPreviousPreferences = nil
+            syncItemCategories()
             dailyRoundupPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
             logger.debug("updatePreferences has no session")
             return
@@ -645,13 +657,15 @@ final class NotificationManager: NSObject, ObservableObject {
                 CowtailAPIError.refused(message),
                 restoring: Self.reverting(change, in: preferences, to: previous)
             )
+            unconfirmedPreviousPreferences = nil
+            syncItemCategories()
         } catch {
             // The change may have landed: read the server before keeping or restoring it.
             logger.error("updatePreferences outcome unknown")
             if let confirmed = try? await api.fetchNotificationPreferences(sessionToken: sessionToken) {
                 applyServerPreferences(confirmed)
             } else {
-                unconfirmedPreviousPreferences = unconfirmedPreviousPreferences ?? previous
+                // Still unconfirmed: the categories keep the stricter setting.
                 dailyRoundupPreferenceError = "Cowtail has not confirmed this change yet."
             }
         }
