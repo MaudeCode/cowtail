@@ -1730,6 +1730,12 @@
             "items": {
               "$ref": "#/components/schemas/FixRecord"
             }
+          },
+          "priorOccurrences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriorOccurrence"
+            }
           }
         },
         "required": [
@@ -1775,6 +1781,13 @@
             "additionalProperties": {
               "nullable": true
             }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestigationEvidenceStep"
+            },
+            "maxItems": 20
           }
         },
         "required": [
@@ -1784,6 +1797,101 @@
           "type",
           "actor",
           "payload"
+        ]
+      },
+      "InvestigationEvidenceStep": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "command": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "output": {
+            "type": "string"
+          },
+          "at": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
+      "PriorOccurrence": {
+        "type": "object",
+        "properties": {
+          "alertId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "firedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolvedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "self-resolved",
+              "noise",
+              "escalated",
+              "other"
+            ]
+          },
+          "rootCause": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "ownerDisposition": {
+            "type": "string",
+            "enum": [
+              "noise",
+              "escalated"
+            ]
+          },
+          "fixes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "rootCause": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "commit": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "description",
+                "rootCause"
+              ]
+            }
+          }
+        },
+        "required": [
+          "alertId",
+          "firedAt",
+          "outcome",
+          "summary",
+          "fixes"
         ]
       },
       "HermesStatusResponse": {

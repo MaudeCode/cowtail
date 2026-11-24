@@ -73,6 +73,59 @@ final class CowtailAPITests: XCTestCase {
         XCTAssertEqual(status.recentAnswers.map(\.answer), [.choose("Wait"), .deny])
     }
 
+    /// An item's detail, as `GET /api/items/:id` sends it.
+    private static let itemReply = """
+    {
+      "ok": true,
+      "item": {
+        "id": "item-1", "source": "alertmanager",
+        "sourceInfo": {"slug": "alertmanager", "displayName": "Alertmanager"},
+        "kind": "alert", "urgency": "now", "state": "resolved", "needsOwner": false,
+        "title": "KubePodCrashLooping", "body": "", "links": [], "context": {},
+        "occurrenceCount": 1, "actions": [], "createdAt": 1795521600000, "updatedAt": 1795521600000
+      },
+      "events": [
+        {
+          "id": "event-1", "itemId": "item-1", "at": 1795521600000, "type": "hermes_update",
+          "actor": "hermes", "payload": {"text": "Raised the limit"},
+          "evidence": [
+            {"step": "Read logs", "command": "kubectl logs api", "output": "OOMKilled", "at": 1795521600000},
+            {"step": "Raise the limit"}
+          ]
+        }
+      ],
+      "priorOccurrences": [
+        {
+          "alertId": "alert-0", "firedAt": 1795435200000, "outcome": "self-resolved",
+          "summary": "Node drain", "ownerDisposition": "escalated",
+          "fixes": [{"description": "Cordon the node", "rootCause": "Bad disk", "commit": "7be01d4"}]
+        }
+      ]
+    }
+    """
+
+    func testItemDetailKeepsHermesEvidenceAndPastOccurrences() async throws {
+        let transport = RecordingTransport(routes: ["GET /api/items/item-1": .init(json: Self.itemReply)])
+
+        let fetched = try await CowtailAPI(transport: transport).fetchItem(id: "item-1", sessionToken: "session")
+        let detail = try XCTUnwrap(fetched)
+
+        XCTAssertEqual(detail.events.first?.evidence, [
+            EvidenceStep(step: "Read logs", command: "kubectl logs api", output: "OOMKilled"),
+            EvidenceStep(step: "Raise the limit"),
+        ])
+        XCTAssertEqual(detail.priorOccurrences, [
+            PriorOccurrence(
+                alertID: "alert-0",
+                firedAt: Date(timeIntervalSince1970: 1_795_435_200),
+                outcome: .selfResolved,
+                rootCause: nil,
+                summary: "Node drain",
+                fixes: [.init(description: "Cordon the node", rootCause: "Bad disk", commit: "7be01d4")]
+            ),
+        ])
+    }
+
     func testHermesStatusBeforeTheFirstHeartbeatHasNoHeartbeat() async throws {
         let transport = RecordingTransport(routes: [
             "GET /api/hermes/status": .init(json: #"{"ok": true, "status": null, "recentAnswers": []}"#),

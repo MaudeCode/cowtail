@@ -183,6 +183,13 @@ enum ItemEventType: String, CaseIterable, Sendable {
     case resolved
 }
 
+/// One step Hermes recorded in an investigation: what it checked, the command and its output.
+struct EvidenceStep: Hashable, Sendable {
+    let step: String
+    var command: String?
+    var output: String?
+}
+
 struct ItemEvent: Identifiable, Hashable, Sendable {
     let id: String
     let at: Date
@@ -190,6 +197,26 @@ struct ItemEvent: Identifiable, Hashable, Sendable {
     let actor: String
     /// The payload's scalar values, as text.
     let payload: [String: String]
+    /// A finished investigation's steps, in order.
+    var evidence: [EvidenceStep] = []
+}
+
+/// An earlier firing of the item's alert, as the server matched it.
+struct PriorOccurrence: Identifiable, Hashable, Sendable {
+    struct Fix: Hashable, Sendable {
+        let description: String
+        let rootCause: String
+        var commit: String?
+    }
+
+    let alertID: String
+    let firedAt: Date
+    let outcome: ItemOutcome
+    let rootCause: String?
+    let summary: String
+    var fixes: [Fix] = []
+
+    var id: String { alertID }
 }
 
 struct ItemDetail: Hashable, Sendable {
@@ -197,6 +224,8 @@ struct ItemDetail: Hashable, Sendable {
     let events: [ItemEvent]
     /// The fixes recorded against the linked alert, newest first.
     var fixes: [AlertFix] = []
+    /// Up to 3 earlier firings of the linked alert, newest first.
+    var priorOccurrences: [PriorOccurrence] = []
 }
 
 struct ItemInbox: Equatable, Sendable {

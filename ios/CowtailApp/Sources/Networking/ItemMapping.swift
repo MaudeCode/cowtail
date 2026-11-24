@@ -76,6 +76,22 @@ extension CowtailAPI {
                 case let number as Double: String(number)
                 default: nil
                 }
+            },
+            evidence: (record.evidence ?? []).map {
+                EvidenceStep(step: $0.step, command: $0.command, output: $0.output)
+            }
+        )
+    }
+
+    static func makePriorOccurrence(_ record: Components.Schemas.PriorOccurrence) -> PriorOccurrence {
+        PriorOccurrence(
+            alertID: record.alertId,
+            firedAt: date(record.firedAt),
+            outcome: ItemOutcome(rawValue: record.outcome.rawValue) ?? .other,
+            rootCause: record.rootCause,
+            summary: record.summary,
+            fixes: record.fixes.map {
+                PriorOccurrence.Fix(description: $0.description, rootCause: $0.rootCause, commit: $0.commit)
             }
         )
     }
