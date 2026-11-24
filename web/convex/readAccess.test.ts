@@ -37,6 +37,14 @@ test("item, alert and fix reads refuse a caller with neither the service token n
   expect(statuses).toEqual(READ_ROUTES.map((path) => [path, 401]));
 });
 
+test("the deleted roundup email endpoint serves no alert or fix data to an anonymous caller", async () => {
+  const t = newBackend();
+
+  const response = await request(t, "/api/roundup-html?from=2026-11-23&to=2026-11-24");
+
+  expect(response.status).toBe(404);
+});
+
 test("alert and fix lists answer the CLI's service token and the owner's session", async () => {
   const t = newBackend();
   const owner = await seedSession(t, OWNER);
