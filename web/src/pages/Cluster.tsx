@@ -17,9 +17,8 @@ const SOURCE_COLORS = [
 const BAR_MAX_PX = 64;
 
 function Volume({ stats }: { stats: ItemStatsResponse }) {
-  const sources = [
-    ...new Set(stats.dailyVolume.flatMap((day) => Object.keys(day.bySource))),
-  ].sort();
+  // The server orders the sources, most items first.
+  const sources = stats.volumeSources ?? [];
   const color = (source: string) => SOURCE_COLORS[sources.indexOf(source) % SOURCE_COLORS.length];
   const peak = Math.max(1, ...stats.dailyVolume.map((day) => day.total));
   return (

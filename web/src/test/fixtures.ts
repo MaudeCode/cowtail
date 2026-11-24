@@ -77,6 +77,7 @@ export const stats: ItemStatsResponse = {
     },
   ],
   dailyVolume: [{ date: "2026-11-23", total: 3, bySource: { alertmanager: 2, hermes: 1 } }],
+  volumeSources: ["alertmanager", "hermes"],
   firingCount: 1,
   firingByNamespace: [
     { namespace: "media", count: 1, itemIds: ["item-1"], titles: ["KubePodCrashLooping"] },

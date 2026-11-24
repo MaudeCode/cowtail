@@ -138,19 +138,12 @@ export function usePreferencesUpdate() {
       }),
     onMutate: async (patch) => {
       await client.cancelQueries({ queryKey: SESSION_KEY });
-      const previous = client.getQueryData(sessionQuery.queryKey);
-      if (previous) client.setQueryData(sessionQuery.queryKey, { ...previous, ...patch });
-      return { previous };
+      const shown = client.getQueryData(sessionQuery.queryKey);
+      if (shown) client.setQueryData(sessionQuery.queryKey, { ...shown, ...patch });
     },
-    // A refusal rolls back. A dropped connection or a server error may still have committed
-    // the write, so the client rereads the server's value before keeping or undoing it.
-    onError: (error, _patch, context) => {
-      if (error instanceof ApiError && error.status < 500) {
-        if (context?.previous) client.setQueryData(sessionQuery.queryKey, context.previous);
-      } else {
-        return client.invalidateQueries({ queryKey: SESSION_KEY });
-      }
-    },
+    // A refused write, or one whose outcome is unknown, rereads what the server holds: its
+    // last confirmed value. A snapshot taken here could hold another write still in flight.
+    onError: () => client.invalidateQueries({ queryKey: SESSION_KEY }),
     onSuccess: ({ preferences }) => client.setQueryData(sessionQuery.queryKey, preferences),
   });
 }

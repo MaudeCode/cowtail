@@ -355,6 +355,50 @@ test("a setting whose write may have landed keeps what the server holds", async 
   expect(await screen.findByText("Bad gateway")).toBeInTheDocument();
 });
 
+test("two refused settings in flight together both return to the server's value", async () => {
+  const refusals: ((reply: unknown) => void)[] = [];
+  const { calls } = stubApi({
+    ...signedIn(),
+    get "PUT /actions/api/me/notification-preferences"() {
+      return new Promise((resolve) => refusals.push(resolve));
+    },
+  });
+  renderApp("/settings");
+  const roundup = await screen.findByRole("switch", { name: "Daily roundup" });
+  const faceId = screen.getByRole("switch", { name: "Require Face ID for approvals" });
+
+  await userEvent.click(roundup);
+  await userEvent.click(faceId);
+  await waitFor(() => expect(calls.filter((call) => call.method === "PUT")).toHaveLength(2));
+  for (const refuse of refusals) refuse({ status: 400, body: { ok: false, error: "Refused" } });
+
+  await waitFor(() =>
+    expect([roundup, faceId].map((control) => control.getAttribute("aria-checked"))).toEqual([
+      String(preferences.dailyRoundupEnabled),
+      String(preferences.requireAuthForApprovals),
+    ]),
+  );
+});
+
+test("Cluster stacks and lists volume sources in the server's order", async () => {
+  stubApi(
+    signedIn({
+      "GET /actions/api/items/stats": { ...stats, volumeSources: ["hermes", "alertmanager"] },
+    }),
+  );
+
+  renderApp("/cluster");
+
+  await waitFor(() => {
+    const volume = screen.getByRole("heading", { name: /Volume/ }).closest("section")!;
+    expect(
+      within(volume)
+        .getAllByText(/^(hermes|alertmanager)$/)
+        .map((legend) => legend.textContent),
+    ).toEqual(["hermes", "alertmanager"]);
+  });
+});
+
 test("an alert's old address opens its item", async () => {
   stubApi(
     signedIn({
