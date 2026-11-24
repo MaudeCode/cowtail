@@ -25,6 +25,15 @@ export const itemActionValidator = v.union(
   v.object({ type: v.literal("open"), url: v.string() }),
 );
 
+// The owner's answers; an item with a `replyTo` hands each one to its producer.
+export const itemAnswerValidator = v.union(
+  v.object({ type: v.literal("ack") }),
+  v.object({ type: v.literal("approve") }),
+  v.object({ type: v.literal("deny") }),
+  v.object({ type: v.literal("choose"), option: v.string() }),
+  v.object({ type: v.literal("reply"), text: v.string() }),
+);
+
 export const itemFields = {
   source: v.string(),
   kind: itemKindValidator,

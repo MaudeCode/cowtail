@@ -15,6 +15,7 @@ import {
 } from "./itemModel";
 import {
   itemActionValidator,
+  itemAnswerValidator,
   itemKindValidator,
   itemStateValidator,
   itemUrgencyValidator,
@@ -152,6 +153,30 @@ function requireOpenItem(item: Doc<"items">) {
   if (terminalItemStates.has(item.state)) {
     throw new ConvexError({ code: "ITEM_CLOSED", state: item.state });
   }
+}
+
+// One answer per item waits for its producer at a time; the producer closes the item after
+// applying it, and a closed item takes no more answers.
+async function queueItemResponse(
+  ctx: MutationCtx,
+  itemId: Id<"items">,
+  answer: Doc<"itemResponses">["answer"],
+  now: number,
+) {
+  const waiting = await ctx.db
+    .query("itemResponses")
+    .withIndex("by_itemId_status", (q) => q.eq("itemId", itemId).eq("status", "pending"))
+    .first();
+  if (waiting) throw new ConvexError({ code: "ANSWER_PENDING" });
+  await ctx.db.insert("itemResponses", {
+    itemId,
+    answer,
+    status: "pending",
+    availableAt: now,
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 // --- Alert-linked items -------------------------------------------------------------
@@ -448,12 +473,8 @@ export const applyAction = internalMutation({
   args: {
     id: v.string(),
     action: v.union(
-      v.object({ type: v.literal("ack") }),
+      itemAnswerValidator,
       v.object({ type: v.literal("snooze"), until: v.number() }),
-      v.object({ type: v.literal("approve") }),
-      v.object({ type: v.literal("deny") }),
-      v.object({ type: v.literal("choose"), option: v.string() }),
-      v.object({ type: v.literal("reply"), text: v.string() }),
     ),
     actor: v.string(),
     now: v.number(),
@@ -465,8 +486,8 @@ export const applyAction = internalMutation({
     if (action.type === "snooze" && action.until <= now) {
       throw new ConvexError({ code: "INVALID_SNOOZE" });
     }
+    const offered = item.actions.find((candidate) => candidate.type === action.type);
     if (action.type !== "ack" && action.type !== "snooze") {
-      const offered = item.actions.find((candidate) => candidate.type === action.type);
       const chosenOptionOffered =
         action.type !== "choose" ||
         (offered?.type === "choose" && offered.options.includes(action.option));
@@ -475,13 +496,17 @@ export const applyAction = internalMutation({
       }
     }
 
+    // An answer to an action the producer offered goes back to it; a plain ack stays here.
+    if (offered && item.replyTo && action.type !== "snooze") {
+      await queueItemResponse(ctx, item._id, action, now);
+    }
     await appendItemEvent(ctx, item._id, "action_taken", actor, now, { ...action });
     if (action.type === "ack") {
       await transitionItem(ctx, item, "acked", { actor, at: now });
     } else if (action.type === "snooze") {
       await transitionItem(ctx, item, "snoozed", { actor, at: now, snoozedUntil: action.until });
     } else {
-      // COW-10 delivers these answers to the producer.
+      // The producer closes the item once it has applied the answer.
       await patchItemContent(ctx, item._id, { updatedAt: now });
     }
   },

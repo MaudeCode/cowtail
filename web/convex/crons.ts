@@ -39,4 +39,11 @@ crons.interval(
   {},
 );
 
+crons.interval(
+  "watch the Hermes heartbeat",
+  { minutes: 1 },
+  (internal as any).hermes.checkHeartbeat,
+  {},
+);
+
 export default crons;
