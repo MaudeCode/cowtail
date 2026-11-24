@@ -26,7 +26,7 @@ Every added or changed test passes the `test-audit` skill's authoring gate and i
 - web, CLI, protocol and scripts: Vitest's JUnit reporter, switched on in CI with `--reporter=default --reporter=junit --outputFile.junit=<path>`
 - iOS unit and UI tests: `xcrun xcresulttool get test-results tests` on the result bundle `ios/scripts/test.sh` keeps at `ios/build/TestResults.xcresult`
 
-A test over budget is split or proved at a cheaper layer. `overBudget` in `script/ci/test-durations.json` lists a test only with the COW ticket that brings it under.
+A test over budget is split or proved at a cheaper layer. `overBudget` in `script/ci/test-durations.json` lists a test only with the COW ticket that brings it under. Every test in `ios/CowtailUITests` is listed there under COW-44: launching the app alone takes 15 to 27 s on a hosted runner, so their checks move to hosted in-process tests.
 
 ## Fixing a defective test
 
