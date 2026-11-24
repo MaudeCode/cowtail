@@ -173,6 +173,7 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
 
     /// Queues the run at the front of the recent runs; it shows the seeded output and ends at once.
     func startRunbookRun(
+        requestID _: String,
         scriptID: String,
         itemID: String?,
         confirmed _: Bool,

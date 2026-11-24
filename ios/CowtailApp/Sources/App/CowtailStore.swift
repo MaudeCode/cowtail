@@ -124,6 +124,9 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var runbookError: String?
     /// Scripts whose run request is on its way; their buttons wait for the reply.
     @Published private(set) var scriptsStarting: Set<String> = []
+    /// Run requests the server never answered, by script and item. The next tap sends the same
+    /// request again, so the server returns the run it may have queued and queues no second one.
+    private var unansweredRunRequests: [String: String] = [:]
 
     private let api: any CowtailAPIClient
     private let sessionToken: @MainActor () async -> String?
@@ -509,14 +512,19 @@ final class CowtailStore: ObservableObject {
             return
         }
 
+        let key = "\(script.id)\n\(itemID ?? "")"
+        let requestID = unansweredRunRequests[key] ?? UUID().uuidString
+        unansweredRunRequests[key] = requestID
         do {
             let run = try await api.startRunbookRun(
+                requestID: requestID,
                 scriptID: script.id,
                 itemID: itemID,
                 confirmed: script.asksToConfirm,
                 authenticated: authenticated,
                 sessionToken: token
             )
+            unansweredRunRequests[key] = nil
             selectedRunID = run.id
             runDetail = RunbookRunDetail(run: run, output: "")
             if let itemID {
@@ -526,9 +534,13 @@ final class CowtailStore: ObservableObject {
                 await reloadInbox(sessionToken: token)
             }
             await refreshHermes(sessionToken: token)
+        } catch CowtailAPIError.refused(let message) {
+            // The server's answer: nothing was queued.
+            unansweredRunRequests[key] = nil
+            report(message)
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
-            report(error.localizedDescription)
+            report("Cowtail has not confirmed this run. Run it again to check; it will not run twice.")
         }
     }
 

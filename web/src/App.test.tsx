@@ -310,7 +310,12 @@ describe("acting from Home", () => {
         {
           method: "POST",
           path: "/actions/api/me/runbook/runs",
-          body: { scriptId: "gateway-restart", itemId: "failure-1", confirmed: true },
+          body: {
+            requestId: expect.any(String),
+            scriptId: "gateway-restart",
+            itemId: "failure-1",
+            confirmed: true,
+          },
         },
       ]),
     );
@@ -1190,7 +1195,7 @@ describe("Hermes", () => {
       screen.getByRole("heading", { name: /^Run · Restart Hermes gateway/ }),
     ).toBeInTheDocument();
     expect(calls.filter((call) => call.method === "POST").map((call) => call.body)).toEqual([
-      { scriptId: "gateway-restart", confirmed: true },
+      { requestId: expect.any(String), scriptId: "gateway-restart", confirmed: true },
     ]);
   });
 
@@ -1207,6 +1212,32 @@ describe("Hermes", () => {
     expect(rows[0]).toMatch(/^Disk usagerunning · 0:0\d·/);
     expect(rows[1]).toMatch(/^Restart script runnerexit 0·\d\d:\d\d$/);
     expect(rows[2]).toMatch(/^Tail gateway logexit 1·\d\d:\d\d$/);
+  });
+
+  test("/hermes sends a run whose reply was lost again under the same request, so it queues once", async () => {
+    let attempts = 0;
+    const { calls } = stubApi({
+      ...signedIn(),
+      get "POST /actions/api/me/runbook/runs"() {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new TypeError("Failed to fetch"))
+          : { ok: true, run: { ...recentRuns[1], id: "run-4" } };
+      },
+    });
+    renderApp("/hermes");
+
+    const run = await screen.findByRole("button", { name: "Run Restart script runner" });
+    await userEvent.click(run);
+    await waitFor(() => expect(run).toBeEnabled());
+    await userEvent.click(run);
+
+    await waitFor(() => expect(attempts).toBe(2));
+    const [first, again] = calls
+      .filter((call) => call.method === "POST")
+      .map((call) => (call.body as { requestId: string }).requestId);
+    expect(first).toEqual(expect.any(String));
+    expect(again).toBe(first);
   });
 
   test("/hermes leaves a script that needs Face ID to the iOS app", async () => {

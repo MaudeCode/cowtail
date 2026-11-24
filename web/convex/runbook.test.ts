@@ -58,8 +58,13 @@ async function backend(runbook: RunbookScript[] = [diskUsage, restartGateway, wi
   return { t, owner: await seedSession(t, OWNER) };
 }
 
+// Each request is a new tap unless the test names its requestId.
 function requestRun(t: Backend, owner: string, body: Record<string, unknown>) {
-  return request(t, "/api/me/runbook/runs", { method: "POST", bearer: owner, body });
+  return request(t, "/api/me/runbook/runs", {
+    method: "POST",
+    bearer: owner,
+    body: { requestId: crypto.randomUUID(), ...body },
+  });
 }
 
 async function startRun(t: Backend, owner: string, body: Record<string, unknown>) {
@@ -100,6 +105,20 @@ describe("runbook requests", () => {
 
     expect(response.status).toBe(404);
     expect(response.json).toMatchObject({ code: "UNKNOWN_SCRIPT" });
+  });
+
+  test("queue one run for a request sent again, as a client does when its reply was lost", async () => {
+    const { t, owner } = await backend();
+    const requestId = crypto.randomUUID();
+
+    const first = await startRun(t, owner, { scriptId: diskUsage.id, requestId });
+    const again = await startRun(t, owner, { scriptId: diskUsage.id, requestId });
+
+    expect(again.id).toBe(first.id);
+    const status = hermesStatusResponseSchema.parse(
+      (await request(t, "/api/hermes/status", { bearer: owner })).json,
+    );
+    expect(status.recentRuns?.map((run) => run.id)).toEqual([first.id]);
   });
 
   test("run a script with `confirm` or `danger` only once the owner confirmed", async () => {

@@ -2790,6 +2790,11 @@
       "RunbookRunRequest": {
         "type": "object",
         "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
           "scriptId": {
             "type": "string",
             "minLength": 1,
@@ -2807,6 +2812,7 @@
           }
         },
         "required": [
+          "requestId",
           "scriptId"
         ]
       },

@@ -25,9 +25,10 @@ const decoder = new TextDecoder();
 
 // Queues a run of a script from the latest catalog. A script that asks to confirm needs the
 // owner's confirmation, and Face ID while the owner requires it for approvals. A run for an
-// item starts on the item's timeline.
+// item starts on the item's timeline. A request sent again returns the run it queued.
 export const requestRun = internalMutation({
   args: {
+    requestId: v.string(),
     scriptId: v.string(),
     itemId: v.optional(v.string()),
     confirmed: v.optional(v.boolean()),
@@ -35,7 +36,13 @@ export const requestRun = internalMutation({
     actor: v.string(),
     now: v.number(),
   },
-  handler: async (ctx, { scriptId, itemId, confirmed, authenticated, actor, now }) => {
+  handler: async (ctx, { requestId, scriptId, itemId, confirmed, authenticated, actor, now }) => {
+    const queued = await ctx.db
+      .query("runbookRuns")
+      .withIndex("by_requestId", (q) => q.eq("requestId", requestId))
+      .unique();
+    if (queued) return runbookRunRecord(queued);
+
     const script = (await runbookCatalog(ctx)).find((entry) => entry.id === scriptId);
     if (!script) throw new ConvexError({ code: "UNKNOWN_SCRIPT" });
     if (runbookConfirmText(script) !== undefined && confirmed !== true) {
@@ -57,6 +64,7 @@ export const requestRun = internalMutation({
       scriptName: script.name,
       itemId: item?._id,
       requestedBy: actor,
+      requestId,
       status: "queued",
       availableAt: now,
       attempts: 0,

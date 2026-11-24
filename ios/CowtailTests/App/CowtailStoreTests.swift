@@ -189,6 +189,22 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(started.map(\.authenticated), [nil])
     }
 
+    func testARunWhoseReplyWasLostIsSentAgainUnderTheSameRequest() async {
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+        let store = store(api: api)
+        let script = RunbookScript(id: "disk-usage", name: "Disk usage")
+        await api.loseNextRunReply()
+
+        await store.startRun(script)
+        await store.startRun(script)
+        await store.startRun(script)
+
+        let requests = await api.startedRuns.map(\.requestID)
+        XCTAssertEqual(requests.count, 3)
+        XCTAssertEqual(requests[1], requests[0], "the retry reconciles the lost request")
+        XCTAssertNotEqual(requests[2], requests[1], "an answered request is done; the next tap is new")
+    }
+
     func testARefusedActionRollsTheInboxBackAndShowsTheServersError() async {
         let api = FakeItemAPI(
             inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []),
@@ -722,6 +738,7 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     struct StartedRun {
+        let requestID: String
         let scriptID: String
         let itemID: String?
         let confirmed: Bool
@@ -730,14 +747,32 @@ private actor FakeItemAPI: CowtailAPIClient {
 
     private(set) var startedRuns: [StartedRun] = []
 
+    /// The next run request reaches the server, but its reply is lost.
+    private var losesNextRunReply = false
+
+    func loseNextRunReply() {
+        losesNextRunReply = true
+    }
+
     func startRunbookRun(
+        requestID: String,
         scriptID: String,
         itemID: String?,
         confirmed: Bool,
         authenticated: Bool?,
         sessionToken _: String
     ) async throws -> RunbookRun {
-        startedRuns.append(StartedRun(scriptID: scriptID, itemID: itemID, confirmed: confirmed, authenticated: authenticated))
+        startedRuns.append(StartedRun(
+            requestID: requestID,
+            scriptID: scriptID,
+            itemID: itemID,
+            confirmed: confirmed,
+            authenticated: authenticated
+        ))
+        if losesNextRunReply {
+            losesNextRunReply = false
+            throw URLError(.networkConnectionLost)
+        }
         return RunbookRun(
             id: "run-\(startedRuns.count)",
             scriptID: scriptID,

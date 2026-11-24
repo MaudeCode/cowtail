@@ -38,7 +38,9 @@ protocol CowtailAPIClient: Sendable {
     func endMaintenanceWindow(id: String, sessionToken: String) async throws -> MaintenanceWindow
     /// Asks Hermes to run a runbook script, for an item when `itemID` is set. `confirmed` says
     /// the owner accepted the script's prompt, `authenticated` that they passed Face ID.
+    /// `requestID` names the tap: sent again, it returns the run it queued.
     func startRunbookRun(
+        requestID: String,
         scriptID: String,
         itemID: String?,
         confirmed: Bool,
@@ -534,6 +536,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
     }
 
     func startRunbookRun(
+        requestID: String,
         scriptID: String,
         itemID: String?,
         confirmed: Bool,
@@ -541,6 +544,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
         sessionToken: String
     ) async throws -> RunbookRun {
         let body = Components.Schemas.RunbookRunRequest(
+            requestId: requestID,
             scriptId: scriptID,
             itemId: itemID,
             confirmed: confirmed,

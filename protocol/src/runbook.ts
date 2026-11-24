@@ -57,8 +57,11 @@ export const runbookRunRecordSchema = z.object({
 
 // The owner asks Hermes to run a script, optionally for an item, whose timeline then records
 // the run's start and finish. A script that asks to confirm needs `confirmed: true`, and while
-// the owner requires Face ID for approvals, `authenticated: true` as well.
+// the owner requires Face ID for approvals, `authenticated: true` as well. `requestId` is the
+// client's name for this one tap: a request sent again with it, after its reply was lost,
+// returns the run it queued and queues nothing.
 export const runbookRunRequestSchema = z.object({
+  requestId: nonEmptyStringSchema.max(100),
   scriptId: nonEmptyStringSchema.max(200),
   itemId: nonEmptyStringSchema.optional(),
   confirmed: z.boolean().optional(),

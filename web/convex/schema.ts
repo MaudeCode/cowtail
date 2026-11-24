@@ -150,6 +150,8 @@ export default defineSchema({
     scriptName: v.string(),
     itemId: v.optional(v.id("items")),
     requestedBy: v.string(),
+    // The client's name for the request, so one sent again queues nothing.
+    requestId: v.optional(v.string()),
     status: v.union(
       v.literal("queued"),
       v.literal("running"),
@@ -178,6 +180,7 @@ export default defineSchema({
   })
     .index("by_status_availableAt", ["status", "availableAt"])
     .index("by_scriptId_status", ["scriptId", "status"])
+    .index("by_requestId", ["requestId"])
     .index("by_createdAt", ["createdAt"]),
 
   // A run's output, in the order it arrived.

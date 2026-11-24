@@ -4278,6 +4278,8 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/RunbookRunRequest`.
         internal struct RunbookRunRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunbookRunRequest/requestId`.
+            internal var requestId: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunbookRunRequest/scriptId`.
             internal var scriptId: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunbookRunRequest/itemId`.
@@ -4289,22 +4291,26 @@ extension Components {
             /// Creates a new `RunbookRunRequest`.
             ///
             /// - Parameters:
+            ///   - requestId:
             ///   - scriptId:
             ///   - itemId:
             ///   - confirmed:
             ///   - authenticated:
             internal init(
+                requestId: Swift.String,
                 scriptId: Swift.String,
                 itemId: Swift.String? = nil,
                 confirmed: Swift.Bool? = nil,
                 authenticated: Swift.Bool? = nil
             ) {
+                self.requestId = requestId
                 self.scriptId = scriptId
                 self.itemId = itemId
                 self.confirmed = confirmed
                 self.authenticated = authenticated
             }
             internal enum CodingKeys: String, CodingKey {
+                case requestId
                 case scriptId
                 case itemId
                 case confirmed
