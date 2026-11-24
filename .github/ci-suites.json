@@ -45,6 +45,7 @@
     { "paths": ["web/**", "web/**/.*"], "suites": ["global", "web", "docker"] },
     { "paths": ["cli/**", "cli/**/.*"], "suites": ["global", "cli"] },
     { "paths": ["script/**", ".oxlintrc.json", ".oxfmtrc.json"], "suites": ["global"] },
+    { "paths": ["ios/CowtailTests/**", "ios/CowtailUITests/**"], "suites": ["global", "ios"] },
     { "paths": ["ios/**", "ios/**/.*"], "suites": ["ios"] },
     { "paths": ["hermes-plugin/**", "hermes-plugin/**/.*"], "suites": ["plugin"] },
     { "paths": [".dockerignore"], "suites": ["docker"] }
