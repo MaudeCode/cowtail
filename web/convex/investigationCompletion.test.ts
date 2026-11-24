@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { getFunctionName } from "convex/server";
 import { ConvexError } from "convex/values";
 

@@ -6,9 +6,9 @@ import {
   leafCommandTargets,
   standaloneCommands,
   type CommandGroupDefinition,
-} from "..";
-import { usageError } from "../../lib/errors";
-import { BaseCommand } from "../../lib/output";
+} from "../index.ts";
+import { usageError } from "../../lib/errors.ts";
+import { BaseCommand } from "../../lib/output.ts";
 
 export const HELP_DESCRIPTION = `Show help for the CLI or a specific command.`;
 const helpTargets = new Map<string, CommandClass>([

@@ -13,7 +13,8 @@ on:
       - "main"
     paths:
       - "package.json"
-      - "bun.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "cli/**"
       - "protocol/**"
       - "script/codex/**"
@@ -26,7 +27,8 @@ on:
       - "main"
     paths:
       - "package.json"
-      - "bun.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "cli/**"
       - "protocol/**"
       - "script/codex/**"
@@ -46,8 +48,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run fmt:ts:check
-      - run: bun run lint:ts
-      - run: bun test script/release
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run fmt:ts:check
+      - run: pnpm run lint:ts
+      - run: pnpm exec vitest run script/release

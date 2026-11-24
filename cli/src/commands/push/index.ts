@@ -1,7 +1,7 @@
-import { defineCommandEntry, defineCommandGroup } from "../types";
+import { defineCommandEntry, defineCommandGroup } from "../types.ts";
 
-import { PushSendCommand, PUSH_SEND_DESCRIPTION } from "./send";
-import { PushTestCommand, PUSH_TEST_DESCRIPTION } from "./test";
+import { PushSendCommand, PUSH_SEND_DESCRIPTION } from "./send.ts";
+import { PushTestCommand, PUSH_TEST_DESCRIPTION } from "./test.ts";
 
 export const PUSH_GROUP_DESCRIPTION = `Push notification commands.`;
 

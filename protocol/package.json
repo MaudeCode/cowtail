@@ -15,8 +15,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "bun test src/*.test.ts",
-    "codegen:ios": "bun run ./scripts/generate-ios-openapi.ts"
+    "test": "vitest run",
+    "codegen:ios": "node ./scripts/generate-ios-openapi.ts"
   },
   "dependencies": {
     "zod": "^4.3.6"

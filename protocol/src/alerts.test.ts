@@ -1,10 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 import {
   alertCreateRequestSchema,
   alertHumanActionRequestSchema,
   alertRecordSchema,
-} from "./alerts.js";
+} from "./alerts.ts";
 
 describe("alert protocol schemas", () => {
   test("accepts pending and recorded outcomes for durable ingest", () => {

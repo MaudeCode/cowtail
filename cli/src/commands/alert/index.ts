@@ -1,9 +1,9 @@
-import { defineCommandEntry, defineCommandGroup } from "../types";
+import { defineCommandEntry, defineCommandGroup } from "../types.ts";
 
-import { AlertCreateCommand, ALERT_CREATE_DESCRIPTION } from "./create";
-import { AlertDeleteCommand, ALERT_DELETE_DESCRIPTION } from "./delete";
-import { AlertListCommand, ALERT_LIST_DESCRIPTION } from "./list";
-import { AlertShowCommand, ALERT_SHOW_DESCRIPTION } from "./show";
+import { AlertCreateCommand, ALERT_CREATE_DESCRIPTION } from "./create.ts";
+import { AlertDeleteCommand, ALERT_DELETE_DESCRIPTION } from "./delete.ts";
+import { AlertListCommand, ALERT_LIST_DESCRIPTION } from "./list.ts";
+import { AlertShowCommand, ALERT_SHOW_DESCRIPTION } from "./show.ts";
 
 export const ALERT_GROUP_DESCRIPTION = `Alert record commands.`;
 

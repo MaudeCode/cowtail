@@ -15,27 +15,26 @@
   "files": [
     "dist",
     "README.md",
-    "docs/config.example.json",
-    "install.sh"
+    "docs/config.example.json"
   ],
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "dev": "bun run src/cli.ts",
-    "build": "bun build ./src/cli.ts --compile --outfile ./dist/cowtail --env='COWTAIL_*'",
-    "build:js": "bun build ./src/cli.ts --target=node --outfile ./dist/cowtail.js --env='COWTAIL_*'",
-    "build:npm": "rm -rf dist && bun run build:js && chmod +x ./dist/cowtail.js",
+    "dev": "node src/cli.ts",
+    "build": "node scripts/build.mjs",
+    "build:npm": "node scripts/build.mjs",
     "check": "tsc --noEmit",
-    "test": "bun test"
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
-    "@maudecode/cowtail-protocol": "file:../protocol",
+    "@maudecode/cowtail-protocol": "workspace:*",
     "@types/node": "^25.6.0",
     "clipanion": "^4.0.0-rc.4",
+    "esbuild": "^0.28.2",
     "typescript": "^6.0.3"
   }
 }

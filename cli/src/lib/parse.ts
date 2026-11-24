@@ -1,4 +1,4 @@
-import { validationError } from "./errors";
+import { validationError } from "./errors.ts";
 
 export function requireNonEmptyString(value: string | undefined, label: string): string {
   if (value === undefined) {

@@ -1,16 +1,20 @@
-FROM oven/bun:1.3.11-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 ARG COWTAIL_VERSION=dev
 ENV VITE_APP_VERSION=${COWTAIL_VERSION}
 
-COPY package.json bun.lock ./
+# Node 25 and later ship without Corepack; it installs the pnpm named in packageManager.
+RUN npm install --global corepack@0.36.0 && corepack enable pnpm
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json web/package.json
 COPY protocol/package.json protocol/package.json
-RUN bun install --frozen-lockfile
+COPY cli/package.json cli/package.json
+RUN pnpm install --frozen-lockfile --filter ./web...
 
 COPY web web
 COPY protocol protocol
-RUN cd web && bun run build
+RUN pnpm --dir web run build
 
 FROM nginx:1.27-alpine
 ENV CONVEX_API_UPSTREAM=http://convex-backend:3210 \

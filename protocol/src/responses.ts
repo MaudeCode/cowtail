@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { nonEmptyStringSchema } from "./shared.js";
+import { nonEmptyStringSchema } from "./shared.ts";
 
 export const okResponseSchema = z.object({
   ok: z.literal(true),

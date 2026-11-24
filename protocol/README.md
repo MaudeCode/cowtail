@@ -28,13 +28,14 @@ It does not contain:
 
 This package now lives inside the main Cowtail workspace at [`protocol/`](./).
 
-The web app consumes it through the root Bun workspace as `@maudecode/cowtail-protocol`.
+The web app and the CLI consume it through the root pnpm workspace as `@maudecode/cowtail-protocol`.
 
 ## Development
 
 ```bash
-bun install
+pnpm install
 cd protocol
-bun run check
-bun run build
+pnpm run check
+pnpm test
+pnpm run build
 ```

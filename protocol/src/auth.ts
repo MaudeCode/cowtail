@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { nonEmptyStringSchema, timestampSchema } from "./shared.js";
+import { nonEmptyStringSchema, timestampSchema } from "./shared.ts";
 
 export const authSessionCreateRequestSchema = z.object({
   identityToken: nonEmptyStringSchema,

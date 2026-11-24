@@ -2,9 +2,9 @@ import { Command, Option } from "clipanion";
 
 import { okResponseSchema } from "@maudecode/cowtail-protocol";
 
-import { deleteJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
-import { requireNonEmptyString } from "../../lib/parse";
+import { deleteJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
+import { requireNonEmptyString } from "../../lib/parse.ts";
 
 export const FIX_DELETE_DESCRIPTION = `Delete a single fix.`;
 

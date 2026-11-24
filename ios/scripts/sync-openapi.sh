@@ -4,24 +4,24 @@ set -eu
 IOS_ROOT="${SRCROOT:-$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)}"
 REPO_ROOT="$(CDPATH= cd -- "${IOS_ROOT}/.." && pwd)"
 
-resolve_bun() {
-  if command -v bun >/dev/null 2>&1; then
-    command -v bun
+resolve_node() {
+  if command -v node >/dev/null 2>&1; then
+    command -v node
     return 0
   fi
 
   if [ -n "${SHELL:-}" ] && [ -x "${SHELL}" ]; then
-    bun_path="$("${SHELL}" -lc 'command -v bun' 2>/dev/null || true)"
-    if [ -n "${bun_path}" ] && [ -x "${bun_path}" ]; then
-      printf '%s\n' "${bun_path}"
+    node_path="$("${SHELL}" -lc 'command -v node' 2>/dev/null || true)"
+    if [ -n "${node_path}" ] && [ -x "${node_path}" ]; then
+      printf '%s\n' "${node_path}"
       return 0
     fi
   fi
 
   if command -v mise >/dev/null 2>&1; then
-    bun_path="$(mise which bun 2>/dev/null || true)"
-    if [ -n "${bun_path}" ] && [ -x "${bun_path}" ]; then
-      printf '%s\n' "${bun_path}"
+    node_path="$(mise which node 2>/dev/null || true)"
+    if [ -n "${node_path}" ] && [ -x "${node_path}" ]; then
+      printf '%s\n' "${node_path}"
       return 0
     fi
   fi
@@ -29,13 +29,13 @@ resolve_bun() {
   return 1
 }
 
-if ! BUN_BIN="$(resolve_bun)"; then
-  echo "Unable to locate 'bun' for the Xcode script phase. Install bun or ensure your login shell exposes it." >&2
+if ! NODE_BIN="$(resolve_node)"; then
+  echo "Unable to locate 'node' for the Xcode script phase. Install Node or ensure your login shell exposes it." >&2
   exit 127
 fi
 
 cd "${REPO_ROOT}"
-"${BUN_BIN}" run ./protocol/scripts/generate-ios-openapi.ts
+"${NODE_BIN}" ./protocol/scripts/generate-ios-openapi.ts
 xcrun --sdk macosx swift package \
   --package-path "${REPO_ROOT}/ios/OpenAPITools" \
   --allow-writing-to-package-directory \

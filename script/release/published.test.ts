@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 
 import { provenanceCommits } from "./published.mjs";
 
-const scriptPath = resolve(import.meta.dir, "published.mjs");
+const scriptPath = resolve(import.meta.dirname, "published.mjs");
 const sha = "3b7a46842748d7981f984d9125e420be1fd583af";
 const otherSha = "f".repeat(40);
 const tempRoots: string[] = [];

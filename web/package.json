@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "render:aasa": "bun run scripts/render-apple-app-site-association.ts",
-    "dev": "bun run render:aasa && vite",
-    "build": "bun run render:aasa && tsc -b && vite build",
-    "preview": "bun run render:aasa && vite preview"
+    "render:aasa": "node scripts/render-apple-app-site-association.ts",
+    "dev": "pnpm run render:aasa && vite",
+    "build": "pnpm run render:aasa && tsc -b && vite build",
+    "preview": "pnpm run render:aasa && vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@convex-dev/react-query": "^0.1.0",

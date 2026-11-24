@@ -13,7 +13,8 @@ on:
       - "main"
     paths:
       - "package.json"
-      - "bun.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "protocol/**"
       - "ios/**"
       - ".github/workflows/ios-build.yml"
@@ -24,7 +25,8 @@ on:
       - "main"
     paths:
       - "package.json"
-      - "bun.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "protocol/**"
       - "ios/**"
       - ".github/workflows/ios-build.yml"
@@ -49,8 +51,12 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
       - uses: ./.github/actions/setup-ios
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
 
       - name: Write iOS verify project env
         run: install -m 600 ios/Config/project.env.example ios/Config/project.env
@@ -72,7 +78,7 @@ jobs:
         run: scripts/reset-simulator.sh
 
       - name: Run iOS Unit Tests
-        run: bun run test:ios:unit
+        run: pnpm run test:ios:unit
 
       # The hosted image has no iOS 26 simulator, so this static check is CI's proof the app still launches on iOS 26.
       - name: Check the app has no strong iOS 27-only imports
@@ -99,4 +105,4 @@ jobs:
         run: scripts/reset-simulator.sh
 
       - name: Run iOS UI Tests
-        run: bun run test:ios:ui
+        run: pnpm run test:ios:ui

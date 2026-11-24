@@ -38,7 +38,8 @@ Keep this document scrubbed:
 
 ## Working Rules
 
-- Use `bun`, not `npm`.
+- Use `pnpm`, not `npm`. pnpm is the version named in the root `package.json`'s `packageManager`; scripts run on Node and tests on Vitest.
+- Where an older ticket says `bun run <script>`, `bun test` or `bunx`, run the same script with `pnpm run`, `pnpm test` or `pnpm exec`.
 - Node is the version named in `.node-version`, the latest LTS line. A version manager that reads that file selects it in every checkout and worktree, with no setup.
 - Treat Kubernetes and runtime infrastructure as GitOps-managed.
 - Do not patch running cluster resources directly when the source of truth lives in a separate infrastructure repo.
@@ -53,18 +54,19 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - Put shared enums and literals there when multiple repos need the same allowed values.
 - Keep runtime implementation details out of `protocol`: no Convex queries or mutations, no env loading, no HTTP clients, no UI state, no Swift-only mapping code.
 - If a payload shape is only a local view model for this web app, keep it in this repo instead of promoting it to the protocol package.
-- The web app consumes the shared package through the Bun workspace as `@maudecode/cowtail-protocol`. The CLI consumes the local package from `../protocol`. Do not re-declare the wire format locally as a shortcut.
+- The web app and the CLI consume the shared package through the pnpm workspace as `@maudecode/cowtail-protocol`. Do not re-declare the wire format locally as a shortcut.
 
 ## Local Build
 
-- Install web and protocol dependencies from the repo root with `bun install --frozen-lockfile`.
-- Install CLI dependencies with `cd cli && bun install --frozen-lockfile`.
-- Build the CLI with `cd cli && bun run build`.
-- Check the CLI with `cd cli && bun run check`.
-- Build the web app with `cd web && bun run build`.
+- Install every package's dependencies from the repo root with `pnpm install --frozen-lockfile`. The workspace holds `web/`, `protocol/` and `cli/`.
+- Build the CLI into `cli/dist/cowtail.js` with `pnpm run build:cli`.
+- Check the CLI with `pnpm run check:cli`.
+- Build the web app with `pnpm run build:web`.
+- Run the tests with `pnpm run test:web`, `pnpm run test:protocol`, `pnpm run test:cli` and `pnpm run test:script`.
+- Lint and format-check with `pnpm run lint:ts` and `pnpm run fmt:ts:check`.
 - The web app source lives in [`web/`](./web).
 - The CLI source lives in [`cli/`](./cli).
-- The native iOS app lives in [`ios/`](./ios) and remains outside the Bun workspace.
+- The native iOS app lives in [`ios/`](./ios) and remains outside the pnpm workspace.
 - Shared contracts live in [`protocol/`](./protocol).
 - The production image is built from [`web/Dockerfile`](./web/Dockerfile) using the repo root as the Docker build context.
 - Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).
@@ -75,11 +77,11 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 
 Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 
-- Check shared protocol contracts with `bun run check:protocol`.
-- Test shared protocol contracts with `bun run test:protocol`.
+- Check shared protocol contracts with `pnpm run check:protocol`.
+- Test shared protocol contracts with `pnpm run test:protocol`.
 - Generate iOS OpenAPI sources with `cd ios && ./generate.sh` after protocol or HTTP contract changes.
-- Run iOS unit tests with `bun run test:ios:unit`.
-- Run iOS UI tests with `bun run test:ios:ui`.
+- Run iOS unit tests with `pnpm run test:ios:unit`.
+- Run iOS UI tests with `pnpm run test:ios:ui`.
 
 ## UI Mockups
 
@@ -111,13 +113,13 @@ Convex deploys are part of the release workflow.
 - Runtime:
   - runs on a self-hosted GitHub Actions runner
   - installs dependencies from the repo root workspace
-  - deploys from `web/` with `bunx convex deploy`
+  - deploys from `web/` with `pnpm exec convex deploy`
 
 Important implementation detail:
 
-- The install must run at the repo root so Bun can link the local workspace packages correctly.
+- The install must run at the repo root so pnpm can link the local workspace packages correctly.
 - `actions/checkout` still keeps `persist-credentials: false` to avoid mutating the repo's auth state during deploy jobs.
-- If Convex deploy starts failing during dependency installation, inspect the root workspace manifests and `bun.lock` before changing package managers or deployment logic.
+- If Convex deploy starts failing during dependency installation, inspect the root workspace manifests and `pnpm-lock.yaml` before changing package managers or deployment logic.
 
 ## Release Path
 
@@ -134,11 +136,11 @@ Releases are tag-last: the release workflow is dispatched with a version, publis
   - [`.github/workflows/release-freeze.yml`](./.github/workflows/release-freeze.yml) runs on `pull_request_target` for every pull request, whatever it changes, because the verify workflows run by path; it gives each pull request the `release-freeze` status, forks and Dependabot included. It checks out nothing and never runs pull request code. `release-freeze` belongs in `main`'s required status checks
   - every job reads the commit from preflight's `sha` output and the version from its `tag` or `version` output, never from `github.ref_name` or the inputs; the reusable workflows take them as `ref` and `version`
   - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context, labelled with the commit as `org.opencontainers.image.revision`
-  - builds CLI release binaries and the CLI npm package from [`cli/`](./cli)
+  - builds the CLI npm package from [`cli/`](./cli)
   - builds the iOS app with the commit time as its build number, so every build of a commit has the same number
   - publishes the iOS app to TestFlight, the npm package, and the multi-architecture container images
   - deploys Convex from [`web/`](./web) after those publish
-  - last, `publish-github-release` creates the tag with the shared `release-tag` action and then the GitHub Release with the CLI artifacts
+  - last, `publish-github-release` creates the tag with the shared `release-tag` action and then the GitHub Release with the CLI npm package attached
 - Running again:
   - re-run the failed jobs, or dispatch the same version again from the same commit
   - [`script/release/published.mjs`](./script/release/published.mjs) checks TestFlight, npm and the registry before each publish: an artifact already published from this commit is skipped, one from another commit fails the job
@@ -146,9 +148,9 @@ Releases are tag-last: the release workflow is dispatched with a version, publis
 
 Important boundary:
 
-- This repository builds and publishes the web image, CLI archives, and CLI npm package.
+- This repository builds and publishes the web image and the CLI npm package.
 - This repository deploys Convex functions as part of a successful release.
-- The root Bun workspace is intentionally limited to `web/` and `protocol/` so the web container build does not depend on CLI workspace metadata.
+- The web container build installs only `web/` and its workspace dependencies with `pnpm install --frozen-lockfile --filter ./web...`.
 - The actual Kubernetes rollout is managed outside this repo by GitOps.
 - Runtime upstreams and public association identifiers are injected with container env vars instead of being hardcoded in tracked nginx config.
 - If the running web deployment needs changes, update the external infrastructure source of truth rather than applying resources manually to the cluster.
@@ -158,6 +160,6 @@ Important boundary:
 Before changing deploy behavior:
 
 - Read the relevant workflow file first.
-- Preserve Bun-based install and build steps unless there is a strong reason to change them.
+- Preserve pnpm-based install and build steps unless there is a strong reason to change them.
 - Keep release-time Convex deploys sequenced after artifact publication succeeds, and the tag and GitHub Release after everything else.
 - Avoid adding environment-specific values or identifying infrastructure details to this repository.

@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
-import { userDevicesResponseSchema } from "./users.js";
+import { userDevicesResponseSchema } from "./users.ts";
 
 describe("user protocol schemas", () => {
   test("accepts device listings with token previews", () => {

@@ -1,8 +1,8 @@
 import { Command } from "clipanion";
 
-import { getJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
-import { inspectConfig } from "../../lib/config";
+import { getJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
+import { inspectConfig } from "../../lib/config.ts";
 import { healthResponseSchema, usersListResponseSchema } from "@maudecode/cowtail-protocol";
 
 export const CONFIG_DOCTOR_DESCRIPTION = `Run basic local and remote CLI diagnostics.`;

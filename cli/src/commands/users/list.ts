@@ -2,8 +2,8 @@ import { Command } from "clipanion";
 
 import { usersListResponseSchema } from "@maudecode/cowtail-protocol";
 
-import { getJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
+import { getJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
 
 export const USERS_LIST_DESCRIPTION = `List users with enabled push devices.`;
 

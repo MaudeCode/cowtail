@@ -2,10 +2,10 @@ import { Command, Option } from "clipanion";
 
 import { roundupTestRequestSchema, roundupTestResultSchema } from "@maudecode/cowtail-protocol";
 
-import { formatIssueList, validationError } from "../../lib/errors";
-import { postJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
-import { parseDateOnly, requireNonEmptyString } from "../../lib/parse";
+import { formatIssueList, validationError } from "../../lib/errors.ts";
+import { postJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
+import { parseDateOnly, requireNonEmptyString } from "../../lib/parse.ts";
 
 export const ROUNDUP_TEST_DESCRIPTION = `Send a daily roundup push notification.`;
 

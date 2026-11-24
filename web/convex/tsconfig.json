@@ -12,6 +12,7 @@
     "types": ["node"],
     "typeRoots": ["../node_modules/@types"],
     "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
     "allowSyntheticDefaultImports": true,
 
     /* These compiler options are required by Convex */

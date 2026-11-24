@@ -1,7 +1,7 @@
 import { Command } from "clipanion";
 
-import { loadConfig } from "../../lib/config";
-import { formatBoolean, JsonCommand } from "../../lib/output";
+import { loadConfig } from "../../lib/config.ts";
+import { formatBoolean, JsonCommand } from "../../lib/output.ts";
 
 export const CONFIG_SHOW_DESCRIPTION = `Show the resolved local CLI config.`;
 

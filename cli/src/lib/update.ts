@@ -1,24 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import {
-  chmodSync,
-  copyFileSync,
-  existsSync,
-  mkdtempSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
 
-import { CliError, usageError } from "./errors";
-import { cowtailVersionLabel } from "./version";
+import { CliError, usageError } from "./errors.ts";
+import { cowtailVersionLabel } from "./version.ts";
 
 const REPO = "MaudeCode/cowtail";
-
-type SupportedOs = "darwin" | "linux";
-type SupportedArch = "arm64" | "x64";
+const PACKAGE_NAME = "@maudecode/cowtail-cli";
 
 export type UpdateCheckResult = {
   currentVersion: string;
@@ -79,90 +65,33 @@ export async function installUpdate(
     };
   }
 
-  const { os, arch } = resolveSupportedPlatform();
-  const assetName = `cowtail-${os}-${arch}.tar.gz`;
-  const assetUrl = `https://github.com/${REPO}/releases/download/${targetVersion}/${assetName}`;
-  const checksumsUrl = `https://github.com/${REPO}/releases/download/${targetVersion}/checksums.txt`;
-
-  const tempRoot = mkdtempSync(join(tmpdir(), "cowtail-update-"));
-
-  try {
-    const archivePath = join(tempRoot, assetName);
-    const archiveBytes = await download(assetUrl);
-    writeFileSync(archivePath, archiveBytes);
-
-    const expectedChecksum = await fetchExpectedChecksum(checksumsUrl, assetName);
-    const actualChecksum = sha256(archiveBytes);
-
-    if (expectedChecksum !== actualChecksum) {
-      throw new CliError(`Checksum mismatch for ${assetName}`);
-    }
-
-    execFileSync("tar", ["-xzf", archivePath, "-C", tempRoot]);
-
-    const extractedBinaryPath = join(tempRoot, "cowtail");
-    if (!existsSync(extractedBinaryPath)) {
-      throw new CliError(`Release archive did not contain a cowtail binary`);
-    }
-
-    const stagingDir = mkdtempSync(join(dirname(executablePath), ".cowtail-update-"));
-    const stagedBinaryPath = join(stagingDir, basename(executablePath));
-
-    copyFileSync(extractedBinaryPath, stagedBinaryPath);
-    chmodSync(stagedBinaryPath, 0o755);
-    renameSync(stagedBinaryPath, executablePath);
-    rmSync(stagingDir, { recursive: true, force: true });
-
-    return {
-      currentVersion: cowtailVersionLabel,
-      targetVersion,
-      executablePath,
-      updateAvailable: true,
-      updateAllowed: true,
-      updated: true,
-    };
-  } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
+  if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(targetVersion)) {
+    throw usageError(`${targetVersion} is not a release version`);
   }
+
+  // The CLI ships as an npm package only, so updating installs the requested version globally.
+  const result = spawnSync(
+    "npm",
+    ["install", "--global", `${PACKAGE_NAME}@${targetVersion.slice(1)}`],
+    { encoding: "utf8" },
+  );
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message ?? (result.stderr || result.stdout).trim();
+    throw new CliError(`Failed to install ${PACKAGE_NAME}@${targetVersion}: ${detail}`);
+  }
+
+  return {
+    currentVersion: cowtailVersionLabel,
+    targetVersion,
+    executablePath,
+    updateAvailable: true,
+    updateAllowed: true,
+    updated: true,
+  };
 }
 
 function resolveSelfExecutablePath(): string {
-  const executablePath = process.execPath;
-  const runtime = basename(executablePath).toLowerCase();
-
-  if (runtime === "bun" || runtime === "bunx" || runtime === "node") {
-    throw usageError("Self-update only works from the installed compiled cowtail binary");
-  }
-
-  return executablePath;
-}
-
-function resolveSupportedPlatform(): { os: SupportedOs; arch: SupportedArch } {
-  let os: SupportedOs;
-  switch (process.platform) {
-    case "darwin":
-      os = "darwin";
-      break;
-    case "linux":
-      os = "linux";
-      break;
-    default:
-      throw new CliError(`Unsupported operating system: ${process.platform}`);
-  }
-
-  let arch: SupportedArch;
-  switch (process.arch) {
-    case "arm64":
-      arch = "arm64";
-      break;
-    case "x64":
-      arch = "x64";
-      break;
-    default:
-      throw new CliError(`Unsupported architecture: ${process.arch}`);
-  }
-
-  return { os, arch };
+  return process.argv[1] ?? process.execPath;
 }
 
 function normalizeVersion(value: string): string {
@@ -196,53 +125,4 @@ async function fetchLatestReleaseTag(): Promise<string> {
   }
 
   return payload.tag_name.trim();
-}
-
-async function fetchExpectedChecksum(checksumsUrl: string, assetName: string): Promise<string> {
-  const contents = await downloadText(checksumsUrl);
-  for (const line of contents.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const match = trimmed.match(/^([a-fA-F0-9]{64})\s+\*?(.+)$/);
-    if (match && match[2] === assetName) {
-      return match[1].toLowerCase();
-    }
-  }
-
-  throw new CliError(`Could not find checksum entry for ${assetName}`);
-}
-
-async function download(url: string): Promise<Buffer> {
-  const response = await fetch(url, {
-    headers: {
-      "user-agent": "cowtail-cli",
-    },
-  });
-
-  if (!response.ok) {
-    throw new CliError(`Failed to download ${url} (${response.status})`);
-  }
-
-  return Buffer.from(await response.arrayBuffer());
-}
-
-async function downloadText(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: {
-      "user-agent": "cowtail-cli",
-    },
-  });
-
-  if (!response.ok) {
-    throw new CliError(`Failed to download ${url} (${response.status})`);
-  }
-
-  return await response.text();
-}
-
-function sha256(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
 }

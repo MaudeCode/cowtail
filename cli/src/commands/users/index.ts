@@ -1,7 +1,7 @@
-import { defineCommandEntry, defineCommandGroup } from "../types";
+import { defineCommandEntry, defineCommandGroup } from "../types.ts";
 
-import { UsersDevicesCommand, USERS_DEVICES_DESCRIPTION } from "./devices";
-import { UsersListCommand, USERS_LIST_DESCRIPTION } from "./list";
+import { UsersDevicesCommand, USERS_DEVICES_DESCRIPTION } from "./devices.ts";
+import { UsersListCommand, USERS_LIST_DESCRIPTION } from "./list.ts";
 
 export const USERS_GROUP_DESCRIPTION = `User inspection commands.`;
 

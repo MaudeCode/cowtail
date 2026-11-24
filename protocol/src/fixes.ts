@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { fixScopes, nonEmptyStringSchema, timestampSchema } from "./shared.js";
+import { fixScopes, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
 
 export const fixScopeSchema = z.enum(fixScopes);
 

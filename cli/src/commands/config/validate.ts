@@ -1,7 +1,7 @@
 import { Command } from "clipanion";
 
-import { inspectConfig } from "../../lib/config";
-import { JsonCommand } from "../../lib/output";
+import { inspectConfig } from "../../lib/config.ts";
+import { JsonCommand } from "../../lib/output.ts";
 
 export const CONFIG_VALIDATE_DESCRIPTION = `Validate the local CLI config.`;
 

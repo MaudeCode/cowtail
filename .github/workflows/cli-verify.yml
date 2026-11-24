@@ -16,6 +16,9 @@ on:
     branches:
       - "main"
     paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "cli/**"
       - "protocol/**"
       - ".github/workflows/cli-build.yml"
@@ -25,6 +28,9 @@ on:
     branches:
       - "main"
     paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "cli/**"
       - "protocol/**"
       - ".github/workflows/cli-build.yml"
@@ -41,27 +47,25 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version-file: .node-version
+          cache: pnpm
 
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Install protocol dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install CLI dependencies
-        working-directory: cli
-        run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Check CLI
-        working-directory: cli
-        run: bun run check
+        run: pnpm run check:cli
 
-      - name: Verify version command
+      - name: Verify the packed CLI prints its version
         working-directory: cli
         env:
           COWTAIL_VERSION: ${{ inputs.version || 'v0.0.0-dev' }}
         run: |
-          bun run build:js
-          test "$(node ./dist/cowtail.js version)" = "${COWTAIL_VERSION}"
+          pnpm run build:npm
+          tarball="$(npm pack --silent)"
+          npm install --global --prefix "${RUNNER_TEMP}/cowtail" "./${tarball}"
+          test "$("${RUNNER_TEMP}/cowtail/bin/cowtail" --version)" = "${COWTAIL_VERSION}"

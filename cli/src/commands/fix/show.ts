@@ -2,10 +2,10 @@ import { Command, Option } from "clipanion";
 
 import { fixGetResponseSchema } from "@maudecode/cowtail-protocol";
 
-import { getJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
-import { requireNonEmptyString } from "../../lib/parse";
-import { formatOptionalText, formatTimestamp } from "../../lib/render";
+import { getJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
+import { requireNonEmptyString } from "../../lib/parse.ts";
+import { formatOptionalText, formatTimestamp } from "../../lib/render.ts";
 
 export const FIX_SHOW_DESCRIPTION = `Show a single fix.`;
 

@@ -1,6 +1,6 @@
-import { defineCommandEntry, defineCommandGroup } from "../types";
+import { defineCommandEntry, defineCommandGroup } from "../types.ts";
 
-import { RoundupTestCommand, ROUNDUP_TEST_DESCRIPTION } from "./test";
+import { RoundupTestCommand, ROUNDUP_TEST_DESCRIPTION } from "./test.ts";
 
 export const ROUNDUP_GROUP_DESCRIPTION = `Daily roundup commands.`;
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { jsonObjectSchema, nonEmptyStringSchema } from "./shared.js";
+import { jsonObjectSchema, nonEmptyStringSchema } from "./shared.ts";
 
 export const pushEnvironmentSchema = z.enum(["development", "production"]);
 
