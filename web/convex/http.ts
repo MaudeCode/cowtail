@@ -1436,6 +1436,13 @@ app.post("/api/items", async (c) => {
 
   const parsed = itemCreateRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  // The owner's answers to an item go to the Hermes worker, so only the worker may route them.
+  const fromWorker = isBearerTokenAuthorized(c.req.header("authorization"), [
+    process.env.COWTAIL_WORKER_TOKEN,
+  ]);
+  if (parsed.data.replyTo && !fromWorker) {
+    return jsonError("Only the worker token may set replyTo", 403);
+  }
 
   const result = await c.env.runMutation((internal as any).items.create, {
     ...parsed.data,

@@ -271,6 +271,18 @@ class OutboundItemsTest(PlatformTest):
             },
         )
 
+    def test_an_approval_cowtail_cannot_show_whole_or_bind_to_its_request_is_refused(self):
+        self.hermes.approvals = {"s-1": [{"request_id": "req-1", "description": "long script"}]}
+        oversized = SimpleNamespace(
+            description="long script", command="echo ok; " * 2_500 + "rm -rf /", session_key="s-1"
+        )
+        unbound = SimpleNamespace(description="recursive delete", command="rm -rf /tmp/x", session_key="s-2")
+
+        results = [self.run_async(self.adapter._send_exec_approval_prompt(p)) for p in (oversized, unbound)]
+
+        self.assertEqual([result.success for result in results], [False, False])
+        self.assertEqual(self.cowtail.posted("/api/items"), [])
+
     def test_open_clarify_without_a_timeout_never_expires(self):
         self.hermes.clarify_timeout = 0
 
@@ -384,9 +396,19 @@ class AnswersTest(PlatformTest):
 
         self.assertEqual([path for path, _ in self.cowtail.finished()], ["/api/hermes/responses/r1/complete"])
 
+    def test_an_approval_answer_without_a_request_id_applies_to_nothing(self):
+        self.hermes.approvals = {"s-1": [{"request_id": "req-1"}]}
+        self.cowtail.waiting = [waiting("r1", {"type": "approval", "sessionKey": "s-1"}, {"type": "approve"})]
+
+        self.run_async(self.adapter.apply_responses())
+
+        self.assertEqual(self.hermes.calls, [])
+        self.assertEqual(self.hermes.approvals["s-1"], [{"request_id": "req-1"}])
+        self.assertEqual([path for path, _ in self.cowtail.finished()], ["/api/hermes/responses/r1/fail"])
+
     def test_an_answer_hermes_no_longer_holds_is_reported_failed(self):
         self.cowtail.waiting = [
-            waiting("r1", {"type": "approval", "sessionKey": "expired-session"}, {"type": "approve"}),
+            waiting("r1", {"type": "approval", "sessionKey": "s-1", "requestId": "req-gone"}, {"type": "approve"}),
             waiting("r2", {"type": "clarify", "clarifyId": "answered"}, {"type": "reply", "text": "yes"}),
         ]
 

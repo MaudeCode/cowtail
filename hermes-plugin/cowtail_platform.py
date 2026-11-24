@@ -194,12 +194,14 @@ def apply_answer(reply_to: dict[str, Any], answer: dict[str, Any]) -> str | None
     """Hands the owner's answer to the waiting Hermes request. Returns what happened, or None
     when Hermes no longer holds that request."""
     kind, action = reply_to.get("type"), answer.get("type")
-    if kind == "approval" and action in APPROVAL_CHOICES:
+    # An approval answer resolves exactly the request it was shown for, never the session's
+    # oldest one, so an answer without a request id applies to nothing.
+    if kind == "approval" and action in APPROVAL_CHOICES and reply_to.get("requestId"):
         from tools.approval import resolve_gateway_approval
 
         choice = APPROVAL_CHOICES[action]
-        session_key, request_id = str(reply_to.get("sessionKey") or ""), reply_to.get("requestId")
-        if resolve_gateway_approval(session_key, choice, request_id=request_id or None) > 0:
+        session_key, request_id = str(reply_to.get("sessionKey") or ""), str(reply_to["requestId"])
+        if resolve_gateway_approval(session_key, choice, request_id=request_id) > 0:
             return "Hermes approved the command once." if choice == "once" else "Hermes denied the command."
     elif kind == "clarify" and action in ("reply", "choose"):
         from tools.clarify_gateway import resolve_gateway_clarify
@@ -319,20 +321,24 @@ class CowtailAdapter(BasePlatformAdapter):
         return await self._post_item(content, content, kind=kind, urgency=urgency)
 
     async def _send_exec_approval_prompt(self, prompt) -> SendResult:
-        timeout = _safe(_approval_timeout, DEFAULT_APPROVAL_TIMEOUT)
-        reply_to = {"type": "approval", "sessionKey": prompt.session_key}
+        # The owner approves what the item shows, so an approval Cowtail cannot show whole, or
+        # cannot bind to its Hermes request, is refused and Hermes falls back to its text prompt.
+        body = f"{prompt.description}\n\n{prompt.command}"
+        if len(body) > BODY_LIMIT:
+            return SendResult(success=False, error="Approval prompt is too long to show whole in Cowtail")
         request_id = await asyncio.to_thread(
             _safe, lambda: _approval_request_id(prompt.session_key, prompt.description), None
         )
-        if request_id:
-            reply_to["requestId"] = request_id
+        if not request_id:
+            return SendResult(success=False, error="Hermes has no pending request for this approval")
+        timeout = _safe(_approval_timeout, DEFAULT_APPROVAL_TIMEOUT)
         return await self._post_item(
-            f"{prompt.description}\n\n{prompt.command}",
+            body,
             f"Approve: {prompt.description}",
             kind="approval",
             urgency="now",
             actions=[{"type": "approve"}, {"type": "deny"}],
-            replyTo=reply_to,
+            replyTo={"type": "approval", "sessionKey": prompt.session_key, "requestId": request_id},
             expiresAt=_now_ms() + int(timeout) * 1000,
         )
 

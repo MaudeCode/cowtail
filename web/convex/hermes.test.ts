@@ -175,6 +175,25 @@ describe("owner answers for Hermes", () => {
     expect((await getItem(t, id)).item.state).toBe("resolved");
   });
 
+  test("only the worker token may route an item's answers", async () => {
+    const t = newBackend();
+
+    const service = await request(t, "/api/items", {
+      method: "POST",
+      bearer: SERVICE,
+      body: approval,
+    });
+    const plain = await request(t, "/api/items", {
+      method: "POST",
+      bearer: SERVICE,
+      body: { ...approval, replyTo: undefined },
+    });
+
+    expect(service.status).toBe(403);
+    expect(plain.status).toBe(200);
+    expect(await createItem(t, approval)).toBeTruthy();
+  });
+
   test("only an offered action on an item with a replyTo goes back, one answer at a time", async () => {
     const t = newBackend();
     const plain = await createItem(t, { ...approval, replyTo: undefined });
