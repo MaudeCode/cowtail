@@ -27,6 +27,7 @@ Phase 1 is implemented:
 - `cowtail notify`
 - `cowtail items list`
 - `cowtail items show`
+- `cowtail items stats`
 - `cowtail push send`
 - `cowtail push test`
 - `cowtail users devices`

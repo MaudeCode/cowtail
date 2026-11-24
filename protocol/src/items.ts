@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { nonEmptyStringSchema, timestampSchema } from "./shared.ts";
+import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
 
 export const itemKinds = ["alert", "failure", "approval", "question", "fyi", "done"] as const;
 export const itemUrgencies = ["now", "today", "whenever"] as const;
@@ -164,6 +164,79 @@ export const itemResponseSchema = z.object({
   item: itemRecordSchema,
 });
 
+export const itemOutcomes = ["fixed", "self-resolved", "noise", "escalated", "other"] as const;
+const itemStatsMaxRangeMs = 92 * 24 * 60 * 60 * 1000;
+
+// Without a range, the stats cover the last 7 days in the server's time zone, today included.
+export const itemStatsQuerySchema = z
+  .object({ from: timestampSchema.optional(), to: timestampSchema.optional() })
+  .refine(({ from, to }) => from === undefined || to === undefined || from <= to, {
+    message: "from must not be after to",
+  })
+  .refine(
+    ({ from, to }) => from === undefined || to === undefined || to - from <= itemStatsMaxRangeMs,
+    { message: "The range can span at most 92 days" },
+  );
+
+const countSchema = z.number().int().nonnegative();
+const shareSchema = z.number().min(0).max(1);
+
+// Resolved means resolved within the range; created means created within it. Firing is the
+// alert items that are not resolved or expired now, whatever the range.
+export const itemStatsResponseSchema = z.object({
+  ok: z.literal(true),
+  from: timestampSchema,
+  to: timestampSchema,
+  timeZone: nonEmptyStringSchema,
+  createdCount: countSchema,
+  resolvedCount: countSchema,
+  outcomeMix: z.object(
+    Object.fromEntries(itemOutcomes.map((outcome) => [outcome, countSchema])) as Record<
+      (typeof itemOutcomes)[number],
+      typeof countSchema
+    >,
+  ),
+  // Noise items divided by resolved items; 0 when nothing resolved.
+  noiseRate: shareSchema,
+  // One row per kind with a resolved item, in kind order; nearest-rank percentiles.
+  timeToResolve: z.array(
+    z.object({
+      kind: itemKindSchema,
+      count: countSchema,
+      medianMs: countSchema,
+      p90Ms: countSchema,
+    }),
+  ),
+  // Created items grouped by dedupeKey (an alert's own key for alert items) that occurred
+  // more than once; the 10 with the most occurrences. noiseShare weighs by occurrences.
+  repeatOffenders: z.array(
+    z.object({
+      dedupeKey: nonEmptyStringSchema,
+      title: nonEmptyStringSchema,
+      occurrenceCount: countSchema,
+      noiseShare: shareSchema,
+      lastSeenAt: timestampSchema,
+    }),
+  ),
+  // Every day the range touches, oldest first, in timeZone.
+  dailyVolume: z.array(
+    z.object({
+      date: dateOnlyStringSchema,
+      total: countSchema,
+      bySource: z.record(z.string(), countSchema),
+    }),
+  ),
+  firingCount: countSchema,
+  // Most firing first.
+  firingByNamespace: z.array(
+    z.object({
+      namespace: z.string(),
+      count: countSchema,
+      itemIds: z.array(nonEmptyStringSchema),
+    }),
+  ),
+});
+
 export type ItemKind = z.infer<typeof itemKindSchema>;
 export type ItemUrgency = z.infer<typeof itemUrgencySchema>;
 export type ItemState = z.infer<typeof itemStateSchema>;
@@ -180,3 +253,6 @@ export type ItemListResponse = z.infer<typeof itemListResponseSchema>;
 export type ItemGetResponse = z.infer<typeof itemGetResponseSchema>;
 export type ItemActionRequest = z.infer<typeof itemActionRequestSchema>;
 export type ItemResponse = z.infer<typeof itemResponseSchema>;
+export type ItemOutcome = (typeof itemOutcomes)[number];
+export type ItemStatsQuery = z.infer<typeof itemStatsQuerySchema>;
+export type ItemStatsResponse = z.infer<typeof itemStatsResponseSchema>;

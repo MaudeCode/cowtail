@@ -8,13 +8,13 @@ import {
   buildDailyRoundupPayload,
   resolveRoundupWindow,
   resolvePreviousRoundupWindow,
+  resolveRoundupTimeZone,
   shouldRunDailyRoundupAt,
   type RoundupWindow,
 } from "./roundup";
 import { sendPushToUser } from "./pushDelivery";
 
 const DEFAULT_ROUNDUP_HOUR_LOCAL = 8;
-const DEFAULT_ROUNDUP_TIMEZONE = "America/New_York";
 const DAILY_ROUNDUP_TITLE = "Cowtail Daily Roundup";
 
 type RoundupNotification = {
@@ -27,20 +27,6 @@ type RoundupNotification = {
 function nonEmptyString(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
-}
-
-function resolveRoundupTimeZone(): string {
-  const timeZone = nonEmptyString(process.env.DAILY_ROUNDUP_TIMEZONE) ?? DEFAULT_ROUNDUP_TIMEZONE;
-
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
-  } catch (error) {
-    throw new Error(
-      `Invalid DAILY_ROUNDUP_TIMEZONE: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  return timeZone;
 }
 
 function resolveRoundupHourLocal(): number {
