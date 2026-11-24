@@ -74,7 +74,9 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published private(set) var registrationError: String?
     @Published private(set) var serverRegistrationMessage: String?
     @Published private(set) var lastNotificationResponse: String?
-    @Published private(set) var dailyRoundupEnabled = false
+    @Published private(set) var preferences = AppNotificationPreferences()
+    /// The settings before a change whose outcome the server has not confirmed yet.
+    private var unconfirmedPreviousPreferences: AppNotificationPreferences?
     @Published private(set) var isLoadingDailyRoundupPreference = false
     @Published private(set) var isSavingDailyRoundupPreference = false
     @Published private(set) var dailyRoundupPreferenceError: String?
@@ -94,7 +96,9 @@ final class NotificationManager: NSObject, ObservableObject {
     func configure() {
         isUITesting = false
         UNUserNotificationCenter.current().delegate = self
-        registerItemCategories(requireAuthForApprovals: defaults.bool(forKey: requireAuthForApprovalsKey))
+        // The last setting the server sent holds until it answers again.
+        preferences.requireAuthForApprovals = defaults.bool(forKey: requireAuthForApprovalsKey)
+        UNUserNotificationCenter.current().setNotificationCategories(ItemNotifications.categories())
         deviceToken = persistedString(for: deviceTokenKey)
         if deviceToken != nil {
             registrationState = .registered
@@ -104,36 +108,50 @@ final class NotificationManager: NSObject, ObservableObject {
             await refreshAuthorizationStatus()
             resumeNotificationSetupIfNeeded()
             await syncDeviceRegistration()
-            // Brings the item categories in line with the server's approval setting.
             await loadDailyRoundupPreference()
         }
     }
 
-    /// Registers the item categories, and remembers the setting for the next launch.
-    private func registerItemCategories(requireAuthForApprovals: Bool) {
-        defaults.set(requireAuthForApprovals, forKey: requireAuthForApprovalsKey)
-        UNUserNotificationCenter.current().setNotificationCategories(
-            ItemNotifications.categories(requireAuthForApprovals: requireAuthForApprovals)
-        )
+    var dailyRoundupEnabled: Bool {
+        preferences.dailyRoundupEnabled
+    }
+
+    /// While a change to the setting is unconfirmed, either value that asks for Face ID wins.
+    var requiresApprovalAuthentication: Bool {
+        preferences.requireAuthForApprovals
+            || unconfirmedPreviousPreferences?.requireAuthForApprovals == true
     }
 
     private func applyServerPreferences(_ preferences: AppNotificationPreferences) {
-        dailyRoundupEnabled = preferences.dailyRoundupEnabled
+        self.preferences = preferences
+        unconfirmedPreviousPreferences = nil
         dailyRoundupPreferenceRequiresSignIn = false
-        if preferences.requireAuthForApprovals != defaults.bool(forKey: requireAuthForApprovalsKey) {
-            registerItemCategories(requireAuthForApprovals: preferences.requireAuthForApprovals)
-        }
+        rememberApprovalAuthentication()
+    }
+
+    /// Remembers the in-app approval rule, unconfirmed changes included, for the next launch.
+    private func rememberApprovalAuthentication() {
+        defaults.set(requiresApprovalAuthentication, forKey: requireAuthForApprovalsKey)
     }
 
     /// Sends a notification action to the item actions endpoint.
-    private func performItemAction(itemID: String, request: Components.Schemas.ItemActionRequest) async {
+    private func performItemAction(
+        itemID: String,
+        request: ItemActionRequest,
+        authenticated: Bool?
+    ) async {
         guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
             lastNotificationResponse = "Sign in with Apple again to act on notifications."
             return
         }
 
         do {
-            try await api.performItemAction(itemID: itemID, request: request, sessionToken: sessionToken)
+            _ = try await api.performItemAction(
+                itemID: itemID,
+                request: request,
+                authenticated: authenticated,
+                sessionToken: sessionToken
+            )
         } catch {
             logger.error("performItemAction failed: \(error.localizedDescription, privacy: .public)")
             lastNotificationResponse = error.localizedDescription
@@ -235,7 +253,7 @@ final class NotificationManager: NSObject, ObservableObject {
             deviceToken: nil,
             registrationError: nil,
             serverRegistrationMessage: nil,
-            dailyRoundupEnabled: false,
+            preferences: AppNotificationPreferences(),
             dailyRoundupPreferenceRequiresSignIn: false,
             dailyRoundupPreferenceError: nil
         )
@@ -248,7 +266,7 @@ final class NotificationManager: NSObject, ObservableObject {
         deviceToken: String?,
         registrationError: String?,
         serverRegistrationMessage: String?,
-        dailyRoundupEnabled: Bool,
+        preferences: AppNotificationPreferences,
         dailyRoundupPreferenceRequiresSignIn: Bool,
         dailyRoundupPreferenceError: String?
     ) {
@@ -260,7 +278,7 @@ final class NotificationManager: NSObject, ObservableObject {
             deviceToken: deviceToken,
             registrationError: registrationError,
             serverRegistrationMessage: serverRegistrationMessage,
-            dailyRoundupEnabled: dailyRoundupEnabled,
+            preferences: preferences,
             dailyRoundupPreferenceRequiresSignIn: dailyRoundupPreferenceRequiresSignIn,
             dailyRoundupPreferenceError: dailyRoundupPreferenceError
         )
@@ -514,7 +532,7 @@ final class NotificationManager: NSObject, ObservableObject {
         lastSyncedRegistrationKey = nil
         if AppleAccountManager.shared.userID == nil {
             clearPersistedServerRegistration()
-            dailyRoundupEnabled = false
+            preferences = AppNotificationPreferences()
             dailyRoundupPreferenceRequiresSignIn = true
             dailyRoundupPreferenceError = nil
         }
@@ -531,7 +549,7 @@ final class NotificationManager: NSObject, ObservableObject {
         print("[roundup-debug] NotificationManager.loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil)")
         logger.debug("loadDailyRoundupPreference start userIDPresent=\(AppleAccountManager.shared.userID != nil, privacy: .public)")
         guard let _ = AppleAccountManager.shared.userID else {
-            dailyRoundupEnabled = false
+            preferences = AppNotificationPreferences()
             dailyRoundupPreferenceRequiresSignIn = true
             dailyRoundupPreferenceError = nil
             print("[roundup-debug] NotificationManager.loadDailyRoundupPreference no Apple account")
@@ -559,15 +577,59 @@ final class NotificationManager: NSObject, ObservableObject {
             logger.debug("loadDailyRoundupPreference success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
         } catch {
             logger.error("loadDailyRoundupPreference failed")
-            handleDailyRoundupPreferenceError(error, restoring: dailyRoundupEnabled)
+            handleDailyRoundupPreferenceError(error, restoring: preferences)
         }
     }
 
     func updateDailyRoundupEnabled(_ enabled: Bool) async {
-        print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled start enabled=\(enabled)")
-        logger.debug("updateDailyRoundupEnabled start enabled=\(enabled, privacy: .public)")
-        let previousValue = dailyRoundupEnabled
-        dailyRoundupEnabled = enabled
+        var change = NotificationPreferencesChange()
+        change.request.dailyRoundupEnabled = enabled
+        await updatePreferences(change) { $0.dailyRoundupEnabled = enabled }
+    }
+
+    /// Quiet hours run in the device's time zone; nil turns them off.
+    func updateQuietHours(_ hours: QuietHours?) async {
+        var change = NotificationPreferencesChange()
+        if let hours {
+            change.request.quietHours = .init(start: hours.start, end: hours.end, timeZone: hours.timeZone)
+        } else {
+            change.quietHoursOff = true
+        }
+        await updatePreferences(change) { $0.quietHours = hours }
+    }
+
+    func updateRequireAuthForApprovals(_ required: Bool) async {
+        var change = NotificationPreferencesChange()
+        change.request.requireAuthForApprovals = required
+        await updatePreferences(change) { $0.requireAuthForApprovals = required }
+    }
+
+    func updateUrgencyOverrides(_ overrides: [String: ItemUrgency]) async {
+        var change = NotificationPreferencesChange()
+        change.request.urgencyOverrides = .init(
+            additionalProperties: overrides.compactMapValues { .init(rawValue: $0.rawValue) }
+        )
+        await updatePreferences(change) { preferences in
+            // Shown at once: kept keys hold their place and a new one goes last until the server
+            // orders it.
+            let kept = preferences.urgencyOverrideOrder.filter { overrides[$0] != nil }
+            preferences.urgencyOverrides = overrides
+            preferences.urgencyOverrideOrder = kept + overrides.keys.filter { !kept.contains($0) }.sorted()
+        }
+    }
+
+    /// Shows the change at once and rolls it back if the server refuses it.
+    private func updatePreferences(
+        _ change: NotificationPreferencesChange,
+        optimistically apply: (inout AppNotificationPreferences) -> Void
+    ) async {
+        let previous = preferences
+        apply(&preferences)
+        // Until the server answers, either value that asks for Face ID wins. An earlier
+        // unconfirmed write stays unconfirmed until a read from the server settles it.
+        let earlierUnconfirmed = unconfirmedPreviousPreferences
+        unconfirmedPreviousPreferences = earlierUnconfirmed ?? previous
+        rememberApprovalAuthentication()
         isSavingDailyRoundupPreference = true
         dailyRoundupPreferenceError = nil
         defer {
@@ -575,37 +637,42 @@ final class NotificationManager: NSObject, ObservableObject {
         }
 
         if isUITesting {
+            unconfirmedPreviousPreferences = nil
             dailyRoundupPreferenceRequiresSignIn = false
             return
         }
 
-        guard let _ = AppleAccountManager.shared.userID else {
-            dailyRoundupEnabled = previousValue
-            dailyRoundupPreferenceRequiresSignIn = true
-            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled no Apple account")
-            logger.debug("updateDailyRoundupEnabled no Apple account")
-            return
-        }
-
-        guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
-            dailyRoundupEnabled = previousValue
+        guard AppleAccountManager.shared.userID != nil,
+              let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
+            preferences = previous
+            unconfirmedPreviousPreferences = earlierUnconfirmed
+            rememberApprovalAuthentication()
             dailyRoundupPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
-            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled no session state=\(appSessionManager.sessionState)")
-            logger.debug("updateDailyRoundupEnabled no session state=\(String(describing: self.appSessionManager.sessionState), privacy: .public)")
+            logger.debug("updatePreferences has no session")
             return
         }
 
         do {
-            let preferences = try await api.updateNotificationPreferences(
-                sessionToken: sessionToken,
-                dailyRoundupEnabled: enabled
+            applyServerPreferences(
+                try await api.updateNotificationPreferences(sessionToken: sessionToken, change: change)
             )
-            applyServerPreferences(preferences)
-            print("[roundup-debug] NotificationManager.updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled)")
-            logger.debug("updateDailyRoundupEnabled success enabled=\(preferences.dailyRoundupEnabled, privacy: .public)")
+        } catch CowtailAPIError.refused(let message) {
+            logger.error("updatePreferences refused")
+            handleDailyRoundupPreferenceError(
+                CowtailAPIError.refused(message),
+                restoring: Self.reverting(change, in: preferences, to: previous)
+            )
+            unconfirmedPreviousPreferences = earlierUnconfirmed
+            rememberApprovalAuthentication()
         } catch {
-            logger.error("updateDailyRoundupEnabled failed")
-            handleDailyRoundupPreferenceError(error, restoring: previousValue)
+            // The change may have landed: read the server before keeping or restoring it.
+            logger.error("updatePreferences outcome unknown")
+            if let confirmed = try? await api.fetchNotificationPreferences(sessionToken: sessionToken) {
+                applyServerPreferences(confirmed)
+            } else {
+                // Still unconfirmed: the categories keep the stricter setting.
+                dailyRoundupPreferenceError = "Cowtail has not confirmed this change yet."
+            }
         }
     }
 
@@ -690,8 +757,31 @@ final class NotificationManager: NSObject, ObservableObject {
         defaults.removeObject(forKey: key)
     }
 
-    private func handleDailyRoundupPreferenceError(_ error: Error, restoring previousValue: Bool) {
-        dailyRoundupEnabled = previousValue
+    /// The current settings with only the fields this change touched put back.
+    private static func reverting(
+        _ change: NotificationPreferencesChange,
+        in current: AppNotificationPreferences,
+        to previous: AppNotificationPreferences
+    ) -> AppNotificationPreferences {
+        var reverted = current
+        if change.request.dailyRoundupEnabled != nil {
+            reverted.dailyRoundupEnabled = previous.dailyRoundupEnabled
+        }
+        if change.request.requireAuthForApprovals != nil {
+            reverted.requireAuthForApprovals = previous.requireAuthForApprovals
+        }
+        if change.request.quietHours != nil || change.quietHoursOff {
+            reverted.quietHours = previous.quietHours
+        }
+        if change.request.urgencyOverrides != nil {
+            reverted.urgencyOverrides = previous.urgencyOverrides
+            reverted.urgencyOverrideOrder = previous.urgencyOverrideOrder
+        }
+        return reverted
+    }
+
+    private func handleDailyRoundupPreferenceError(_ error: Error, restoring previous: AppNotificationPreferences) {
+        preferences = previous
 
         if error.localizedDescription.localizedCaseInsensitiveContains("Unauthorized") {
             appSessionManager.invalidateSession()
@@ -717,7 +807,7 @@ final class NotificationManager: NSObject, ObservableObject {
         deviceToken: String?,
         registrationError: String?,
         serverRegistrationMessage: String?,
-        dailyRoundupEnabled: Bool,
+        preferences: AppNotificationPreferences,
         dailyRoundupPreferenceRequiresSignIn: Bool,
         dailyRoundupPreferenceError: String?
     ) {
@@ -729,7 +819,7 @@ final class NotificationManager: NSObject, ObservableObject {
         self.registrationError = registrationError
         self.serverRegistrationMessage = serverRegistrationMessage
         self.lastNotificationResponse = nil
-        self.dailyRoundupEnabled = dailyRoundupEnabled
+        self.preferences = preferences
         self.isLoadingDailyRoundupPreference = false
         self.isSavingDailyRoundupPreference = false
         self.dailyRoundupPreferenceError = dailyRoundupPreferenceError
@@ -765,7 +855,10 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .badge, .sound]
+        await MainActor.run {
+            NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)
+        }
+        return [.banner, .badge, .sound]
     }
 
     nonisolated func userNotificationCenter(
@@ -780,7 +873,18 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         )
 
         if let request, let itemID = payload.userInfo["itemId"] {
-            await NotificationManager.shared.performItemAction(itemID: itemID, request: request)
+            await NotificationManager.shared.performItemAction(
+                itemID: itemID,
+                request: request,
+                authenticated: request.isApproval
+                    ? ItemNotifications.authenticated(
+                        categoryIdentifier: response.notification.request.content.categoryIdentifier
+                    )
+                    : nil
+            )
+            await MainActor.run {
+                NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)
+            }
             return
         }
 
@@ -788,4 +892,9 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
             NotificationManager.shared.didOpenNotification(payload)
         }
     }
+}
+
+extension Notification.Name {
+    /// A push arrived or was answered: the app reloads its items.
+    static let cowtailPushReceived = Notification.Name("cowtailPushReceived")
 }

@@ -1,20 +1,23 @@
 {
   "budgetSeconds": 30,
   "overBudget": {
-    "InboxFlowTests::testFailedInvestigationCanBeRetriedFromDetail": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "InboxFlowTests::testInboxEmptyShowsEmptyStateCard": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "InboxFlowTests::testInboxErrorShowsOnlyErrorStateCard": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "InboxFlowTests::testInboxPopulatedCanExpandNeedsYouAlerts": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "InboxFlowTests::testInboxPopulatedCanOpenAlertDetail": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "InboxFlowTests::testInboxPopulatedRendersInboxScreen": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "InboxFlowTests::testKnownAlertDeepLinkShowsAlertDetail": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "InboxFlowTests::testMissingAlertDeepLinkShowsUnavailableState": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "ClusterFlowTests::testClusterShowsPipelineStateAndItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "HistoryFlowTests::testAFilterShowsAsAChipAndRemovingTheChipClearsIt": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "HistoryFlowTests::testHistoryShowsItsStatsInTheFiguresOrderBehindANamedFilterButton": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "HistoryFlowTests::testTheRoundupRowOpensTheRoundup": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testAFailedLoadShowsTheError": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testAnAlertLinkOpensThatAlertsItem": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testAnUnknownAlertLinkSaysSo": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testApprovingMovesTheItemOutOfNeedsYou": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testEveryNeedsYouActionButtonNamesItsAction": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testInboxShowsItsThreeSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testItemDetailShowsATimelineOfEveryEventType": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "RoundupFlowTests::testRoundupEmptyShowsQuietDay": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "RoundupFlowTests::testRoundupPopulatedShowsSummaryAndOutcomeSections": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "SettingsFlowTests::testDailyRoundupToggleMutatesFixtureState": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "SettingsFlowTests::testFarmhouseLoadsAndNavigatesToNotifications": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "SettingsFlowTests::testNotificationsDeniedShowsOpenSettingsAction": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "SettingsFlowTests::testNotificationsNeedsAppleShowsAppleSignInAction": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
-    "SettingsFlowTests::testNotificationsSyncErrorShowsRetrySetupAction": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests"
+    "SettingsFlowTests::testDailyRoundupToggleChangesItsValue": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "SettingsFlowTests::testNotificationsDeniedOffersSystemSettings": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "SettingsFlowTests::testNotificationsNeedsAppleOffersAppleSignIn": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "SettingsFlowTests::testNotificationsSyncErrorOffersRetry": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "SettingsFlowTests::testSettingsShowsItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests"
   }
 }

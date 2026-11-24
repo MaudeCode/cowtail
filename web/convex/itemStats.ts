@@ -8,10 +8,10 @@ import { v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery } from "./_generated/server";
+import { itemOutcome } from "./itemModel";
 import { addDaysToDateOnly, dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 
 const REPEAT_OFFENDER_LIMIT = 10;
-const knownOutcomes = new Set<string>(itemOutcomes);
 
 // Without a start, the range opens at local midnight six days before its end's day.
 export function resolveItemStatsRange(
@@ -27,24 +27,24 @@ export function resolveItemStatsRange(
   return { from, to };
 }
 
-// An owner's noise call outranks every other outcome, as in alertWorkflowState.
-function itemOutcome(item: Doc<"items">, alert: Doc<"alerts"> | null): ItemOutcome {
-  const outcome = alert
-    ? alert.ownerDisposition === "noise" || alert.outcome === "noise"
-      ? "noise"
-      : (alert.ownerDisposition ?? alert.outcome)
-    : item.context.disposition;
-  return outcome !== undefined && knownOutcomes.has(outcome) ? (outcome as ItemOutcome) : "other";
-}
-
 // Nearest-rank percentile of an ascending list.
 function percentile(sorted: number[], p: number) {
   return sorted[Math.ceil(p * sorted.length) - 1];
 }
 
 export const stats = internalQuery({
-  args: { from: v.number(), to: v.number(), timeZone: v.string() },
-  handler: async (ctx, { from, to, timeZone }): Promise<Omit<ItemStatsResponse, "ok">> => {
+  args: {
+    from: v.number(),
+    to: v.number(),
+    timeZone: v.string(),
+    source: v.optional(v.string()),
+    kind: v.optional(v.string()),
+    outcome: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    { from, to, timeZone, source, kind, outcome },
+  ): Promise<Omit<ItemStatsResponse, "ok">> => {
     const alerts = new Map<Id<"alerts">, Doc<"alerts"> | null>();
     const alertFor = async (item: Doc<"items">) => {
       if (!item.alertId) return null;
@@ -54,26 +54,42 @@ export const stats = internalQuery({
     const outcomeFor = async (item: Doc<"items">) =>
       item.state === "resolved" ? itemOutcome(item, await alertFor(item)) : undefined;
 
+    // The filter History lists under, if any.
+    const inScope = async (items: Doc<"items">[]) => {
+      const kept = [];
+      for (const item of items) {
+        if (source !== undefined && item.source !== source) continue;
+        if (kind !== undefined && item.kind !== kind) continue;
+        if (outcome !== undefined && (await outcomeFor(item)) !== outcome) continue;
+        kept.push(item);
+      }
+      return kept;
+    };
+
     // A resolved item was last updated no earlier than it resolved.
-    const resolved = (
+    const resolved = await inScope(
+      (
+        await ctx.db
+          .query("items")
+          .withIndex("by_state_updatedAt", (q) => q.eq("state", "resolved").gte("updatedAt", from))
+          .collect()
+      ).filter(
+        (item) => item.resolvedAt !== undefined && item.resolvedAt >= from && item.resolvedAt <= to,
+      ),
+    );
+    const created = await inScope(
       await ctx.db
         .query("items")
-        .withIndex("by_state_updatedAt", (q) => q.eq("state", "resolved").gte("updatedAt", from))
-        .collect()
-    ).filter(
-      (item) => item.resolvedAt !== undefined && item.resolvedAt >= from && item.resolvedAt <= to,
+        .withIndex("by_createdAt", (q) => q.gte("createdAt", from).lte("createdAt", to))
+        .collect(),
     );
-    const created = await ctx.db
-      .query("items")
-      .withIndex("by_createdAt", (q) => q.gte("createdAt", from).lte("createdAt", to))
-      .collect();
     const firing = [];
     for (const state of ["open", "acked", "snoozed"] as const) {
       const items = await ctx.db
         .query("items")
         .withIndex("by_state_updatedAt", (q) => q.eq("state", state))
         .collect();
-      firing.push(...items.filter((item) => item.kind === "alert"));
+      firing.push(...(await inScope(items.filter((item) => item.kind === "alert"))));
     }
 
     const outcomeMix = Object.fromEntries(itemOutcomes.map((outcome) => [outcome, 0])) as Record<
@@ -155,7 +171,9 @@ export const stats = internalQuery({
       days.set(day, { total: 0, bySource: new Map() });
       day = addDaysToDateOnly(day, 1);
     }
+    const sourceTotals = new Map<string, number>();
     for (const item of created) {
+      sourceTotals.set(item.source, (sourceTotals.get(item.source) ?? 0) + 1);
       const day = days.get(dateOnlyForInstant(new Date(item.createdAt), timeZone))!;
       day.total += 1;
       day.bySource.set(item.source, (day.bySource.get(item.source) ?? 0) + 1);
@@ -185,6 +203,9 @@ export const stats = internalQuery({
         total: day.total,
         bySource: Object.fromEntries(day.bySource),
       })),
+      volumeSources: [...sourceTotals]
+        .sort(([a, totalA], [b, totalB]) => totalB - totalA || a.localeCompare(b))
+        .map(([name]) => name),
       firingCount: firing.length,
       firingByNamespace,
     };

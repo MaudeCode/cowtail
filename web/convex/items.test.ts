@@ -1,8 +1,10 @@
 import {
   itemCreateResponseSchema,
   itemGetResponseSchema,
+  itemInboxResponseSchema,
   itemListResponseSchema,
   itemResponseSchema,
+  itemSourcesResponseSchema,
   type ItemGetResponse,
 } from "@maudecode/cowtail-protocol";
 import { makeFunctionReference } from "convex/server";
@@ -131,10 +133,15 @@ describe("item ingest", () => {
     });
 
     expect(progress.status).toBe(200);
+    const update = { text: "Re-running against a fresh snapshot", at: NOW };
+    expect(itemResponseSchema.parse(progress.json).item.latestUpdate).toEqual(update);
     expect(itemResponseSchema.parse(resolved.json).item).toMatchObject({
       state: "resolved",
       resolvedAt: NOW + 60_000,
       needsOwner: false,
+      latestUpdate: update,
+      outcome: "other",
+      resolvedAfterMs: 60_000,
     });
     const timeline = await getItem(t, id);
     expect(timeline.events.map((event) => [event.type, event.actor])).toEqual([
@@ -262,9 +269,12 @@ describe("owner actions", () => {
     const unknownOption = await act(id, { type: "choose", option: "Panic" });
     const notOffered = await act(id, { type: "approve" });
 
+    // Answered, the item waits on its producer, not the owner, and takes no second answer.
     expect(itemResponseSchema.parse(chosen.json).item).toMatchObject({
       state: "open",
-      needsOwner: true,
+      needsOwner: false,
+      answeredAt: NOW,
+      availableActions: [],
     });
     expect([unknownOption.status, notOffered.status]).toEqual([409, 409]);
     const { events } = await getItem(t, id);
@@ -272,6 +282,46 @@ describe("owner actions", () => {
       ["created", { state: "open" }],
       ["action_taken", { type: "choose", option: "Wait" }],
     ]);
+  });
+
+  test("an answer without Face ID is refused while the owner requires it", async () => {
+    const t = await newBackendWithSources("cron");
+    const bearer = await seedSession(t, OWNER);
+    await request(t, "/api/me/notification-preferences", {
+      method: "PUT",
+      bearer,
+      body: { requireAuthForApprovals: true },
+    });
+    const { id } = await createItem(t, {
+      source: "hermes",
+      kind: "approval",
+      urgency: "now",
+      title: "Restart ingress in edge?",
+      actions: [{ type: "approve" }, { type: "deny" }],
+    });
+    const approve = (authenticated: boolean) =>
+      request(t, `/api/me/items/${id}/actions?authenticated=${authenticated}`, {
+        method: "POST",
+        bearer,
+        body: { type: "approve" },
+      });
+
+    // The item tells the app to ask for Face ID.
+    expect((await getItem(t, id)).item.approvalNeedsAuth).toBe(true);
+    // An older app sends no flag; that is no Face ID too.
+    const unflagged = await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer,
+      body: { type: "approve" },
+    });
+    const unprotected = await approve(false);
+    const protectedApproval = await approve(true);
+
+    expect(unflagged).toMatchObject({ status: 403, json: { code: "APPROVAL_NEEDS_AUTH" } });
+    expect(unprotected).toMatchObject({ status: 403, json: { code: "APPROVAL_NEEDS_AUTH" } });
+    expect(protectedApproval.status).toBe(200);
+    const { events } = await getItem(t, id);
+    expect(events.filter((event) => event.type === "action_taken")).toHaveLength(1);
   });
 
   test("a closed item takes no more actions", async () => {
@@ -316,6 +366,21 @@ describe("item list", () => {
 
     const ids = (items: { id: string }[]) => items.map((item) => item.id);
     expect(ids(await listItems(t))).toEqual([fyi.id, approval.id]);
+    const sources = await request(t, "/api/items/sources", { bearer: SERVICE });
+    expect(itemSourcesResponseSchema.parse(sources.json).sources).toEqual(["cron", "hermes"]);
+    expect(ids(await listItems(t, "?kind=approval"))).toEqual([approval.id]);
+    expect(ids(await listItems(t, "?q=INGRESS"))).toEqual([approval.id]);
+    expect(ids(await listItems(t, "?outcome=other"))).toEqual([]);
+    // A page names each item's day and counts that day across the whole filtered list.
+    const firstPage = await request(t, "/api/items?limit=1", { bearer: SERVICE });
+    expect(itemListResponseSchema.parse(firstPage.json)).toMatchObject({
+      items: [{ id: fyi.id, createdDate: "2026-11-24" }],
+      days: [{ date: "2026-11-24", count: 2 }],
+    });
+    const approvals = await request(t, "/api/items?kind=approval", { bearer: SERVICE });
+    expect(itemListResponseSchema.parse(approvals.json).days).toEqual([
+      { date: "2026-11-24", count: 1 },
+    ]);
     expect(ids(await listItems(t, "?needsOwner=true"))).toEqual([approval.id]);
     expect(ids(await listItems(t, "?needsOwner=false"))).toEqual([fyi.id]);
     expect(ids(await listItems(t, "?source=cron"))).toEqual([fyi.id]);
@@ -368,6 +433,112 @@ describe("item list", () => {
   });
 });
 
+describe("inbox", () => {
+  test("splits open items by whether they need the owner and lists the day's resolved", async () => {
+    const t = await newBackendWithSources("cron");
+    const bearer = await seedSession(t, OWNER);
+    const resolve = (id: string) =>
+      request(t, `/api/items/${id}/events`, {
+        method: "POST",
+        bearer: SERVICE,
+        body: { type: "state_changed", to: "resolved" },
+      });
+    const item = (title: string, kind: string, urgency = "today") =>
+      createItem(t, { source: "hermes", kind, urgency, title });
+
+    const yesterday = await item("Resolved yesterday", "fyi");
+    await resolve(yesterday.id);
+    vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+    const approval = await item("Restart ingress in edge?", "approval");
+    const working = await item("Nightly backup verify failed", "failure");
+    const acked = await item("Disk at 90%", "failure", "now");
+    vi.advanceTimersByTime(1_000);
+    await request(t, `/api/me/items/${acked.id}/actions`, {
+      method: "POST",
+      bearer,
+      body: { type: "ack" },
+    });
+    const today = await item("Certificate renewed", "fyi");
+    await resolve(today.id);
+
+    const response = await request(t, "/api/items/inbox", { bearer });
+
+    expect(response.status).toBe(200);
+    const inbox = itemInboxResponseSchema.parse(response.json);
+    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, handled: 1 });
+    const ids = (items: { id: string }[]) => items.map((entry) => entry.id);
+    expect([ids(inbox.needsYou), ids(inbox.withHermes), ids(inbox.handled)]).toEqual([
+      [approval.id],
+      [acked.id, working.id],
+      [today.id],
+    ]);
+  });
+});
+
+describe("inbox bounds", () => {
+  test("a flood of items fills a section only up to the read limit, newest first", async () => {
+    const t = await newBackendWithSources("cron");
+    const bearer = await seedSession(t, OWNER);
+    await t.run(async (ctx) => {
+      for (let n = 0; n < 501; n += 1) {
+        await ctx.db.insert("items", {
+          source: "cron",
+          kind: "fyi",
+          urgency: "whenever",
+          state: "open",
+          title: `Flood ${n}`,
+          body: "",
+          links: [],
+          context: {},
+          occurrenceCount: 1,
+          actions: [],
+          createdAt: NOW + n,
+          updatedAt: NOW + n,
+        });
+      }
+    });
+
+    const response = await request(t, "/api/items/inbox", { bearer });
+
+    const inbox = itemInboxResponseSchema.parse(response.json);
+    expect(inbox.counts.withHermes).toBe(500);
+    expect([inbox.withHermes[0]?.title, inbox.withHermes.at(-1)?.title]).toEqual([
+      "Flood 500",
+      "Flood 1",
+    ]);
+  });
+});
+
+describe("history day counts", () => {
+  test("a flood of items in one day counts only up to the read limit", async () => {
+    const t = await newBackendWithSources("cron");
+    await t.run(async (ctx) => {
+      for (let n = 0; n < 1001; n += 1) {
+        await ctx.db.insert("items", {
+          source: "cron",
+          kind: "fyi",
+          urgency: "whenever",
+          state: "open",
+          title: `Flood ${n}`,
+          body: "",
+          links: [],
+          context: {},
+          occurrenceCount: 1,
+          actions: [],
+          createdAt: NOW + n,
+          updatedAt: NOW + n,
+        });
+      }
+    });
+
+    const response = await request(t, "/api/items?limit=1", { bearer: SERVICE });
+
+    expect(itemListResponseSchema.parse(response.json).days).toEqual([
+      { date: "2026-11-24", count: 1000 },
+    ]);
+  });
+});
+
 describe("alert items", () => {
   function alertmanagerPayload(status: "firing" | "resolved") {
     return {
@@ -404,8 +575,14 @@ describe("alert items", () => {
     const [alert] = await rows(t, "alerts");
     const [listed, ...others] = await listItems(t);
     expect(others).toEqual([]);
+    expect(await listItems(t, `?alertId=${alert._id}`)).toEqual([listed]);
     expect(listed).toMatchObject({
       alertId: alert._id,
+      subtitle: "media",
+      outcome: "self-resolved",
+      // Resolved, it keeps its ack and snooze but offers neither.
+      actions: [{ type: "ack" }, { type: "snooze" }],
+      availableActions: [],
       source: "alertmanager",
       kind: "alert",
       urgency: "now",
@@ -435,14 +612,28 @@ describe("alert items", () => {
     job?: Doc<"investigationJobs">["status"];
     state: "open" | "resolved";
     needsOwner: boolean;
+    step?: "queued" | "investigating" | "failed";
+    outcome?: string;
+    // The newest investigation is over, so the owner may run it again.
+    retry?: true;
   }> = [
-    { workflow: "investigation failed", alert: {}, job: "failed", state: "open", needsOwner: true },
+    {
+      workflow: "investigation failed",
+      alert: {},
+      job: "failed",
+      state: "open",
+      needsOwner: true,
+      step: "failed",
+      retry: true,
+    },
     {
       workflow: "investigation deadlettered",
       alert: {},
       job: "deadletter",
       state: "open",
       needsOwner: true,
+      step: "failed",
+      retry: true,
     },
     {
       workflow: "needs review (owner escalated)",
@@ -456,14 +647,29 @@ describe("alert items", () => {
       state: "open",
       needsOwner: true,
     },
-    { workflow: "investigating", alert: {}, job: "claimed", state: "open", needsOwner: false },
-    { workflow: "queued", alert: {}, job: "queued", state: "open", needsOwner: false },
+    {
+      workflow: "investigating",
+      alert: {},
+      job: "claimed",
+      state: "open",
+      needsOwner: false,
+      step: "investigating",
+    },
+    {
+      workflow: "queued",
+      alert: {},
+      job: "queued",
+      state: "open",
+      needsOwner: false,
+      step: "queued",
+    },
     {
       workflow: "monitoring",
       alert: { outcome: "fixed" },
       job: "done",
       state: "open",
       needsOwner: false,
+      retry: true,
     },
     { workflow: "active", alert: { outcome: "recorded" }, state: "open", needsOwner: false },
     {
@@ -471,24 +677,28 @@ describe("alert items", () => {
       alert: { status: "resolved", outcome: "self-resolved" },
       state: "resolved",
       needsOwner: false,
+      outcome: "self-resolved",
     },
     {
       workflow: "fixed",
       alert: { status: "resolved", outcome: "fixed" },
       state: "resolved",
       needsOwner: false,
+      outcome: "fixed",
     },
     {
       workflow: "noise",
       alert: { ownerDisposition: "noise", outcome: "noise" },
       state: "resolved",
       needsOwner: false,
+      outcome: "noise",
     },
     {
       workflow: "recorded",
       alert: { status: "unknown", outcome: "recorded" },
       state: "resolved",
       needsOwner: false,
+      outcome: "other",
     },
   ];
 
@@ -530,6 +740,13 @@ describe("alert items", () => {
 
     const [item] = await listItems(t);
     expect(item).toMatchObject({ state: example.state, needsOwner: example.needsOwner });
+    expect([item.investigationStep, item.outcome]).toEqual([example.step, example.outcome]);
+    expect(item.alertActions).toEqual([
+      ...(example.retry ? ["retry-investigation"] : []),
+      "mark-noise",
+      "escalate",
+    ]);
+    expect(item.investigationResult).toEqual({ action: "Original action" });
     expect(item.context.disposition).toBe(example.workflow === "noise" ? "noise" : undefined);
     expectTimelineReplaysState(await getItem(t, item.id));
   });
@@ -543,6 +760,36 @@ describe("alert items", () => {
     await t.mutation(backfillAlertItems, {});
 
     expect((await listItems(t)).map((item) => item.links)).toEqual([[]]);
+  });
+
+  test("an alert's item carries the fixes recorded against the alert, newest first", async () => {
+    const t = await newBackendWithSources("cron");
+    const [alertId, otherId] = await t.run(async (ctx) => [
+      await ctx.db.insert("alerts", alertFields({})),
+      await ctx.db.insert("alerts", alertFields({ alertname: "Other" })),
+    ]);
+    await t.run(async (ctx) => {
+      const fix = (timestamp: number, alertIds: (typeof alertId)[], description: string) =>
+        ctx.db.insert("fixes", {
+          timestamp,
+          alertIds,
+          description,
+          rootCause: "OOM",
+          scope: "reactive",
+        });
+      await fix(10, [alertId], "Raised the memory limit");
+      await fix(20, [alertId, otherId], "Pinned the image");
+      await fix(30, [otherId], "Unrelated");
+    });
+    await t.mutation(backfillAlertItems, {});
+
+    const [item] = await listItems(t, `?alertId=${alertId}`);
+    const { fixes } = await getItem(t, item.id);
+
+    expect(fixes?.map((fix) => fix.description)).toEqual([
+      "Pinned the image",
+      "Raised the memory limit",
+    ]);
   });
 
   test("the backfill creates one item per alert and is safe to run again", async () => {
@@ -576,12 +823,14 @@ describe("alert items", () => {
     const response = await request(t, `/api/me/alerts/${alert._id}/actions`, {
       method: "POST",
       bearer,
-      body: { action: "mark-noise" },
+      body: { action: "mark-noise", note: "Flaps during backups" },
     });
 
     expect(response.status).toBe(200);
     const [item] = await listItems(t);
     expect(item).toMatchObject({ state: "resolved", context: { disposition: "noise" } });
+    // The owner's note stays on the item's detail.
+    expect(item.investigationResult?.ownerNote).toBe("Flaps during backups");
     expect((await getItem(t, item.id)).events.at(-1)).toMatchObject({
       type: "resolved",
       actor: "owner",

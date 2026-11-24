@@ -63,6 +63,36 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /me/items/{id}/actions`.
     /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
     func performItemAction(_ input: Operations.PerformItemAction.Input) async throws -> Operations.PerformItemAction.Output
+    /// List items, newest first, filtered
+    ///
+    /// - Remark: HTTP `GET /items`.
+    /// - Remark: Generated from `#/paths//items/get(listItems)`.
+    func listItems(_ input: Operations.ListItems.Input) async throws -> Operations.ListItems.Output
+    /// The owner's inbox: needs you, with Hermes, and handled in the last 24 hours
+    ///
+    /// - Remark: HTTP `GET /items/inbox`.
+    /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.
+    func getItemInbox(_ input: Operations.GetItemInbox.Input) async throws -> Operations.GetItemInbox.Output
+    /// Every source with an item, in name order
+    ///
+    /// - Remark: HTTP `GET /items/sources`.
+    /// - Remark: Generated from `#/paths//items/sources/get(listItemSources)`.
+    func listItemSources(_ input: Operations.ListItemSources.Input) async throws -> Operations.ListItemSources.Output
+    /// Outcome mix, time to resolve, noise, repeats, daily volume and firing alerts
+    ///
+    /// - Remark: HTTP `GET /items/stats`.
+    /// - Remark: Generated from `#/paths//items/stats/get(getItemStats)`.
+    func getItemStats(_ input: Operations.GetItemStats.Input) async throws -> Operations.GetItemStats.Output
+    /// An item and its timeline
+    ///
+    /// - Remark: HTTP `GET /items/{id}`.
+    /// - Remark: Generated from `#/paths//items/{id}/get(getItem)`.
+    func getItem(_ input: Operations.GetItem.Input) async throws -> Operations.GetItem.Output
+    /// The signed-in account's enabled push devices
+    ///
+    /// - Remark: HTTP `GET /me/devices`.
+    /// - Remark: Generated from `#/paths//me/devices/get(listMyDevices)`.
+    func listMyDevices(_ input: Operations.ListMyDevices.Input) async throws -> Operations.ListMyDevices.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -194,14 +224,76 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
     internal func performItemAction(
         path: Operations.PerformItemAction.Input.Path,
+        query: Operations.PerformItemAction.Input.Query = .init(),
         headers: Operations.PerformItemAction.Input.Headers = .init(),
         body: Operations.PerformItemAction.Input.Body
     ) async throws -> Operations.PerformItemAction.Output {
         try await performItemAction(Operations.PerformItemAction.Input(
             path: path,
+            query: query,
             headers: headers,
             body: body
         ))
+    }
+    /// List items, newest first, filtered
+    ///
+    /// - Remark: HTTP `GET /items`.
+    /// - Remark: Generated from `#/paths//items/get(listItems)`.
+    internal func listItems(
+        query: Operations.ListItems.Input.Query = .init(),
+        headers: Operations.ListItems.Input.Headers = .init()
+    ) async throws -> Operations.ListItems.Output {
+        try await listItems(Operations.ListItems.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// The owner's inbox: needs you, with Hermes, and handled in the last 24 hours
+    ///
+    /// - Remark: HTTP `GET /items/inbox`.
+    /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.
+    internal func getItemInbox(headers: Operations.GetItemInbox.Input.Headers = .init()) async throws -> Operations.GetItemInbox.Output {
+        try await getItemInbox(Operations.GetItemInbox.Input(headers: headers))
+    }
+    /// Every source with an item, in name order
+    ///
+    /// - Remark: HTTP `GET /items/sources`.
+    /// - Remark: Generated from `#/paths//items/sources/get(listItemSources)`.
+    internal func listItemSources(headers: Operations.ListItemSources.Input.Headers = .init()) async throws -> Operations.ListItemSources.Output {
+        try await listItemSources(Operations.ListItemSources.Input(headers: headers))
+    }
+    /// Outcome mix, time to resolve, noise, repeats, daily volume and firing alerts
+    ///
+    /// - Remark: HTTP `GET /items/stats`.
+    /// - Remark: Generated from `#/paths//items/stats/get(getItemStats)`.
+    internal func getItemStats(
+        query: Operations.GetItemStats.Input.Query = .init(),
+        headers: Operations.GetItemStats.Input.Headers = .init()
+    ) async throws -> Operations.GetItemStats.Output {
+        try await getItemStats(Operations.GetItemStats.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// An item and its timeline
+    ///
+    /// - Remark: HTTP `GET /items/{id}`.
+    /// - Remark: Generated from `#/paths//items/{id}/get(getItem)`.
+    internal func getItem(
+        path: Operations.GetItem.Input.Path,
+        headers: Operations.GetItem.Input.Headers = .init()
+    ) async throws -> Operations.GetItem.Output {
+        try await getItem(Operations.GetItem.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// The signed-in account's enabled push devices
+    ///
+    /// - Remark: HTTP `GET /me/devices`.
+    /// - Remark: Generated from `#/paths//me/devices/get(listMyDevices)`.
+    internal func listMyDevices(headers: Operations.ListMyDevices.Input.Headers = .init()) async throws -> Operations.ListMyDevices.Output {
+        try await listMyDevices(Operations.ListMyDevices.Input(headers: headers))
     }
 }
 

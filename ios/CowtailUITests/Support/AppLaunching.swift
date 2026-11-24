@@ -26,3 +26,19 @@ enum AppLaunching {
         return app
     }
 }
+
+extension XCUIApplication {
+    func element(_ identifier: String) -> XCUIElement {
+        descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Fails unless every section header exists and they run top to bottom in this order.
+    func assertSections(_ titles: [String], file: StaticString = #filePath, line: UInt = #line) {
+        let tops = titles.map { title -> CGFloat in
+            let header = element("section.\(title)")
+            XCTAssertTrue(header.waitForExistence(timeout: 10), "Missing section \(title)", file: file, line: line)
+            return header.frame.minY
+        }
+        XCTAssertEqual(tops, tops.sorted(), "Sections out of order: \(titles)", file: file, line: line)
+    }
+}

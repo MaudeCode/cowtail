@@ -5,6 +5,8 @@ import UserNotifications
 enum ItemNotifications {
     enum Category {
         static let approval = "ITEM_APPROVAL"
+        /// The server sends approvals in this one while the owner requires Face ID.
+        static let approvalWithAuth = "ITEM_APPROVAL_AUTH"
         static let question = "ITEM_QUESTION"
         static let ack = "ITEM_ACK"
     }
@@ -19,22 +21,22 @@ enum ItemNotifications {
 
     static let snoozeInterval: TimeInterval = 60 * 60
 
-    /// Approve and Deny ask for Face ID or the passcode while the owner requires it.
-    static func categories(requireAuthForApprovals: Bool) -> Set<UNNotificationCategory> {
-        let approval: UNNotificationActionOptions = requireAuthForApprovals ? [.authenticationRequired] : []
-        return [
-            UNNotificationCategory(
-                identifier: Category.approval,
-                actions: [
-                    UNNotificationAction(identifier: Action.approve.rawValue, title: "Approve", options: approval),
-                    UNNotificationAction(
-                        identifier: Action.deny.rawValue,
-                        title: "Deny",
-                        options: approval.union(.destructive)
-                    ),
-                ],
-                intentIdentifiers: []
-            ),
+    /// Whether an answer from this category passed Face ID; nil for categories without
+    /// approvals.
+    static func authenticated(categoryIdentifier: String) -> Bool? {
+        switch categoryIdentifier {
+        case Category.approvalWithAuth: true
+        case Category.approval: false
+        default: nil
+        }
+    }
+
+    /// Every item category. The server picks the approval one per push from the owner's
+    /// setting, so each device protects Approve and Deny alike.
+    static func categories() -> Set<UNNotificationCategory> {
+        [
+            approvalCategory(Category.approval, options: []),
+            approvalCategory(Category.approvalWithAuth, options: [.authenticationRequired]),
             UNNotificationCategory(
                 identifier: Category.question,
                 actions: [
@@ -59,28 +61,44 @@ enum ItemNotifications {
         ]
     }
 
-    /// The body a notification action posts to the item actions endpoint; nil for a tap,
-    /// a dismissal or an empty reply.
+    private static func approvalCategory(
+        _ identifier: String,
+        options: UNNotificationActionOptions
+    ) -> UNNotificationCategory {
+        UNNotificationCategory(
+            identifier: identifier,
+            actions: [
+                UNNotificationAction(identifier: Action.approve.rawValue, title: "Approve", options: options),
+                UNNotificationAction(
+                    identifier: Action.deny.rawValue,
+                    title: "Deny",
+                    options: options.union(.destructive)
+                ),
+            ],
+            intentIdentifiers: []
+        )
+    }
+
+    /// The action a notification button sends; nil for a tap, a dismissal or an empty reply.
     static func request(
         actionIdentifier: String,
         replyText: String?,
         now: Date
-    ) -> Components.Schemas.ItemActionRequest? {
+    ) -> ItemActionRequest? {
         switch Action(rawValue: actionIdentifier) {
         case .approve:
-            return .case3(.init(_type: .approve))
+            return .approve
         case .deny:
-            return .case4(.init(_type: .deny))
+            return .deny
         case .acknowledge:
-            return .case1(.init(_type: .ack))
+            return .ack
         case .snooze:
-            let until = now.addingTimeInterval(snoozeInterval).timeIntervalSince1970 * 1000
-            return .case2(.init(_type: .snooze, until: Int(until.rounded())))
+            return .snooze(until: now.addingTimeInterval(snoozeInterval))
         case .reply:
             guard let text = replyText?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
                 return nil
             }
-            return .case6(.init(_type: .reply, text: text))
+            return .reply(text)
         case nil:
             return nil
         }

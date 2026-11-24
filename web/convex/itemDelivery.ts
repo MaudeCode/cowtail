@@ -32,8 +32,8 @@ const interruptionLevels = {
   whenever: "passive",
 } as const satisfies Record<ItemUrgency, ApsExtras["interruptionLevel"]>;
 
-export function itemCategory(kind: ItemKind): ItemNotificationCategory {
-  if (kind === "approval") return "ITEM_APPROVAL";
+export function itemCategory(kind: ItemKind, approvalNeedsAuth = false): ItemNotificationCategory {
+  if (kind === "approval") return approvalNeedsAuth ? "ITEM_APPROVAL_AUTH" : "ITEM_APPROVAL";
   if (kind === "question") return "ITEM_QUESTION";
   return "ITEM_ACK";
 }
@@ -48,10 +48,15 @@ export type Push = {
 type PushItem = Pick<
   Doc<"items">,
   "_id" | "kind" | "urgency" | "title" | "body" | "dedupeKey" | "alertId"
-> & { sourceInfo: SourceInfo };
+> & { sourceInfo: SourceInfo; approvalNeedsAuth?: boolean };
 
+// The owner's setting decides the approval category, so every device protects it alike.
 async function pushItem(ctx: QueryCtx, item: Doc<"items">): Promise<PushItem> {
-  return { ...item, sourceInfo: await sourceInfo(ctx, item.source) };
+  const owner = cowtailOwnerUserId();
+  const approvalNeedsAuth = owner
+    ? effectivePreferences(await preferencesRow(ctx, owner)).requireAuthForApprovals
+    : false;
+  return { ...item, sourceInfo: await sourceInfo(ctx, item.source), approvalNeedsAuth };
 }
 
 // APNs refuses a payload over 4 KB. These budgets, in JSON-encoded UTF-8 bytes, keep the
@@ -88,7 +93,7 @@ export function itemPush(item: PushItem, badge: number): Push {
       interruptionLevel: interruptionLevels[item.urgency],
       threadId: fit(item.dedupeKey ?? String(item._id), THREAD_BYTES),
       badge,
-      category: itemCategory(item.kind),
+      category: itemCategory(item.kind, item.approvalNeedsAuth),
     },
   };
 }

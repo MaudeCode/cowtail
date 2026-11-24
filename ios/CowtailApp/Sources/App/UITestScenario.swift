@@ -18,46 +18,10 @@ struct UITestScenario {
     }
 
     struct Seed {
-        let store: StoreSeed
-        let roundupAlerts: [AlertItem]
-        let roundupFixes: [AlertFix]
+        let server: SeededCowtailAPI.Seed
         let apple: AppleSeed
         let session: SessionSeed
         let notification: NotificationSeed
-
-        var apiMode: SeededCowtailAPI.Mode {
-            store.apiMode(
-                roundupAlerts: roundupAlerts,
-                roundupFixes: roundupFixes
-            )
-        }
-    }
-
-    struct StoreSeed {
-        let alerts: [AlertItem]
-        let health: HealthSummary?
-        let fixesByAlertID: [String: [AlertFix]]
-        let alertErrorMessage: String?
-
-        func apiMode(
-            roundupAlerts: [AlertItem],
-            roundupFixes: [AlertFix]
-        ) -> SeededCowtailAPI.Mode {
-            if let alertErrorMessage {
-                return .alertListFailure(
-                    message: alertErrorMessage,
-                    health: health ?? FixtureCatalog.health
-                )
-            }
-
-            return .success(
-                alerts: alerts,
-                health: health ?? FixtureCatalog.health,
-                fixesByAlertID: fixesByAlertID,
-                roundupAlerts: roundupAlerts,
-                roundupFixes: roundupFixes
-            )
-        }
     }
 
     struct AppleSeed {
@@ -84,7 +48,7 @@ struct UITestScenario {
         let deviceToken: String?
         let registrationError: String?
         let serverRegistrationMessage: String?
-        let dailyRoundupEnabled: Bool
+        let preferences: AppNotificationPreferences
         let dailyRoundupPreferenceRequiresSignIn: Bool
         let dailyRoundupPreferenceError: String?
     }
@@ -96,103 +60,6 @@ struct UITestScenario {
         self.name = name
         self.seed = SeedFactory.makeSeed(for: name)
     }
-}
-
-private enum FixtureCatalog {
-    static let health = CowtailPreviewFixtures.health
-    static let inboxAlerts = [
-        CowtailPreviewFixtures.alert,
-        AlertItem(
-            id: "preview-alert-3",
-            timestamp: .now.addingTimeInterval(-6 * 60),
-            alertName: "NodePressureSustained",
-            severity: .warning,
-            namespace: "kube-system",
-            node: "node-b",
-            outcome: .escalated,
-            summary: "Memory pressure remains elevated on node-b.",
-            rootCause: "A bursty workload has not scaled back down yet.",
-            actionTaken: "Paged the on-call and started a workload audit.",
-            status: .firing,
-            resolvedAt: nil,
-            messaged: true
-        ),
-        AlertItem(
-            id: "preview-alert-4",
-            timestamp: .now.addingTimeInterval(-12 * 60),
-            alertName: "CephPlacementGroupsDegraded",
-            severity: .critical,
-            namespace: "rook-ceph",
-            node: "node-c",
-            outcome: .escalated,
-            summary: "Placement groups are degraded and need intervention.",
-            rootCause: "Recovery lag has left several placement groups undersized.",
-            actionTaken: "Started recovery checks and escalated the storage incident.",
-            status: .firing,
-            resolvedAt: nil,
-            messaged: true
-        ),
-        AlertItem(
-            id: "preview-alert-5",
-            timestamp: .now.addingTimeInterval(-18 * 60),
-            alertName: "IngressErrorRateHigh",
-            severity: .warning,
-            namespace: "ingress-nginx",
-            node: "node-a",
-            outcome: .escalated,
-            summary: "Ingress error rate is above the paging threshold.",
-            rootCause: "Backend timeouts increased after a rollout.",
-            actionTaken: "Rolled back the ingress config and opened an incident.",
-            status: .firing,
-            resolvedAt: nil,
-            messaged: true
-        ),
-        CowtailPreviewFixtures.secondaryAlert,
-    ]
-    static let inboxFixesByAlertID: [String: [AlertFix]] = [
-        CowtailPreviewFixtures.alert.id: CowtailPreviewFixtures.fixes,
-    ]
-    static let roundupAlerts = [
-        AlertItem(
-            id: "roundup-alert-1",
-            timestamp: .now.addingTimeInterval(-2 * 60 * 60),
-            alertName: "NodeFilesystemPressure",
-            severity: .warning,
-            namespace: "kube-system",
-            node: "node-b",
-            outcome: .fixed,
-            summary: "Filesystem pressure cleared after log cleanup.",
-            rootCause: "Verbose logs filled the node disk.",
-            actionTaken: "Expired noisy log files and restarted the daemonset.",
-            status: .resolved,
-            resolvedAt: .now.addingTimeInterval(-90 * 60),
-            messaged: true
-        ),
-        AlertItem(
-            id: "roundup-alert-2",
-            timestamp: .now.addingTimeInterval(-5 * 60 * 60),
-            alertName: "CephRebalancingLag",
-            severity: .warning,
-            namespace: "rook-ceph",
-            node: "node-a",
-            outcome: .selfResolved,
-            summary: "Rebalancing lag recovered without intervention.",
-            rootCause: "Backfill slowed during compaction.",
-            actionTaken: "No manual action was required.",
-            status: .resolved,
-            resolvedAt: .now.addingTimeInterval(-4 * 60 * 60),
-            messaged: true
-        ),
-    ]
-    static let roundupFixes = [
-        AlertFix(
-            id: "roundup-fix-1",
-            description: "Expired verbose kubelet logs to recover disk space.",
-            rootCause: "Unexpected log growth on a worker node.",
-            scope: .weekly,
-            timestamp: .now.addingTimeInterval(-100 * 60)
-        ),
-    ]
 }
 
 private enum SeedFactory {
@@ -237,20 +104,21 @@ private enum SeedFactory {
         deviceToken: "ui-test-device-token",
         registrationError: nil,
         serverRegistrationMessage: "Cowtail can send alert notifications to this device.",
-        dailyRoundupEnabled: true,
+        preferences: ownerPreferences,
         dailyRoundupPreferenceRequiresSignIn: false,
         dailyRoundupPreferenceError: nil
     )
 
+    private static let ownerPreferences = AppNotificationPreferences(
+        dailyRoundupEnabled: true,
+        requireAuthForApprovals: true,
+        quietHours: QuietHours(start: "22:00", end: "07:30", timeZone: TimeZone.current.identifier),
+        urgencyOverrides: ["factory": .whenever, "hermes:failure": .now, "deployer:done": .whenever],
+        urgencyOverrideOrder: ["deployer:done", "factory", "hermes:failure"]
+    )
+
     private static let scenarioDefaults = UITestScenario.Seed(
-        store: UITestScenario.StoreSeed(
-            alerts: FixtureCatalog.inboxAlerts,
-            health: FixtureCatalog.health,
-            fixesByAlertID: FixtureCatalog.inboxFixesByAlertID,
-            alertErrorMessage: nil
-        ),
-        roundupAlerts: FixtureCatalog.roundupAlerts,
-        roundupFixes: FixtureCatalog.roundupFixes,
+        server: SeededCowtailAPI.Seed(),
         apple: signedInApple,
         session: readySession,
         notification: connectedNotification
@@ -262,26 +130,16 @@ private enum SeedFactory {
             return scenarioDefaults
 
         case .inboxEmpty:
-            return seed(
-                store: emptyStore()
-            )
+            return seed(server: SeededCowtailAPI.Seed(items: []))
 
         case .inboxError:
-            return seed(
-                store: emptyStore(errorMessage: "Unable to load alerts from the seeded API.")
-            )
+            return seed(server: SeededCowtailAPI.Seed(itemErrorMessage: "Unable to load items from the seeded API."))
 
         case .roundupPopulated:
-            return seed(
-                store: emptyStore()
-            )
+            return scenarioDefaults
 
         case .roundupEmpty:
-            return seed(
-                store: emptyStore(),
-                roundupAlerts: [],
-                roundupFixes: []
-            )
+            return seed(server: SeededCowtailAPI.Seed(roundupAlerts: [], roundupFixes: []))
 
         case .alertDeepLinkKnown, .alertDeepLinkMissing:
             return scenarioDefaults
@@ -297,7 +155,7 @@ private enum SeedFactory {
                     deviceToken: nil,
                     registrationError: nil,
                     serverRegistrationMessage: "Sign in with Apple to attach this device token to a Cowtail identity.",
-                    dailyRoundupEnabled: false,
+                    preferences: AppNotificationPreferences(),
                     dailyRoundupPreferenceRequiresSignIn: true,
                     dailyRoundupPreferenceError: nil
                 )
@@ -313,7 +171,7 @@ private enum SeedFactory {
                     deviceToken: nil,
                     registrationError: nil,
                     serverRegistrationMessage: nil,
-                    dailyRoundupEnabled: false,
+                    preferences: AppNotificationPreferences(),
                     dailyRoundupPreferenceRequiresSignIn: true,
                     dailyRoundupPreferenceError: nil
                 )
@@ -328,7 +186,7 @@ private enum SeedFactory {
                     deviceToken: "ui-test-device-token",
                     registrationError: nil,
                     serverRegistrationMessage: "Created Cowtail device registration.",
-                    dailyRoundupEnabled: true,
+                    preferences: ownerPreferences,
                     dailyRoundupPreferenceRequiresSignIn: false,
                     dailyRoundupPreferenceError: nil
                 )
@@ -343,7 +201,7 @@ private enum SeedFactory {
                     deviceToken: "ui-test-device-token",
                     registrationError: nil,
                     serverRegistrationMessage: "Cowtail could not save this device registration.",
-                    dailyRoundupEnabled: false,
+                    preferences: AppNotificationPreferences(),
                     dailyRoundupPreferenceRequiresSignIn: false,
                     dailyRoundupPreferenceError: "Seeded notification sync error."
                 )
@@ -351,27 +209,14 @@ private enum SeedFactory {
         }
     }
 
-    private static func emptyStore(errorMessage: String? = nil) -> UITestScenario.StoreSeed {
-        UITestScenario.StoreSeed(
-            alerts: [],
-            health: FixtureCatalog.health,
-            fixesByAlertID: [:],
-            alertErrorMessage: errorMessage
-        )
-    }
-
     private static func seed(
-        store: UITestScenario.StoreSeed? = nil,
-        roundupAlerts: [AlertItem]? = nil,
-        roundupFixes: [AlertFix]? = nil,
+        server: SeededCowtailAPI.Seed? = nil,
         apple: UITestScenario.AppleSeed? = nil,
         session: UITestScenario.SessionSeed? = nil,
         notification: UITestScenario.NotificationSeed? = nil
     ) -> UITestScenario.Seed {
         UITestScenario.Seed(
-            store: store ?? scenarioDefaults.store,
-            roundupAlerts: roundupAlerts ?? scenarioDefaults.roundupAlerts,
-            roundupFixes: roundupFixes ?? scenarioDefaults.roundupFixes,
+            server: server ?? scenarioDefaults.server,
             apple: apple ?? scenarioDefaults.apple,
             session: session ?? scenarioDefaults.session,
             notification: notification ?? scenarioDefaults.notification

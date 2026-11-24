@@ -51,15 +51,6 @@ struct AppLaunchConfiguration: Equatable {
     }
 
     private static func selectedTab(from value: String?) -> AppTab? {
-        switch normalizedValue(for: value).lowercased() {
-        case "inbox":
-            return .inbox
-        case "roundup":
-            return .roundup
-        case "farmhouse":
-            return .farmhouse
-        default:
-            return nil
-        }
+        AppTab(rawValue: normalizedValue(for: value).lowercased())
     }
 }

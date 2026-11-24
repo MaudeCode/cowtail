@@ -1,4 +1,10 @@
-import type { ItemEventType, ItemKind, ItemState, ItemUrgency } from "@maudecode/cowtail-protocol";
+import {
+  itemInboxHandledWindowMs,
+  type ItemEventType,
+  type ItemKind,
+  type ItemState,
+  type ItemUrgency,
+} from "@maudecode/cowtail-protocol";
 import { ConvexError, type Infer, v } from "convex/values";
 import { makeFunctionReference, type WithoutSystemFields } from "convex/server";
 
@@ -9,8 +15,13 @@ import { newestInvestigationJob } from "./alertLifecycle";
 import {
   alertItemState,
   alertItemUrgency,
+  alertOwnerActions,
   alertWorkflowState,
+  itemAvailableActions,
+  itemInvestigationStep,
   itemNeedsOwner,
+  itemOutcome,
+  itemSubtitle,
   terminalItemStates,
 } from "./itemModel";
 import {
@@ -20,7 +31,8 @@ import {
   itemStateValidator,
   itemUrgencyValidator,
 } from "./itemValidators";
-import { preferencesRow } from "./notificationPreferences";
+import { effectivePreferences, preferencesRow } from "./notificationPreferences";
+import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
 import { sourceInfo } from "./sources";
 
@@ -58,6 +70,9 @@ export async function appendItemEvent(
   payload: Record<string, unknown> = {},
 ) {
   await ctx.db.insert("itemEvents", { itemId, at, type, actor, payload });
+  if (type === "hermes_update" && typeof payload.text === "string") {
+    await ctx.db.patch(itemId, { latestUpdate: { text: payload.text, at } });
+  }
 }
 
 async function patchItemContent(ctx: MutationCtx, id: Id<"items">, patch: ItemContentPatch) {
@@ -328,16 +343,34 @@ export async function deleteItemsForAlert(ctx: MutationCtx, alertId: Id<"alerts"
 
 // --- Records ------------------------------------------------------------------------
 
-async function alertWorkflowForItem(ctx: QueryCtx, item: Doc<"items">) {
-  if (!item.alertId) return undefined;
+async function alertContext(ctx: QueryCtx, item: Doc<"items">) {
+  if (!item.alertId) return {};
   const alertId = item.alertId;
   const alert = await ctx.db.get(alertId);
-  if (!alert) return undefined;
+  if (!alert) return {};
   const jobs = await ctx.db
     .query("investigationJobs")
     .withIndex("by_alertId", (q) => q.eq("alertId", alertId))
     .collect();
-  return alertWorkflowState(alert, newestInvestigationJob(jobs)?.status);
+  return {
+    alert,
+    jobs,
+    workflow: alertWorkflowState(alert, newestInvestigationJob(jobs)?.status),
+  };
+}
+
+function investigationResult(alert: Doc<"alerts">) {
+  const rootCause = alert.rootCause?.trim() || undefined;
+  const action = alert.action.trim() || undefined;
+  const ownerNote = alert.ownerNote?.trim() || undefined;
+  return rootCause || action || ownerNote ? { rootCause, action, ownerNote } : undefined;
+}
+
+async function approvalsNeedAuth(ctx: QueryCtx) {
+  const owner = cowtailOwnerUserId();
+  return owner
+    ? effectivePreferences(await preferencesRow(ctx, owner)).requireAuthForApprovals
+    : false;
 }
 
 // The app badge: open items that need the owner.
@@ -349,21 +382,48 @@ export async function ownerBadgeCount(ctx: QueryCtx) {
     .collect();
   let count = 0;
   for (const item of open) {
-    if (itemNeedsOwner(item, await alertWorkflowForItem(ctx, item))) count += 1;
+    if (itemNeedsOwner(item, (await alertContext(ctx, item)).workflow)) count += 1;
   }
   return count;
 }
 
 async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
   const { _id, _creationTime, alertId, investigationJobId, ...fields } = item;
+  const { alert, jobs, workflow } = await alertContext(ctx, item);
+  const resolvedAt = item.state === "resolved" ? item.resolvedAt : undefined;
   return {
     ...fields,
     id: String(_id),
     sourceInfo: await sourceInfo(ctx, item.source),
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
-    needsOwner: itemNeedsOwner(item, await alertWorkflowForItem(ctx, item)),
+    needsOwner: itemNeedsOwner(item, workflow),
+    availableActions: itemAvailableActions(item),
+    contextOrder: Object.keys(item.context).sort(),
+    alertActions: jobs ? alertOwnerActions(jobs) : undefined,
+    investigationResult: alert ? investigationResult(alert) : undefined,
+    approvalNeedsAuth: item.actions.some(
+      (action) => action.type === "approve" || action.type === "deny",
+    )
+      ? await approvalsNeedAuth(ctx)
+      : undefined,
+    subtitle: itemSubtitle(item),
+    investigationStep: terminalItemStates.has(item.state)
+      ? undefined
+      : itemInvestigationStep(workflow),
+    outcome: resolvedAt === undefined ? undefined : itemOutcome(item, alert ?? null),
+    resolvedAfterMs:
+      resolvedAt === undefined ? undefined : Math.max(0, resolvedAt - item.createdAt),
   };
+}
+
+type ItemRecord = Awaited<ReturnType<typeof itemRecord>>;
+
+function matchesSearch(record: ItemRecord, q: string) {
+  const needle = q.toLowerCase();
+  return [record.title, record.subtitle ?? "", record.body].some((text) =>
+    text.toLowerCase().includes(needle),
+  );
 }
 
 // --- Functions ----------------------------------------------------------------------
@@ -488,15 +548,22 @@ export const applyAction = internalMutation({
     ),
     actor: v.string(),
     now: v.number(),
+    authenticated: v.optional(v.boolean()),
   },
-  handler: async (ctx, { id, action, actor, now }) => {
+  handler: async (ctx, { id, action, actor, now, authenticated }) => {
     const item = await requireItem(ctx, id);
     requireOpenItem(item);
+
+    // An answer sent without Face ID is refused while the owner requires it.
+    // An older app sends no flag at all; that counts as no Face ID too.
+    if (authenticated !== true && (action.type === "approve" || action.type === "deny")) {
+      if (await approvalsNeedAuth(ctx)) throw new ConvexError({ code: "APPROVAL_NEEDS_AUTH" });
+    }
 
     if (action.type === "snooze" && action.until <= now) {
       throw new ConvexError({ code: "INVALID_SNOOZE" });
     }
-    const offered = item.actions.find((candidate) => candidate.type === action.type);
+    const offered = itemAvailableActions(item).find((candidate) => candidate.type === action.type);
     if (action.type !== "ack" && action.type !== "snooze") {
       const chosenOptionOffered =
         action.type !== "choose" ||
@@ -516,8 +583,9 @@ export const applyAction = internalMutation({
     } else if (action.type === "snooze") {
       await transitionItem(ctx, item, "snoozed", { actor, at: now, snoozedUntil: action.until });
     } else {
-      // The producer closes the item once it has applied the answer.
-      await patchItemContent(ctx, item._id, { updatedAt: now });
+      // The producer closes the item once it has applied the answer; until then the item
+      // waits on the producer, not the owner.
+      await patchItemContent(ctx, item._id, { updatedAt: now, answeredAt: now });
     }
   },
 });
@@ -553,21 +621,78 @@ export const expireDueItems = internalMutation({
   },
 });
 
+// A History day count reads at most this many items of the day, so a producer that floods
+// one day cannot make History fail; past it, the count stops growing.
+const DAY_COUNT_READ_LIMIT = 1000;
+
 export const list = internalQuery({
   args: {
     state: v.optional(itemStateValidator),
     needsOwner: v.optional(v.boolean()),
     source: v.optional(v.string()),
+    kind: v.optional(itemKindValidator),
+    outcome: v.optional(v.string()),
+    alertId: v.optional(v.string()),
+    q: v.optional(v.string()),
     from: v.optional(v.number()),
     to: v.optional(v.number()),
     limit: v.number(),
     cursor: v.optional(v.string()),
+    timeZone: v.string(),
   },
   handler: async (ctx, args) => {
-    const { source, from, to } = args;
+    const { source, kind, outcome, q, from, to, timeZone } = args;
     // Only an open item can need the owner, so that filter reads open items alone.
     const state = args.needsOwner ? (args.state ?? "open") : args.state;
-    if (args.needsOwner && state !== "open") return { items: [], nextCursor: undefined };
+    const matches = async (item: Doc<"items">) => {
+      if (state !== undefined && item.state !== state) return null;
+      if (source !== undefined && item.source !== source) return null;
+      if (from !== undefined && item.createdAt < from) return null;
+      if (to !== undefined && item.createdAt > to) return null;
+      const record = await itemRecord(ctx, item);
+      const kept =
+        (args.needsOwner === undefined || record.needsOwner === args.needsOwner) &&
+        (kind === undefined || record.kind === kind) &&
+        (outcome === undefined || record.outcome === outcome) &&
+        (q === undefined || matchesSearch(record, q));
+      return kept
+        ? { ...record, createdDate: dateOnlyForInstant(new Date(item.createdAt), timeZone) }
+        : null;
+    };
+    // ponytail: counts up to DAY_COUNT_READ_LIMIT items per listed day; keep a per-day
+    // counter if a day ever holds more.
+    const dayCounts = async (records: { createdDate: string }[]) => {
+      const days: { date: string; count: number }[] = [];
+      for (const date of new Set(records.map((record) => record.createdDate))) {
+        const window = resolveRoundupWindow(date, date, timeZone);
+        const created = await ctx.db
+          .query("items")
+          .withIndex("by_createdAt", (q) =>
+            q.gte("createdAt", window.fromTimestamp).lte("createdAt", window.toTimestamp),
+          )
+          .take(DAY_COUNT_READ_LIMIT);
+        let count = 0;
+        for (const item of created) if (await matches(item)) count += 1;
+        days.push({ date, count });
+      }
+      return days;
+    };
+
+    // An alert has one item, so this filter reads it alone.
+    if (args.alertId !== undefined) {
+      const alertId = ctx.db.normalizeId("alerts", args.alertId);
+      const item = alertId
+        ? await ctx.db
+            .query("items")
+            .withIndex("by_alertId", (q) => q.eq("alertId", alertId))
+            .first()
+        : null;
+      const record = item ? await matches(item) : null;
+      const items = record ? [record] : [];
+      return { items, days: await dayCounts(items), nextCursor: undefined };
+    }
+
+    if (args.needsOwner && state !== "open") return { items: [], days: [], nextCursor: undefined };
 
     // ponytail: the range builder's types change after each bound; `any` keeps one helper.
     const createdAtRange = (q: any) => {
@@ -589,14 +714,72 @@ export const list = internalQuery({
       .paginate({ cursor: args.cursor ?? null, numItems: args.limit });
     const records = [];
     for (const item of page.page) {
-      if (source !== undefined && item.source !== source) continue;
-      if (from !== undefined && item.createdAt < from) continue;
-      if (to !== undefined && item.createdAt > to) continue;
-      const record = await itemRecord(ctx, item);
-      if (args.needsOwner !== undefined && record.needsOwner !== args.needsOwner) continue;
-      records.push(record);
+      const record = await matches(item);
+      if (record) records.push(record);
     }
-    return { items: records, nextCursor: page.isDone ? undefined : page.continueCursor };
+    return {
+      items: records,
+      days: await dayCounts(records),
+      nextCursor: page.isDone ? undefined : page.continueCursor,
+    };
+  },
+});
+
+// One indexed read per source: each read jumps past every item of the source before it.
+export const sources = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const names: string[] = [];
+    let next = await ctx.db.query("items").withIndex("by_source_createdAt").first();
+    while (next) {
+      const last = next.source;
+      names.push(last);
+      next = await ctx.db
+        .query("items")
+        .withIndex("by_source_createdAt", (q) => q.gt("source", last))
+        .first();
+    }
+    return names;
+  },
+});
+
+// Each state the inbox reads stops at this many items, so a producer that floods items
+// cannot make the owner's inbox fail.
+const INBOX_READ_LIMIT = 500;
+
+export const inbox = internalQuery({
+  args: { now: v.number() },
+  handler: async (ctx, { now }) => {
+    const byState = (state: ItemState) =>
+      ctx.db
+        .query("items")
+        .withIndex("by_state_updatedAt", (q) => q.eq("state", state))
+        .order("desc")
+        .take(INBOX_READ_LIMIT);
+    const active = [...(await byState("open")), ...(await byState("acked"))].sort(
+      (a, b) => b.updatedAt - a.updatedAt,
+    );
+    const needsYou: ItemRecord[] = [];
+    const withHermes: ItemRecord[] = [];
+    for (const item of active) {
+      const record = await itemRecord(ctx, item);
+      (record.needsOwner ? needsYou : withHermes).push(record);
+    }
+
+    // A resolved item was last updated no earlier than it resolved.
+    const since = now - itemInboxHandledWindowMs;
+    const recent = await ctx.db
+      .query("items")
+      .withIndex("by_state_updatedAt", (q) => q.eq("state", "resolved").gte("updatedAt", since))
+      .order("desc")
+      .take(INBOX_READ_LIMIT);
+    const handled: ItemRecord[] = [];
+    for (const item of recent) {
+      if (item.resolvedAt !== undefined && item.resolvedAt >= since) {
+        handled.push(await itemRecord(ctx, item));
+      }
+    }
+    return { needsYou, withHermes, handled };
   },
 });
 
@@ -610,6 +793,19 @@ export const get = internalQuery({
       .query("itemEvents")
       .withIndex("by_item_at", (q) => q.eq("itemId", item._id))
       .collect();
+    // ponytail: scans every fix, as fixes.getByAlertIds does; index fixes by alert if they
+    // number thousands.
+    const alertId = item.alertId;
+    const fixes = alertId
+      ? (await ctx.db.query("fixes").collect())
+          .filter((fix) => fix.alertIds.includes(alertId))
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .map(({ _id, _creationTime, alertIds, ...fix }) => ({
+            ...fix,
+            id: String(_id),
+            alertIds: alertIds.map(String),
+          }))
+      : [];
     return {
       item: await itemRecord(ctx, item),
       events: events.map(({ _id, _creationTime, itemId, ...event }) => ({
@@ -617,6 +813,7 @@ export const get = internalQuery({
         id: String(_id),
         itemId: String(itemId),
       })),
+      fixes,
     };
   },
 });

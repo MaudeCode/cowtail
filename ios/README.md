@@ -6,7 +6,7 @@ This project now lives inside the main `cowtail` monorepo at `ios/`.
 
 Current scope:
 - XcodeGen-based iOS app project
-- SwiftUI inbox, alert detail, and settings flows
+- SwiftUI Inbox, Cluster, History and Settings tabs and an item timeline, built on the server's items
 - Apple sign-in session handling
 - push registration and notification-routing logic
 - universal links for alert URLs

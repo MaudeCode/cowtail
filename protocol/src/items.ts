@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
+import { alertHumanActionSchema } from "./alerts.ts";
+import { fixRecordSchema } from "./fixes.ts";
 import { sourceInfoSchema } from "./sources.ts";
 
 export const itemKinds = ["alert", "failure", "approval", "question", "fyi", "done"] as const;
@@ -55,6 +57,12 @@ export const itemActionSchema = z.discriminatedUnion("type", [
 // Producer-owned routing data, returned to the producer untouched.
 export const itemReplyToSchema = z.record(fieldNameSchema, z.unknown());
 
+export const itemOutcomes = ["fixed", "self-resolved", "noise", "escalated", "other"] as const;
+export const itemOutcomeSchema = z.enum(itemOutcomes);
+// How far an open alert item's investigation has got.
+export const itemInvestigationSteps = ["queued", "investigating", "failed"] as const;
+export const itemInvestigationStepSchema = z.enum(itemInvestigationSteps);
+
 export const itemRecordSchema = z.object({
   id: nonEmptyStringSchema,
   source: nonEmptyStringSchema,
@@ -78,6 +86,38 @@ export const itemRecordSchema = z.object({
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
   resolvedAt: timestampSchema.optional(),
+  // The rest the server derives for display. `subtitle` is the line under the title.
+  subtitle: z.string().optional(),
+  // When the owner answered (approve, deny, choose or reply); an answered item no longer
+  // needs them while its producer applies the answer.
+  answeredAt: timestampSchema.optional(),
+  // The `actions` the owner can still take: none once the item is closed but its links, and
+  // no further answer once the owner answered. Always sent; optional so a client still decodes
+  // a server from before it, and offers nothing then.
+  availableActions: z.array(itemActionSchema).optional(),
+  // The newest `hermes_update` on the timeline.
+  latestUpdate: z.object({ text: z.string(), at: timestampSchema }).optional(),
+  investigationStep: itemInvestigationStepSchema.optional(),
+  // Resolved items only: how it ended, and how long after creation.
+  outcome: itemOutcomeSchema.optional(),
+  resolvedAfterMs: z.number().int().nonnegative().optional(),
+  // The context keys in the order to show them.
+  contextOrder: z.array(z.string()).optional(),
+  // Alert items: the owner's calls on the alert the server accepts now, and the
+  // investigation's recorded root cause and action.
+  alertActions: z.array(alertHumanActionSchema).optional(),
+  investigationResult: z
+    .object({
+      rootCause: z.string().optional(),
+      action: z.string().optional(),
+      // The note the owner gave when they marked the alert as noise or escalated it.
+      ownerNote: z.string().optional(),
+    })
+    .optional(),
+  // Answering this item's approve or deny needs Face ID: the owner's current setting.
+  approvalNeedsAuth: z.boolean().optional(),
+  // List results only: the day the item was created, in the server's time zone.
+  createdDate: dateOnlyStringSchema.optional(),
 });
 
 export const itemEventRecordSchema = z.object({
@@ -133,6 +173,11 @@ export const itemListQuerySchema = z.object({
   state: itemStateSchema.optional(),
   needsOwner: z.boolean().optional(),
   source: itemSourceSchema.optional(),
+  kind: itemKindSchema.optional(),
+  outcome: itemOutcomeSchema.optional(),
+  alertId: nonEmptyStringSchema.optional(),
+  // Matches title, subtitle and body, ignoring case.
+  q: nonEmptyStringSchema.max(200).optional(),
   from: timestampSchema.optional(),
   to: timestampSchema.optional(),
   limit: z.number().int().min(1).max(500).optional(),
@@ -144,12 +189,45 @@ export const itemListResponseSchema = z.object({
   count: z.number().int().nonnegative(),
   items: z.array(itemRecordSchema),
   nextCursor: nonEmptyStringSchema.optional(),
+  // Each `createdDate` on this page, in page order, with how many items created that day
+  // match the filters across the whole list, not only this page. A count reads at most the
+  // day's first 1,000 items. Optional so a client still
+  // decodes a server from before it.
+  days: z
+    .array(z.object({ date: dateOnlyStringSchema, count: z.number().int().nonnegative() }))
+    .optional(),
+});
+
+// Every source with an item, in name order.
+export const itemSourcesResponseSchema = z.object({
+  ok: z.literal(true),
+  sources: z.array(nonEmptyStringSchema),
+});
+
+// The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked
+// items that do not. Handled: items resolved in the last 24 hours. Each list is the most
+// recently updated first. Each reads at most the 500 most recently updated items of its
+// states, and counts are of what it read.
+export const itemInboxHandledWindowMs = 24 * 60 * 60 * 1000;
+export const itemInboxResponseSchema = z.object({
+  ok: z.literal(true),
+  counts: z.object({
+    needsYou: z.number().int().nonnegative(),
+    withHermes: z.number().int().nonnegative(),
+    handled: z.number().int().nonnegative(),
+  }),
+  needsYou: z.array(itemRecordSchema),
+  withHermes: z.array(itemRecordSchema),
+  handled: z.array(itemRecordSchema),
 });
 
 export const itemGetResponseSchema = z.object({
   ok: z.literal(true),
   item: itemRecordSchema,
   events: z.array(itemEventRecordSchema),
+  // Alert items: the fixes recorded against the alert, newest first. Optional so a client
+  // still decodes a server from before it.
+  fixes: z.array(fixRecordSchema).optional(),
 });
 
 const ackActionSchema = z.object({ type: z.literal("ack") });
@@ -173,17 +251,31 @@ export const itemActionRequestSchema = z.discriminatedUnion("type", [
   ...answerActionSchemas,
 ]);
 
+// Whether the owner passed Face ID for this Approve or Deny: in the app, or through a held
+// notification whose category asked for it. While the owner requires Face ID for approvals,
+// an answer sent with `false` is refused, so neither a stale app nor a notification delivered
+// before the setting changed can answer without it.
+export const itemActionQuerySchema = z.object({
+  authenticated: z.boolean().optional(),
+});
+
 export const itemResponseSchema = z.object({
   ok: z.literal(true),
   item: itemRecordSchema,
 });
 
-export const itemOutcomes = ["fixed", "self-resolved", "noise", "escalated", "other"] as const;
 const itemStatsMaxRangeMs = 92 * 24 * 60 * 60 * 1000;
 
 // Without a range, the stats cover the last 7 days in the server's time zone, today included.
+// A source, kind or outcome narrows them to the items History lists under that filter.
 export const itemStatsQuerySchema = z
-  .object({ from: timestampSchema.optional(), to: timestampSchema.optional() })
+  .object({
+    from: timestampSchema.optional(),
+    to: timestampSchema.optional(),
+    source: itemSourceSchema.optional(),
+    kind: itemKindSchema.optional(),
+    outcome: itemOutcomeSchema.optional(),
+  })
   .refine(({ from, to }) => from === undefined || to === undefined || from <= to, {
     message: "from must not be after to",
   })
@@ -241,6 +333,9 @@ export const itemStatsResponseSchema = z.object({
       bySource: z.record(z.string(), countSchema),
     }),
   ),
+  // Every source in dailyVolume, most items first, in the order to stack and list them.
+  // Optional so a client still decodes a server from before it.
+  volumeSources: z.array(z.string()).optional(),
   firingCount: countSchema,
   // Most firing first.
   firingByNamespace: z.array(
@@ -267,6 +362,9 @@ export type ItemListQuery = z.infer<typeof itemListQuerySchema>;
 export type ItemListResponse = z.infer<typeof itemListResponseSchema>;
 export type ItemGetResponse = z.infer<typeof itemGetResponseSchema>;
 export type ItemAnswer = z.infer<typeof itemAnswerSchema>;
+export type ItemInboxResponse = z.infer<typeof itemInboxResponseSchema>;
+export type ItemSourcesResponse = z.infer<typeof itemSourcesResponseSchema>;
+export type ItemInvestigationStep = z.infer<typeof itemInvestigationStepSchema>;
 export type ItemActionRequest = z.infer<typeof itemActionRequestSchema>;
 export type ItemResponse = z.infer<typeof itemResponseSchema>;
 export type ItemOutcome = (typeof itemOutcomes)[number];

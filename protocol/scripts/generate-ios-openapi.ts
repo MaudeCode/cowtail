@@ -2,7 +2,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { OpenApiGeneratorV3, OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
+import {
+  OpenApiGeneratorV3,
+  OpenAPIRegistry,
+  zodToOpenAPIRegistry,
+} from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 
 import {
@@ -16,17 +20,33 @@ import {
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
   healthResponseSchema,
+  itemActionQuerySchema,
   itemActionRequestSchema,
+  itemActionSchema,
+  itemEventRecordSchema,
+  itemGetResponseSchema,
+  itemInboxResponseSchema,
+  itemListQuerySchema,
+  itemListResponseSchema,
+  itemRecordSchema,
   itemResponseSchema,
+  itemSourcesResponseSchema,
+  itemStatsQuerySchema,
+  itemStatsResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
   pushRegisterRequestSchema,
   pushRegisterResponseSchema,
   pushUnregisterRequestSchema,
   pushUnregisterResponseSchema,
+  userDevicesResponseSchema,
 } from "../src/index.ts";
 
 const registry = new OpenAPIRegistry();
+// Registered by identity, so every response that holds an item or event refers to one type.
+zodToOpenAPIRegistry.add(itemRecordSchema, { _internal: { refId: "ItemRecord" } });
+zodToOpenAPIRegistry.add(itemActionSchema, { _internal: { refId: "ItemAction" } });
+zodToOpenAPIRegistry.add(itemEventRecordSchema, { _internal: { refId: "ItemEventRecord" } });
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 const timestampSchema = z.number().finite().nonnegative();
@@ -177,6 +197,12 @@ const AlertHumanActionResponse = alertHumanActionResponseSchema.meta({
 });
 const ItemActionRequest = itemActionRequestSchema.meta({ id: "ItemActionRequest" });
 const ItemResponse = itemResponseSchema.meta({ id: "ItemResponse" });
+const ItemListResponse = itemListResponseSchema.meta({ id: "ItemListResponse" });
+const ItemInboxResponse = itemInboxResponseSchema.meta({ id: "ItemInboxResponse" });
+const ItemGetResponse = itemGetResponseSchema.meta({ id: "ItemGetResponse" });
+const ItemStatsResponse = itemStatsResponseSchema.meta({ id: "ItemStatsResponse" });
+const ItemSourcesResponse = itemSourcesResponseSchema.meta({ id: "ItemSourcesResponse" });
+const UserDevicesResponse = userDevicesResponseSchema.meta({ id: "UserDevicesResponse" });
 const ErrorResponse = z
   .object({
     ok: z.literal(false),
@@ -391,6 +417,7 @@ registry.registerPath({
   security: [{ appSession: [] }],
   request: {
     params: z.object({ id: nonEmptyStringSchema }),
+    query: itemActionQuerySchema,
     body: {
       required: true,
       content: jsonContent(ItemActionRequest),
@@ -403,6 +430,95 @@ registry.registerPath({
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
     404: jsonResponse("Item not found.", ErrorResponse),
     409: jsonResponse("The item is closed or does not offer the action.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/items",
+  operationId: "listItems",
+  tags: ["items"],
+  summary: "List items, newest first, filtered",
+  security: [{ appSession: [] }],
+  request: { query: itemListQuerySchema },
+  responses: {
+    200: jsonResponse("A page of items.", ItemListResponse),
+    400: jsonResponse("Invalid filter or cursor.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/items/inbox",
+  operationId: "getItemInbox",
+  tags: ["items"],
+  summary: "The owner's inbox: needs you, with Hermes, and handled in the last 24 hours",
+  security: [{ appSession: [] }],
+  responses: {
+    200: jsonResponse("The inbox sections.", ItemInboxResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/items/sources",
+  operationId: "listItemSources",
+  tags: ["items"],
+  summary: "Every source with an item, in name order",
+  security: [{ appSession: [] }],
+  responses: {
+    200: jsonResponse("The sources.", ItemSourcesResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/items/stats",
+  operationId: "getItemStats",
+  tags: ["items"],
+  summary: "Outcome mix, time to resolve, noise, repeats, daily volume and firing alerts",
+  security: [{ appSession: [] }],
+  request: { query: itemStatsQuerySchema },
+  responses: {
+    200: jsonResponse("The item stats.", ItemStatsResponse),
+    400: jsonResponse("Invalid range.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/items/{id}",
+  operationId: "getItem",
+  tags: ["items"],
+  summary: "An item and its timeline",
+  security: [{ appSession: [] }],
+  request: { params: z.object({ id: nonEmptyStringSchema }) },
+  responses: {
+    200: jsonResponse("The item and its events.", ItemGetResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+    404: jsonResponse("Item not found.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/me/devices",
+  operationId: "listMyDevices",
+  tags: ["push"],
+  summary: "The signed-in account's enabled push devices",
+  security: [{ appSession: [] }],
+  responses: {
+    200: jsonResponse("The account's devices.", UserDevicesResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
   },
 });
 

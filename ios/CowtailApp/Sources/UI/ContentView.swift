@@ -2,51 +2,55 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.cowtailPalette) private var palette
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
+    @EnvironmentObject private var store: CowtailStore
 
     var body: some View {
         TabView(selection: $universalLinkRouter.selectedTab) {
             NavigationStack(path: $universalLinkRouter.inboxPath) {
-                AlertInboxView()
-                    .navigationDestination(for: InboxRoute.self) { route in
-                        switch route {
-                        case .alert(let alertID):
-                            AlertDestinationView(alertID: alertID)
-                        case .roundup(let roundupRoute):
-                            RoundupView(roundupRoute: roundupRoute)
-                        }
-                    }
+                InboxView()
+                    .navigationDestination(for: AppRoute.self, destination: destination)
             }
             .tag(AppTab.inbox)
-            .tabItem {
-                Label("Inbox", systemImage: "bell.badge")
-            }
+            .tabItem { Label("Inbox", systemImage: "tray") }
             .accessibilityIdentifier("tab.inbox")
 
             NavigationStack {
-                RoundupView(roundupRoute: universalLinkRouter.roundupRoute)
+                ClusterView()
             }
-            .tag(AppTab.roundup)
-            .tabItem {
-                Label(CowtailCopy.roundupTitle, systemImage: "doc.text.image")
+            .tag(AppTab.cluster)
+            .tabItem { Label("Cluster", systemImage: "server.rack") }
+            .accessibilityIdentifier("tab.cluster")
+
+            NavigationStack(path: $universalLinkRouter.historyPath) {
+                HistoryView()
+                    .navigationDestination(for: AppRoute.self, destination: destination)
             }
-            .accessibilityIdentifier("tab.roundup")
+            .tag(AppTab.history)
+            .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
+            .accessibilityIdentifier("tab.history")
 
             NavigationStack {
-                FarmhouseView()
+                SettingsView()
             }
-            .tag(AppTab.farmhouse)
-            .tabItem {
-                Label(CowtailCopy.farmhouseTitle, systemImage: "gearshape")
-            }
-            .accessibilityIdentifier("tab.farmhouse")
+            .tag(AppTab.settings)
+            .tabItem { Label("Settings", systemImage: "gearshape") }
+            .accessibilityIdentifier("tab.settings")
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(palette.accent)
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarBackground(palette.surfaceRaised, for: .tabBar)
-        .toolbarColorScheme(.dark, for: .tabBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await store.refresh() }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cowtailPushReceived)) { _ in
+            Task { await store.refresh() }
+        }
         .background {
             TextInputServicesWarmupView()
                 .frame(width: 0, height: 0)
@@ -54,9 +58,14 @@ struct ContentView: View {
                 .allowsHitTesting(false)
         }
     }
-}
 
-#Preview {
-    ContentView()
-        .environmentObject(UniversalLinkRouter.shared)
+    @ViewBuilder
+    private func destination(_ route: AppRoute) -> some View {
+        switch route {
+        case .item, .alert:
+            ItemDestinationView(route: route)
+        case .roundup(let roundupRoute):
+            RoundupView(roundupRoute: roundupRoute)
+        }
+    }
 }

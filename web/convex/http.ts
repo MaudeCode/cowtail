@@ -32,11 +32,14 @@ import {
   hermesResponseFailRequestSchema,
   hermesSnapshotSchema,
   hermesStatusResponseSchema,
+  itemActionQuerySchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
   itemCreateResponseSchema,
   itemEventAppendRequestSchema,
   itemGetResponseSchema,
+  itemInboxResponseSchema,
+  itemSourcesResponseSchema,
   itemListQuerySchema,
   itemListResponseSchema,
   itemResponseSchema,
@@ -67,7 +70,11 @@ import {
   userDevicesResponseSchema,
   usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
-import type { HealthNode, HealthResponse } from "@maudecode/cowtail-protocol";
+import type {
+  HealthNode,
+  HealthResponse,
+  NotificationPreferences,
+} from "@maudecode/cowtail-protocol";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
@@ -1416,6 +1423,7 @@ const codedErrorStatus: Record<string, [number, string]> = {
   SOURCE_EXISTS: [409, "Source already exists"],
   ITEM_CLOSED: [409, "Item is already closed"],
   ACTION_NOT_OFFERED: [409, "Item does not offer this action"],
+  APPROVAL_NEEDS_AUTH: [403, "Approvals need Face ID: answer again in Cowtail"],
   INVALID_SNOOZE: [400, "Snooze must end in the future"],
   ANSWER_PENDING: [409, "An answer to this item is already on its way"],
   RESPONSE_NOT_FOUND: [404, "Response not found"],
@@ -1575,6 +1583,10 @@ app.get("/api/items", async (c) => {
     state: nonEmptyString(c.req.query("state")),
     needsOwner: needsOwner === "true" ? true : needsOwner === "false" ? false : needsOwner,
     source: nonEmptyString(c.req.query("source")),
+    kind: nonEmptyString(c.req.query("kind")),
+    outcome: nonEmptyString(c.req.query("outcome")),
+    alertId: nonEmptyString(c.req.query("alertId")),
+    q: nonEmptyString(c.req.query("q")),
     from: parseOptionalQueryTimestamp(c.req.query("from")),
     to: parseOptionalQueryTimestamp(c.req.query("to")),
     limit: limit === undefined ? undefined : Number(limit),
@@ -1587,6 +1599,7 @@ app.get("/api/items", async (c) => {
     page = await c.env.runQuery((internal as any).items.list, {
       ...parsedQuery.data,
       limit: parsedQuery.data.limit ?? ITEM_LIST_DEFAULT_LIMIT,
+      timeZone: resolveRoundupTimeZone(),
     });
   } catch (error) {
     // A cursor from another query, or a corrupted one, cannot continue this list.
@@ -1610,11 +1623,47 @@ app.get("/api/items/stats", async (c) => {
     Date.now(),
     timeZone,
   );
-  const parsedRange = itemStatsQuerySchema.safeParse(range);
+  const parsedRange = itemStatsQuerySchema.safeParse({
+    ...range,
+    source: nonEmptyString(c.req.query("source")),
+    kind: nonEmptyString(c.req.query("kind")),
+    outcome: nonEmptyString(c.req.query("outcome")),
+  });
   if (!parsedRange.success) return jsonError(formatIssues(parsedRange.error.issues));
 
-  const stats = await c.env.runQuery((internal as any).itemStats.stats, { ...range, timeZone });
+  const stats = await c.env.runQuery((internal as any).itemStats.stats, {
+    ...parsedRange.data,
+    timeZone,
+  });
   return c.json(itemStatsResponseSchema.parse({ ok: true, ...stats }));
+});
+
+// GET /api/items/inbox — what needs the owner, what Hermes is on, and what resolved today
+app.get("/api/items/inbox", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const inbox = await c.env.runQuery((internal as any).items.inbox, { now: Date.now() });
+  return c.json(
+    itemInboxResponseSchema.parse({
+      ok: true,
+      counts: {
+        needsYou: inbox.needsYou.length,
+        withHermes: inbox.withHermes.length,
+        handled: inbox.handled.length,
+      },
+      ...inbox,
+    }),
+  );
+});
+
+// GET /api/items/sources — every source with an item, for the history filter
+app.get("/api/items/sources", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const sources = await c.env.runQuery((internal as any).items.sources, {});
+  return c.json(itemSourcesResponseSchema.parse({ ok: true, sources }));
 });
 
 // GET /api/items/:id — the item and its timeline
@@ -1748,6 +1797,12 @@ app.post("/api/me/items/:id/actions", async (c) => {
 
   const parsed = itemActionRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  const authenticated = c.req.query("authenticated");
+  const query = itemActionQuerySchema.safeParse({
+    authenticated:
+      authenticated === "true" ? true : authenticated === "false" ? false : authenticated,
+  });
+  if (!query.success) return jsonError(formatIssues(query.error.issues));
 
   const id = c.req.param("id");
   try {
@@ -1756,6 +1811,7 @@ app.post("/api/me/items/:id/actions", async (c) => {
       action: parsed.data,
       actor: auth.userId,
       now: Date.now(),
+      authenticated: query.data.authenticated,
     });
   } catch (error) {
     return codedErrorResponse(error);
@@ -2172,12 +2228,23 @@ app.get("/api/me/notification-preferences", async (c) => {
     });
 
   return c.json(
-    notificationPreferencesResponseSchema.parse({
-      ok: true,
-      preferences: { dailyRoundupEnabled, quietHours, urgencyOverrides, requireAuthForApprovals },
+    preferencesResponse({
+      dailyRoundupEnabled,
+      quietHours,
+      urgencyOverrides,
+      requireAuthForApprovals,
     }),
   );
 });
+
+// Overrides show by key: a source before its `source:kind` refinements.
+function preferencesResponse(preferences: NotificationPreferences) {
+  return notificationPreferencesResponseSchema.parse({
+    ok: true,
+    preferences,
+    urgencyOverrideOrder: Object.keys(preferences.urgencyOverrides).sort(),
+  });
+}
 
 // PUT /api/me/notification-preferences — update account-scoped notification preferences
 app.put("/api/me/notification-preferences", async (c) => {
@@ -2199,7 +2266,25 @@ app.put("/api/me/notification-preferences", async (c) => {
     ...parsed.data,
   });
 
-  return c.json(notificationPreferencesResponseSchema.parse({ ok: true, preferences }));
+  return c.json(preferencesResponse(preferences));
+});
+
+// GET /api/me/devices — the signed-in account's enabled push devices
+app.get("/api/me/devices", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  const devices = await c.env.runQuery(internal.push.listEnabledDevicesForUser, {
+    userId: auth.userId,
+  });
+  return c.json(
+    userDevicesResponseSchema.parse({
+      ok: true,
+      userId: auth.userId,
+      count: devices.length,
+      devices: devices.map((device: any) => mapUserDevice(device as any)),
+    }),
+  );
 });
 
 // GET /api/me/openclaw-preferences — account-scoped OpenClaw preferences

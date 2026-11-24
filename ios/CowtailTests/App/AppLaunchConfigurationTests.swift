@@ -23,7 +23,7 @@ final class AppLaunchConfigurationTests: XCTestCase {
             "UI_TEST_SCENARIO": "inbox_populated",
             "UI_TEST_RESET_STATE": "1",
             "UI_TEST_DEEP_LINK_URL": "https://example.com/roundup?from=2026-04-10&to=2026-04-11",
-            "UI_TEST_START_TAB": "farmhouse"
+            "UI_TEST_START_TAB": "settings"
         ]
 
         let configuration = AppLaunchConfiguration.make(environment: environment, arguments: [])
@@ -34,7 +34,7 @@ final class AppLaunchConfigurationTests: XCTestCase {
                 mode: .uiTesting(.inboxPopulated),
                 resetPersistentState: true,
                 deepLinkURL: try XCTUnwrap(URL(string: "https://example.com/roundup?from=2026-04-10&to=2026-04-11")),
-                selectedTab: .farmhouse
+                selectedTab: .settings
             )
         )
     }
