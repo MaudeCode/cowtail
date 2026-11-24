@@ -190,7 +190,8 @@ export const itemListResponseSchema = z.object({
   items: z.array(itemRecordSchema),
   nextCursor: nonEmptyStringSchema.optional(),
   // Each `createdDate` on this page, in page order, with how many items created that day
-  // match the filters across the whole list, not only this page. Optional so a client still
+  // match the filters across the whole list, not only this page. A count reads at most the
+  // day's first 1,000 items. Optional so a client still
   // decodes a server from before it.
   days: z
     .array(z.object({ date: dateOnlyStringSchema, count: z.number().int().nonnegative() }))

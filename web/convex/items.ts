@@ -621,6 +621,10 @@ export const expireDueItems = internalMutation({
   },
 });
 
+// A History day count reads at most this many items of the day, so a producer that floods
+// one day cannot make History fail; past it, the count stops growing.
+const DAY_COUNT_READ_LIMIT = 1000;
+
 export const list = internalQuery({
   args: {
     state: v.optional(itemStateValidator),
@@ -655,8 +659,8 @@ export const list = internalQuery({
         ? { ...record, createdDate: dateOnlyForInstant(new Date(item.createdAt), timeZone) }
         : null;
     };
-    // ponytail: counts every item created on each listed day; keep a per-day counter if a
-    // day ever holds thousands of items.
+    // ponytail: counts up to DAY_COUNT_READ_LIMIT items per listed day; keep a per-day
+    // counter if a day ever holds more.
     const dayCounts = async (records: { createdDate: string }[]) => {
       const days: { date: string; count: number }[] = [];
       for (const date of new Set(records.map((record) => record.createdDate))) {
@@ -666,7 +670,7 @@ export const list = internalQuery({
           .withIndex("by_createdAt", (q) =>
             q.gte("createdAt", window.fromTimestamp).lte("createdAt", window.toTimestamp),
           )
-          .collect();
+          .take(DAY_COUNT_READ_LIMIT);
         let count = 0;
         for (const item of created) if (await matches(item)) count += 1;
         days.push({ date, count });

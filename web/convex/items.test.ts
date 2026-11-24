@@ -509,6 +509,36 @@ describe("inbox bounds", () => {
   });
 });
 
+describe("history day counts", () => {
+  test("a flood of items in one day counts only up to the read limit", async () => {
+    const t = await newBackendWithSources("cron");
+    await t.run(async (ctx) => {
+      for (let n = 0; n < 1001; n += 1) {
+        await ctx.db.insert("items", {
+          source: "cron",
+          kind: "fyi",
+          urgency: "whenever",
+          state: "open",
+          title: `Flood ${n}`,
+          body: "",
+          links: [],
+          context: {},
+          occurrenceCount: 1,
+          actions: [],
+          createdAt: NOW + n,
+          updatedAt: NOW + n,
+        });
+      }
+    });
+
+    const response = await request(t, "/api/items?limit=1", { bearer: SERVICE });
+
+    expect(itemListResponseSchema.parse(response.json).days).toEqual([
+      { date: "2026-11-24", count: 1000 },
+    ]);
+  });
+});
+
 describe("alert items", () => {
   function alertmanagerPayload(status: "firing" | "resolved") {
     return {
