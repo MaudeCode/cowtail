@@ -33,6 +33,8 @@ import {
   itemListQuerySchema,
   itemListResponseSchema,
   itemResponseSchema,
+  itemStatsQuerySchema,
+  itemStatsResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
   openclawDisplayPreferencesResponseSchema,
@@ -63,6 +65,7 @@ import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { itemErrorCode } from "./items";
+import { resolveItemStatsRange } from "./itemStats";
 import {
   exchangeOidcCode,
   fetchOidcDiscovery,
@@ -73,6 +76,7 @@ import {
 import { validateOpenClawLimit } from "./openclawModel";
 import { cowtailOwnerUserId } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
+import { resolveRoundupTimeZone } from "./roundup";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "cowtail_session";
@@ -1473,6 +1477,27 @@ app.get("/api/items", async (c) => {
     throw error;
   }
   return c.json(itemListResponseSchema.parse({ ok: true, count: page.items.length, ...page }));
+});
+
+// GET /api/items/stats — outcome mix, time to resolve, noise, repeats, daily volume and firing
+app.get("/api/items/stats", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const timeZone = resolveRoundupTimeZone();
+  const range = resolveItemStatsRange(
+    {
+      from: parseOptionalQueryTimestamp(c.req.query("from")),
+      to: parseOptionalQueryTimestamp(c.req.query("to")),
+    },
+    Date.now(),
+    timeZone,
+  );
+  const parsedRange = itemStatsQuerySchema.safeParse(range);
+  if (!parsedRange.success) return jsonError(formatIssues(parsedRange.error.issues));
+
+  const stats = await c.env.runQuery((internal as any).itemStats.stats, { ...range, timeZone });
+  return c.json(itemStatsResponseSchema.parse({ ok: true, ...stats }));
 });
 
 // GET /api/items/:id — the item and its timeline

@@ -731,6 +731,92 @@ describe("built binary item commands", () => {
       });
     }
   });
+  test("items stats prints the server's stats for the requested range", async () => {
+    const stats = {
+      ok: true,
+      from: 1_779_840_000_000,
+      to: 1_780_000_000_000,
+      timeZone: "America/New_York",
+      createdCount: 3,
+      resolvedCount: 2,
+      outcomeMix: { fixed: 1, "self-resolved": 0, noise: 1, escalated: 0, other: 0 },
+      noiseRate: 0.5,
+      timeToResolve: [{ kind: "alert", count: 2, medianMs: 60_000, p90Ms: 120_000 }],
+      repeatOffenders: [
+        {
+          dedupeKey: "TargetDown|monitoring",
+          title: "TargetDown",
+          occurrenceCount: 2,
+          noiseShare: 0.5,
+          lastSeenAt: 1_780_000_000_000,
+        },
+      ],
+      dailyVolume: [{ date: "2026-05-28", total: 3, bySource: { alertmanager: 2, cron: 1 } }],
+      firingCount: 1,
+      firingByNamespace: [{ namespace: "media", count: 1, itemIds: ["item-1"] }],
+    };
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url}`);
+      const ok =
+        request.headers.authorization === "Bearer secret-token" &&
+        request.method === "GET" &&
+        request.url === "/actions/api/items/stats?from=1779840000000&to=1780000000000";
+      response.writeHead(ok ? 200 : 404, { "content-type": "application/json" });
+      response.end(JSON.stringify(ok ? stats : { ok: false, error: "Not found" }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+      const args = ["items", "stats", "--from", "1779840000000", "--to", "2026-05-28T20:26:40Z"];
+      const env = { env: { COWTAIL_CONFIG_PATH: configPath } };
+
+      const text = await runCliBinaryAsync(binaryPath, args, env);
+      const json = await runCliBinaryAsync(binaryPath, [...args, "--json"], env);
+
+      expect(text).toMatchObject({ status: 0, stderr: "" });
+      expect(text.stdout).toBe(
+        [
+          "Range: 2026-05-27T00:00:00.000Z to 2026-05-28T20:26:40.000Z (America/New_York)",
+          "Created: 3",
+          "Resolved: 2 (fixed 1, self-resolved 0, noise 1, escalated 0, other 0)",
+          "Noise rate: 50.0%",
+          "",
+          "Time to resolve (median, p90):",
+          "  alert  60000ms  120000ms  (2)",
+          "",
+          "Repeat offenders:",
+          "  TargetDown  x2  50% noise  last 2026-05-28T20:26:40.000Z",
+          "",
+          "Daily volume:",
+          "  2026-05-28  3  (alertmanager 2, cron 1)",
+          "",
+          "Firing: 1",
+          "  media  1",
+          "",
+        ].join("\n"),
+      );
+      expect(json).toMatchObject({ status: 0, stderr: "" });
+      expect(JSON.parse(json.stdout)).toEqual(stats);
+      expect(requests).toEqual([
+        "GET /actions/api/items/stats?from=1779840000000&to=1780000000000",
+        "GET /actions/api/items/stats?from=1779840000000&to=1780000000000",
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
 });
 
 describe("built binary validation and updater behavior", () => {

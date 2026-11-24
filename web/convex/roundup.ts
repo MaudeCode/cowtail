@@ -22,6 +22,22 @@ export type RoundupWindow = {
   toTimestamp: number;
 };
 
+const DEFAULT_ROUNDUP_TIMEZONE = "America/New_York";
+
+export function resolveRoundupTimeZone(): string {
+  const timeZone = process.env.DAILY_ROUNDUP_TIMEZONE?.trim() || DEFAULT_ROUNDUP_TIMEZONE;
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+  } catch (error) {
+    throw new Error(
+      `Invalid DAILY_ROUNDUP_TIMEZONE: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  return timeZone;
+}
+
 function getFormatter(timeZone: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat("en-US", {
     hourCycle: "h23",
