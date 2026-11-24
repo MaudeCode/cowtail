@@ -126,8 +126,11 @@ describe("item stats", () => {
       seedAlert(t, { dedupeKey: "TargetDown|monitoring", ownerDisposition: "noise", resolvedAt });
     const first = await noisyAlert(NOW - 50 * MINUTE);
     const second = await noisyAlert(NOW - 30 * MINUTE);
-    const third = await seedAlert(t, { dedupeKey: "TargetDown|monitoring" });
-    await seedItems(t, [
+    const third = await seedAlert(t, {
+      dedupeKey: "TargetDown|monitoring",
+      lastReceivedAt: NOW - 5 * MINUTE,
+    });
+    const [, , , backup] = await seedItems(t, [
       {
         kind: "alert",
         alertId: first,
@@ -148,16 +151,25 @@ describe("item stats", () => {
         kind: "alert",
         alertId: third,
         title: "TargetDown · node-exporter",
-        createdAt: NOW - 5 * MINUTE,
+        createdAt: NOW - 6 * MINUTE,
+        // The owner acked it after it last fired.
+        state: "acked",
+        updatedAt: NOW - MINUTE,
       },
       {
         dedupeKey: "backup",
         occurrenceCount: 2,
         createdAt: NOW - 90 * MINUTE,
+        state: "acked",
         updatedAt: NOW - 2 * MINUTE,
       },
       { dedupeKey: "once", title: "Ran once" },
     ]);
+    await t.run(async (ctx) => {
+      const event = { itemId: backup, actor: "cron", payload: {} };
+      await ctx.db.insert("itemEvents", { ...event, at: NOW - 20 * MINUTE, type: "repeated" });
+      await ctx.db.insert("itemEvents", { ...event, at: NOW - 3 * MINUTE, type: "hermes_update" });
+    });
 
     const result = await stats(t, range);
 
@@ -174,7 +186,7 @@ describe("item stats", () => {
         title: "Backup failed",
         occurrenceCount: 2,
         noiseShare: 0,
-        lastSeenAt: NOW - 2 * MINUTE,
+        lastSeenAt: NOW - 20 * MINUTE,
       },
     ]);
   });
@@ -187,14 +199,16 @@ describe("item stats", () => {
       { source: "alertmanager", createdAt: NY_MIDNIGHT_NOV_24 - 1 },
       { source: "hermes", createdAt: NY_MIDNIGHT_NOV_24 - 1 },
       { source: "cron", createdAt: NY_MIDNIGHT_NOV_24 },
+      // A producer may name itself after an Object.prototype property.
+      { source: "constructor", createdAt: NY_MIDNIGHT_NOV_24 },
     ]);
 
     const result = await stats(t, range);
 
-    expect(result.createdCount).toBe(4);
+    expect(result.createdCount).toBe(5);
     expect(result.dailyVolume).toEqual([
       { date: "2026-11-23", total: 3, bySource: { alertmanager: 2, hermes: 1 } },
-      { date: "2026-11-24", total: 1, bySource: { cron: 1 } },
+      { date: "2026-11-24", total: 2, bySource: { cron: 1, constructor: 1 } },
     ]);
   });
 

@@ -208,7 +208,8 @@ export const itemStatsResponseSchema = z.object({
     }),
   ),
   // Created items grouped by dedupeKey (an alert's own key for alert items) that occurred
-  // more than once; the 10 with the most occurrences. noiseShare weighs by occurrences.
+  // more than once; the 10 with the most occurrences. noiseShare weighs by occurrences, and
+  // lastSeenAt is the last occurrence: the alert's last receipt or the item's newest repeat.
   repeatOffenders: z.array(
     z.object({
       dedupeKey: nonEmptyStringSchema,

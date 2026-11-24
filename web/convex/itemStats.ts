@@ -95,6 +95,21 @@ export const stats = internalQuery({
       ];
     });
 
+    // When the item last occurred: its alert's last receipt, or its newest repeat. An owner's
+    // ack or snooze moves updatedAt without a new occurrence.
+    const lastSeenFor = async (item: Doc<"items">) => {
+      const alert = await alertFor(item);
+      if (alert) return alert.lastReceivedAt ?? alert.timestamp;
+      if (item.occurrenceCount === 1) return item.createdAt;
+      const repeat = await ctx.db
+        .query("itemEvents")
+        .withIndex("by_item_at", (q) => q.eq("itemId", item._id))
+        .order("desc")
+        .filter((q) => q.eq(q.field("type"), "repeated"))
+        .first();
+      return repeat?.at ?? item.createdAt;
+    };
+
     const groups = new Map<
       string,
       { title: string; titleAt: number; occurrences: number; noise: number; lastSeenAt: number }
@@ -107,11 +122,11 @@ export const stats = internalQuery({
         titleAt: item.createdAt,
         occurrences: 0,
         noise: 0,
-        lastSeenAt: item.updatedAt,
+        lastSeenAt: 0,
       };
       group.occurrences += item.occurrenceCount;
       if ((await outcomeFor(item)) === "noise") group.noise += item.occurrenceCount;
-      group.lastSeenAt = Math.max(group.lastSeenAt, item.updatedAt);
+      group.lastSeenAt = Math.max(group.lastSeenAt, await lastSeenFor(item));
       if (item.createdAt >= group.titleAt) {
         group.title = item.title;
         group.titleAt = item.createdAt;
@@ -133,16 +148,17 @@ export const stats = internalQuery({
         lastSeenAt: group.lastSeenAt,
       }));
 
-    const days = new Map<string, { total: number; bySource: Record<string, number> }>();
+    // Source names come from producers, so they count in a Map, never on a plain object.
+    const days = new Map<string, { total: number; bySource: Map<string, number> }>();
     const lastDay = dateOnlyForInstant(new Date(to), timeZone);
     for (let day = dateOnlyForInstant(new Date(from), timeZone); day <= lastDay;) {
-      days.set(day, { total: 0, bySource: {} });
+      days.set(day, { total: 0, bySource: new Map() });
       day = addDaysToDateOnly(day, 1);
     }
     for (const item of created) {
       const day = days.get(dateOnlyForInstant(new Date(item.createdAt), timeZone))!;
       day.total += 1;
-      day.bySource[item.source] = (day.bySource[item.source] ?? 0) + 1;
+      day.bySource.set(item.source, (day.bySource.get(item.source) ?? 0) + 1);
     }
 
     const namespaces = new Map<string, string[]>();
@@ -164,7 +180,11 @@ export const stats = internalQuery({
       noiseRate: resolved.length === 0 ? 0 : outcomeMix.noise / resolved.length,
       timeToResolve,
       repeatOffenders,
-      dailyVolume: [...days].map(([date, day]) => ({ date, ...day })),
+      dailyVolume: [...days].map(([date, day]) => ({
+        date,
+        total: day.total,
+        bySource: Object.fromEntries(day.bySource),
+      })),
       firingCount: firing.length,
       firingByNamespace,
     };
