@@ -92,6 +92,8 @@ function Header({
   const [adding, setAdding] = useState(false);
   const send = (next: IncidentChange) => change.mutate(next);
   const offers = new Set(incident.availableActions);
+  // Only an add waits on the server for its result; the other changes show theirs at once.
+  const addPending = change.isPending && change.variables?.type === "add";
   return (
     <header className="flex flex-wrap items-center gap-2.5 border-b border-gray-200 pt-3.5 pb-3">
       <SourceIcon glyph="layers" large />
@@ -114,8 +116,8 @@ function Header({
           icon="plus"
           label="Add an item"
           aria-expanded={adding}
-          disabled={change.isPending}
-          aria-busy={change.isPending && change.variables?.type === "add"}
+          disabled={addPending}
+          aria-busy={addPending}
           onClick={() => setAdding(!adding)}
         />
         <IconButton

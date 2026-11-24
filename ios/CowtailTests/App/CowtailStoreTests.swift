@@ -75,6 +75,8 @@ final class CowtailStoreTests: XCTestCase {
         let removing = Task { await store.change(.remove(itemID: approval.id), incidentID: "incident-1") }
         await api.waitUntilIncidentChangeHeld()
         XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+        // The removal shows its result, so Add an item stays as it was.
+        XCTAssertFalse(store.isAddingItem(to: "incident-1"))
         // A poll while the change is on its way keeps it shown.
         await store.loadIncident(id: "incident-1")
         XCTAssertEqual(store.incidents["incident-1"]?.members, [])
@@ -83,6 +85,22 @@ final class CowtailStoreTests: XCTestCase {
         await removing.value
         XCTAssertEqual(store.incidents["incident-1"], storageOutage)
         XCTAssertEqual(store.incidentErrors["incident-1"], "Item is not in this incident")
+    }
+
+    func testAnAddWaitingOnTheServerShowsAddAnItemBusy() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let adding = Task { await store.change(.add(itemID: "item-2"), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        XCTAssertTrue(store.isAddingItem(to: "incident-1"))
+
+        await api.releaseIncidentChange(with: nil)
+        await adding.value
+        XCTAssertFalse(store.isAddingItem(to: "incident-1"))
     }
 
     func testResolvingShowsTheServersIncidentOnceItAnswers() async {

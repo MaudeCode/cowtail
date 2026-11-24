@@ -1364,6 +1364,8 @@ describe("incidents", () => {
     await userEvent.click(first);
 
     expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+    // The removal shows its result, so Add an item stays usable.
+    expect(screen.getByRole("button", { name: "Add an item" })).toBeEnabled();
     expect(calls.filter((call) => call.method === "DELETE").map((call) => call.path)).toEqual([
       "/actions/api/me/incidents/incident-1/items/item-2",
     ]);

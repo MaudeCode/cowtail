@@ -120,8 +120,8 @@ final class CowtailStore: ObservableObject {
 
     @Published private(set) var incidents: [String: IncidentDetail] = [:]
     @Published private(set) var incidentErrors: [String: String] = [:]
-    /// Incidents with a change on its way; a second change waits for the first to settle.
-    @Published private(set) var incidentIDsInFlight: Set<String> = []
+    /// The change on its way for each incident; a second change waits for the first to settle.
+    @Published private(set) var incidentChangesInFlight: [String: IncidentChange] = [:]
 
     /// The run the Hermes tab follows once the owner started or picked one; the newest otherwise.
     @Published private(set) var selectedRunID: String?
@@ -356,7 +356,7 @@ final class CowtailStore: ObservableObject {
         do {
             if let detail = try await api.fetchIncident(id: id, sessionToken: token) {
                 // A read while a change is on its way would show the change undone.
-                if !incidentIDsInFlight.contains(id) {
+                if incidentChangesInFlight[id] == nil {
                     incidents[id] = detail
                 }
                 incidentErrors[id] = nil
@@ -366,6 +366,15 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             incidentErrors[id] = error.localizedDescription
+        }
+    }
+
+    /// Only an add waits on the server for its result, so only Add an item shows busy.
+    func isAddingItem(to incidentID: String) -> Bool {
+        if case .add = incidentChangesInFlight[incidentID] {
+            true
+        } else {
+            false
         }
     }
 
@@ -380,8 +389,9 @@ final class CowtailStore: ObservableObject {
     /// Removing, resolving and asking again show at once; a refusal puts back what the server
     /// last confirmed, and any other failure rereads what it kept.
     func change(_ change: IncidentChange, incidentID id: String) async {
-        guard incidentIDsInFlight.insert(id).inserted else { return }
-        defer { incidentIDsInFlight.remove(id) }
+        guard incidentChangesInFlight[id] == nil else { return }
+        incidentChangesInFlight[id] = change
+        defer { incidentChangesInFlight[id] = nil }
         incidentErrors[id] = nil
         guard let token = await sessionToken() else {
             incidentErrors[id] = Self.signInMessage
@@ -398,7 +408,7 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             incidentErrors[id] = error.localizedDescription
-            incidentIDsInFlight.remove(id)
+            incidentChangesInFlight[id] = nil
             await loadIncident(id: id)
         }
     }

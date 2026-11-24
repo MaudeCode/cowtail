@@ -92,7 +92,7 @@ struct IncidentDetailView: View {
                 CowtailIconButton(
                     title: "Add an item",
                     systemImage: "plus",
-                    isBusy: store.incidentIDsInFlight.contains(summary.id)
+                    isBusy: store.isAddingItem(to: summary.id)
                 ) {
                     isAdding = true
                 }
