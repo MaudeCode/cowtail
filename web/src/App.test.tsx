@@ -5,7 +5,7 @@ import { useLocation } from "react-router-dom";
 
 import { AppRoutes } from "./App";
 import { stubApi } from "./test/api";
-import { inbox, item, preferences, SESSION, signedIn, stats } from "./test/fixtures";
+import { inbox, item, NOW, preferences, SESSION, signedIn, stats } from "./test/fixtures";
 import { renderWithProviders } from "./test/render";
 
 function Address() {
@@ -63,12 +63,12 @@ const fixed = item({
   state: "resolved",
   needsOwner: false,
   outcome: "fixed",
-  resolvedAt: Date.now() - 60_000,
+  resolvedAt: NOW - 60_000,
   resolvedAfterMs: 19 * 60_000,
   createdDate: "2026-11-23",
   fix: {
     id: "fix-1",
-    timestamp: Date.now(),
+    timestamp: NOW,
     alertIds: ["alert-1"],
     description: "Raised the memory limit",
     rootCause: "OOMKilled",
