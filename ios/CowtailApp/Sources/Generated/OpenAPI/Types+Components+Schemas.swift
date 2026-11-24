@@ -828,6 +828,37 @@ extension Components {
             internal var storageTotal: Swift.Double
             /// - Remark: Generated from `#/components/schemas/HealthResponse/storageUnit`.
             internal var storageUnit: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthResponse/alertPipeline`.
+            internal struct AlertPipelinePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/HealthResponse/alertPipeline/state`.
+                internal enum StatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case ok = "ok"
+                    case silent = "silent"
+                    case notConfigured = "not_configured"
+                }
+                /// - Remark: Generated from `#/components/schemas/HealthResponse/alertPipeline/state`.
+                internal var state: Components.Schemas.HealthResponse.AlertPipelinePayload.StatePayload
+                /// - Remark: Generated from `#/components/schemas/HealthResponse/alertPipeline/lastWatchdogAt`.
+                internal var lastWatchdogAt: Swift.Double?
+                /// Creates a new `AlertPipelinePayload`.
+                ///
+                /// - Parameters:
+                ///   - state:
+                ///   - lastWatchdogAt:
+                internal init(
+                    state: Components.Schemas.HealthResponse.AlertPipelinePayload.StatePayload,
+                    lastWatchdogAt: Swift.Double? = nil
+                ) {
+                    self.state = state
+                    self.lastWatchdogAt = lastWatchdogAt
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case state
+                    case lastWatchdogAt
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthResponse/alertPipeline`.
+            internal var alertPipeline: Components.Schemas.HealthResponse.AlertPipelinePayload?
             /// Creates a new `HealthResponse`.
             ///
             /// - Parameters:
@@ -838,6 +869,7 @@ extension Components {
             ///   - storageUsed:
             ///   - storageTotal:
             ///   - storageUnit:
+            ///   - alertPipeline:
             internal init(
                 version: Swift.Double? = nil,
                 nodes: Components.Schemas.HealthResponse.NodesPayload,
@@ -845,7 +877,8 @@ extension Components {
                 cephMessage: Swift.String,
                 storageUsed: Swift.Double,
                 storageTotal: Swift.Double,
-                storageUnit: Swift.String
+                storageUnit: Swift.String,
+                alertPipeline: Components.Schemas.HealthResponse.AlertPipelinePayload? = nil
             ) {
                 self.version = version
                 self.nodes = nodes
@@ -854,6 +887,7 @@ extension Components {
                 self.storageUsed = storageUsed
                 self.storageTotal = storageTotal
                 self.storageUnit = storageUnit
+                self.alertPipeline = alertPipeline
             }
             internal enum CodingKeys: String, CodingKey {
                 case version
@@ -863,6 +897,7 @@ extension Components {
                 case storageUsed
                 case storageTotal
                 case storageUnit
+                case alertPipeline
             }
         }
         /// - Remark: Generated from `#/components/schemas/AuthSessionCreateResponse`.

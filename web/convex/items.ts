@@ -1,5 +1,5 @@
 import type { ItemEventType, ItemKind, ItemState, ItemUrgency } from "@maudecode/cowtail-protocol";
-import { ConvexError, v } from "convex/values";
+import { ConvexError, type Infer, v } from "convex/values";
 import { makeFunctionReference, type WithoutSystemFields } from "convex/server";
 
 import type { Doc, Id } from "./_generated/dataModel";
@@ -341,65 +341,75 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
 
 // --- Functions ----------------------------------------------------------------------
 
-export const create = internalMutation({
-  args: {
-    source: v.string(),
-    kind: itemKindValidator,
-    urgency: itemUrgencyValidator,
-    title: v.string(),
-    body: v.optional(v.string()),
-    links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
-    context: v.optional(v.record(v.string(), v.string())),
-    dedupeKey: v.optional(v.string()),
-    actions: v.optional(v.array(itemActionValidator)),
-    replyTo: v.optional(v.record(v.string(), v.any())),
-    expiresAt: v.optional(v.number()),
-    now: v.number(),
-  },
-  handler: async (ctx, { now, ...request }) => {
-    const actor = request.source;
-    if (request.dedupeKey) {
-      const dedupeKey = request.dedupeKey;
-      const matches = await ctx.db
-        .query("items")
-        .withIndex("by_dedupeKey", (q) => q.eq("dedupeKey", dedupeKey))
-        .collect();
-      const open = matches.find((item) => !terminalItemStates.has(item.state));
-      if (open) {
-        const occurrenceCount = open.occurrenceCount + 1;
-        const urgency = await ownerUrgency(ctx, request);
-        const raised = raisesUrgency(open.urgency, urgency);
-        await patchItemContent(ctx, open._id, {
-          occurrenceCount,
-          updatedAt: now,
-          ...(raised ? { urgency } : {}),
-        });
-        await appendItemEvent(ctx, open._id, "repeated", actor, now, {
-          occurrenceCount,
-          title: request.title,
-          ...(raised ? { urgency } : {}),
-        });
-        if (raised) await scheduleDelivery(ctx, open._id, "urgency_raised");
-        return { id: String(open._id), created: false, occurrenceCount };
-      }
-    }
+const createItemRequest = v.object({
+  source: v.string(),
+  kind: itemKindValidator,
+  urgency: itemUrgencyValidator,
+  title: v.string(),
+  body: v.optional(v.string()),
+  links: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
+  context: v.optional(v.record(v.string(), v.string())),
+  dedupeKey: v.optional(v.string()),
+  actions: v.optional(v.array(itemActionValidator)),
+  replyTo: v.optional(v.record(v.string(), v.any())),
+  expiresAt: v.optional(v.number()),
+});
 
-    const id = await transitionItem(
-      ctx,
-      {
-        create: {
-          ...request,
-          body: request.body ?? "",
-          links: request.links ?? [],
-          context: request.context ?? {},
-          actions: request.actions ?? [],
-        },
+type CreateItemRequest = Infer<typeof createItemRequest>;
+
+/** The open item a producer's `dedupeKey` names, if any. */
+export async function openItemByDedupeKey(ctx: QueryCtx, dedupeKey: string) {
+  const matches = await ctx.db
+    .query("items")
+    .withIndex("by_dedupeKey", (q) => q.eq("dedupeKey", dedupeKey))
+    .collect();
+  return matches.find((item) => !terminalItemStates.has(item.state));
+}
+
+/** Creates an item, or records a repeat on the open item that shares its `dedupeKey`. */
+export async function createItem(ctx: MutationCtx, request: CreateItemRequest, now: number) {
+  const actor = request.source;
+  if (request.dedupeKey) {
+    const open = await openItemByDedupeKey(ctx, request.dedupeKey);
+    if (open) {
+      const occurrenceCount = open.occurrenceCount + 1;
+      const urgency = await ownerUrgency(ctx, request);
+      const raised = raisesUrgency(open.urgency, urgency);
+      await patchItemContent(ctx, open._id, {
+        occurrenceCount,
+        updatedAt: now,
+        ...(raised ? { urgency } : {}),
+      });
+      await appendItemEvent(ctx, open._id, "repeated", actor, now, {
+        occurrenceCount,
+        title: request.title,
+        ...(raised ? { urgency } : {}),
+      });
+      if (raised) await scheduleDelivery(ctx, open._id, "urgency_raised");
+      return { id: String(open._id), created: false, occurrenceCount };
+    }
+  }
+
+  const id = await transitionItem(
+    ctx,
+    {
+      create: {
+        ...request,
+        body: request.body ?? "",
+        links: request.links ?? [],
+        context: request.context ?? {},
+        actions: request.actions ?? [],
       },
-      "open",
-      { actor, at: now },
-    );
-    return { id: String(id), created: true, occurrenceCount: 1 };
-  },
+    },
+    "open",
+    { actor, at: now },
+  );
+  return { id: String(id), created: true, occurrenceCount: 1 };
+}
+
+export const create = internalMutation({
+  args: { ...createItemRequest.fields, now: v.number() },
+  handler: async (ctx, { now, ...request }) => await createItem(ctx, request, now),
 });
 
 export const appendEvent = internalMutation({

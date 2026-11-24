@@ -516,6 +516,26 @@
           "storageUnit": {
             "type": "string",
             "minLength": 1
+          },
+          "alertPipeline": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "silent",
+                  "not_configured"
+                ]
+              },
+              "lastWatchdogAt": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "state"
+            ]
           }
         },
         "required": [

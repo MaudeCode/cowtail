@@ -25,4 +25,11 @@ crons.interval(
   {},
 );
 
+crons.interval(
+  "raise an item when the Alertmanager Watchdog goes silent",
+  { minutes: 1 },
+  (internal as any).pipelineStatus.checkSilence,
+  {},
+);
+
 export default crons;
