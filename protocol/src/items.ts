@@ -24,6 +24,11 @@ export const itemEventTypes = [
   "resolved",
   "run_started",
   "run_finished",
+  // Incident events: an item joined or left an incident, and its postmortem arrived. An
+  // incident's own `created` and `resolved` reuse the item types above.
+  "item_added",
+  "item_removed",
+  "postmortem_written",
 ] as const;
 
 export const itemKindSchema = z.enum(itemKinds);
@@ -79,6 +84,26 @@ export const itemOutcomeSchema = z.enum(itemOutcomes);
 // How far an open alert item's investigation has got.
 export const itemInvestigationSteps = ["queued", "investigating", "failed"] as const;
 export const itemInvestigationStepSchema = z.enum(itemInvestigationSteps);
+
+// --- Incidents -----------------------------------------------------------------------------
+// Related items, such as one outage's alerts, grouped into one incident with one timeline.
+
+export const incidentStates = ["open", "resolved"] as const;
+export const incidentStateSchema = z.enum(incidentStates);
+
+// The incident an item belongs to, as its row shows it. `startedAt` is its first member's
+// creation; `durationMs` runs from there to its resolution, or to now while it is open.
+// `worstUrgency` is the highest urgency of its members, absent when it has none.
+export const incidentSummarySchema = z.object({
+  id: nonEmptyStringSchema,
+  title: nonEmptyStringSchema,
+  state: incidentStateSchema,
+  memberCount: z.number().int().nonnegative(),
+  worstUrgency: itemUrgencySchema.optional(),
+  startedAt: timestampSchema,
+  resolvedAt: timestampSchema.optional(),
+  durationMs: z.number().int().nonnegative(),
+});
 
 export const itemRecordSchema = z.object({
   id: nonEmptyStringSchema,
@@ -142,11 +167,17 @@ export const itemRecordSchema = z.object({
   fix: fixRecordSchema.optional(),
   // The maintenance window that covered the item when Cowtail held back its push.
   maintenanceWindowId: nonEmptyStringSchema.optional(),
+  // The incident the item belongs to. The inbox and item lists hold one member per incident,
+  // which stands for the whole incident: the client shows it as the incident's row, which
+  // opens the incident. The inbox puts it in the first section any member would be in.
+  incident: incidentSummarySchema.optional(),
 });
 
+// An incident's own events carry `incidentId` and, when they concern one member, its `itemId`.
 export const itemEventRecordSchema = z.object({
   id: nonEmptyStringSchema,
-  itemId: nonEmptyStringSchema,
+  itemId: nonEmptyStringSchema.optional(),
+  incidentId: nonEmptyStringSchema.optional(),
   at: timestampSchema,
   type: itemEventTypeSchema,
   actor: nonEmptyStringSchema,
@@ -501,3 +532,5 @@ export type SnoozePreset = (typeof snoozePresets)[number];
 export type SnoozeOptionsResponse = z.infer<typeof snoozeOptionsResponseSchema>;
 export type ItemGraphRange = z.infer<typeof itemGraphRangeSchema>;
 export type ItemGraphResponse = z.infer<typeof itemGraphResponseSchema>;
+export type IncidentState = z.infer<typeof incidentStateSchema>;
+export type IncidentSummary = z.infer<typeof incidentSummarySchema>;

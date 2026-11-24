@@ -48,6 +48,11 @@ protocol CowtailAPIClient: Sendable {
         sessionToken: String
     ) async throws -> RunbookRun
     func fetchRunbookRun(id: String, sessionToken: String) async throws -> RunbookRunDetail
+    /// Nil when the server has no such incident.
+    func fetchIncident(id: String, sessionToken: String) async throws -> IncidentDetail?
+    /// The items the server says the owner can add to the incident.
+    func fetchIncidentCandidates(id: String, sessionToken: String) async throws -> [Item]
+    func changeIncident(id: String, change: IncidentChange, sessionToken: String) async throws -> IncidentDetail
 }
 
 /// Sign-in and sign-out, for Apple and the server's OIDC provider alike.
@@ -532,6 +537,80 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.refused(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Ending the window failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchIncident(id: String, sessionToken: String) async throws -> IncidentDetail? {
+        switch try await sessionClient(sessionToken: sessionToken).getIncident(path: .init(id: id)) {
+        case .ok(let response):
+            return Self.makeIncidentDetail(try response.body.json)
+        case .notFound:
+            return nil
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Incident request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchIncidentCandidates(id: String, sessionToken: String) async throws -> [Item] {
+        switch try await sessionClient(sessionToken: sessionToken).listIncidentCandidates(path: .init(id: id)) {
+        case .ok(let response):
+            return try response.body.json.items.map(Self.makeItem)
+        case .notFound(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Listing items to add failed with HTTP \(statusCode).")
+        }
+    }
+
+    /// A 4xx is the server turning the change down: nothing changed.
+    func changeIncident(id: String, change: IncidentChange, sessionToken: String) async throws -> IncidentDetail {
+        let client = sessionClient(sessionToken: sessionToken)
+        let failed = { (statusCode: Int) in
+            CowtailAPIError.requestFailed("Changing the incident failed with HTTP \(statusCode).")
+        }
+        switch change {
+        case .add(let itemID):
+            switch try await client.addIncidentItem(path: .init(id: id), body: .json(.init(itemId: itemID))) {
+            case .ok(let response): return Self.makeIncidentDetail(try response.body.json)
+            case .unauthorized(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .forbidden(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .notFound(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .conflict(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .undocumented(let statusCode, _): throw failed(statusCode)
+            }
+        case .remove(let itemID):
+            switch try await client.removeIncidentItem(path: .init(id: id, itemId: itemID)) {
+            case .ok(let response): return Self.makeIncidentDetail(try response.body.json)
+            case .unauthorized(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .forbidden(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .notFound(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .undocumented(let statusCode, _): throw failed(statusCode)
+            }
+        case .resolve:
+            switch try await client.resolveIncident(path: .init(id: id)) {
+            case .ok(let response): return Self.makeIncidentDetail(try response.body.json)
+            case .unauthorized(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .forbidden(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .notFound(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .undocumented(let statusCode, _): throw failed(statusCode)
+            }
+        case .requestPostmortem:
+            switch try await client.requestIncidentPostmortem(path: .init(id: id)) {
+            case .ok(let response): return Self.makeIncidentDetail(try response.body.json)
+            case .unauthorized(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .forbidden(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .notFound(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .conflict(let response): throw CowtailAPIError.refused(try response.body.json.error)
+            case .undocumented(let statusCode, _): throw failed(statusCode)
+            }
         }
     }
 

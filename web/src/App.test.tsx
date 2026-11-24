@@ -1,4 +1,4 @@
-import type { ItemInboxResponse } from "@maudecode/cowtail-protocol";
+import type { IncidentGetResponse, ItemInboxResponse } from "@maudecode/cowtail-protocol";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
@@ -9,6 +9,8 @@ import { stubApi } from "./test/api";
 import {
   hermesStatus,
   inbox,
+  incidentDetail,
+  incidentSummary,
   item,
   MAINTENANCE,
   maintenanceWindow,
@@ -1270,5 +1272,286 @@ describe("Hermes", () => {
     renderApp("/hermes");
 
     expect(await screen.findByText("Hermes has not sent a heartbeat yet.")).toBeInTheDocument();
+  });
+});
+
+describe("incidents", () => {
+  const INCIDENT = "GET /actions/api/incidents/incident-1";
+
+  test("an incident in the inbox is one row with its member count, worst urgency and duration, and opens it", async () => {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items/inbox": inbox({
+          needsYou: [item({ incident: incidentSummary() })],
+        }),
+        [INCIDENT]: incidentDetail(),
+      }),
+    );
+    renderApp("/");
+
+    const row = await screen.findByRole("link", { name: /Storage outage/ });
+    expect(row).toHaveTextContent("Incident · 11 items · now · 47m");
+    expect(screen.queryByText("KubePodCrashLooping")).not.toBeInTheDocument();
+    await userEvent.click(row);
+    expect(screen.getByTestId("address")).toHaveTextContent("/incidents/incident-1");
+  });
+
+  test("an item in an incident links to it from its header", async () => {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items/item-9": {
+          ok: true,
+          item: item({ id: "item-9", incident: incidentSummary() }),
+          events: [],
+        },
+      }),
+    );
+    renderApp("/items/item-9");
+
+    const chip = await screen.findByRole("link", { name: "Storage outage" });
+    expect(chip).toHaveAttribute("href", "/incidents/incident-1");
+  });
+
+  test("incident detail shows the header, the merged timeline, the postmortem and the members", async () => {
+    stubApi(signedIn({ [INCIDENT]: incidentDetail() }));
+    renderApp("/incidents/incident-1");
+
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Storage outage");
+    expect(sectionLabels()).toEqual(["Timeline", "Postmortem", "Members"]);
+    expect(screen.getByText("item_added · CephHealthErr")).toBeInTheDocument();
+    expect(screen.getByText("Same Alertmanager group")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "Summary" })).toBeInTheDocument();
+    expect(screen.getByText("47 minutes").tagName).toBe("STRONG");
+    expect(screen.getByText("Replace the drive cable").tagName).toBe("LI");
+    expect(screen.getAllByRole("button", { name: "Remove from incident" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Add an item" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Request postmortem again" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
+  });
+
+  test("an open incident offers Resolve and waits for its postmortem", async () => {
+    stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail({
+          state: "open",
+          resolvedAt: undefined,
+          postmortemState: "none",
+          postmortem: undefined,
+          postmortemAt: undefined,
+          availableActions: ["resolve"],
+        }),
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    expect(await screen.findByRole("button", { name: "Resolve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request postmortem again" })).toBeDisabled();
+    expect(
+      screen.getByText("Hermes writes the postmortem once the incident resolves."),
+    ).toBeInTheDocument();
+  });
+
+  test("Remove from incident takes the member out before the server answers", async () => {
+    const { calls } = stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "DELETE /actions/api/me/incidents/incident-1/items/item-2": new Promise(() => {}),
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    await userEvent.click(first);
+
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+    // The removal shows its result, so Add an item stays usable.
+    expect(screen.getByRole("button", { name: "Add an item" })).toBeEnabled();
+    expect(calls.filter((call) => call.method === "DELETE").map((call) => call.path)).toEqual([
+      "/actions/api/me/incidents/incident-1/items/item-2",
+    ]);
+  });
+
+  test("a reread while a removal is on its way keeps the member gone", async () => {
+    stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "DELETE /actions/api/me/incidents/incident-1/items/item-2": new Promise(() => {}),
+      }),
+    );
+    const { queryClient } = renderApp("/incidents/incident-1");
+
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    await userEvent.click(first);
+    await queryClient.refetchQueries({ queryKey: ["incident", "incident-1"], exact: true });
+
+    const shown = queryClient.getQueryData<IncidentGetResponse>(["incident", "incident-1"])!;
+    expect(shown.members.map((member) => member.id)).toEqual(["item-1"]);
+  });
+
+  test("a removal whose reply is lost stays shown until a read says what the server kept", async () => {
+    const routes: Record<string, unknown> = signedIn({
+      [INCIDENT]: incidentDetail(),
+      "DELETE /actions/api/me/incidents/incident-1/items/item-2": {
+        status: 502,
+        body: { ok: false, error: "Bad gateway" },
+      },
+    });
+    stubApi(routes);
+    const { queryClient } = renderApp("/incidents/incident-1");
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    routes[INCIDENT] = { status: 503, body: { ok: false, error: "Unavailable" } };
+
+    await userEvent.click(first);
+    await screen.findByText("Bad gateway");
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+
+    routes[INCIDENT] = incidentDetail();
+    await queryClient.refetchQueries({ queryKey: ["incident", "incident-1"], exact: true });
+    expect(await screen.findByRole("link", { name: "CephHealthErr" })).toBeInTheDocument();
+  });
+
+  test("a later refusal keeps a removal whose reply was lost until a read settles it", async () => {
+    const routes: Record<string, unknown> = signedIn({
+      [INCIDENT]: incidentDetail(),
+      "DELETE /actions/api/me/incidents/incident-1/items/item-2": {
+        status: 502,
+        body: { ok: false, error: "Bad gateway" },
+      },
+      "POST /actions/api/me/incidents/incident-1/postmortem": {
+        status: 409,
+        body: { ok: false, error: "A postmortem is already on its way" },
+      },
+    });
+    stubApi(routes);
+    renderApp("/incidents/incident-1");
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    routes[INCIDENT] = { status: 503, body: { ok: false, error: "Unavailable" } };
+    await userEvent.click(first);
+    await screen.findByText("Bad gateway");
+
+    await userEvent.click(screen.getByRole("button", { name: "Request postmortem again" }));
+    await screen.findByText("A postmortem is already on its way");
+
+    // No read has said whether the removal landed, so it stays shown.
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+  });
+
+  test("a reread from before a removal settled neither shows nor restores the member", async () => {
+    let answerRemoval!: (reply: unknown) => void;
+    let answerRead!: (reply: unknown) => void;
+    const routes: Record<string, unknown> = signedIn({
+      "DELETE /actions/api/me/incidents/incident-1/items/item-2": new Promise((resolve) => {
+        answerRemoval = resolve;
+      }),
+      "POST /actions/api/me/incidents/incident-1/postmortem": {
+        status: 409,
+        body: { ok: false, error: "A postmortem is already on its way" },
+      },
+    });
+    // The page's first read, then a reread held until the removal settled, then reads that fail.
+    const reads: unknown[] = [
+      incidentDetail(),
+      new Promise((resolve) => {
+        answerRead = resolve;
+      }),
+    ];
+    Object.defineProperty(routes, INCIDENT, {
+      get: () => reads.shift() ?? { status: 503, body: { ok: false, error: "Unavailable" } },
+    });
+    stubApi(routes);
+    const { queryClient } = renderApp("/incidents/incident-1");
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    await userEvent.click(first);
+    const reread = queryClient.refetchQueries({
+      queryKey: ["incident", "incident-1"],
+      exact: true,
+    });
+    await waitFor(() => expect(reads).toHaveLength(0));
+    const removed = incidentDetail();
+    removed.members = removed.members.filter((member) => member.id !== "item-2");
+    answerRemoval(removed);
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    answerRead(incidentDetail());
+    await reread;
+    const shown = queryClient.getQueryData<IncidentGetResponse>(["incident", "incident-1"])!;
+    expect(shown.members.map((member) => member.id)).toEqual(["item-1"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Request postmortem again" }));
+    await screen.findByText("A postmortem is already on its way");
+
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+  });
+
+  test("a refused removal puts the member back and says why", async () => {
+    stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "DELETE /actions/api/me/incidents/incident-1/items/item-2": {
+          status: 404,
+          body: { ok: false, error: "Item is not in this incident" },
+        },
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    await userEvent.click(first);
+
+    expect(await screen.findByText("Item is not in this incident")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CephHealthErr" })).toBeInTheDocument();
+  });
+
+  test("Add an item lists the server's candidates and adds the chosen one", async () => {
+    const { calls } = stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "GET /actions/api/incidents/incident-1/candidates": {
+          ok: true,
+          items: [item({ id: "item-7", title: "Nightly backup verify failed" })],
+        },
+        "POST /actions/api/me/incidents/incident-1/items": incidentDetail(),
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add an item" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Nightly backup verify failed/ }),
+    );
+
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/incidents/incident-1/items",
+          body: { itemId: "item-7" },
+        },
+      ]),
+    );
+    expect(screen.queryByRole("dialog", { name: "Add an item" })).not.toBeInTheDocument();
+  });
+
+  test("History shows an incident as one row that opens it", async () => {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items?limit=100": {
+          ok: true,
+          count: 1,
+          items: [
+            item({
+              state: "resolved",
+              createdDate: "2026-11-22",
+              incident: incidentSummary({ state: "resolved", resolvedAt: NOW }),
+            }),
+          ],
+          days: [{ date: "2026-11-22", count: 1 }],
+        },
+      }),
+    );
+    renderApp("/history");
+
+    const link = await screen.findByRole("link", { name: "Storage outage" });
+    expect(link).toHaveAttribute("href", "/incidents/incident-1");
+    expect(link.closest("tr")).toHaveTextContent("Incident · 11 items · now · 47m");
   });
 });

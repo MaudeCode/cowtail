@@ -7,6 +7,10 @@ Cowtail every few seconds, applies each to the waiting Hermes request and confir
 no port opens on the Hermes host. A heartbeat tells Cowtail what Hermes is doing. With
 MaudeUtils configured, the adapter also pulls the runbook runs the owner starts (see runbook).
 
+When an incident resolves, Cowtail asks for its postmortem: the adapter claims the request and
+hands its prompt to Hermes as an inbound message in chat ``cowtail:incident:<id>``. Hermes's
+reply to that chat is posted as the incident's postmortem instead of becoming an item.
+
 Env: COWTAIL_API_BASE, COWTAIL_WORKER_TOKEN and COWTAIL_WORKER_ID (shared with the tool),
 COWTAIL_PLATFORM_ENABLED=true to run the platform, COWTAIL_HOME_CHANNEL for cron delivery
 (default ``owner``; Cowtail has one inbox, so the value only names it).
@@ -30,11 +34,14 @@ logger = logging.getLogger(__name__)
 
 PLATFORM = "cowtail"
 RESPONSE_POLL_SECONDS = 3
+POSTMORTEM_POLL_SECONDS = 15
+INCIDENT_CHAT_PREFIX = "cowtail:incident:"
 HEARTBEAT_SECONDS = 60
 DEFAULT_APPROVAL_TIMEOUT = 300
 DEFAULT_CLARIFY_TIMEOUT = 3600
 TITLE_LIMIT = 500
 BODY_LIMIT = 20_000
+POSTMORTEM_LIMIT = 50_000
 LIST_LIMIT = 500
 ITEM_KINDS = ("alert", "failure", "approval", "question", "fyi", "done")
 ITEM_URGENCIES = ("now", "today", "whenever")
@@ -240,6 +247,10 @@ class CowtailAdapter(BasePlatformAdapter):
         self._applied: dict[str, str] = {}
         # Runbook runs in progress; each one streams on its own thread until its script exits.
         self._runs: set[asyncio.Task] = set()
+        # The postmortem request last handed to Hermes in each incident chat, so its reply names
+        # the request it answers. ponytail: in memory; after a restart a reply names none and
+        # Cowtail takes it for the incident's newest request.
+        self._postmortem_requests: dict[str, str] = {}
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
         if not cowtail_available():
@@ -249,6 +260,7 @@ class CowtailAdapter(BasePlatformAdapter):
         self._tasks = [
             asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.apply_responses)),
             asyncio.create_task(self._every(HEARTBEAT_SECONDS, self.send_heartbeat)),
+            asyncio.create_task(self._every(POSTMORTEM_POLL_SECONDS, self.deliver_postmortem_requests)),
         ]
         if maudeutils_configured():
             self._tasks.append(asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.start_runbook_runs)))
@@ -312,6 +324,34 @@ class CowtailAdapter(BasePlatformAdapter):
             # Cowtail leases the run again once this claim's lease runs out.
             logger.warning("[cowtail] runbook run %s failed", run.get("id"), exc_info=True)
 
+    async def deliver_postmortem_requests(self) -> None:
+        """Hands each postmortem request waiting in Cowtail to Hermes as an inbound message in
+        the incident's chat, then confirms it. A request Hermes did not take is not confirmed,
+        and Cowtail leases it again once this claim's lease runs out."""
+        from gateway.platforms.base import MessageEvent, MessageType
+
+        while True:
+            request = (await asyncio.to_thread(self._client.claim_postmortem_request)).get("request")
+            if not request:
+                return
+            source = self.build_source(
+                chat_id=request["chatId"], chat_name="Cowtail incident", chat_type="dm",
+                user_id="cowtail", user_name="Cowtail",
+            )
+            self._postmortem_requests[request["chatId"]] = request["id"]
+            await self.handle_message(MessageEvent(
+                text=request["prompt"], message_type=MessageType.TEXT, source=source,
+                message_id=f"cowtail-postmortem-{request['id']}",
+            ))
+            await asyncio.to_thread(self._client.postmortem_delivered, request["id"], request["claimToken"])
+
+    def toolsets_for_source(self, source) -> list[str] | None:
+        """An incident's chat runs with no tools: its prompt carries text alert sources and other
+        producers wrote, so nothing in it may steer the agent into acting."""
+        if str(getattr(source, "chat_id", "") or "").startswith(INCIDENT_CHAT_PREFIX):
+            return []
+        return None
+
     async def send_heartbeat(self) -> None:
         snapshot = await asyncio.to_thread(collect_snapshot)
         await asyncio.to_thread(self._client.heartbeat, snapshot)
@@ -330,6 +370,19 @@ class CowtailAdapter(BasePlatformAdapter):
         self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         metadata = metadata or {}
+        if chat_id.startswith(INCIDENT_CHAT_PREFIX):
+            # Hermes's reply to a postmortem request is the incident's postmortem, not an item.
+            incident_id = chat_id[len(INCIDENT_CHAT_PREFIX):]
+            try:
+                await asyncio.to_thread(
+                    self._client.post_postmortem,
+                    incident_id,
+                    content[:POSTMORTEM_LIMIT],
+                    self._postmortem_requests.get(chat_id),
+                )
+            except CowtailError as error:
+                return SendResult(success=False, error=str(error))
+            return SendResult(success=True, message_id=f"postmortem:{incident_id}")
         incident = await asyncio.to_thread(_failure_incident, metadata.get("job_id"))
         if incident:
             return await self._post_item(
@@ -413,6 +466,9 @@ def register_platform(ctx) -> None:
         max_message_length=BODY_LIMIT,
         emoji="🐄",
         pii_safe=True,
+        # Inbound messages are only the postmortem requests the adapter claims from Cowtail with
+        # its worker token, so there is no human sender to allowlist.
+        trusted_inbound=True,
         allow_update_command=False,
         platform_hint=(
             "You are delivering to Cowtail, the owner's inbox. Each message becomes one item "

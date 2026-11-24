@@ -259,6 +259,118 @@ enum CowtailPreviewFixtures {
 
     static let items = [approval, question, crashLoop] + withHermes + upcoming + handled + older
 
+    /// An open incident that needs the owner: its first alert still firing, its second resolved.
+    static let storageOutage = Incident(
+        summary: IncidentSummary(
+            id: "incident-storage",
+            title: "Storage outage",
+            state: .open,
+            memberCount: 2,
+            worstUrgency: .now,
+            startedAt: minutesAgo(47),
+            resolvedAt: nil,
+            duration: 47 * 60
+        ),
+        postmortemState: .none,
+        postmortem: nil,
+        postmortemAt: nil,
+        availableActions: [.resolve]
+    )
+
+    /// A resolved incident with Hermes's postmortem.
+    static let mediaOutage = Incident(
+        summary: IncidentSummary(
+            id: "incident-media",
+            title: "Media outage",
+            state: .resolved,
+            memberCount: 1,
+            worstUrgency: .today,
+            startedAt: minutesAgo(90),
+            resolvedAt: minutesAgo(60),
+            duration: 30 * 60
+        ),
+        postmortemState: .written,
+        postmortem: """
+        ## Summary
+        The transcoder ran out of memory for **30 minutes**.
+
+        ## Follow-ups
+        - Raise the transcoder's memory limit
+        - Alert on OOM kills before the crash loop
+        """,
+        postmortemAt: minutesAgo(55),
+        availableActions: [.requestPostmortem]
+    )
+
+    static let incidents = [storageOutage, mediaOutage]
+
+    static let incidentItems = [
+        Item(
+            id: "alert-osddown",
+            source: "alertmanager",
+            sourceName: "Alertmanager",
+            kind: .alert,
+            urgency: .now,
+            needsOwner: true,
+            title: "CephOSDDown",
+            actions: [.ack, .snooze],
+            alertID: "alert-20",
+            createdAt: minutesAgo(47),
+            subtitle: "rook-ceph / osd.4",
+            incident: storageOutage.summary
+        ),
+        Item(
+            id: "alert-cephhealtherr",
+            source: "alertmanager",
+            sourceName: "Alertmanager",
+            kind: .alert,
+            urgency: .now,
+            state: .resolved,
+            title: "CephHealthErr",
+            alertID: "alert-21",
+            createdAt: minutesAgo(46),
+            resolvedAt: minutesAgo(20),
+            outcome: .selfResolved,
+            resolvedAfter: 26 * 60,
+            incident: storageOutage.summary
+        ),
+        Item(
+            id: "alert-transcoder-oom",
+            source: "alertmanager",
+            sourceName: "Alertmanager",
+            kind: .alert,
+            urgency: .today,
+            state: .resolved,
+            title: "KubePodOOMKilled",
+            alertID: "alert-22",
+            createdAt: minutesAgo(90),
+            resolvedAt: minutesAgo(60),
+            subtitle: "media / transcoder",
+            outcome: .fixed,
+            resolvedAfter: 30 * 60,
+            incident: mediaOutage.summary
+        ),
+    ]
+
+    /// An incident's own events: an Alertmanager group formed it, and Hermes's postmortem.
+    static func incidentEvents(for incident: Incident) -> [ItemEvent] {
+        let summary = incident.summary
+        var events = [
+            ItemEvent(
+                id: "\(summary.id)-item_added",
+                at: summary.startedAt.addingTimeInterval(60),
+                type: .itemAdded,
+                actor: "cowtail",
+                payload: ["reason": "Same Alertmanager group"],
+                itemTitle: incidentItems.first { $0.incident?.id == summary.id }?.title
+            ),
+        ]
+        if let postmortemAt = incident.postmortemAt {
+            events.append(ItemEvent(id: "\(summary.id)-postmortem", at: postmortemAt, type: .postmortemWritten, actor: "hermes", payload: [:]))
+        }
+        return events
+    }
+
     /// A running window over all alerts, 42 minutes from its end.
     static let maintenanceWindow = MaintenanceWindow(
         id: "window-upgrade",

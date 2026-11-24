@@ -10,6 +10,7 @@ import { sessionQuery } from "./lib/queries";
 import Cluster from "./pages/Cluster";
 import Hermes from "./pages/Hermes";
 import History from "./pages/History";
+import IncidentDetail from "./pages/IncidentDetail";
 import Home from "./pages/Home";
 import ItemDetail from "./pages/ItemDetail";
 import Login from "./pages/Login";
@@ -50,6 +51,7 @@ export function AppRoutes() {
         <Route path="/history" element={<History />} />
         <Route path="/hermes" element={<Hermes />} />
         <Route path="/items/:id" element={<ItemDetail />} />
+        <Route path="/incidents/:id" element={<IncidentDetail />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/alerts/:alertId" element={<AlertRedirect />} />
         <Route path="/fixes" element={<Navigate to="/history" replace />} />

@@ -12,6 +12,8 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         var roundupFixes = CowtailPreviewFixtures.roundupFixes
         /// The running maintenance windows.
         var maintenanceWindows: [MaintenanceWindow] = []
+        /// Incidents whose members are the items with their summary.
+        var incidents: [Incident] = []
         /// Every item request fails with this message.
         var itemErrorMessage: String?
         /// The server's OIDC provider; nil offers only Sign in with Apple.
@@ -41,14 +43,20 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         try requireItems()
         let byUpdate = seed.items.sorted { $0.updatedAt > $1.updatedAt }
         let dayAgo = Date.now.addingTimeInterval(-24 * 60 * 60)
-        return ItemInbox(
-            needsYou: byUpdate.filter { $0.state == .open && $0.needsOwner },
-            withHermes: byUpdate.filter { ($0.state == .open || $0.state == .acked) && !$0.needsOwner },
-            upcoming: seed.items
+        // Like the server, an incident is one row, in the first section one of its members is in.
+        var seen: Set<String> = []
+        let oncePerIncident = { (items: [Item]) in
+            items.filter { item in item.incident.map { seen.insert($0.id).inserted } ?? true }
+        }
+        let needsYou = oncePerIncident(byUpdate.filter { $0.state == .open && $0.needsOwner })
+        let withHermes = oncePerIncident(byUpdate.filter { ($0.state == .open || $0.state == .acked) && !$0.needsOwner })
+        let upcoming = oncePerIncident(
+            seed.items
                 .filter { $0.state == .snoozed }
-                .sorted { ($0.snoozedUntil ?? .distantFuture) < ($1.snoozedUntil ?? .distantFuture) },
-            handled: byUpdate.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) >= dayAgo }
+                .sorted { ($0.snoozedUntil ?? .distantFuture) < ($1.snoozedUntil ?? .distantFuture) }
         )
+        let handled = oncePerIncident(byUpdate.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) >= dayAgo })
+        return ItemInbox(needsYou: needsYou, withHermes: withHermes, upcoming: upcoming, handled: handled)
     }
 
     func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {
@@ -63,6 +71,11 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
                     && (query.search == nil || item.title.localizedCaseInsensitiveContains(query.search!))
             }
             .sorted { $0.createdAt > $1.createdAt }
+            // Like the server, a list shows an incident once, at its oldest member.
+            .filter { item in
+                guard let incident = item.incident else { return true }
+                return seed.items.filter { $0.incident?.id == incident.id }.min { $0.createdAt < $1.createdAt }?.id == item.id
+            }
             .map { item in
                 var listed = item
                 listed.createdDate = Self.day(item.createdAt)
@@ -219,6 +232,56 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
     }
 
     /// The server's presets, worked out from the seeded clock in the zone asked for.
+    func fetchIncident(id: String, sessionToken _: String) async throws -> IncidentDetail? {
+        try requireItems()
+        guard let incident = seed.incidents.first(where: { $0.summary.id == id }) else { return nil }
+        let members = seed.items.filter { $0.incident?.id == id }.sorted { $0.createdAt > $1.createdAt }
+        let events = (members.flatMap { member in
+            (self.events[member.id] ?? []).map { event in
+                var titled = event
+                titled.itemTitle = member.title
+                return titled
+            }
+        } + CowtailPreviewFixtures.incidentEvents(for: incident)).sorted { $0.at < $1.at }
+        var shown = incident
+        shown.summary.memberCount = members.count
+        return IncidentDetail(incident: shown, members: members, events: events)
+    }
+
+    func fetchIncidentCandidates(id _: String, sessionToken _: String) async throws -> [Item] {
+        try requireItems()
+        return seed.items.filter { $0.incident == nil }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func changeIncident(id: String, change: IncidentChange, sessionToken: String) async throws -> IncidentDetail {
+        guard let index = seed.incidents.firstIndex(where: { $0.summary.id == id }) else {
+            throw CowtailAPIError.refused("Incident not found")
+        }
+        switch change {
+        case .add(let itemID):
+            guard let item = seed.items.firstIndex(where: { $0.id == itemID }) else {
+                throw CowtailAPIError.refused("Item not found")
+            }
+            seed.items[item].incident = seed.incidents[index].summary
+        case .remove(let itemID):
+            guard let item = seed.items.firstIndex(where: { $0.id == itemID && $0.incident?.id == id }) else {
+                throw CowtailAPIError.refused("Item is not in this incident")
+            }
+            seed.items[item].incident = nil
+        case .resolve:
+            seed.incidents[index].summary.state = .resolved
+            seed.incidents[index].postmortemState = .requested
+            seed.incidents[index].availableActions = []
+        case .requestPostmortem:
+            seed.incidents[index].postmortemState = .requested
+            seed.incidents[index].availableActions = []
+        }
+        guard let detail = try await fetchIncident(id: id, sessionToken: sessionToken) else {
+            throw CowtailAPIError.refused("Incident not found")
+        }
+        return detail
+    }
+
     func fetchSnoozeOptions(timeZone: String, sessionToken _: String) async throws -> [SnoozeOption] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: timeZone) ?? .current

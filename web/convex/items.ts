@@ -39,6 +39,7 @@ import { approvalsNeedAuth, preferencesRow } from "./notificationPreferences";
 import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
 import { sourceInfo } from "./sources";
+import { groupAlertItem, incidentMembers, incidentSummary, settleIncident } from "./incidents";
 
 type ItemFields = WithoutSystemFields<Doc<"items">>;
 type NewItem = Omit<
@@ -74,8 +75,10 @@ export async function appendItemEvent(
   actor: string,
   at: number,
   payload: Record<string, unknown> = {},
+  // An incident's event about this member.
+  { incidentId }: { incidentId?: Id<"incidents"> } = {},
 ) {
-  await ctx.db.insert("itemEvents", { itemId, at, type, actor, payload });
+  await ctx.db.insert("itemEvents", { itemId, incidentId, at, type, actor, payload });
   if (type === "hermes_update" && typeof payload.text === "string") {
     await ctx.db.patch(itemId, { latestUpdate: { text: payload.text, at } });
   }
@@ -163,6 +166,12 @@ export async function transitionItem(
       to,
     },
   );
+  if (item.incidentId) {
+    await settleIncident(ctx, item.incidentId, {
+      now: at,
+      reopened: terminalItemStates.has(item.state) && !terminalItemStates.has(to),
+    });
+  }
   return item._id;
 }
 
@@ -292,6 +301,10 @@ export async function syncAlertItem(
       "open",
       { actor, at: alert.timestamp, notify },
     );
+    // A replay of history, such as the backfill, groups nothing.
+    const groupKey =
+      notify && alert.sourceEventId ? (await ctx.db.get(alert.sourceEventId))?.groupKey : undefined;
+    if (groupKey) await groupAlertItem(ctx, id, groupKey, now);
     if (wanted === "resolved") {
       await transitionItem(ctx, (await ctx.db.get(id))!, "resolved", {
         actor,
@@ -416,8 +429,17 @@ export async function ownerBadgeCount(ctx: QueryCtx) {
   return count;
 }
 
-async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
-  const { _id, _creationTime, alertId, investigationJobId, maintenanceWindowId, ...fields } = item;
+export async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
+  const {
+    _id,
+    _creationTime,
+    alertId,
+    investigationJobId,
+    maintenanceWindowId,
+    incidentId,
+    groupKey: _groupKey,
+    ...fields
+  } = item;
   const { alert, jobs, workflow } = await alertContext(ctx, item);
   const resolvedAt = item.state === "resolved" ? item.resolvedAt : undefined;
   return {
@@ -447,6 +469,37 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     resolvedAfterMs:
       resolvedAt === undefined ? undefined : Math.max(0, resolvedAt - item.createdAt),
     fix: alertId ? (await fixesForAlert(ctx, alertId))[0] : undefined,
+    incident: incidentId ? await incidentSummary(ctx, incidentId) : undefined,
+  };
+}
+
+// The inbox and item lists hold one member per incident, which stands for the incident.
+function oneRecordPerIncident(records: ItemRecord[], seen: Set<string>) {
+  return records.filter((record) => {
+    if (!record.incident) return true;
+    if (seen.has(record.incident.id)) return false;
+    seen.add(record.incident.id);
+    return true;
+  });
+}
+
+// An event as the clients read it; a finished investigation's evidence ships as its own field.
+export function eventRecord({
+  _id,
+  _creationTime,
+  itemId,
+  incidentId,
+  payload,
+  ...event
+}: Doc<"itemEvents">) {
+  const { evidence, ...rest } = payload;
+  return {
+    ...event,
+    id: String(_id),
+    itemId: itemId ? String(itemId) : undefined,
+    incidentId: incidentId ? String(incidentId) : undefined,
+    payload: rest,
+    evidence,
   };
 }
 
@@ -454,8 +507,9 @@ type ItemRecord = Awaited<ReturnType<typeof itemRecord>>;
 
 function matchesSearch(record: ItemRecord, q: string) {
   const needle = q.toLowerCase();
-  return [record.title, record.subtitle ?? "", record.body].some((text) =>
-    text.toLowerCase().includes(needle),
+  // A member of an incident also matches its incident's title, which its row shows.
+  return [record.title, record.subtitle ?? "", record.body, record.incident?.title ?? ""].some(
+    (text) => text.toLowerCase().includes(needle),
   );
 }
 
@@ -717,9 +771,11 @@ export const list = internalQuery({
   },
   handler: async (ctx, args) => {
     const { source, kind, outcome, q, from, to, timeZone } = args;
+    // The alert filter reads the alert's own item, incident or not.
+    const collapse = args.alertId === undefined;
     // Only an open item can need the owner, so that filter reads open items alone.
     const state = args.needsOwner ? (args.state ?? "open") : args.state;
-    const matches = async (item: Doc<"items">) => {
+    const filtered = async (item: Doc<"items">) => {
       if (state !== undefined && item.state !== state) return null;
       if (source !== undefined && item.source !== source) return null;
       if (from !== undefined && item.createdAt < from) return null;
@@ -733,6 +789,30 @@ export const list = internalQuery({
       return kept
         ? { ...record, createdDate: dateOnlyForInstant(new Date(item.createdAt), timeZone) }
         : null;
+    };
+    // A paged list shows an incident once, at its oldest member the filters keep, whatever
+    // page reads it.
+    const representatives = new Map<string, Promise<string | undefined>>();
+    const representative = (incidentId: Id<"incidents">) => {
+      let chosen = representatives.get(incidentId);
+      if (!chosen) {
+        chosen = (async () => {
+          const members = (await incidentMembers(ctx, incidentId)).sort(
+            (a, b) => a.createdAt - b.createdAt || a._id.localeCompare(b._id),
+          );
+          for (const member of members) if (await filtered(member)) return String(member._id);
+          return undefined;
+        })();
+        representatives.set(incidentId, chosen);
+      }
+      return chosen;
+    };
+    const matches = async (item: Doc<"items">) => {
+      const record = await filtered(item);
+      if (collapse && record && item.incidentId) {
+        return (await representative(item.incidentId)) === record.id ? record : null;
+      }
+      return record;
     };
     // ponytail: counts up to DAY_COUNT_READ_LIMIT items per listed day; keep a per-day
     // counter if a day ever holds more.
@@ -863,7 +943,14 @@ export const inbox = internalQuery({
       .take(INBOX_READ_LIMIT);
     const upcoming: ItemRecord[] = [];
     for (const item of snoozed) upcoming.push(await itemRecord(ctx, item));
-    return { needsYou, withHermes, upcoming, handled };
+    // An incident's row goes to the first section one of its members is in.
+    const seen = new Set<string>();
+    return {
+      needsYou: oneRecordPerIncident(needsYou, seen),
+      withHermes: oneRecordPerIncident(withHermes, seen),
+      upcoming: oneRecordPerIncident(upcoming, seen),
+      handled: oneRecordPerIncident(handled, seen),
+    };
   },
 });
 
@@ -881,17 +968,7 @@ export const get = internalQuery({
     const alert = item.alertId ? await ctx.db.get(item.alertId) : null;
     return {
       item: await itemRecord(ctx, item),
-      // A finished investigation's evidence ships as the event's own field.
-      events: events.map(({ _id, _creationTime, itemId, payload, ...event }) => {
-        const { evidence, ...rest } = payload;
-        return {
-          ...event,
-          id: String(_id),
-          itemId: String(itemId),
-          payload: rest,
-          evidence,
-        };
-      }),
+      events: events.map(eventRecord),
       fixes,
       priorOccurrences: alert ? await findPriorOccurrences(ctx, alert) : undefined,
     };

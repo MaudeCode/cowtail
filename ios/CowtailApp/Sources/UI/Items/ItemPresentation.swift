@@ -249,6 +249,10 @@ extension ItemEvent {
             let outcome = payload["exitCode"].map { "exit \($0)" } ?? "outcome unknown"
             let result = "\(payload["scriptName"] ?? "Script") · \(outcome)"
             return [result, payload["excerpt"]].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "\n")
+        case .itemAdded, .itemRemoved:
+            return payload["reason"] ?? ""
+        case .postmortemWritten:
+            return "Hermes wrote the postmortem"
         case .stateChanged, .resolved:
             let change = [payload["from"], payload["to"]].compactMap { $0 }.joined(separator: " → ")
             let reason = payload["reason"]
@@ -258,11 +262,59 @@ extension ItemEvent {
 
     func tint(_ palette: ThemePalette) -> Color {
         switch type {
-        case .hermesUpdate, .dispatched, .runFinished: palette.info
+        case .hermesUpdate, .dispatched, .runFinished, .postmortemWritten: palette.info
         case .actionTaken, .runStarted: palette.warning
         case .resolved: palette.success
-        case .created, .repeated: palette.accent
-        case .notified, .stateChanged: palette.mutedInk
+        case .created, .repeated, .itemAdded: palette.accent
+        case .notified, .stateChanged, .itemRemoved: palette.mutedInk
+        }
+    }
+
+    /// The event's label: its type, and in an incident's timeline the member it concerns.
+    var heading: String {
+        [type.rawValue, itemTitle].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+extension IncidentState {
+    func tint(_ palette: ThemePalette) -> Color {
+        switch self {
+        case .open: palette.accent
+        case .resolved: palette.success
+        }
+    }
+}
+
+extension IncidentSummary {
+    var memberCountText: String {
+        "\(memberCount) \(memberCount == 1 ? "item" : "items")"
+    }
+
+    /// The incident row's line: "Incident · 11 items · now · 47m", the urgency in its tint.
+    func line(_ palette: ThemePalette) -> Text {
+        var text = Text("Incident · \(memberCountText)")
+        if let worstUrgency {
+            text = Text("\(text) · \(Text(worstUrgency.rawValue).foregroundStyle(worstUrgency.tint(palette)))")
+        }
+        return Text("\(text) · \(ItemFormat.duration(duration))")
+    }
+
+    /// Sun 22 Nov 22:31–23:18, or 22:31–now while it lasts.
+    var span: String {
+        let day = startedAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        let end = resolvedAt.map(ItemFormat.time) ?? "now"
+        return "\(day) \(ItemFormat.time(startedAt))–\(end)"
+    }
+}
+
+extension Incident.PostmortemState {
+    /// What the postmortem section says while there is no postmortem to show.
+    var waitingText: String {
+        switch self {
+        case .none: "Hermes writes the postmortem once the incident resolves."
+        case .requested: "Hermes is writing the postmortem."
+        case .written: ""
+        case .failed: "No postmortem arrived in time. Request it again."
         }
     }
 }

@@ -32,6 +32,14 @@ import {
   hermesResponseFailRequestSchema,
   hermesSnapshotSchema,
   hermesStatusResponseSchema,
+  incidentAddItemRequestSchema,
+  incidentCandidatesResponseSchema,
+  incidentCreateRequestSchema,
+  incidentGetResponseSchema,
+  incidentPostmortemPostRequestSchema,
+  postmortemRequestClaimRequestSchema,
+  postmortemRequestClaimResponseSchema,
+  postmortemRequestDeliveredRequestSchema,
   runbookRunClaimRequestSchema,
   runbookRunClaimResponseSchema,
   runbookRunCompleteRequestSchema,
@@ -1529,6 +1537,13 @@ const codedErrorStatus: Record<string, [number, string]> = {
   RUN_NOT_FOUND: [404, "Run not found"],
   RUN_NOT_CLAIMED: [409, "Run is not claimed with this token"],
   OUTPUT_OUT_OF_ORDER: [409, "Output batch is out of order"],
+  INCIDENT_NOT_FOUND: [404, "Incident not found"],
+  ITEM_IN_INCIDENT: [409, "Item already belongs to an incident"],
+  ITEM_NOT_IN_INCIDENT: [404, "Item is not in this incident"],
+  INCIDENT_OPEN: [409, "Incident is still open"],
+  POSTMORTEM_PENDING: [409, "A postmortem is already on its way"],
+  POSTMORTEM_REQUEST_NOT_FOUND: [404, "Postmortem request not found"],
+  POSTMORTEM_REQUEST_NOT_CLAIMED: [409, "Postmortem request is not claimed with this token"],
 };
 
 function codedErrorResponse(error: unknown) {
@@ -2037,6 +2052,179 @@ app.post("/api/me/items/:id/actions", async (c) => {
     return codedErrorResponse(error);
   }
   return await itemResponse(c, id);
+});
+
+// --- Incidents --------------------------------------------------------------------------
+
+async function incidentResponse(c: RouteContext, id: string) {
+  const incident = await c.env.runQuery((internal as any).incidents.get, { id });
+  if (!incident) return jsonError("Incident not found", 404);
+  return c.json(incidentGetResponseSchema.parse({ ok: true, ...incident }));
+}
+
+// The owner's (or the CLI's) change to an incident, answered with the incident as it is now.
+async function incidentWrite(
+  c: RouteContext,
+  id: string,
+  write: (actor: string) => Promise<unknown>,
+) {
+  const caller = await requireOwnerOrService(c, [process.env.PUSH_API_BEARER_TOKEN]);
+  if (caller instanceof Response) return caller;
+  try {
+    await write(caller.actor);
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+  return await incidentResponse(c, id);
+}
+
+// GET /api/incidents/:id — the incident, its members and the merged timeline
+app.get("/api/incidents/:id", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+  return await incidentResponse(c, c.req.param("id"));
+});
+
+// GET /api/incidents/:id/candidates — the items the owner can add to the incident
+app.get("/api/incidents/:id/candidates", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+  try {
+    const items = await c.env.runQuery((internal as any).incidents.candidates, {
+      id: c.req.param("id"),
+    });
+    return c.json(incidentCandidatesResponseSchema.parse({ ok: true, items }));
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+});
+
+// POST /api/me/incidents — make an incident from chosen items
+app.post("/api/me/incidents", async (c) => {
+  const caller = await requireOwnerOrService(c, [process.env.PUSH_API_BEARER_TOKEN]);
+  if (caller instanceof Response) return caller;
+  const parsed = incidentCreateRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  let id: string;
+  try {
+    id = await c.env.runMutation((internal as any).incidents.create, {
+      ...parsed.data,
+      actor: caller.actor,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+  return await incidentResponse(c, id);
+});
+
+// POST /api/me/incidents/:id/items — add an item to the incident
+app.post("/api/me/incidents/:id/items", async (c) => {
+  const parsed = incidentAddItemRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  const id = c.req.param("id");
+  return await incidentWrite(c, id, (actor) =>
+    c.env.runMutation((internal as any).incidents.addItem, {
+      id,
+      itemId: parsed.data.itemId,
+      actor,
+      now: Date.now(),
+    }),
+  );
+});
+
+// DELETE /api/me/incidents/:id/items/:itemId — take an item out of the incident
+app.delete("/api/me/incidents/:id/items/:itemId", async (c) => {
+  const id = c.req.param("id");
+  return await incidentWrite(c, id, (actor) =>
+    c.env.runMutation((internal as any).incidents.removeItem, {
+      id,
+      itemId: c.req.param("itemId"),
+      actor,
+      now: Date.now(),
+    }),
+  );
+});
+
+// POST /api/me/incidents/:id/resolve — close the incident now, whatever its members
+app.post("/api/me/incidents/:id/resolve", async (c) => {
+  const id = c.req.param("id");
+  return await incidentWrite(c, id, (actor) =>
+    c.env.runMutation((internal as any).incidents.resolve, { id, actor, now: Date.now() }),
+  );
+});
+
+// POST /api/me/incidents/:id/postmortem — ask Hermes for the postmortem again
+app.post("/api/me/incidents/:id/postmortem", async (c) => {
+  const id = c.req.param("id");
+  return await incidentWrite(c, id, () =>
+    c.env.runMutation((internal as any).incidents.requestPostmortem, { id, now: Date.now() }),
+  );
+});
+
+const POSTMORTEM_REQUEST_LEASE_SECONDS = 60;
+
+// POST /api/hermes/postmortem-requests/claim — lease the oldest postmortem waiting for Hermes
+app.post("/api/hermes/postmortem-requests/claim", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = postmortemRequestClaimRequestSchema.safeParse(
+    await c.req.json().catch(() => ({})),
+  );
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const request = await c.env.runMutation((internal as any).incidents.claimRequest, {
+    workerId: parsed.data.workerId ?? "hermes-default-gateway",
+    claimToken: generateClaimToken(),
+    leaseSeconds: parsed.data.leaseSeconds ?? POSTMORTEM_REQUEST_LEASE_SECONDS,
+    now: Date.now(),
+  });
+  return c.json(
+    postmortemRequestClaimResponseSchema.parse({ ok: true, request: request ?? undefined }),
+  );
+});
+
+// POST /api/hermes/postmortem-requests/:id/delivered — Hermes has the prompt
+app.post("/api/hermes/postmortem-requests/:id/delivered", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = postmortemRequestDeliveredRequestSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  try {
+    await c.env.runMutation((internal as any).incidents.markDelivered, {
+      id: c.req.param("id"),
+      claimToken: parsed.data.claimToken,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+  return c.json(okResponseSchema.parse({ ok: true }));
+});
+
+// POST /api/hermes/incidents/:id/postmortem — Hermes's reply in the incident's chat
+app.post("/api/hermes/incidents/:id/postmortem", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = incidentPostmortemPostRequestSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  try {
+    await c.env.runMutation((internal as any).incidents.recordPostmortem, {
+      id: c.req.param("id"),
+      ...parsed.data,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+  return c.json(okResponseSchema.parse({ ok: true }));
 });
 
 // --- Hermes platform ------------------------------------------------------------------

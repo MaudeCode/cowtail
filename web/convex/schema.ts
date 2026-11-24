@@ -64,7 +64,49 @@ export default defineSchema({
     .index("by_createdAt", ["createdAt"])
     .index("by_state_expiresAt", ["state", "expiresAt"])
     .index("by_state_snoozedUntil", ["state", "snoozedUntil"])
-    .index("by_answeredAt", ["answeredAt"]),
+    .index("by_answeredAt", ["answeredAt"])
+    .index("by_incidentId", ["incidentId"])
+    .index("by_groupKey_createdAt", ["groupKey", "createdAt"]),
+
+  // Related items grouped into one incident. `groupKey` is the Alertmanager group that formed
+  // it, absent for one the owner made. `updatedAt` moves with its membership and state.
+  incidents: defineTable({
+    title: v.string(),
+    state: v.union(v.literal("open"), v.literal("resolved")),
+    groupKey: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    postmortem: v.optional(v.string()),
+    postmortemAt: v.optional(v.number()),
+    postmortemState: v.union(
+      v.literal("none"),
+      v.literal("requested"),
+      v.literal("written"),
+      v.literal("failed"),
+    ),
+  }).index("by_groupKey_state", ["groupKey", "state"]),
+
+  // A postmortem Hermes is asked to write for a resolved incident. Pending until the plugin
+  // claims it and confirms Hermes has it (`delivered`); a lease that ran out before then makes
+  // it claimable again. A scheduled timeout fails it when no postmortem arrives in time.
+  postmortemRequests: defineTable({
+    incidentId: v.id("incidents"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("delivered"),
+      v.literal("written"),
+      v.literal("failed"),
+    ),
+    availableAt: v.number(),
+    claimToken: v.optional(v.string()),
+    claimedBy: v.optional(v.string()),
+    attempts: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status_availableAt", ["status", "availableAt"])
+    .index("by_incidentId", ["incidentId"]),
 
   // Registered producers of items. A producer with a token posts as itself; only the token's
   // SHA-256 digest is stored.
@@ -80,13 +122,18 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_tokenHash", ["tokenHash"]),
 
+  // An item's timeline. An incident's own events carry `incidentId`, and `itemId` too when
+  // they concern one member.
   itemEvents: defineTable({
-    itemId: v.id("items"),
+    itemId: v.optional(v.id("items")),
+    incidentId: v.optional(v.id("incidents")),
     at: v.number(),
     type: itemEventTypeValidator,
     actor: v.string(),
     payload: v.record(v.string(), v.any()),
-  }).index("by_item_at", ["itemId", "at"]),
+  })
+    .index("by_item_at", ["itemId", "at"])
+    .index("by_incident_at", ["incidentId", "at"]),
 
   // Planned work: alerts it covers are silenced in Alertmanager, and items it covers do not
   // push. `endedAt` is set when the owner ends it before `endsAt`.

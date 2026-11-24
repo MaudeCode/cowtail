@@ -1,6 +1,8 @@
 import type {
   HealthResponse,
   HermesStatusResponse,
+  IncidentGetResponse,
+  IncidentSummary,
   ItemInboxResponse,
   ItemRecord,
   ItemStatsResponse,
@@ -34,6 +36,89 @@ export function item(overrides: Partial<ItemRecord> = {}): ItemRecord {
     createdAt: NOW - 30 * MINUTE,
     updatedAt: NOW - 10 * MINUTE,
     ...overrides,
+  };
+}
+
+export function incidentSummary(overrides: Partial<IncidentSummary> = {}): IncidentSummary {
+  return {
+    id: "incident-1",
+    title: "Storage outage",
+    state: "open",
+    memberCount: 11,
+    worstUrgency: "now",
+    startedAt: NOW - 47 * MINUTE,
+    durationMs: 47 * MINUTE,
+    ...overrides,
+  };
+}
+
+// A resolved incident of two alerts with Hermes's postmortem, as /incidents/incident-1 shows it.
+export function incidentDetail(
+  overrides: Partial<IncidentGetResponse["incident"]> = {},
+): IncidentGetResponse {
+  const summary = incidentSummary({
+    state: "resolved",
+    memberCount: 2,
+    resolvedAt: NOW - 5 * MINUTE,
+    durationMs: 42 * MINUTE,
+  });
+  return {
+    ok: true,
+    incident: {
+      ...summary,
+      createdAt: NOW - 46 * MINUTE,
+      postmortemState: "written",
+      postmortem:
+        "## Summary\nosd.4 dropped off the cluster for **47 minutes**.\n\n## Follow-ups\n- Replace the drive cable\n- Lower the OSD down-out interval",
+      postmortemAt: NOW - 2 * MINUTE,
+      availableActions: ["request_postmortem"],
+      ...overrides,
+    },
+    members: [
+      item({
+        id: "item-2",
+        title: "CephHealthErr",
+        state: "resolved",
+        outcome: "self-resolved",
+        incident: summary,
+      }),
+      item({
+        id: "item-1",
+        title: "CephOSDDown",
+        state: "resolved",
+        outcome: "fixed",
+        incident: summary,
+      }),
+    ],
+    events: [
+      {
+        id: "event-1",
+        itemId: "item-1",
+        at: NOW - 47 * MINUTE,
+        type: "created",
+        actor: "alertmanager",
+        payload: { state: "open" },
+        itemTitle: "CephOSDDown",
+      },
+      {
+        id: "event-2",
+        itemId: "item-2",
+        incidentId: "incident-1",
+        at: NOW - 46 * MINUTE,
+        type: "item_added",
+        actor: "cowtail",
+        payload: { itemTitle: "CephHealthErr", reason: "Same Alertmanager group" },
+        itemTitle: "CephHealthErr",
+      },
+      {
+        id: "event-3",
+        incidentId: "incident-1",
+        at: NOW - 2 * MINUTE,
+        type: "postmortem_written",
+        actor: "hermes",
+        payload: {},
+      },
+    ],
   };
 }
 

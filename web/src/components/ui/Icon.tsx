@@ -101,6 +101,13 @@ const paths = {
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
   ),
   stop: <rect x="6" y="6" width="12" height="12" rx="1" />,
+  layers: (
+    <>
+      <path d="m12 2 10 5-10 5L2 7z" />
+      <path d="m2 12 10 5 10-5" />
+      <path d="m2 17 10 5 10-5" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof paths;

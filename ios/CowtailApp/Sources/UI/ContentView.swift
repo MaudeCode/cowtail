@@ -72,6 +72,8 @@ struct ContentView: View {
         switch route {
         case .item, .alert:
             ItemDestinationView(route: route)
+        case .incident(let id):
+            IncidentDestinationView(id: id)
         case .roundup(let roundupRoute):
             RoundupView(roundupRoute: roundupRoute)
         }

@@ -49,7 +49,69 @@ extension CowtailAPI {
             outcome: record.outcome.flatMap { .init(rawValue: $0.rawValue) },
             resolvedAfter: record.resolvedAfterMs.map { TimeInterval($0) / 1000 },
             createdDate: record.createdDate,
-            maintenanceWindowID: record.maintenanceWindowId
+            maintenanceWindowID: record.maintenanceWindowId,
+            incident: record.incident.map(makeIncidentSummary)
+        )
+    }
+
+    static func makeIncidentSummary(_ record: Components.Schemas.IncidentSummary) -> IncidentSummary {
+        incidentSummary(
+            id: record.id, title: record.title, state: record.state.rawValue, memberCount: record.memberCount,
+            worstUrgency: record.worstUrgency?.rawValue, startedAt: record.startedAt,
+            resolvedAt: record.resolvedAt, durationMs: record.durationMs
+        )
+    }
+
+    /// The summary fields an incident record and an item's incident share.
+    private static func incidentSummary(
+        id: String,
+        title: String,
+        state: String,
+        memberCount: Int,
+        worstUrgency: String?,
+        startedAt: Int,
+        resolvedAt: Int?,
+        durationMs: Int
+    ) -> IncidentSummary {
+        IncidentSummary(
+            id: id,
+            title: title,
+            state: IncidentState(rawValue: state) ?? .open,
+            memberCount: memberCount,
+            worstUrgency: worstUrgency.flatMap(ItemUrgency.init(rawValue:)),
+            startedAt: date(startedAt),
+            resolvedAt: resolvedAt.map(date),
+            duration: TimeInterval(durationMs) / 1000
+        )
+    }
+
+    static func makeIncidentDetail(_ response: Components.Schemas.IncidentGetResponse) -> IncidentDetail {
+        let record = response.incident
+        let summary = incidentSummary(
+            id: record.id, title: record.title, state: record.state.rawValue, memberCount: record.memberCount,
+            worstUrgency: record.worstUrgency?.rawValue, startedAt: record.startedAt,
+            resolvedAt: record.resolvedAt, durationMs: record.durationMs
+        )
+        return IncidentDetail(
+            incident: Incident(
+                summary: summary,
+                postmortemState: Incident.PostmortemState(rawValue: record.postmortemState.rawValue) ?? .none,
+                postmortem: record.postmortem,
+                postmortemAt: record.postmortemAt.map(date),
+                availableActions: record.availableActions.compactMap { Incident.Action(rawValue: $0.rawValue) }
+            ),
+            members: response.members.map(makeItem),
+            events: response.events.map { event in
+                makeEvent(
+                    id: event.id,
+                    at: event.at,
+                    type: event._type.rawValue,
+                    actor: event.actor,
+                    payload: event.payload.additionalProperties,
+                    evidence: event.evidence ?? [],
+                    itemTitle: event.itemTitle
+                )
+            }
         )
     }
 
@@ -99,12 +161,32 @@ extension CowtailAPI {
     }
 
     static func makeEvent(_ record: Components.Schemas.ItemEventRecord) -> ItemEvent {
-        ItemEvent(
+        makeEvent(
             id: record.id,
-            at: date(record.at),
-            type: ItemEventType(rawValue: record._type.rawValue) ?? .notified,
+            at: record.at,
+            type: record._type.rawValue,
             actor: record.actor,
-            payload: record.payload.additionalProperties.compactMapValues { container in
+            payload: record.payload.additionalProperties,
+            evidence: record.evidence ?? []
+        )
+    }
+
+    /// An item's event and an incident's merged-timeline event share every field but the title.
+    private static func makeEvent(
+        id: String,
+        at: Int,
+        type: String,
+        actor: String,
+        payload: [String: OpenAPIValueContainer?],
+        evidence: [Components.Schemas.InvestigationEvidenceStep],
+        itemTitle: String? = nil
+    ) -> ItemEvent {
+        ItemEvent(
+            id: id,
+            at: date(at),
+            type: ItemEventType(rawValue: type) ?? .notified,
+            actor: actor,
+            payload: payload.compactMapValues { container in
                 switch container?.value {
                 case let text as String: text
                 case let flag as Bool: flag ? "true" : "false"
@@ -113,9 +195,10 @@ extension CowtailAPI {
                 default: nil
                 }
             },
-            evidence: (record.evidence ?? []).map {
+            evidence: evidence.map {
                 EvidenceStep(step: $0.step, command: $0.command, output: $0.output)
-            }
+            },
+            itemTitle: itemTitle
         )
     }
 

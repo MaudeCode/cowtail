@@ -39,6 +39,150 @@ final class CowtailStoreTests: XCTestCase {
         active: true
     )
 
+    private var storageOutage: IncidentDetail {
+        let summary = IncidentSummary(
+            id: "incident-1",
+            title: "Storage outage",
+            state: .open,
+            memberCount: 1,
+            worstUrgency: .now,
+            startedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            resolvedAt: nil,
+            duration: 600
+        )
+        var member = approval
+        member.incident = summary
+        return IncidentDetail(
+            incident: Incident(
+                summary: summary,
+                postmortemState: .none,
+                postmortem: nil,
+                postmortemAt: nil,
+                availableActions: [.resolve]
+            ),
+            members: [member],
+            events: []
+        )
+    }
+
+    func testRemovingAMemberShowsAtOnceAndARefusalPutsItBack() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let removing = Task { await store.change(.remove(itemID: approval.id), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+        // The removal shows its result, so Add an item stays as it was.
+        XCTAssertFalse(store.isAddingItem(to: "incident-1"))
+        // A poll while the change is on its way keeps it shown.
+        await store.loadIncident(id: "incident-1")
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+
+        await api.releaseIncidentChange(with: CowtailAPIError.refused("Item is not in this incident"))
+        await removing.value
+        XCTAssertEqual(store.incidents["incident-1"], storageOutage)
+        XCTAssertEqual(store.incidentErrors["incident-1"], "Item is not in this incident")
+    }
+
+    func testASecondChangeWaitsForTheFirstAndBothShowAtOnce() async {
+        var outage = storageOutage
+        var second = Item(id: "approval-2", source: "hermes", kind: .approval, urgency: .now, title: "Second", createdAt: approval.createdAt)
+        second.incident = outage.incident.summary
+        outage.members.append(second)
+        outage.incident.summary.memberCount = 2
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(outage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let first = Task { await store.change(.remove(itemID: approval.id), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        let next = Task { await store.change(.remove(itemID: "approval-2"), incidentID: "incident-1") }
+        await Task.yield()
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+        // A poll while both are on their way keeps both shown.
+        await store.loadIncident(id: "incident-1")
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+
+        await api.releaseIncidentChange(with: nil)
+        await first.value
+        await next.value
+        let sent = await api.sentIncidentChanges
+        XCTAssertEqual(sent, [.remove(itemID: approval.id), .remove(itemID: "approval-2")])
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+    }
+
+    func testALostReplyKeepsTheChangeShownUntilAReadSaysWhich() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let removing = Task { await store.change(.remove(itemID: approval.id), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        await api.failIncidentReads(true)
+        await api.releaseIncidentChange(with: URLError(.networkConnectionLost))
+        await removing.value
+        // The removal may have landed, and no read has said otherwise.
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+
+        await api.failIncidentReads(false)
+        await store.loadIncident(id: "incident-1")
+        // The server kept the member: the removal never landed.
+        XCTAssertEqual(store.incidents["incident-1"], storageOutage)
+    }
+
+    func testAReadFromBeforeAWriteSettledIsDiscarded() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        await api.holdIncidentRead()
+        let poll = Task { await store.loadIncident(id: "incident-1") }
+        await api.waitUntilIncidentReadHeld()
+        await store.change(.remove(itemID: approval.id), incidentID: "incident-1")
+        await api.releaseIncidentRead()
+        await poll.value
+
+        // The poll read the incident before the removal; it cannot bring the member back.
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+    }
+
+    func testAnAddWaitingOnTheServerShowsAddAnItemBusy() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let adding = Task { await store.change(.add(itemID: "item-2"), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        XCTAssertTrue(store.isAddingItem(to: "incident-1"))
+
+        await api.releaseIncidentChange(with: nil)
+        await adding.value
+        XCTAssertFalse(store.isAddingItem(to: "incident-1"))
+    }
+
+    func testResolvingShowsTheServersIncidentOnceItAnswers() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        await store.change(.resolve, incidentID: "incident-1")
+
+        XCTAssertEqual(store.incidents["incident-1"]?.incident.summary.state, .resolved)
+        XCTAssertEqual(store.incidents["incident-1"]?.incident.availableActions, [])
+        XCTAssertNil(store.incidentErrors["incident-1"])
+    }
+
     func testEndingAWindowTakesItsBannerAwayBeforeTheServerAnswersAndThroughAPoll() async {
         let api = FakeItemAPI(inbox: .empty)
         await api.runWindows([upgrade])
@@ -786,5 +930,99 @@ private actor FakeItemAPI: CowtailAPIClient {
 
     func fetchRunbookRun(id _: String, sessionToken _: String) async throws -> RunbookRunDetail {
         throw CowtailAPIError.requestFailed("Run not found")
+    }
+
+    // MARK: Incidents
+
+    private var incident: IncidentDetail?
+    private(set) var sentIncidentChanges: [IncidentChange] = []
+    private var failsIncidentReads = false
+    private var holdsIncidentRead = false
+    private var heldIncidentRead: CheckedContinuation<Void, Never>?
+    private var heldReadWaiters: [CheckedContinuation<Void, Never>] = []
+    private var holdsIncidentChange = false
+    private var heldIncidentChange: CheckedContinuation<Error?, Never>?
+    private var heldIncidentWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func seedIncident(_ detail: IncidentDetail) {
+        incident = detail
+    }
+
+    /// The next change waits at the server until `releaseIncidentChange`.
+    func holdIncidentChange() {
+        holdsIncidentChange = true
+    }
+
+    func waitUntilIncidentChangeHeld() async {
+        if heldIncidentChange != nil {
+            return
+        }
+        await withCheckedContinuation { heldIncidentWaiters.append($0) }
+    }
+
+    /// Answers the held change: with the error, or applied.
+    func releaseIncidentChange(with error: Error?) {
+        heldIncidentChange?.resume(returning: error)
+        heldIncidentChange = nil
+    }
+
+    func fetchIncident(id _: String, sessionToken _: String) async throws -> IncidentDetail? {
+        if failsIncidentReads {
+            throw URLError(.notConnectedToInternet)
+        }
+        let snapshot = incident
+        if holdsIncidentRead {
+            holdsIncidentRead = false
+            await withCheckedContinuation { continuation in
+                heldIncidentRead = continuation
+                heldReadWaiters.forEach { $0.resume() }
+                heldReadWaiters = []
+            }
+        }
+        return snapshot
+    }
+
+    /// The next read takes its snapshot now and answers with it once `releaseIncidentRead`.
+    func holdIncidentRead() {
+        holdsIncidentRead = true
+    }
+
+    func waitUntilIncidentReadHeld() async {
+        if heldIncidentRead != nil {
+            return
+        }
+        await withCheckedContinuation { heldReadWaiters.append($0) }
+    }
+
+    func releaseIncidentRead() {
+        heldIncidentRead?.resume()
+        heldIncidentRead = nil
+    }
+
+    /// Incident reads fail until this is set back.
+    func failIncidentReads(_ fails: Bool) {
+        failsIncidentReads = fails
+    }
+
+    func fetchIncidentCandidates(id _: String, sessionToken _: String) async throws -> [Item] {
+        []
+    }
+
+    func changeIncident(id _: String, change: IncidentChange, sessionToken _: String) async throws -> IncidentDetail {
+        sentIncidentChanges.append(change)
+        if holdsIncidentChange {
+            holdsIncidentChange = false
+            let error = await withCheckedContinuation { continuation in
+                heldIncidentChange = continuation
+                heldIncidentWaiters.forEach { $0.resume() }
+                heldIncidentWaiters = []
+            }
+            if let error {
+                throw error
+            }
+        }
+        guard let current = incident else { throw CowtailAPIError.refused("Incident not found") }
+        incident = current.showing(change)
+        return incident!
     }
 }

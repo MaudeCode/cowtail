@@ -49,7 +49,7 @@ struct ItemDestinationView: View {
     private var routeKey: String {
         switch route {
         case .item(let id), .alert(let id): id
-        case .roundup: ""
+        case .incident, .roundup: ""
         }
     }
 
@@ -57,7 +57,7 @@ struct ItemDestinationView: View {
         switch route {
         case .item(let id): id
         case .alert(let alertID): store.itemIDsByAlertID[alertID]
-        case .roundup: nil
+        case .incident, .roundup: nil
         }
     }
 
@@ -65,7 +65,7 @@ struct ItemDestinationView: View {
         switch route {
         case .item(let id): await store.loadDetail(itemID: id)
         case .alert(let alertID): await store.loadDetail(alertID: alertID)
-        case .roundup: break
+        case .incident, .roundup: break
         }
     }
 }
@@ -83,7 +83,7 @@ struct ItemDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header
-                    timeline
+                    ItemTimeline(events: detail.events)
                     ItemGraphSection(itemID: item.id)
                     details
                     fixes
@@ -127,6 +127,14 @@ struct ItemDetailView: View {
                 if item.occurrenceCount > 1 {
                     CowtailStatusBadge(title: "×\(item.occurrenceCount)")
                 }
+                if let incident = item.incident {
+                    NavigationLink(value: AppRoute.incident(incident.id)) {
+                        CowtailStatusBadge(title: incident.title, systemImage: "square.3.layers.3d")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open incident \(incident.title)")
+                    .accessibilityIdentifier("chip.item.incident")
+                }
                 ItemActionButtons(item: item, includesAlertActions: true)
             }
             .padding(.top, 4)
@@ -140,43 +148,6 @@ struct ItemDetailView: View {
             }
         }
         .padding(.top, 8)
-    }
-
-    private var timeline: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CowtailSectionHeader(title: "Timeline")
-            ForEach(detail.events) { event in
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .top, spacing: 10) {
-                        Circle()
-                            .fill(event.tint(palette))
-                            .frame(width: 7, height: 7)
-                            .padding(.top, 5)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(event.type.rawValue)
-                                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
-                                .foregroundStyle(event.tint(palette))
-                            if !event.text.isEmpty {
-                                Text(event.text)
-                                    .font(.cowtailSans(13, relativeTo: .footnote))
-                                    .foregroundStyle(palette.ink)
-                            }
-                        }
-                        Spacer(minLength: 8)
-                        Text(ItemFormat.time(event.at))
-                            .font(.cowtailMono(11, relativeTo: .caption2))
-                            .foregroundStyle(palette.mutedInk)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("event.\(event.type.rawValue)")
-                    if !event.evidence.isEmpty {
-                        evidence(event)
-                            .padding(.leading, 17)
-                    }
-                }
-                .padding(.vertical, 6)
-            }
-        }
     }
 
     @ViewBuilder
@@ -251,42 +222,6 @@ struct ItemDetailView: View {
                 .accessibilityElement(children: .combine)
             }
         }
-    }
-
-    /// The steps behind a Hermes update, collapsed: each a numbered line, then its command and
-    /// output in one monospace block.
-    private func evidence(_ event: ItemEvent) -> some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(event.evidence.enumerated()), id: \.offset) { index, step in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(step.line(index + 1))
-                            .font(.cowtailSans(12, relativeTo: .caption))
-                            .foregroundStyle(palette.mutedInk)
-                        if let block = step.block {
-                            Text(block)
-                                .font(.cowtailMono(11, relativeTo: .caption2))
-                                .foregroundStyle(palette.ink)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 7)
-                                .background(palette.surface)
-                                .overlay(alignment: .leading) {
-                                    Rectangle().fill(palette.border).frame(width: 2)
-                                }
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-            }
-            .padding(.top, 6)
-        } label: {
-            Text(event.evidenceTitle)
-                .font(.cowtailSans(12, relativeTo: .caption))
-                .foregroundStyle(palette.mutedInk)
-        }
-        .tint(palette.mutedInk)
-        .padding(.top, 4)
     }
 
     /// The mockup's last section: earlier firings of the alert, newest first.
@@ -376,5 +311,85 @@ struct FlowLayout: Layout {
             rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
         }
         return rows
+    }
+}
+
+/// An item's timeline, or an incident's merged one, whose events name the member they concern.
+struct ItemTimeline: View {
+    let events: [ItemEvent]
+
+    @Environment(\.cowtailPalette) private var palette
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CowtailSectionHeader(title: "Timeline")
+            ForEach(events) { event in
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(event.tint(palette))
+                            .frame(width: 7, height: 7)
+                            .padding(.top, 5)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(event.heading)
+                                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
+                                .foregroundStyle(event.tint(palette))
+                            if !event.text.isEmpty {
+                                Text(event.text)
+                                    .font(.cowtailSans(13, relativeTo: .footnote))
+                                    .foregroundStyle(palette.ink)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        Text(ItemFormat.time(event.at))
+                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .foregroundStyle(palette.mutedInk)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("event.\(event.type.rawValue)")
+                    if !event.evidence.isEmpty {
+                        evidence(event)
+                            .padding(.leading, 17)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+        }
+    }
+
+    /// The steps behind a Hermes update, collapsed: each a numbered line, then its command and
+    /// output in one monospace block.
+    private func evidence(_ event: ItemEvent) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(event.evidence.enumerated()), id: \.offset) { index, step in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(step.line(index + 1))
+                            .font(.cowtailSans(12, relativeTo: .caption))
+                            .foregroundStyle(palette.mutedInk)
+                        if let block = step.block {
+                            Text(block)
+                                .font(.cowtailMono(11, relativeTo: .caption2))
+                                .foregroundStyle(palette.ink)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 7)
+                                .background(palette.surface)
+                                .overlay(alignment: .leading) {
+                                    Rectangle().fill(palette.border).frame(width: 2)
+                                }
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            Text(event.evidenceTitle)
+                .font(.cowtailSans(12, relativeTo: .caption))
+                .foregroundStyle(palette.mutedInk)
+        }
+        .tint(palette.mutedInk)
+        .padding(.top, 4)
     }
 }

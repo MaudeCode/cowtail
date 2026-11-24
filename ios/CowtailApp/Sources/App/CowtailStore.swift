@@ -118,6 +118,25 @@ final class CowtailStore: ObservableObject {
 
     @Published private(set) var devices: [UserDevice] = []
 
+    @Published private(set) var incidents: [String: IncidentDetail] = [:]
+    @Published private(set) var incidentErrors: [String: String] = [:]
+    /// The change at the server for each incident; the next one waits for it to settle.
+    @Published private(set) var incidentChangesInFlight: [String: IncidentChange] = [:]
+    /// Changes sent or waiting their turn, oldest first; every read shows them still applied.
+    private var pendingIncidentChanges: [String: [PendingIncidentChange]] = [:]
+    private struct PendingIncidentChange {
+        let id = UUID()
+        let change: IncidentChange
+        /// Sent, and its reply lost: shown until a read from the server says whether it landed.
+        var unconfirmed = false
+    }
+    /// What the server last said about each incident.
+    private var confirmedIncidents: [String: IncidentDetail] = [:]
+    /// Bumped each time a write to the incident settles, so a read taken before is discarded.
+    private var incidentWriteGenerations: [String: Int] = [:]
+    /// The last change sent or queued for each incident; the next one waits for it.
+    private var incidentChangeQueues: [String: Task<Void, Never>] = [:]
+
     /// The run the Hermes tab follows once the owner started or picked one; the newest otherwise.
     @Published private(set) var selectedRunID: String?
     @Published private(set) var runDetail: RunbookRunDetail?
@@ -338,6 +357,112 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             detailErrors[alertID] = error.localizedDescription
+        }
+    }
+
+    // MARK: Incidents
+
+    func loadIncident(id: String) async {
+        guard let token = await sessionToken() else {
+            incidentErrors[id] = Self.signInMessage
+            return
+        }
+        // A read taken before a write settled is older than what the write showed.
+        let generation = incidentWriteGenerations[id, default: 0]
+        do {
+            let read = try await api.fetchIncident(id: id, sessionToken: token)
+            guard generation == incidentWriteGenerations[id, default: 0] else { return }
+            if let detail = read {
+                // The read says whether each change whose reply was lost landed.
+                pendingIncidentChanges[id]?.removeAll(where: \.unconfirmed)
+                confirm(detail, incidentID: id)
+                incidentErrors[id] = nil
+            } else {
+                incidentErrors[id] = "This incident could not be found."
+            }
+        } catch {
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
+            incidentErrors[id] = error.localizedDescription
+        }
+    }
+
+    /// Shows what the server confirmed with every change still on its way applied, so a read
+    /// cannot undo a change before the server answers it.
+    private func confirm(_ detail: IncidentDetail?, incidentID id: String) {
+        if let detail {
+            confirmedIncidents[id] = detail
+        }
+        incidents[id] = (pendingIncidentChanges[id] ?? []).reduce(confirmedIncidents[id]) { shown, pending in
+            shown?.showing(pending.change)
+        }
+    }
+
+    /// Only an add waits on the server for its result, so only Add an item shows busy.
+    func isAddingItem(to incidentID: String) -> Bool {
+        if case .add = incidentChangesInFlight[incidentID] {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// The items the server says the owner can add to the incident.
+    func incidentCandidates(id: String) async throws -> [Item] {
+        guard let token = await sessionToken() else {
+            throw CowtailAPIError.requestFailed(Self.signInMessage)
+        }
+        return try await api.fetchIncidentCandidates(id: id, sessionToken: token)
+    }
+
+    /// Every change shows at once and waits for the one before it to settle, so changes reach
+    /// the server in the order the owner made them. A refusal puts back what the server last
+    /// confirmed, with the later changes still shown. A change whose reply was lost stays shown
+    /// until a read from the server says whether it landed.
+    func change(_ change: IncidentChange, incidentID id: String) async {
+        incidentErrors[id] = nil
+        guard let token = await sessionToken() else {
+            incidentErrors[id] = Self.signInMessage
+            return
+        }
+        let pending = PendingIncidentChange(change: change)
+        pendingIncidentChanges[id, default: []].append(pending)
+        confirm(nil, incidentID: id)
+        let previous = incidentChangeQueues[id]
+        let send = Task {
+            await previous?.value
+            await self.send(pending, incidentID: id, sessionToken: token)
+        }
+        incidentChangeQueues[id] = send
+        await send.value
+    }
+
+    private func send(_ pending: PendingIncidentChange, incidentID id: String, sessionToken token: String) async {
+        incidentChangesInFlight[id] = pending.change
+        defer { incidentChangesInFlight[id] = nil }
+        // Whatever the outcome, a read that started before it is out of date.
+        let settle = {
+            self.pendingIncidentChanges[id]?.removeAll { $0.id == pending.id }
+            self.incidentWriteGenerations[id, default: 0] += 1
+        }
+        do {
+            let reply = try await api.changeIncident(id: id, change: pending.change, sessionToken: token)
+            settle()
+            confirm(reply, incidentID: id)
+            await reloadInbox(sessionToken: token)
+        } catch CowtailAPIError.refused(let message) {
+            settle()
+            confirm(nil, incidentID: id)
+            incidentErrors[id] = message
+        } catch {
+            // The change may or may not have landed: it stays shown until a read says which.
+            if let index = pendingIncidentChanges[id]?.firstIndex(where: { $0.id == pending.id }) {
+                pendingIncidentChanges[id]?[index].unconfirmed = true
+            }
+            // Only a read started from here on can say whether it landed.
+            incidentWriteGenerations[id, default: 0] += 1
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
+            incidentErrors[id] = error.localizedDescription
+            await loadIncident(id: id)
         }
     }
 

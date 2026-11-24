@@ -3,6 +3,8 @@ import {
   authProvidersResponseSchema,
   healthResponseSchema,
   hermesStatusResponseSchema,
+  incidentCandidatesResponseSchema,
+  incidentGetResponseSchema,
   itemGetResponseSchema,
   itemGraphResponseSchema,
   itemInboxResponseSchema,
@@ -16,6 +18,7 @@ import {
   runbookRunGetResponseSchema,
   runbookRunResponseSchema,
   snoozeOptionsResponseSchema,
+  type IncidentGetResponse,
   type ItemActionRequest,
   type ItemInboxResponse,
   type ItemGraphRange,
@@ -476,6 +479,192 @@ export function useItemActionError(itemId: string): unknown {
   });
   const latest = states.at(-1);
   return latest?.status === "error" ? latest.error : null;
+}
+
+// --- Incidents ------------------------------------------------------------------------------
+
+const incidentPath = (id: string) => encodeURIComponent(id);
+
+// Changes sent and not yet answered, per query client and incident, oldest first, and the
+// incident as the server last confirmed it. Every read and reply shows the changes still on
+// their way applied, so a poll cannot undo one before the server answers.
+const pendingIncidentChanges = new WeakMap<QueryClient, Map<string, IncidentChange[]>>();
+const confirmedIncidents = new WeakMap<QueryClient, Map<string, IncidentGetResponse>>();
+// Changes whose reply was lost: they stay shown until a read from the server says whether they
+// landed.
+const unconfirmedIncidentChanges = new WeakMap<QueryClient, Set<IncidentChange>>();
+
+function unconfirmedChanges(client: QueryClient) {
+  const unconfirmed = unconfirmedIncidentChanges.get(client) ?? new Set<IncidentChange>();
+  unconfirmedIncidentChanges.set(client, unconfirmed);
+  return unconfirmed;
+}
+
+// Bumped each time a write to the incident settles, so a read started before is discarded.
+const incidentWriteGenerations = new WeakMap<QueryClient, Map<string, number>>();
+
+function writeGeneration(client: QueryClient, id: string) {
+  return incidentWriteGenerations.get(client)?.get(id) ?? 0;
+}
+
+function bumpWriteGeneration(client: QueryClient, id: string) {
+  const byIncident = incidentWriteGenerations.get(client) ?? new Map<string, number>();
+  incidentWriteGenerations.set(client, byIncident.set(id, writeGeneration(client, id) + 1));
+}
+
+// A read from the server settles every change whose reply was lost.
+function settleUnconfirmed(client: QueryClient, id: string) {
+  const pending = pendingChanges(client, id);
+  const unconfirmed = unconfirmedChanges(client);
+  const kept = pending.filter((change) => !unconfirmed.delete(change));
+  pending.splice(0, pending.length, ...kept);
+}
+
+function pendingChanges(client: QueryClient, id: string) {
+  const byIncident = pendingIncidentChanges.get(client) ?? new Map<string, IncidentChange[]>();
+  pendingIncidentChanges.set(client, byIncident);
+  const pending = byIncident.get(id) ?? [];
+  byIncident.set(id, pending);
+  return pending;
+}
+
+function withPendingChanges(client: QueryClient, id: string, confirmed: IncidentGetResponse) {
+  return pendingChanges(client, id).reduce(showIncidentChange, confirmed);
+}
+
+function confirmIncident(client: QueryClient, id: string, detail: IncidentGetResponse) {
+  const byIncident = confirmedIncidents.get(client) ?? new Map<string, IncidentGetResponse>();
+  confirmedIncidents.set(client, byIncident.set(id, detail));
+  return withPendingChanges(client, id, detail);
+}
+
+// An incident's page follows its members and Hermes's postmortem.
+export const incidentQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["incident", id],
+    queryFn: async ({ client, signal }) => {
+      const generation = writeGeneration(client, id);
+      const detail = await api(`/api/incidents/${incidentPath(id)}`, incidentGetResponseSchema);
+      // A read cancelled, or started before a write settled, is older than what that write
+      // showed: it confirms nothing.
+      const confirmed = confirmedIncidents.get(client)?.get(id);
+      if (signal.aborted || generation !== writeGeneration(client, id)) {
+        return withPendingChanges(client, id, confirmed ?? detail);
+      }
+      settleUnconfirmed(client, id);
+      return confirmIncident(client, id, detail);
+    },
+    refetchInterval: LIVE_REFRESH_MS,
+  });
+
+// The items the server says can join the incident.
+export const incidentCandidatesQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["incident", id, "candidates"],
+    queryFn: async () =>
+      (await api(`/api/incidents/${incidentPath(id)}/candidates`, incidentCandidatesResponseSchema))
+        .items,
+  });
+
+export type IncidentChange =
+  | { type: "add"; itemId: string }
+  | { type: "remove"; itemId: string }
+  | { type: "resolve" }
+  | { type: "request_postmortem" };
+
+function incidentRequest(
+  id: string,
+  change: IncidentChange,
+): { path: string; method: "POST" | "DELETE"; body?: unknown } {
+  const base = `/api/me/incidents/${incidentPath(id)}`;
+  switch (change.type) {
+    case "add":
+      return { path: `${base}/items`, method: "POST", body: { itemId: change.itemId } };
+    case "remove":
+      return { path: `${base}/items/${encodeURIComponent(change.itemId)}`, method: "DELETE" };
+    case "resolve":
+      return { path: `${base}/resolve`, method: "POST" };
+    case "request_postmortem":
+      return { path: `${base}/postmortem`, method: "POST" };
+  }
+}
+
+// What the owner's own change shows before the server answers. Adding waits for the server,
+// which works out the incident's new figures.
+export function showIncidentChange(
+  detail: IncidentGetResponse,
+  change: IncidentChange,
+): IncidentGetResponse {
+  switch (change.type) {
+    case "remove": {
+      const members = detail.members.filter((member) => member.id !== change.itemId);
+      return {
+        ...detail,
+        members,
+        incident: { ...detail.incident, memberCount: members.length },
+      };
+    }
+    case "resolve":
+      return {
+        ...detail,
+        incident: { ...detail.incident, state: "resolved", availableActions: [] },
+      };
+    case "request_postmortem":
+      return {
+        ...detail,
+        incident: { ...detail.incident, postmortemState: "requested", availableActions: [] },
+      };
+    case "add":
+      return detail;
+  }
+}
+
+// The owner changes an incident. Removing, resolving and asking again show at once and stay
+// shown through rereads; a refusal puts back what the server last confirmed. A change whose
+// reply was lost stays shown until a read from the server says whether it landed.
+// Changes to one incident go one at a time, so an older reply never lands after a newer one.
+export function useIncidentChange(id: string) {
+  const client = useQueryClient();
+  const queryKey = incidentQuery(id).queryKey;
+  const settle = (change: IncidentChange) => {
+    bumpWriteGeneration(client, id);
+    const pending = pendingChanges(client, id);
+    pending.splice(pending.indexOf(change), 1);
+  };
+  return useMutation({
+    scope: { id: `incident-${id}` },
+    mutationFn: (change: IncidentChange) => {
+      const { path, method, body } = incidentRequest(id, change);
+      return api(path, incidentGetResponseSchema, { method, body });
+    },
+    onMutate: async (change) => {
+      pendingChanges(client, id).push(change);
+      await client.cancelQueries({ queryKey });
+      const shown = client.getQueryData(queryKey);
+      if (shown) client.setQueryData(queryKey, showIncidentChange(shown, change));
+    },
+    onSuccess: (reply, change) => {
+      settle(change);
+      client.setQueryData(queryKey, confirmIncident(client, id, reply));
+    },
+    onError: (error, change) => {
+      const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
+      if (!refused) {
+        // It may or may not have landed: it stays shown until a read started from here on
+        // says which.
+        unconfirmedChanges(client).add(change);
+        bumpWriteGeneration(client, id);
+        return;
+      }
+      settle(change);
+      const confirmed = confirmedIncidents.get(client)?.get(id);
+      if (confirmed) client.setQueryData(queryKey, withPendingChanges(client, id, confirmed));
+    },
+    onSettled: () =>
+      Promise.all(
+        [["incident", id], ...lists].map((key) => client.invalidateQueries({ queryKey: key })),
+      ),
+  });
 }
 
 // The owner's own settings show at once. Once the last write in flight settles, the page

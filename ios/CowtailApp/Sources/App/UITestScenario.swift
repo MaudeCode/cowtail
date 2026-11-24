@@ -6,6 +6,7 @@ struct UITestScenario {
     enum Name: String, CaseIterable, Equatable {
         case inboxPopulated = "inbox_populated"
         case inboxMaintenance = "inbox_maintenance"
+        case inboxIncidents = "inbox_incidents"
         case inboxEmpty = "inbox_empty"
         case inboxError = "inbox_error"
         case roundupPopulated = "roundup_populated"
@@ -152,6 +153,14 @@ private enum SeedFactory {
 
         case .inboxMaintenance:
             return seed(server: SeededCowtailAPI.Seed(maintenanceWindows: [CowtailPreviewFixtures.maintenanceWindow]))
+
+        case .inboxIncidents:
+            return seed(
+                server: SeededCowtailAPI.Seed(
+                    items: CowtailPreviewFixtures.items + CowtailPreviewFixtures.incidentItems,
+                    incidents: CowtailPreviewFixtures.incidents
+                )
+            )
 
         case .inboxEmpty:
             return seed(server: SeededCowtailAPI.Seed(items: []))
