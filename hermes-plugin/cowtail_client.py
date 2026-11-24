@@ -149,3 +149,12 @@ class CowtailClient:
 
     def complete_runbook_run(self, run_id: str, claim_token: str, exit_code: int) -> dict[str, Any]:
         return self._request("POST", f"/api/hermes/runbook-runs/{run_id}/complete", {"claimToken": claim_token, "exitCode": exit_code})
+
+    def claim_postmortem_request(self, lease_seconds: int = 60) -> dict[str, Any]:
+        return self._request("POST", "/api/hermes/postmortem-requests/claim", {"workerId": self.worker_id, "leaseSeconds": lease_seconds})
+
+    def postmortem_delivered(self, request_id: str, claim_token: str) -> dict[str, Any]:
+        return self._request("POST", f"/api/hermes/postmortem-requests/{request_id}/delivered", {"claimToken": claim_token})
+
+    def post_postmortem(self, incident_id: str, text: str) -> dict[str, Any]:
+        return self._request("POST", f"/api/hermes/incidents/{incident_id}/postmortem", {"text": text})

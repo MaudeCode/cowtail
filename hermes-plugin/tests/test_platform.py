@@ -32,6 +32,8 @@ class FakeHermes:
         self.approval_timeout = 300
         self.clarify_timeout = 3600
         self.kanban = {"blocked": 2, "running": 1, "done": 7}
+        # The messages the gateway received from the adapter, as Hermes's message handler sees them.
+        self.inbound: list = []
 
     def list_gateway_approvals(self, session_key):
         return [dict(entry) for entry in self.approvals.get(session_key, [])]
@@ -77,9 +79,28 @@ class FakeHermes:
             message_id: str | None = None
             error: str | None = None
 
+        class MessageType:
+            TEXT = "text"
+
+        @dataclass
+        class MessageEvent:
+            text: str
+            message_type: str = MessageType.TEXT
+            source: object = None
+            message_id: str | None = None
+
         class BasePlatformAdapter:
             def __init__(self, config, platform):
                 self.config, self.platform, self._running = config, platform, False
+
+            def build_source(self, chat_id, chat_name=None, chat_type="dm", user_id=None, user_name=None):
+                return SimpleNamespace(
+                    platform=self.platform, chat_id=chat_id, chat_name=chat_name, chat_type=chat_type,
+                    user_id=user_id, user_name=user_name,
+                )
+
+            async def handle_message(self, event):
+                hermes.inbound.append(event)
 
             def _mark_connected(self):
                 self._running = True
@@ -101,7 +122,11 @@ class FakeHermes:
             ),
             "gateway.platforms": module("gateway.platforms"),
             "gateway.platforms.base": module(
-                "gateway.platforms.base", BasePlatformAdapter=BasePlatformAdapter, SendResult=SendResult
+                "gateway.platforms.base",
+                BasePlatformAdapter=BasePlatformAdapter,
+                SendResult=SendResult,
+                MessageEvent=MessageEvent,
+                MessageType=MessageType,
             ),
             "tools": module("tools"),
             "tools.approval": module(
@@ -148,6 +173,7 @@ class FakeCowtail:
         self.refused_completions = 0
         self.runs: list[dict] = []
         self.refuse_runbook_output = False
+        self.postmortem_requests: list[dict] = []
 
     def __call__(self, method, path, body=None, query=None):
         self.requests.append((method, path, body))
@@ -167,6 +193,14 @@ class FakeCowtail:
         if method == "POST" and path.startswith("/api/hermes/runbook-runs/"):
             if self.refuse_runbook_output and path.endswith("/output"):
                 raise CowtailError("Cowtail HTTP 409: Run is not claimed with this token")
+            return {"ok": True}
+        if (method, path) == ("POST", "/api/hermes/postmortem-requests/claim"):
+            if self.postmortem_requests:
+                return {"ok": True, "request": self.postmortem_requests.pop(0)}
+            return {"ok": True}
+        if method == "POST" and path.startswith("/api/hermes/postmortem-requests/") and path.endswith("/delivered"):
+            return {"ok": True}
+        if method == "POST" and path.startswith("/api/hermes/incidents/") and path.endswith("/postmortem"):
             return {"ok": True}
         raise AssertionError(f"unexpected Cowtail request {method} {path}")
 
@@ -220,6 +254,8 @@ class RegistrationTest(PlatformTest):
         [entry] = ctx.platforms
         self.assertEqual(entry["name"], "cowtail")
         self.assertEqual(entry["cron_deliver_env_var"], "COWTAIL_HOME_CHANNEL")
+        # Its only inbound messages are the postmortem requests it claims from Cowtail.
+        self.assertTrue(entry["trusted_inbound"])
         self.assertTrue(entry["is_connected"](None))
         with patch.dict(os.environ, {"COWTAIL_PLATFORM_ENABLED": ""}):
             self.assertFalse(entry["is_connected"](None))
@@ -429,6 +465,45 @@ class AnswersTest(PlatformTest):
                 ("/api/hermes/responses/r2/fail", "token-r2", self.platform.GONE),
             ],
         )
+
+
+class PostmortemTest(PlatformTest):
+    REQUEST = {
+        "id": "pm-1",
+        "incidentId": "inc-7",
+        "chatId": "cowtail:incident:inc-7",
+        "prompt": "Write the postmortem for the Cowtail incident \"Storage outage\".",
+        "claimToken": "claim-pm-1",
+        "leaseUntil": 1_790_000_060_000,
+        "attempts": 1,
+        "createdAt": 1_790_000_000_000,
+    }
+
+    def test_a_claimed_request_reaches_hermes_in_the_incidents_chat_then_is_confirmed(self):
+        self.cowtail.postmortem_requests = [dict(self.REQUEST)]
+
+        self.run_async(self.adapter.deliver_postmortem_requests())
+
+        [event] = self.hermes.inbound
+        self.assertEqual(event.text, self.REQUEST["prompt"])
+        self.assertEqual(event.source.chat_id, "cowtail:incident:inc-7")
+        self.assertEqual(event.message_id, "cowtail-postmortem-pm-1")
+        self.assertEqual(
+            self.cowtail.posted("/api/hermes/postmortem-requests/pm-1/delivered"),
+            [{"claimToken": "claim-pm-1"}],
+        )
+
+    def test_the_agents_reply_in_an_incident_chat_is_posted_as_its_postmortem_not_an_item(self):
+        result = self.run_async(
+            self.adapter.send("cowtail:incident:inc-7", "## Summary\nosd.4 dropped off the cluster.")
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(
+            self.cowtail.posted("/api/hermes/incidents/inc-7/postmortem"),
+            [{"text": "## Summary\nosd.4 dropped off the cluster."}],
+        )
+        self.assertEqual(self.cowtail.posted("/api/items"), [])
 
 
 class HeartbeatTest(PlatformTest):
