@@ -18,6 +18,21 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /auth/session`.
     /// - Remark: Generated from `#/paths//auth/session/post(createAuthSession)`.
     func createAuthSession(_ input: Operations.CreateAuthSession.Input) async throws -> Operations.CreateAuthSession.Output
+    /// List the sign-in methods the server accepts
+    ///
+    /// - Remark: HTTP `GET /auth/providers`.
+    /// - Remark: Generated from `#/paths//auth/providers/get(getAuthProviders)`.
+    func getAuthProviders(_ input: Operations.GetAuthProviders.Input) async throws -> Operations.GetAuthProviders.Output
+    /// Redeem an OIDC hand-off code with its PKCE verifier for an app session
+    ///
+    /// - Remark: HTTP `POST /auth/oidc/handoff`.
+    /// - Remark: Generated from `#/paths//auth/oidc/handoff/post(redeemOidcHandoff)`.
+    func redeemOidcHandoff(_ input: Operations.RedeemOidcHandoff.Input) async throws -> Operations.RedeemOidcHandoff.Output
+    /// Revoke the current app session
+    ///
+    /// - Remark: HTTP `POST /auth/logout`.
+    /// - Remark: Generated from `#/paths//auth/logout/post(logout)`.
+    func logout(_ input: Operations.Logout.Input) async throws -> Operations.Logout.Output
     /// Register or refresh an iOS push device token
     ///
     /// - Remark: HTTP `POST /push/register`.
@@ -79,6 +94,33 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// List the sign-in methods the server accepts
+    ///
+    /// - Remark: HTTP `GET /auth/providers`.
+    /// - Remark: Generated from `#/paths//auth/providers/get(getAuthProviders)`.
+    internal func getAuthProviders(headers: Operations.GetAuthProviders.Input.Headers = .init()) async throws -> Operations.GetAuthProviders.Output {
+        try await getAuthProviders(Operations.GetAuthProviders.Input(headers: headers))
+    }
+    /// Redeem an OIDC hand-off code with its PKCE verifier for an app session
+    ///
+    /// - Remark: HTTP `POST /auth/oidc/handoff`.
+    /// - Remark: Generated from `#/paths//auth/oidc/handoff/post(redeemOidcHandoff)`.
+    internal func redeemOidcHandoff(
+        headers: Operations.RedeemOidcHandoff.Input.Headers = .init(),
+        body: Operations.RedeemOidcHandoff.Input.Body
+    ) async throws -> Operations.RedeemOidcHandoff.Output {
+        try await redeemOidcHandoff(Operations.RedeemOidcHandoff.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Revoke the current app session
+    ///
+    /// - Remark: HTTP `POST /auth/logout`.
+    /// - Remark: Generated from `#/paths//auth/logout/post(logout)`.
+    internal func logout(headers: Operations.Logout.Input.Headers = .init()) async throws -> Operations.Logout.Output {
+        try await logout(Operations.Logout.Input(headers: headers))
     }
     /// Register or refresh an iOS push device token
     ///

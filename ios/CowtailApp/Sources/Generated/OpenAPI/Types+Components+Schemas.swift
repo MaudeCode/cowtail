@@ -932,6 +932,157 @@ extension Components {
                 case identityToken
             }
         }
+        /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse`.
+        internal struct AuthProvidersResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/apple`.
+            internal var apple: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/oidc`.
+            internal struct OidcPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/oidc/name`.
+                internal var name: Swift.String
+                /// Creates a new `OidcPayload`.
+                ///
+                /// - Parameters:
+                ///   - name:
+                internal init(name: Swift.String) {
+                    self.name = name
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case name
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/oidc`.
+            internal var oidc: Components.Schemas.AuthProvidersResponse.OidcPayload?
+            /// Creates a new `AuthProvidersResponse`.
+            ///
+            /// - Parameters:
+            ///   - apple:
+            ///   - oidc:
+            internal init(
+                apple: Swift.Bool,
+                oidc: Components.Schemas.AuthProvidersResponse.OidcPayload? = nil
+            ) {
+                self.apple = apple
+                self.oidc = oidc
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case apple
+                case oidc
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse`.
+        internal struct AuthOidcHandoffResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session`.
+            internal struct SessionPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session/token`.
+                internal var token: Swift.String
+                /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session/userId`.
+                internal var userId: Swift.String
+                /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session/expiresAt`.
+                internal var expiresAt: Swift.Int
+                /// Creates a new `SessionPayload`.
+                ///
+                /// - Parameters:
+                ///   - token:
+                ///   - userId:
+                ///   - expiresAt:
+                internal init(
+                    token: Swift.String,
+                    userId: Swift.String,
+                    expiresAt: Swift.Int
+                ) {
+                    self.token = token
+                    self.userId = userId
+                    self.expiresAt = expiresAt
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case token
+                    case userId
+                    case expiresAt
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session`.
+            internal var session: Components.Schemas.AuthOidcHandoffResponse.SessionPayload
+            /// Creates a new `AuthOidcHandoffResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - session:
+            internal init(
+                ok: Swift.Bool,
+                session: Components.Schemas.AuthOidcHandoffResponse.SessionPayload
+            ) {
+                self.ok = ok
+                self.session = session
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case session
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ErrorResponse`.
+        internal struct ErrorResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ErrorResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/ErrorResponse/error`.
+            internal var error: Swift.String
+            /// Creates a new `ErrorResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - error:
+            internal init(
+                ok: Swift.Bool,
+                error: Swift.String
+            ) {
+                self.ok = ok
+                self.error = error
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case error
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffRequest`.
+        internal struct AuthOidcHandoffRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffRequest/code`.
+            internal var code: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffRequest/verifier`.
+            internal var verifier: Swift.String
+            /// Creates a new `AuthOidcHandoffRequest`.
+            ///
+            /// - Parameters:
+            ///   - code:
+            ///   - verifier:
+            internal init(
+                code: Swift.String,
+                verifier: Swift.String
+            ) {
+                self.code = code
+                self.verifier = verifier
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case code
+                case verifier
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AuthLogoutResponse`.
+        internal struct AuthLogoutResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AuthLogoutResponse/ok`.
+            internal var ok: Swift.Bool
+            /// Creates a new `AuthLogoutResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            internal init(ok: Swift.Bool) {
+                self.ok = ok
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/PushRegisterResponse`.
         internal struct PushRegisterResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PushRegisterResponse/ok`.
@@ -1471,29 +1622,6 @@ extension Components {
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case alert
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ErrorResponse`.
-        internal struct ErrorResponse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ErrorResponse/ok`.
-            internal var ok: Swift.Bool
-            /// - Remark: Generated from `#/components/schemas/ErrorResponse/error`.
-            internal var error: Swift.String
-            /// Creates a new `ErrorResponse`.
-            ///
-            /// - Parameters:
-            ///   - ok:
-            ///   - error:
-            internal init(
-                ok: Swift.Bool,
-                error: Swift.String
-            ) {
-                self.ok = ok
-                self.error = error
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case ok
-                case error
             }
         }
         /// - Remark: Generated from `#/components/schemas/AlertHumanActionRequest`.

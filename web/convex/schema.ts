@@ -200,6 +200,22 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_expiresAt", ["expiresAt"]),
 
+  // One OIDC sign-in in flight. The state, PKCE verifier and nonce live only until the
+  // callback consumes the row; an iOS login then holds a 60-second hand-off code hash.
+  oidcLogins: defineTable({
+    stateHash: v.string(),
+    codeVerifier: v.string(),
+    nonce: v.string(),
+    client: v.union(v.literal("web"), v.literal("ios")),
+    handoffChallenge: v.optional(v.string()),
+    handoffCodeHash: v.optional(v.string()),
+    expiresAt: v.number(),
+    consumedAt: v.optional(v.number()),
+  })
+    .index("by_stateHash", ["stateHash"])
+    .index("by_handoffCodeHash", ["handoffCodeHash"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   fixes: defineTable({
     timestamp: v.number(),
     alertIds: v.array(v.id("alerts")),
