@@ -359,7 +359,8 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             return ItemDetail(
                 item: Self.makeItem(detail.item),
                 events: detail.events.map(Self.makeEvent),
-                fixes: (detail.fixes ?? []).map(Self.makeAlertFix)
+                fixes: (detail.fixes ?? []).map(Self.makeAlertFix),
+                priorOccurrences: (detail.priorOccurrences ?? []).map(Self.makePriorOccurrence)
             )
         case .notFound:
             return nil

@@ -29,6 +29,7 @@ import {
   hermesStatusCronJobSchema,
   hermesStatusIncidentSchema,
   hermesStatusResponseSchema,
+  investigationEvidenceStepSchema,
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemActionSchema,
@@ -50,6 +51,7 @@ import {
   pushRegisterResponseSchema,
   pushUnregisterRequestSchema,
   pushUnregisterResponseSchema,
+  priorOccurrenceSchema,
   userDevicesResponseSchema,
 } from "../src/index.ts";
 
@@ -58,6 +60,10 @@ const registry = new OpenAPIRegistry();
 zodToOpenAPIRegistry.add(itemRecordSchema, { _internal: { refId: "ItemRecord" } });
 zodToOpenAPIRegistry.add(itemActionSchema, { _internal: { refId: "ItemAction" } });
 zodToOpenAPIRegistry.add(itemEventRecordSchema, { _internal: { refId: "ItemEventRecord" } });
+zodToOpenAPIRegistry.add(investigationEvidenceStepSchema, {
+  _internal: { refId: "InvestigationEvidenceStep" },
+});
+zodToOpenAPIRegistry.add(priorOccurrenceSchema, { _internal: { refId: "PriorOccurrence" } });
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 

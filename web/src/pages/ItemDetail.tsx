@@ -3,17 +3,70 @@ import { useParams } from "react-router-dom";
 
 import ItemActions from "../components/items/ItemActions";
 import SourceIcon from "../components/items/SourceIcon";
-import { Badge, Icon, KeyValue, QueryError, Section } from "../components/ui";
-import { formatClock } from "../lib/format";
-import { eventText, eventTone, stateTone, toneFill, urgencyTone } from "../lib/itemPresentation";
+import type { ItemEventRecord, PriorOccurrence } from "@maudecode/cowtail-protocol";
+
+import { Badge, DataTable, Icon, KeyValue, QueryError, Section } from "../components/ui";
+import { formatClock, formatShortDate } from "../lib/format";
+import {
+  eventText,
+  eventTone,
+  outcomeTone,
+  stateTone,
+  toneFill,
+  urgencyTone,
+} from "../lib/itemPresentation";
 import { itemQuery } from "../lib/queries";
+
+// The steps behind a Hermes update, collapsed: each a numbered line, then its command and
+// output in one monospace block.
+function Evidence({ steps }: { steps: NonNullable<ItemEventRecord["evidence"]> }) {
+  return (
+    <details className="mt-1.5">
+      <summary className="cursor-pointer text-[0.7rem] text-gray-600">
+        {`Evidence · ${steps.length} ${steps.length === 1 ? "step" : "steps"}`}
+      </summary>
+      {steps.map((step, index) => {
+        const block = [step.command && `$ ${step.command}`, step.output].filter(Boolean);
+        return (
+          <div key={index}>
+            <div className="mt-1.5 text-[0.7rem] text-gray-600">{`${index + 1} · ${step.step}`}</div>
+            {block.length > 0 && (
+              <pre className="mt-1 border-l-2 border-gray-200 bg-surface px-2 py-1.5 font-mono text-[0.68rem] leading-[1.45] whitespace-pre-wrap text-[#c9c9cf] [overflow-wrap:anywhere]">
+                {block.join("\n")}
+              </pre>
+            )}
+          </div>
+        );
+      })}
+    </details>
+  );
+}
+
+// One earlier firing, as the server chose to show it: when, how it ended, why, and the
+// commit that fixed it.
+function PriorOccurrenceRow({ prior }: { prior: PriorOccurrence }) {
+  return (
+    <tr>
+      <td className="whitespace-nowrap font-mono text-gray-600">
+        {formatShortDate(prior.firedAt)}
+      </td>
+      <td>
+        <Badge tone={outcomeTone[prior.outcome]}>{prior.outcome}</Badge>
+      </td>
+      <td>{prior.cause}</td>
+      <td className="whitespace-nowrap text-right font-mono text-gray-600">
+        {prior.fixCommit?.slice(0, 7) ?? "–"}
+      </td>
+    </tr>
+  );
+}
 
 export default function ItemDetail() {
   const { id = "" } = useParams();
   const { data, error } = useQuery(itemQuery(id));
   if (error) return <QueryError error={error} />;
   if (!data) return null;
-  const { item, events, fixes = [] } = data;
+  const { item, events, fixes = [], priorOccurrences = [] } = data;
   const context = (item.contextOrder ?? Object.keys(item.context)).flatMap((key) =>
     item.context[key] === undefined ? [] : [[key, item.context[key]] as const],
   );
@@ -59,6 +112,7 @@ export default function ItemDetail() {
                 <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                   {eventText(event)}
                 </div>
+                {event.evidence && event.evidence.length > 0 && <Evidence steps={event.evidence} />}
               </li>
             ))}
           </ol>
@@ -101,6 +155,15 @@ export default function ItemDetail() {
                   <span className="font-mono">{fix.commit?.slice(0, 7) ?? fix.scope}</span>
                 </KeyValue>
               ))}
+            </Section>
+          )}
+          {priorOccurrences.length > 0 && (
+            <Section label="Past occurrences">
+              <DataTable>
+                {priorOccurrences.map((prior) => (
+                  <PriorOccurrenceRow key={prior.alertId} prior={prior} />
+                ))}
+              </DataTable>
             </Section>
           )}
         </div>

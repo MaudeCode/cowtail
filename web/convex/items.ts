@@ -1,5 +1,6 @@
 import {
   itemInboxHandledWindowMs,
+  type InvestigationEvidenceStep,
   type ItemEventType,
   type ItemKind,
   type ItemState,
@@ -32,6 +33,7 @@ import {
   itemUrgencyValidator,
 } from "./itemValidators";
 import { fixesForAlert } from "./fixes";
+import { findPriorOccurrences } from "./priorOccurrences";
 import { effectivePreferences, preferencesRow } from "./notificationPreferences";
 import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
@@ -328,6 +330,20 @@ export async function recordAlertDispatch(
   await appendItemEvent(ctx, item._id, "dispatched", "cowtail", now, {
     investigationJobId: String(jobId),
   });
+}
+
+// What Hermes found when it finished the alert's investigation, with the steps it recorded.
+export async function recordAlertHermesUpdate(
+  ctx: MutationCtx,
+  alertId: Id<"alerts">,
+  now: number,
+  { text, evidence }: { text: string; evidence?: InvestigationEvidenceStep[] },
+) {
+  const item = await itemForAlert(ctx, alertId);
+  if (!item) return;
+  const payload = evidence?.length ? { text, evidence } : { text };
+  await appendItemEvent(ctx, item._id, "hermes_update", "hermes", now, payload);
+  await patchItemContent(ctx, item._id, { updatedAt: now });
 }
 
 export async function deleteItemsForAlert(ctx: MutationCtx, alertId: Id<"alerts">) {
@@ -850,14 +866,22 @@ export const get = internalQuery({
       .withIndex("by_item_at", (q) => q.eq("itemId", item._id))
       .collect();
     const fixes = item.alertId ? await fixesForAlert(ctx, item.alertId) : [];
+    const alert = item.alertId ? await ctx.db.get(item.alertId) : null;
     return {
       item: await itemRecord(ctx, item),
-      events: events.map(({ _id, _creationTime, itemId, ...event }) => ({
-        ...event,
-        id: String(_id),
-        itemId: String(itemId),
-      })),
+      // A finished investigation's evidence ships as the event's own field.
+      events: events.map(({ _id, _creationTime, itemId, payload, ...event }) => {
+        const { evidence, ...rest } = payload;
+        return {
+          ...event,
+          id: String(_id),
+          itemId: String(itemId),
+          payload: rest,
+          evidence,
+        };
+      }),
       fixes,
+      priorOccurrences: alert ? await findPriorOccurrences(ctx, alert) : undefined,
     };
   },
 });

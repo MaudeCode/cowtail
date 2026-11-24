@@ -4,6 +4,7 @@ import {
   alertCreateRequestSchema,
   alertHumanActionRequestSchema,
   alertRecordSchema,
+  investigationEvidenceSchema,
 } from "./alerts.ts";
 
 describe("alert protocol schemas", () => {
@@ -142,5 +143,23 @@ describe("alert protocol schemas", () => {
     expect(alert.investigation?.status).toBe("deadletter");
     expect("claimToken" in (alert.investigation ?? {})).toBe(false);
     expect("claimedBy" in (alert.investigation ?? {})).toBe(false);
+  });
+});
+
+describe("investigation evidence", () => {
+  const step = (index: number) => ({ step: `Step ${index}` });
+
+  test("takes at most 20 steps", () => {
+    const steps = Array.from({ length: 21 }, (_, index) => step(index + 1));
+    expect(investigationEvidenceSchema.safeParse(steps.slice(0, 20)).success).toBe(true);
+    expect(investigationEvidenceSchema.safeParse(steps).success).toBe(false);
+  });
+
+  test("needs each step's line; the command, output and time are optional", () => {
+    const full = { step: "Read logs", command: "kubectl logs pod", output: "OOMKilled", at: 1 };
+    expect(investigationEvidenceSchema.parse([step(1), full])).toEqual([step(1), full]);
+    expect(investigationEvidenceSchema.safeParse([{ command: "kubectl get pods" }]).success).toBe(
+      false,
+    );
   });
 });

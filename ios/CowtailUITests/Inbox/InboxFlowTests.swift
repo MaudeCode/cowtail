@@ -110,7 +110,15 @@ final class InboxFlowTests: XCTestCase {
         for type in types {
             XCTAssertTrue(app.element("event.\(type)").waitForExistence(timeout: 10), type)
         }
-        app.assertSections(["Timeline", "Details", "Fix"])
+        app.assertSections(["Timeline", "Details", "Fix", "Past occurrences"])
+        XCTAssertTrue(app.element("row.prior-occurrence.alert-replicas-prior-1").exists)
+
+        // Hermes's evidence starts collapsed and opens to its numbered steps.
+        let evidence = app.buttons["Evidence · 2 steps"]
+        XCTAssertTrue(evidence.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["1 · Read the replica's last termination state"].exists)
+        evidence.tap()
+        XCTAssertTrue(app.staticTexts["1 · Read the replica's last termination state"].waitForExistence(timeout: 10))
     }
 
     func testAnAlertLinkOpensThatAlertsItem() {
