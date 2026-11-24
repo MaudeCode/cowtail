@@ -1,11 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 
 import ItemActions from "../components/items/ItemActions";
 import SourceIcon from "../components/items/SourceIcon";
-import type { ItemEventRecord, PriorOccurrence } from "@maudecode/cowtail-protocol";
+import {
+  itemGraphRanges,
+  type ItemEventRecord,
+  type ItemGraphRange,
+  type PriorOccurrence,
+} from "@maudecode/cowtail-protocol";
 
-import { Badge, DataTable, Icon, KeyValue, QueryError, Section } from "../components/ui";
+import {
+  Badge,
+  DataTable,
+  Icon,
+  KeyValue,
+  MetricGraph,
+  QueryError,
+  Section,
+} from "../components/ui";
 import { formatClock, formatShortDate } from "../lib/format";
 import {
   eventText,
@@ -15,7 +29,7 @@ import {
   toneFill,
   urgencyTone,
 } from "../lib/itemPresentation";
-import { itemQuery } from "../lib/queries";
+import { itemGraphQuery, itemQuery } from "../lib/queries";
 
 // The steps behind a Hermes update, collapsed: each a numbered line, then its command and
 // output in one monospace block.
@@ -58,6 +72,42 @@ function PriorOccurrenceRow({ prior }: { prior: PriorOccurrence }) {
         {prior.fixCommit?.slice(0, 7) ?? "–"}
       </td>
     </tr>
+  );
+}
+
+// The alert's own metric, labelled with the expression drawn. Hidden when the server has no
+// graph for the item, or cannot be reached for one.
+function MetricGraphSection({ id }: { id: string }) {
+  const [range, setRange] = useState<ItemGraphRange>("6h");
+  const { data } = useQuery({ ...itemGraphQuery(id, range), placeholderData: (last) => last });
+  if (!data?.available) return null;
+  return (
+    <Section
+      label={<span className="break-all">{data.query}</span>}
+      detail={
+        <fieldset className="-my-1 flex overflow-hidden rounded-lg border border-gray-200 normal-case tracking-normal">
+          <legend className="sr-only">Range</legend>
+          {itemGraphRanges.map((option) => (
+            <label
+              key={option}
+              className="w-10 cursor-pointer py-0.5 text-center text-[0.68rem] text-gray-600 has-checked:bg-surface-2 has-checked:font-semibold has-checked:text-txt has-focus-visible:outline"
+            >
+              <input
+                type="radio"
+                name="graph-range"
+                value={option}
+                checked={option === range}
+                onChange={() => setRange(option)}
+                className="sr-only"
+              />
+              {option}
+            </label>
+          ))}
+        </fieldset>
+      }
+    >
+      <MetricGraph graph={data} />
+    </Section>
   );
 }
 
@@ -118,6 +168,7 @@ export default function ItemDetail() {
           </ol>
         </Section>
         <div>
+          <MetricGraphSection id={item.id} />
           <Section label="Details">
             {item.body && (
               <p className="my-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{item.body}</p>

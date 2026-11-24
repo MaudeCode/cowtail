@@ -84,6 +84,7 @@ struct ItemDetailView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     header
                     timeline
+                    ItemGraphSection(itemID: item.id)
                     details
                     fixes
                     priorOccurrences

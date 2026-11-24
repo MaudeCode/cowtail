@@ -405,6 +405,60 @@ export const itemStatsResponseSchema = z.object({
   ),
 });
 
+// An alert item's metric graph: the alert's own Prometheus expression over a range ending now,
+// or at the end of its firing when it resolved earlier.
+export const itemGraphRanges = ["1h", "6h", "24h"] as const;
+export const itemGraphRangeSchema = z.enum(itemGraphRanges);
+export const itemGraphRangeMs = {
+  "1h": 60 * 60 * 1000,
+  "6h": 6 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+} as const satisfies Record<(typeof itemGraphRanges)[number], number>;
+export const itemGraphMaxSeries = 10;
+export const itemGraphMaxPoints = 120;
+
+export const itemGraphQuerySchema = z.object({
+  range: itemGraphRangeSchema.default("6h"),
+});
+
+export const itemGraphThresholdOps = [">", ">=", "<", "<=", "==", "!="] as const;
+
+// `available: false` carries only the reason; the clients hide the graph. Otherwise `query` is
+// the expression drawn: the alert's own, or its left side when it ends in a numeric comparison,
+// which `threshold` then holds.
+export const itemGraphResponseSchema = z.object({
+  ok: z.literal(true),
+  available: z.boolean(),
+  reason: z.string().optional(),
+  range: itemGraphRangeSchema,
+  query: z.string().optional(),
+  from: timestampSchema.optional(),
+  to: timestampSchema.optional(),
+  threshold: z
+    .object({
+      op: z.enum(itemGraphThresholdOps),
+      value: z.number(),
+    })
+    .optional(),
+  firing: z
+    .object({
+      startsAt: timestampSchema,
+      endsAt: timestampSchema.optional(),
+    })
+    .optional(),
+  series: z
+    .array(
+      z.object({
+        labels: z.record(z.string(), z.string()),
+        points: z
+          .array(z.object({ at: timestampSchema, value: z.number() }))
+          .max(itemGraphMaxPoints),
+      }),
+    )
+    .max(itemGraphMaxSeries)
+    .optional(),
+});
+
 export type ItemKind = z.infer<typeof itemKindSchema>;
 export type ItemUrgency = z.infer<typeof itemUrgencySchema>;
 export type ItemState = z.infer<typeof itemStateSchema>;
@@ -431,3 +485,5 @@ export type ItemStatsQuery = z.infer<typeof itemStatsQuerySchema>;
 export type ItemStatsResponse = z.infer<typeof itemStatsResponseSchema>;
 export type SnoozePreset = (typeof snoozePresets)[number];
 export type SnoozeOptionsResponse = z.infer<typeof snoozeOptionsResponseSchema>;
+export type ItemGraphRange = z.infer<typeof itemGraphRangeSchema>;
+export type ItemGraphResponse = z.infer<typeof itemGraphResponseSchema>;

@@ -2927,6 +2927,206 @@ extension Components {
                 case fixes
             }
         }
+        /// - Remark: Generated from `#/components/schemas/ItemGraphResponse`.
+        internal struct ItemGraphResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/available`.
+            internal var available: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/reason`.
+            internal var reason: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/range`.
+            internal enum RangePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case _1h = "1h"
+                case _6h = "6h"
+                case _24h = "24h"
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/range`.
+            internal var range: Components.Schemas.ItemGraphResponse.RangePayload
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/query`.
+            internal var query: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/from`.
+            internal var from: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/to`.
+            internal var to: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/threshold`.
+            internal struct ThresholdPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/threshold/op`.
+                internal enum OpPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case _gt_ = ">"
+                    case _gt__equals_ = ">="
+                    case _lt_ = "<"
+                    case _lt__equals_ = "<="
+                    case _equals__equals_ = "=="
+                    case _excl__equals_ = "!="
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/threshold/op`.
+                internal var op: Components.Schemas.ItemGraphResponse.ThresholdPayload.OpPayload
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/threshold/value`.
+                internal var value: Swift.Double
+                /// Creates a new `ThresholdPayload`.
+                ///
+                /// - Parameters:
+                ///   - op:
+                ///   - value:
+                internal init(
+                    op: Components.Schemas.ItemGraphResponse.ThresholdPayload.OpPayload,
+                    value: Swift.Double
+                ) {
+                    self.op = op
+                    self.value = value
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case op
+                    case value
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/threshold`.
+            internal var threshold: Components.Schemas.ItemGraphResponse.ThresholdPayload?
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/firing`.
+            internal struct FiringPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/firing/startsAt`.
+                internal var startsAt: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/firing/endsAt`.
+                internal var endsAt: Swift.Int?
+                /// Creates a new `FiringPayload`.
+                ///
+                /// - Parameters:
+                ///   - startsAt:
+                ///   - endsAt:
+                internal init(
+                    startsAt: Swift.Int,
+                    endsAt: Swift.Int? = nil
+                ) {
+                    self.startsAt = startsAt
+                    self.endsAt = endsAt
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case startsAt
+                    case endsAt
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/firing`.
+            internal var firing: Components.Schemas.ItemGraphResponse.FiringPayload?
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload`.
+            internal struct SeriesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload/labels`.
+                internal struct LabelsPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    internal var additionalProperties: [String: Swift.String]
+                    /// Creates a new `LabelsPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    internal init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    internal init(from decoder: any Swift.Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    internal func encode(to encoder: any Swift.Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload/labels`.
+                internal var labels: Components.Schemas.ItemGraphResponse.SeriesPayloadPayload.LabelsPayload
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload/PointsPayload`.
+                internal struct PointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload/PointsPayload/at`.
+                    internal var at: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload/PointsPayload/value`.
+                    internal var value: Swift.Double
+                    /// Creates a new `PointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - value:
+                    internal init(
+                        at: Swift.Int,
+                        value: Swift.Double
+                    ) {
+                        self.at = at
+                        self.value = value
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case at
+                        case value
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload/points`.
+                internal typealias PointsPayload = [Components.Schemas.ItemGraphResponse.SeriesPayloadPayload.PointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/SeriesPayload/points`.
+                internal var points: Components.Schemas.ItemGraphResponse.SeriesPayloadPayload.PointsPayload
+                /// Creates a new `SeriesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - labels:
+                ///   - points:
+                internal init(
+                    labels: Components.Schemas.ItemGraphResponse.SeriesPayloadPayload.LabelsPayload,
+                    points: Components.Schemas.ItemGraphResponse.SeriesPayloadPayload.PointsPayload
+                ) {
+                    self.labels = labels
+                    self.points = points
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case labels
+                    case points
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/series`.
+            internal typealias SeriesPayload = [Components.Schemas.ItemGraphResponse.SeriesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/ItemGraphResponse/series`.
+            internal var series: Components.Schemas.ItemGraphResponse.SeriesPayload?
+            /// Creates a new `ItemGraphResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - available:
+            ///   - reason:
+            ///   - range:
+            ///   - query:
+            ///   - from:
+            ///   - to:
+            ///   - threshold:
+            ///   - firing:
+            ///   - series:
+            internal init(
+                ok: Swift.Bool,
+                available: Swift.Bool,
+                reason: Swift.String? = nil,
+                range: Components.Schemas.ItemGraphResponse.RangePayload,
+                query: Swift.String? = nil,
+                from: Swift.Int? = nil,
+                to: Swift.Int? = nil,
+                threshold: Components.Schemas.ItemGraphResponse.ThresholdPayload? = nil,
+                firing: Components.Schemas.ItemGraphResponse.FiringPayload? = nil,
+                series: Components.Schemas.ItemGraphResponse.SeriesPayload? = nil
+            ) {
+                self.ok = ok
+                self.available = available
+                self.reason = reason
+                self.range = range
+                self.query = query
+                self.from = from
+                self.to = to
+                self.threshold = threshold
+                self.firing = firing
+                self.series = series
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case available
+                case reason
+                case range
+                case query
+                case from
+                case to
+                case threshold
+                case firing
+                case series
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HermesStatusResponse`.
         internal struct HermesStatusResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/ok`.
