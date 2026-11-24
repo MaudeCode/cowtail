@@ -58,11 +58,20 @@ function QuietHoursFields({
   );
 }
 
+// The server's order, then any key the owner just added and the server has not listed yet.
+function shownOrder(overrides: NotificationPreferences["urgencyOverrides"], order: string[]) {
+  const listed = order.filter((name) => name in overrides);
+  const added = Object.keys(overrides).filter((name) => !order.includes(name));
+  return [...listed, ...added].map((name) => [name, overrides[name]] as const);
+}
+
 function Overrides({
   overrides,
+  order,
   save,
 }: {
   overrides: NotificationPreferences["urgencyOverrides"];
+  order: string[];
   save: (overrides: NotificationPreferences["urgencyOverrides"]) => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -104,7 +113,7 @@ function Overrides({
           </tr>
         </thead>
         <tbody>
-          {Object.entries(overrides).map(([name, value]) => (
+          {shownOrder(overrides, order).map(([name, value]) => (
             <tr key={name}>
               <td className="font-mono">{name}</td>
               <td>
@@ -150,11 +159,12 @@ function Overrides({
 }
 
 export default function Settings() {
-  const { data: preferences } = useQuery(sessionQuery);
+  const { data: session } = useQuery(sessionQuery);
   const update = usePreferencesUpdate();
   const signOut = useSignOut();
   const providers = useQuery(providersQuery);
-  if (!preferences) return null;
+  if (!session) return null;
+  const { preferences } = session;
   const hours = preferences.quietHours;
 
   return (
@@ -232,6 +242,7 @@ export default function Settings() {
       <div>
         <Overrides
           overrides={preferences.urgencyOverrides}
+          order={session.urgencyOverrideOrder}
           save={(urgencyOverrides) => update.mutate({ urgencyOverrides })}
         />
       </div>

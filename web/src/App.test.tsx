@@ -26,6 +26,9 @@ function renderApp(route: string) {
 const sectionLabels = () =>
   screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.firstChild?.textContent);
 
+const sessionReads = (calls: { method: string; path: string }[]) =>
+  calls.filter((call) => `${call.method} ${call.path}` === SESSION).length;
+
 const signedOut = { [SESSION]: { status: 401, body: { ok: false, error: "Unauthorized" } } };
 
 describe("signed out", () => {
@@ -370,13 +373,81 @@ test("two refused settings in flight together both return to the server's value"
   await userEvent.click(roundup);
   await userEvent.click(faceId);
   await waitFor(() => expect(calls.filter((call) => call.method === "PUT")).toHaveLength(2));
+  const reads = sessionReads(calls);
   for (const refuse of refusals) refuse({ status: 400, body: { ok: false, error: "Refused" } });
 
+  await waitFor(() => expect(sessionReads(calls)).toBeGreaterThan(reads));
   await waitFor(() =>
     expect([roundup, faceId].map((control) => control.getAttribute("aria-checked"))).toEqual([
       String(preferences.dailyRoundupEnabled),
       String(preferences.requireAuthForApprovals),
     ]),
+  );
+});
+
+test("two saved settings whose replies arrive out of order show what the server stored", async () => {
+  // The server stores each write as it arrives; the replies come back newest first.
+  const replies: (() => void)[] = [];
+  let writes = 0;
+  const stored = () => ({
+    ...preferences,
+    dailyRoundupEnabled: writes < 1,
+    requireAuthForApprovals: writes < 2,
+  });
+  const { calls } = stubApi({
+    ...signedIn(),
+    get [SESSION]() {
+      return { ok: true, preferences: stored() };
+    },
+    get "PUT /actions/api/me/notification-preferences"() {
+      writes += 1;
+      const atWrite = stored();
+      return new Promise((resolve) => {
+        replies.push(() => resolve({ ok: true, preferences: atWrite }));
+      });
+    },
+  });
+  renderApp("/settings");
+  const roundup = await screen.findByRole("switch", { name: "Daily roundup" });
+  const faceId = screen.getByRole("switch", { name: "Require Face ID for approvals" });
+
+  await userEvent.click(roundup);
+  await userEvent.click(faceId);
+  await waitFor(() => expect(calls.filter((call) => call.method === "PUT")).toHaveLength(2));
+  const reads = sessionReads(calls);
+  for (const reply of [...replies].reverse()) reply();
+
+  // The end state is what the page shows once it has reread the server.
+  await waitFor(() => expect(sessionReads(calls)).toBeGreaterThan(reads));
+  await waitFor(() =>
+    expect([roundup, faceId].map((control) => control.getAttribute("aria-checked"))).toEqual([
+      "false",
+      "false",
+    ]),
+  );
+});
+
+test("urgency overrides list in the server's order", async () => {
+  stubApi(
+    signedIn({
+      [SESSION]: {
+        ok: true,
+        preferences: { ...preferences, urgencyOverrides: { "2": "now", "10": "whenever" } },
+        urgencyOverrideOrder: ["10", "2"],
+      },
+    }),
+  );
+
+  renderApp("/settings");
+
+  const table = (await screen.findByRole("columnheader", { name: "Urgency" })).closest("table")!;
+  await waitFor(() =>
+    expect(
+      within(table)
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.firstChild?.textContent),
+    ).toEqual(["10", "2"]),
   );
 });
 

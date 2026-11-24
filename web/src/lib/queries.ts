@@ -14,6 +14,7 @@ import {
   type NotificationPreferencesUpdateRequest,
 } from "@maudecode/cowtail-protocol";
 import {
+  type QueryClient,
   infiniteQueryOptions,
   queryOptions,
   useMutation,
@@ -22,18 +23,30 @@ import {
 
 import { api, ApiError, SESSION_KEY } from "./api";
 
-// Inbox, Home and an item's page show what is happening now.
+// Inbox, Home, Cluster, History's stats and an item's page show what is happening now.
 const LIVE_REFRESH_MS = 15_000;
 const HISTORY_PAGE_SIZE = 100;
+
+export type Session = {
+  preferences: NotificationPreferences;
+  // The server's order for the urgency override keys.
+  urgencyOverrideOrder: string[];
+};
 
 // The signed-in account's notification preferences double as the session check: `null` is
 // signed out.
 export const sessionQuery = queryOptions({
   queryKey: SESSION_KEY,
-  queryFn: async (): Promise<NotificationPreferences | null> => {
+  queryFn: async (): Promise<Session | null> => {
     try {
-      return (await api("/api/me/notification-preferences", notificationPreferencesResponseSchema))
-        .preferences;
+      const reply = await api(
+        "/api/me/notification-preferences",
+        notificationPreferencesResponseSchema,
+      );
+      return {
+        preferences: reply.preferences,
+        urgencyOverrideOrder: reply.urgencyOverrideOrder ?? [],
+      };
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) return null;
       throw error;
@@ -94,6 +107,7 @@ export const statsQuery = ({ q: _q, ...filter }: ItemFilter = {}) =>
   queryOptions({
     queryKey: ["stats", filter],
     queryFn: () => api(`/api/items/stats${search(filter)}`, itemStatsResponseSchema),
+    refetchInterval: LIVE_REFRESH_MS,
   });
 
 export const itemsQuery = (filter: ItemFilter) =>
@@ -127,7 +141,13 @@ export function useItemAction(itemId: string) {
   });
 }
 
-// The owner's own settings show at once and roll back if the server refuses them.
+// Preference writes in flight, per query client.
+const writesInFlight = new WeakMap<QueryClient, number>();
+
+// The owner's own settings show at once. Once the last write in flight settles, the page
+// rereads the server: a refused write falls back to the confirmed value, a write whose
+// reply was lost shows what the server stored, and replies arriving out of order cannot
+// leave an older state on screen.
 export function usePreferencesUpdate() {
   const client = useQueryClient();
   return useMutation({
@@ -137,14 +157,17 @@ export function usePreferencesUpdate() {
         body: patch,
       }),
     onMutate: async (patch) => {
+      writesInFlight.set(client, (writesInFlight.get(client) ?? 0) + 1);
       await client.cancelQueries({ queryKey: SESSION_KEY });
-      const shown = client.getQueryData(sessionQuery.queryKey);
-      if (shown) client.setQueryData(sessionQuery.queryKey, { ...shown, ...patch });
+      client.setQueryData(sessionQuery.queryKey, (shown) =>
+        shown ? { ...shown, preferences: { ...shown.preferences, ...patch } } : shown,
+      );
     },
-    // A refused write, or one whose outcome is unknown, rereads what the server holds: its
-    // last confirmed value. A snapshot taken here could hold another write still in flight.
-    onError: () => client.invalidateQueries({ queryKey: SESSION_KEY }),
-    onSuccess: ({ preferences }) => client.setQueryData(sessionQuery.queryKey, preferences),
+    onSettled: () => {
+      const left = (writesInFlight.get(client) ?? 1) - 1;
+      writesInFlight.set(client, left);
+      return left === 0 ? client.invalidateQueries({ queryKey: SESSION_KEY }) : undefined;
+    },
   });
 }
 
