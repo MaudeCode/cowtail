@@ -12,6 +12,7 @@ import {
   shouldRunDailyRoundupAt,
   type RoundupWindow,
 } from "./roundup";
+import { cowtailWebOrigin } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
 
 const DEFAULT_ROUNDUP_HOUR_LOCAL = 8;
@@ -41,15 +42,6 @@ function resolveRoundupHourLocal(): number {
   }
 
   return parsed;
-}
-
-function cowtailWebOrigin(): string {
-  const origin =
-    nonEmptyString(process.env.COWTAIL_WEB_ORIGIN) ??
-    nonEmptyString(process.env.SITE_ORIGIN) ??
-    "https://cowtail.example.com";
-
-  return origin.replace(/\/+$/, "");
 }
 
 function resolveRequestedWindow(

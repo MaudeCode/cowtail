@@ -62,6 +62,20 @@ export default defineSchema({
     .index("by_createdAt", ["createdAt"])
     .index("by_state_expiresAt", ["state", "expiresAt"]),
 
+  // Registered producers of items. A producer with a token posts as itself; only the token's
+  // SHA-256 digest is stored.
+  sources: defineTable({
+    slug: v.string(),
+    displayName: v.string(),
+    iconStorageId: v.optional(v.id("_storage")),
+    tokenHash: v.optional(v.string()),
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_tokenHash", ["tokenHash"]),
+
   itemEvents: defineTable({
     itemId: v.id("items"),
     at: v.number(),

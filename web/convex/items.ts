@@ -22,6 +22,7 @@ import {
 } from "./itemValidators";
 import { preferencesRow } from "./notificationPreferences";
 import { cowtailOwnerUserId } from "./owner";
+import { sourceInfo } from "./sources";
 
 type ItemFields = WithoutSystemFields<Doc<"items">>;
 type NewItem = Omit<
@@ -358,6 +359,7 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
   return {
     ...fields,
     id: String(_id),
+    sourceInfo: await sourceInfo(ctx, item.source),
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
     needsOwner: itemNeedsOwner(item, await alertWorkflowForItem(ctx, item)),
@@ -450,10 +452,15 @@ export const appendEvent = internalMutation({
       }),
     ),
     actor: v.string(),
+    // Set for a source token, which may only touch its own source's items.
+    source: v.optional(v.string()),
     now: v.number(),
   },
-  handler: async (ctx, { id, event, actor, now }) => {
+  handler: async (ctx, { id, event, actor, source, now }) => {
     const item = await requireItem(ctx, id);
+    if (source !== undefined && item.source !== source) {
+      throw new ConvexError({ code: "ITEM_OTHER_SOURCE" });
+    }
     if (event.type === "hermes_update") {
       await appendItemEvent(ctx, item._id, "hermes_update", actor, now, { text: event.text });
       await patchItemContent(ctx, item._id, { updatedAt: now });

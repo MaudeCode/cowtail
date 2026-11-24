@@ -18,6 +18,27 @@ export function newBackend() {
   return convexTest(schema, modules);
 }
 
+const seedBuiltinSources = makeFunctionReference<"mutation">("sources:seedBuiltinSources");
+
+// Item ingest with a service token takes only registered sources: the built-in ones the
+// deploy seeds, and `extra` ones registered without a token.
+export async function newBackendWithSources(...extra: string[]) {
+  const t = newBackend();
+  await t.mutation(seedBuiltinSources, {});
+  await t.run(async (ctx) => {
+    for (const slug of extra) {
+      await ctx.db.insert("sources", {
+        slug,
+        displayName: slug,
+        enabled: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+  });
+  return t;
+}
+
 // Restored by `vi.unstubAllEnvs()` in the test's `afterEach`.
 export function stubEnv(values: Record<string, string>) {
   for (const [name, value] of Object.entries(values)) {

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   type Backend,
   advance,
-  newBackend,
+  newBackendWithSources,
   request,
   seedSession,
   stubEnv,
@@ -88,7 +88,7 @@ const pushTitles = () =>
 
 describe("item delivery", () => {
   test("a now item pushes at once and again every 10 minutes, three more times at most", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "now", title: "Restart ingress in edge?" });
     expect(sendPushToUser).toHaveBeenCalledTimes(1);
     expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
@@ -108,7 +108,7 @@ describe("item delivery", () => {
   });
 
   test("acking a now item stops its re-sends", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "now" });
     await advance(t, 10 * MINUTE);
     expect(sendPushToUser).toHaveBeenCalledTimes(2);
@@ -130,7 +130,7 @@ describe("item delivery", () => {
   });
 
   test("today items created within 5 minutes arrive as one push", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const ids = [await createItem(t, { urgency: "today", title: "Backup verify failed" })];
     await advance(t, 2 * MINUTE);
     ids.push(await createItem(t, { urgency: "today", title: "Merge queue stalled" }));
@@ -164,7 +164,7 @@ describe("item delivery", () => {
   });
 
   test("a whenever item never pushes", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "whenever" });
     await advance(t, 60 * MINUTE);
 
@@ -175,7 +175,7 @@ describe("item delivery", () => {
   });
 
   test("quiet hours hold today pushes until they end, and never hold now pushes", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     // NOW is 07:00 in New York; quiet hours run to 07:25.
     await setPreferences(t, {
       quietHours: { start: "22:00", end: "07:25", timeZone: "America/New_York" },
@@ -199,7 +199,7 @@ describe("item delivery", () => {
   });
 
   test("a repeat that raises urgency pushes the item", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "whenever", dedupeKey: "disk:osd-4" });
     expect(await createItem(t, { urgency: "now", dedupeKey: "disk:osd-4" })).toBe(id);
 
@@ -212,7 +212,7 @@ describe("item delivery", () => {
   });
 
   test("urgency overrides set the stored urgency when an item is created", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     await setPreferences(t, { urgencyOverrides: { cron: "whenever", "hermes:question": "now" } });
 
     const cron = await createItem(t, { source: "cron", kind: "failure", urgency: "now" });
@@ -227,7 +227,7 @@ describe("item delivery", () => {
 
 describe("notification preferences endpoints", () => {
   test("round-trip quiet hours, urgency overrides and the approval auth setting", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const bearer = await ownerSession(t);
     const read = async () =>
       notificationPreferencesResponseSchema.parse(

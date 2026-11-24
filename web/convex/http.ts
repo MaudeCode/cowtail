@@ -59,6 +59,11 @@ import {
   pushUnregisterResponseSchema,
   roundupTestRequestSchema,
   roundupTestResultSchema,
+  sourceCreateRequestSchema,
+  sourceListResponseSchema,
+  sourcePatchRequestSchema,
+  sourceResponseSchema,
+  sourceTokenResponseSchema,
   userDevicesResponseSchema,
   usersListResponseSchema,
 } from "@maudecode/cowtail-protocol";
@@ -83,9 +88,10 @@ import {
   verifyOidcIdToken,
 } from "./oidcIdentity";
 import { validateOpenClawLimit } from "./openclawModel";
-import { cowtailOwnerUserId } from "./owner";
+import { cowtailOwnerUserId, cowtailWebOrigin } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
 import { resolveRoundupTimeZone } from "./roundup";
+import { SOURCE_TOKEN_PREFIX, sourceIconError } from "./sources";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "cowtail_session";
@@ -95,6 +101,21 @@ const app: HonoWithConvex<ActionCtx> = new Hono();
 type RouteContext = Context;
 
 app.use("/api/*", cors());
+
+function bearerToken(c: { req: { header(name: string): string | undefined } }) {
+  return /^Bearer\s+(\S+)$/.exec(c.req.header("authorization")?.trim() ?? "")?.[1];
+}
+
+// A source token reaches item ingest and its own items' events, and nothing else.
+const SOURCE_TOKEN_ROUTES = [/^\/api\/items$/, /^\/api\/items\/[^/]+\/events$/];
+app.use("/api/*", async (c, next) => {
+  const sourceRoute =
+    c.req.method === "POST" && SOURCE_TOKEN_ROUTES.some((route) => route.test(c.req.path));
+  if (!sourceRoute && bearerToken(c)?.startsWith(SOURCE_TOKEN_PREFIX)) {
+    return jsonError("Forbidden", 403);
+  }
+  await next();
+});
 
 function jsonError(message: string, status = 400, details?: Record<string, unknown>) {
   return Response.json({ ok: false, error: message, ...details }, { status });
@@ -122,15 +143,6 @@ function extractAlertId(value: Record<string, unknown>): string | undefined {
   return (
     nonEmptyString(value.alertId) ?? nonEmptyString(value.alertID) ?? nonEmptyString(value.alert_id)
   );
-}
-
-function cowtailWebOrigin(): string {
-  const origin =
-    nonEmptyString(process.env.COWTAIL_WEB_ORIGIN) ??
-    nonEmptyString(process.env.SITE_ORIGIN) ??
-    "https://cowtail.example.com";
-
-  return origin.replace(/\/+$/, "");
 }
 
 function buildAlertURL(alertId: string): string {
@@ -1397,8 +1409,11 @@ app.post("/api/me/alerts/:id/actions", async (c) => {
 // --- Items ----------------------------------------------------------------------------
 
 const ITEM_LIST_DEFAULT_LIMIT = 100;
-const itemErrorStatus: Record<string, [number, string]> = {
+const codedErrorStatus: Record<string, [number, string]> = {
   ITEM_NOT_FOUND: [404, "Item not found"],
+  ITEM_OTHER_SOURCE: [403, "Forbidden"],
+  SOURCE_NOT_FOUND: [404, "Source not found"],
+  SOURCE_EXISTS: [409, "Source already exists"],
   ITEM_CLOSED: [409, "Item is already closed"],
   ACTION_NOT_OFFERED: [409, "Item does not offer this action"],
   INVALID_SNOOZE: [400, "Snooze must end in the future"],
@@ -1407,9 +1422,9 @@ const itemErrorStatus: Record<string, [number, string]> = {
   RESPONSE_NOT_CLAIMED: [409, "Response is not claimed with this token"],
 };
 
-function itemErrorResponse(error: unknown) {
+function codedErrorResponse(error: unknown) {
   const code = itemErrorCode(error);
-  const known = code ? itemErrorStatus[code] : undefined;
+  const known = code ? codedErrorStatus[code] : undefined;
   if (!known) throw error;
   return jsonError(known[1], known[0], { code });
 }
@@ -1429,12 +1444,28 @@ async function itemResponse(c: RouteContext, id: string) {
   return c.json(itemResponseSchema.parse({ ok: true, item: result.item }));
 }
 
+// A source token posts as its source; a service or worker token posts as any registered one.
+async function requireItemProducer(c: RouteContext): Promise<{ source?: string } | Response> {
+  const token = bearerToken(c);
+  if (token?.startsWith(SOURCE_TOKEN_PREFIX)) {
+    const source = await c.env.runQuery((internal as any).sources.getByTokenHash, {
+      tokenHash: await sha256Hex(token),
+    });
+    return source?.enabled ? { source: source.slug } : jsonError("Forbidden", 403);
+  }
+  return requireServiceOrWorkerAuth(c) ?? {};
+}
+
 // POST /api/items — create an item, or count a repeat into the open item with its dedupeKey
 app.post("/api/items", async (c) => {
-  const authError = requireServiceOrWorkerAuth(c);
-  if (authError) return authError;
+  const producer = await requireItemProducer(c);
+  if (producer instanceof Response) return producer;
 
-  const parsed = itemCreateRequestSchema.safeParse(await c.req.json().catch(() => null));
+  const body = await c.req.json().catch(() => null);
+  // A source token's own source wins, so the body's `source` is ignored, even a malformed one.
+  const parsed = itemCreateRequestSchema.safeParse(
+    producer.source && body && typeof body === "object" ? { ...body, source: undefined } : body,
+  );
   if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
   // The owner's answers to an item go to the Hermes worker, so only the worker may route them.
   const fromWorker = isBearerTokenAuthorized(c.req.header("authorization"), [
@@ -1444,8 +1475,18 @@ app.post("/api/items", async (c) => {
     return jsonError("Only the worker token may set replyTo", 403);
   }
 
+  const source = producer.source ?? parsed.data.source;
+  if (!source) return jsonError("source is required");
+  if (
+    !producer.source &&
+    !(await c.env.runQuery((internal as any).sources.getBySlug, { slug: source }))
+  ) {
+    return jsonError(`Unknown source: ${source}`);
+  }
+
   const result = await c.env.runMutation((internal as any).items.create, {
     ...parsed.data,
+    source,
     now: Date.now(),
   });
   return c.json(itemCreateResponseSchema.parse({ ok: true, ...result }));
@@ -1501,8 +1542,8 @@ app.post("/api/hermes/hooks", async (c) => {
 
 // POST /api/items/:id/events — a producer's progress note, or its resolution or expiry
 app.post("/api/items/:id/events", async (c) => {
-  const authError = requireServiceOrWorkerAuth(c);
-  if (authError) return authError;
+  const producer = await requireItemProducer(c);
+  if (producer instanceof Response) return producer;
 
   const parsed = itemEventAppendRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
@@ -1513,11 +1554,12 @@ app.post("/api/items/:id/events", async (c) => {
     await c.env.runMutation((internal as any).items.appendEvent, {
       id,
       event,
-      actor: actor ?? "service",
+      actor: producer.source ?? actor ?? "service",
+      source: producer.source,
       now: Date.now(),
     });
   } catch (error) {
-    return itemErrorResponse(error);
+    return codedErrorResponse(error);
   }
   return await itemResponse(c, id);
 });
@@ -1585,6 +1627,118 @@ app.get("/api/items/:id", async (c) => {
   return c.json(itemGetResponseSchema.parse({ ok: true, ...result }));
 });
 
+// --- Sources --------------------------------------------------------------------------
+
+async function issueSourceToken() {
+  const token = `${SOURCE_TOKEN_PREFIX}${randomBase64Url()}`;
+  return { token, tokenHash: await sha256Hex(token) };
+}
+
+// POST /api/sources — register a source; its token is returned this once
+app.post("/api/sources", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const parsed = sourceCreateRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const { token, tokenHash } = await issueSourceToken();
+  try {
+    const source = await c.env.runMutation((internal as any).sources.create, {
+      ...parsed.data,
+      tokenHash,
+      now: Date.now(),
+    });
+    return c.json(sourceTokenResponseSchema.parse({ ok: true, source, token }));
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+});
+
+// GET /api/sources — every source, without token digests
+app.get("/api/sources", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const sources = await c.env.runQuery((internal as any).sources.list, {});
+  return c.json(sourceListResponseSchema.parse({ ok: true, sources }));
+});
+
+// POST /api/sources/:slug/token — issue a new token; the old one stops working at once
+app.post("/api/sources/:slug/token", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const { token, tokenHash } = await issueSourceToken();
+  try {
+    const source = await c.env.runMutation((internal as any).sources.rotateToken, {
+      slug: c.req.param("slug"),
+      tokenHash,
+      now: Date.now(),
+    });
+    return c.json(sourceTokenResponseSchema.parse({ ok: true, source, token }));
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+});
+
+// PATCH /api/sources/:slug — rename, enable or disable a source
+app.patch("/api/sources/:slug", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const parsed = sourcePatchRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  try {
+    const source = await c.env.runMutation((internal as any).sources.patch, {
+      ...parsed.data,
+      slug: c.req.param("slug"),
+      now: Date.now(),
+    });
+    return c.json(sourceResponseSchema.parse({ ok: true, source }));
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+});
+
+// PUT /api/sources/:slug/icon — a square PNG body replaces the source's icon
+app.put("/api/sources/:slug/icon", async (c) => {
+  const authError = requireServiceAuth(c);
+  if (authError) return authError;
+
+  const slug = c.req.param("slug");
+  if (!(await c.env.runQuery((internal as any).sources.getBySlug, { slug }))) {
+    return jsonError("Source not found", 404);
+  }
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  const invalid = sourceIconError(bytes);
+  if (invalid) return jsonError(invalid);
+
+  const storageId = await c.env.storage.store(new Blob([bytes], { type: "image/png" }));
+  const source = await c.env.runMutation((internal as any).sources.setIcon, {
+    slug,
+    storageId,
+    now: Date.now(),
+  });
+  if (!source) return jsonError("Source not found", 404);
+  return c.json(sourceResponseSchema.parse({ ok: true, source }));
+});
+
+// GET /api/sources/:slug/icon — public: the Notification Service Extension has no session
+app.get("/api/sources/:slug/icon", async (c) => {
+  const storageId = await c.env.runQuery((internal as any).sources.iconStorageId, {
+    slug: c.req.param("slug"),
+  });
+  const icon = storageId ? await c.env.storage.get(storageId) : null;
+  if (!icon) return jsonError("Icon not found", 404);
+
+  const etag = `"${storageId}"`;
+  const headers = { "cache-control": "public, max-age=86400", etag };
+  if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers });
+  return new Response(icon, { headers: { ...headers, "content-type": "image/png" } });
+});
+
 // POST /api/me/items/:id/actions — the owner acks, snoozes or answers an item
 app.post("/api/me/items/:id/actions", async (c) => {
   const auth = await requireAppSession(c);
@@ -1604,7 +1758,7 @@ app.post("/api/me/items/:id/actions", async (c) => {
       now: Date.now(),
     });
   } catch (error) {
-    return itemErrorResponse(error);
+    return codedErrorResponse(error);
   }
   return await itemResponse(c, id);
 });
@@ -1649,7 +1803,7 @@ app.post("/api/hermes/responses/:id/complete", async (c) => {
       now: Date.now(),
     });
   } catch (error) {
-    return itemErrorResponse(error);
+    return codedErrorResponse(error);
   }
   return c.json(okResponseSchema.parse({ ok: true }));
 });
@@ -1669,7 +1823,7 @@ app.post("/api/hermes/responses/:id/fail", async (c) => {
       now: Date.now(),
     });
   } catch (error) {
-    return itemErrorResponse(error);
+    return codedErrorResponse(error);
   }
   return c.json(okResponseSchema.parse({ ok: true }));
 });

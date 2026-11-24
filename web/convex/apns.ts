@@ -6,6 +6,8 @@ export type PushData = Record<string, unknown>;
 
 // The `aps` fields an item push sets beyond its alert and sound.
 export const apsExtrasValidator = v.object({
+  // Lets the Notification Service Extension rewrite the push, to show its source's icon.
+  mutableContent: v.optional(v.literal(1)),
   interruptionLevel: v.optional(
     v.union(v.literal("passive"), v.literal("active"), v.literal("time-sensitive")),
   ),

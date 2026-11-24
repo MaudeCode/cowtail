@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   type Backend,
   advance,
-  newBackend,
+  newBackendWithSources,
   request,
   seedSession,
   stubEnv,
@@ -89,7 +89,7 @@ async function claimedApproval(t: Backend) {
 
 describe("owner answers for Hermes", () => {
   test("an answer is leased to one claim at a time and leased again once its lease runs out", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
     const { id, response: first } = await claimedApproval(t);
 
     expect(first).toMatchObject({
@@ -115,7 +115,7 @@ describe("owner answers for Hermes", () => {
   });
 
   test("completing an answer resolves its item and records Hermes's update", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
     const { id, response } = await claimedApproval(t);
 
     const completed = await request(t, `/api/hermes/responses/${response.id}/complete`, {
@@ -141,7 +141,7 @@ describe("owner answers for Hermes", () => {
   });
 
   test("an answer Hermes can no longer apply expires its item", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
     const { id, response } = await claimedApproval(t);
 
     const failed = await request(t, `/api/hermes/responses/${response.id}/fail`, {
@@ -159,7 +159,7 @@ describe("owner answers for Hermes", () => {
   });
 
   test("an answer on its way to Hermes holds its item open past the deadline", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
     const id = await createItem(t, { ...approval, expiresAt: NOW + MINUTE });
     expect((await answer(t, id, { type: "approve" })).status).toBe(200);
 
@@ -176,7 +176,7 @@ describe("owner answers for Hermes", () => {
   });
 
   test("only the worker token may route an item's answers", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
 
     const service = await request(t, "/api/items", {
       method: "POST",
@@ -195,7 +195,7 @@ describe("owner answers for Hermes", () => {
   });
 
   test("only an offered action on an item with a replyTo goes back, one answer at a time", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
     const plain = await createItem(t, { ...approval, replyTo: undefined });
     const routed = await createItem(t, approval);
 
@@ -254,7 +254,7 @@ async function heartbeatItems(t: Backend) {
 
 describe("Hermes heartbeat", () => {
   test("a heartbeat replaces the stored status snapshot", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
     await heartbeat(t);
     vi.advanceTimersByTime(MINUTE);
     await heartbeat(t, { ...snapshot, kanban: { blocked: 0, running: 3 } });
@@ -268,7 +268,7 @@ describe("Hermes heartbeat", () => {
   });
 
   test("a five-minute gap raises one heartbeat-missing item that the next heartbeat resolves", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
     await heartbeat(t);
 
     await advance(t, 4 * MINUTE);
@@ -291,7 +291,7 @@ describe("Hermes heartbeat", () => {
   });
 
   test("watching starts with the first heartbeat", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources();
 
     await advance(t, 10 * MINUTE);
 

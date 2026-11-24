@@ -5,18 +5,20 @@ import type {
   ItemPushData,
   ItemUrgency,
   QuietHours,
+  SourceInfo,
 } from "@maudecode/cowtail-protocol";
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { ApsExtras } from "./apns";
 import { appendItemEvent, ownerBadgeCount, type ItemDeliveryReason } from "./items";
 import { effectivePreferences, preferencesRow } from "./notificationPreferences";
 import { cowtailOwnerUserId } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
+import { sourceInfo } from "./sources";
 
 export const RESEND_INTERVAL_MS = 10 * 60_000;
 export const MAX_RESENDS = 3;
@@ -46,7 +48,11 @@ export type Push = {
 type PushItem = Pick<
   Doc<"items">,
   "_id" | "kind" | "urgency" | "title" | "body" | "dedupeKey" | "alertId"
->;
+> & { sourceInfo: SourceInfo };
+
+async function pushItem(ctx: QueryCtx, item: Doc<"items">): Promise<PushItem> {
+  return { ...item, sourceInfo: await sourceInfo(ctx, item.source) };
+}
 
 // APNs refuses a payload over 4 KB. These budgets, in JSON-encoded UTF-8 bytes, keep the
 // longest item a producer may send inside it with room for the rest of the payload.
@@ -71,13 +77,14 @@ function fit(text: string, maxBytes: number) {
 }
 
 export function itemPush(item: PushItem, badge: number): Push {
-  const data: ItemPushData = { itemId: String(item._id) };
+  const data: ItemPushData = { itemId: String(item._id), source: item.sourceInfo };
   if (item.alertId) data.alertId = String(item.alertId);
   return {
     title: fit(item.title, TITLE_BYTES),
     body: fit(item.body, BODY_BYTES),
     data,
     aps: {
+      mutableContent: 1,
       interruptionLevel: interruptionLevels[item.urgency],
       threadId: fit(item.dedupeKey ?? String(item._id), THREAD_BYTES),
       badge,
@@ -87,7 +94,7 @@ export function itemPush(item: PushItem, badge: number): Push {
 }
 
 // One item keeps its own push; more become one summary from Cowtail.
-export function batchPush(items: PushItem[], badge: number): Push {
+export function batchPush(items: PushItem[], badge: number, cowtail: SourceInfo): Push {
   if (items.length === 1) return itemPush(items[0], badge);
   const shown = items.slice(0, 2).map((item) => item.title);
   const more = items.length - shown.length;
@@ -95,8 +102,8 @@ export function batchPush(items: PushItem[], badge: number): Push {
   return {
     title: `${items.length} new items`,
     body: fit(shown.join(", "), BODY_BYTES - jsonBytes(suffix)) + suffix,
-    data: { type: "item_batch", count: items.length },
-    aps: { interruptionLevel: "active", badge },
+    data: { type: "item_batch", count: items.length, source: cowtail },
+    aps: { mutableContent: 1, interruptionLevel: "active", badge },
   };
 }
 
@@ -230,7 +237,11 @@ export const planDelivery = internalMutation({
         attempt: attempt + 1,
       });
     }
-    return { userId, push: itemPush(item, await ownerBadgeCount(ctx)), itemIds: [itemId] };
+    return {
+      userId,
+      push: itemPush(await pushItem(ctx, item), await ownerBadgeCount(ctx)),
+      itemIds: [itemId],
+    };
   },
 });
 
@@ -280,7 +291,11 @@ export const planBatch = internalMutation({
     if (due.length === 0) return null;
     return {
       userId,
-      push: batchPush(due, await ownerBadgeCount(ctx)),
+      push: batchPush(
+        await Promise.all(due.map((item) => pushItem(ctx, item))),
+        await ownerBadgeCount(ctx),
+        await sourceInfo(ctx, "cowtail"),
+      ),
       itemIds: due.map((item) => item._id),
     };
   },

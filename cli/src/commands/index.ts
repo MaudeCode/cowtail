@@ -5,6 +5,7 @@ import { healthCommandGroup } from "./health/index.ts";
 import { itemsCommandGroup, NotifyCommand, NOTIFY_DESCRIPTION } from "./items/index.ts";
 import { pushCommandGroup } from "./push/index.ts";
 import { roundupCommandGroup } from "./roundup/index.ts";
+import { sourcesCommandGroup } from "./sources/index.ts";
 import { usersCommandGroup } from "./users/index.ts";
 import { UpdateCommand, UPDATE_DESCRIPTION } from "./update/index.ts";
 import { VersionCommand, VERSION_DESCRIPTION } from "./version/index.ts";
@@ -18,6 +19,7 @@ export const commandGroups: CommandGroupDefinition[] = [
   healthCommandGroup,
   itemsCommandGroup,
   pushCommandGroup,
+  sourcesCommandGroup,
   usersCommandGroup,
 ];
 

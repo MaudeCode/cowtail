@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -659,6 +660,7 @@ describe("built binary item commands", () => {
         items.push({
           ...created,
           id: "item-1",
+          sourceInfo: { slug: created.source, displayName: "Manual" },
           state: "open",
           needsOwner: false,
           body: created.body ?? "",
@@ -816,6 +818,136 @@ describe("built binary item commands", () => {
         server.close((error) => (error ? reject(error) : resolve()));
       });
     }
+  });
+});
+
+describe("built binary source commands", () => {
+  // A stand-in for the Cowtail source API that records each request and its body.
+  const requests: { line: string; type?: string; body: Buffer }[] = [];
+  const source = {
+    slug: "deployer",
+    displayName: "Mac deployer",
+    enabled: true,
+    hasToken: true,
+    createdAt: 1,
+    updatedAt: 1,
+  };
+  const iconUrl = "https://cowtail.example.test/actions/api/sources/deployer/icon";
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const line = `${request.method} ${request.url}`;
+      requests.push({ line, type: request.headers["content-type"], body: Buffer.concat(chunks) });
+      const reply = (body: object) => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true, ...body }));
+      };
+      if (request.headers.authorization !== "Bearer secret-token") {
+        response.writeHead(401).end();
+      } else if (line === "POST /actions/api/sources") {
+        reply({ source, token: "cts_first" });
+      } else if (line === "GET /actions/api/sources") {
+        reply({ sources: [{ ...source, iconUrl }] });
+      } else if (line === "POST /actions/api/sources/deployer/token") {
+        reply({ source, token: "cts_second" });
+      } else if (line === "PUT /actions/api/sources/deployer/icon") {
+        reply({ source: { ...source, iconUrl } });
+      } else if (line === "PATCH /actions/api/sources/deployer") {
+        reply({ source: { ...source, enabled: false } });
+      } else {
+        response.writeHead(404).end();
+      }
+    });
+  });
+  let configPath = "";
+  const run = (...args: string[]) =>
+    runCliBinaryAsync(binaryPath, args, { env: { COWTAIL_CONFIG_PATH: configPath } });
+
+  beforeAll(async () => {
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    configPath = writeTempConfig(tempDir, {
+      baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/actions`,
+      pushBearerToken: "secret-token",
+      timeoutMs: 5000,
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  });
+
+  beforeEach(() => {
+    requests.length = 0;
+  });
+
+  test("sources add registers the source and prints its token once", async () => {
+    expect(await run("sources", "add", "deployer", "--name", "Mac deployer")).toEqual({
+      status: 0,
+      stderr: "",
+      stdout:
+        "Created source deployer (Mac deployer)\nToken: cts_first\nThis token will not be shown again.\n",
+    });
+    expect(requests.map((entry) => entry.line)).toEqual(["POST /actions/api/sources"]);
+    expect(JSON.parse(requests[0].body.toString())).toEqual({
+      slug: "deployer",
+      displayName: "Mac deployer",
+    });
+  });
+
+  test("sources add still prints the token when its icon upload fails", async () => {
+    const result = await run("sources", "add", "deployer", "--name", "Mac", "--icon", "nope.png");
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Token: cts_first\nThis token will not be shown again.");
+  });
+
+  test("sources list shows each source's state", async () => {
+    expect(await run("sources", "list")).toEqual({
+      status: 0,
+      stderr: "",
+      stdout: "deployer  Mac deployer  enabled  token  icon\n",
+    });
+  });
+
+  test("sources rotate prints the new token once", async () => {
+    expect(await run("sources", "rotate", "deployer")).toEqual({
+      status: 0,
+      stderr: "",
+      stdout:
+        "Rotated the token of deployer\nToken: cts_second\nThis token will not be shown again.\n",
+    });
+    expect(requests.map((entry) => entry.line)).toEqual([
+      "POST /actions/api/sources/deployer/token",
+    ]);
+  });
+
+  test("sources icon uploads the file's bytes as a PNG", async () => {
+    const iconPath = join(tempDir, "deployer.png");
+    writeFileSync(iconPath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]));
+    expect(await run("sources", "icon", "deployer", iconPath)).toMatchObject({
+      status: 0,
+      stdout: "Set the icon of deployer\n",
+    });
+    expect(requests).toEqual([
+      {
+        line: "PUT /actions/api/sources/deployer/icon",
+        type: "image/png",
+        body: readFileSync(iconPath),
+      },
+    ]);
+  });
+
+  test("sources disable turns the source off", async () => {
+    expect(await run("sources", "disable", "deployer")).toMatchObject({
+      status: 0,
+      stdout: "Disabled source deployer\n",
+    });
+    expect(requests.map((entry) => entry.line)).toEqual(["PATCH /actions/api/sources/deployer"]);
+    expect(JSON.parse(requests[0].body.toString())).toEqual({ enabled: false });
   });
 });
 

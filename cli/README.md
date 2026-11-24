@@ -30,6 +30,11 @@ Phase 1 is implemented:
 - `cowtail items stats`
 - `cowtail push send`
 - `cowtail push test`
+- `cowtail sources add`
+- `cowtail sources list`
+- `cowtail sources rotate`
+- `cowtail sources icon`
+- `cowtail sources disable`
 - `cowtail users devices`
 - `cowtail users list`
 - `cowtail help`
@@ -82,7 +87,7 @@ Example config:
 }
 ```
 
-`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, and `roundup test`.
+`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, `roundup test`, and the `sources` commands.
 
 `cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 

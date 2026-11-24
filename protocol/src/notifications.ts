@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { itemSourceSchema, itemUrgencySchema } from "./items.ts";
+import { sourceInfoSchema } from "./sources.ts";
 import { dateOnlyStringSchema, jsonObjectSchema, nonEmptyStringSchema } from "./shared.ts";
 
 const clockTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Expected HH:MM");
@@ -40,16 +41,20 @@ export const notificationPreferencesSchema = z.object({
 export const itemNotificationCategories = ["ITEM_APPROVAL", "ITEM_QUESTION", "ITEM_ACK"] as const;
 export const itemNotificationCategorySchema = z.enum(itemNotificationCategories);
 
-// The custom data of a push for one item. The app opens the alert when there is one.
+// The custom data of a push for one item. The app opens the alert when there is one. Item
+// pushes set `mutable-content`, and the Notification Service Extension shows `source`.
 export const itemPushDataSchema = z.object({
   itemId: nonEmptyStringSchema,
   alertId: nonEmptyStringSchema.optional(),
+  source: sourceInfoSchema,
 });
 
-// The custom data of a summary push for a batch of `today` items; the app opens the inbox.
+// The custom data of a summary push for a batch of `today` items, from Cowtail; the app
+// opens the inbox.
 export const itemBatchPushDataSchema = z.object({
   type: z.literal("item_batch"),
   count: z.number().int().min(2),
+  source: sourceInfoSchema,
 });
 
 export const notificationPreferencesResponseSchema = z.object({

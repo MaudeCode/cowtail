@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
+import { sourceInfoSchema } from "./sources.ts";
 
 export const itemKinds = ["alert", "failure", "approval", "question", "fyi", "done"] as const;
 export const itemUrgencies = ["now", "today", "whenever"] as const;
@@ -14,16 +15,6 @@ export const itemEventTypes = [
   "action_taken",
   "state_changed",
   "resolved",
-] as const;
-// `source` is open: producers name themselves. These are the values Cowtail knows.
-// `cowtail` marks Cowtail's own watchdog items, which maintenance windows never suppress.
-export const knownItemSources = [
-  "alertmanager",
-  "hermes",
-  "cron",
-  "webhook",
-  "manual",
-  "cowtail",
 ] as const;
 
 export const itemKindSchema = z.enum(itemKinds);
@@ -67,6 +58,7 @@ export const itemReplyToSchema = z.record(fieldNameSchema, z.unknown());
 export const itemRecordSchema = z.object({
   id: nonEmptyStringSchema,
   source: nonEmptyStringSchema,
+  sourceInfo: sourceInfoSchema,
   kind: itemKindSchema,
   urgency: itemUrgencySchema,
   state: itemStateSchema,
@@ -97,8 +89,10 @@ export const itemEventRecordSchema = z.object({
   payload: z.record(z.string(), z.unknown()),
 });
 
+// A source token posts as its own source and ignores `source`; a service token must name a
+// registered source.
 export const itemCreateRequestSchema = z.object({
-  source: itemSourceSchema,
+  source: itemSourceSchema.optional(),
   kind: itemKindSchema,
   urgency: itemUrgencySchema,
   title: nonEmptyStringSchema.max(500),
