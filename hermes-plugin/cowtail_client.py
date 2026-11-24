@@ -33,7 +33,7 @@ class CowtailClient:
     """
 
     def __init__(self, api_base: str | None = None, worker_token: str | None = None, worker_id: str | None = None):
-        self.api_base = (api_base or _env("COWTAIL_API_BASE") or "https://convex-actions.thezoo.house").rstrip("/")
+        self.api_base = (api_base or _env("COWTAIL_API_BASE") or "https://cowtail-actions.example.com").rstrip("/")
         self.worker_token = worker_token or _env("COWTAIL_WORKER_TOKEN")
         self.worker_id = worker_id or _env("COWTAIL_WORKER_ID") or "hermes-default-gateway"
 

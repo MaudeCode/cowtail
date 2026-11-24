@@ -5,7 +5,7 @@ Standalone Hermes plugin exposing one typed `cowtail` tool for Cowtail alert and
 ## Environment
 
 ```text
-COWTAIL_API_BASE=https://convex-actions.thezoo.house
+COWTAIL_API_BASE=https://cowtail-actions.example.com
 COWTAIL_WORKER_TOKEN=<secret>
 COWTAIL_WORKER_ID=hermes-default-gateway
 ```
@@ -68,11 +68,13 @@ This action is idempotent for the same affected lifecycles and boundary. It does
 
 ## Verification and activation
 
+From `hermes-plugin/`:
+
 ```sh
 python3 -m unittest discover -s tests -v
 python3 -m compileall -q __init__.py handlers.py handoff.py cowtail_client.py
-hermes plugins validate /Volumes/Data/git/MaudeCode/hermes-cowtail-tool
-hermes plugins doctor /Volumes/Data/git/MaudeCode/hermes-cowtail-tool --ci
+hermes plugins validate .
+hermes plugins doctor . --ci
 ```
 
 All unit-test transports are mocked. Tests do not send real messages or mutate Cowtail.
