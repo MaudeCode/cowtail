@@ -89,7 +89,7 @@ export default defineSchema({
 
   // A postmortem Hermes is asked to write for a resolved incident. Pending until the plugin
   // claims it and confirms Hermes has it (`delivered`); a lease that ran out before then makes
-  // it claimable again. It fails when no postmortem arrives in time.
+  // it claimable again. A scheduled timeout fails it when no postmortem arrives in time.
   postmortemRequests: defineTable({
     incidentId: v.id("incidents"),
     status: v.union(
@@ -106,7 +106,6 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_status_availableAt", ["status", "availableAt"])
-    .index("by_status_createdAt", ["status", "createdAt"])
     .index("by_incidentId", ["incidentId"]),
 
   // Registered producers of items. A producer with a token posts as itself; only the token's

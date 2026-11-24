@@ -6,6 +6,7 @@ import {
   type ItemUrgency,
 } from "@maudecode/cowtail-protocol";
 import { ConvexError, v } from "convex/values";
+import { makeFunctionReference } from "convex/server";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
@@ -149,8 +150,14 @@ async function addMember(
   await ctx.db.patch(incidentId, { updatedAt: now });
 }
 
+// The generated api predates this module; Convex resolves it by name.
+const failPostmortemRequestRef = makeFunctionReference<
+  "mutation",
+  { id: Id<"postmortemRequests"> }
+>("incidents:failPostmortemRequest");
+
 async function queuePostmortem(ctx: MutationCtx, incidentId: Id<"incidents">, now: number) {
-  await ctx.db.insert("postmortemRequests", {
+  const id = await ctx.db.insert("postmortemRequests", {
     incidentId,
     status: "pending",
     availableAt: now,
@@ -158,6 +165,7 @@ async function queuePostmortem(ctx: MutationCtx, incidentId: Id<"incidents">, no
     createdAt: now,
     updatedAt: now,
   });
+  await ctx.scheduler.runAfter(incidentPostmortemTimeoutMs, failPostmortemRequestRef, { id });
   await ctx.db.patch(incidentId, { postmortemState: "requested", updatedAt: now });
 }
 
@@ -520,27 +528,19 @@ export const recordPostmortem = internalMutation({
   },
 });
 
-// Runs every minute: a request with no postmortem after the timeout fails, and the owner can
-// ask again.
-export const failLapsedPostmortems = internalMutation({
-  args: {},
-  handler: async (ctx) => {
+// A request still waiting for its postmortem when its time is up fails, and the owner can ask
+// again. A newer request for the incident still in flight keeps the incident requested.
+export const failPostmortemRequest = internalMutation({
+  args: { id: v.id("postmortemRequests") },
+  handler: async (ctx, { id }) => {
+    const request = await ctx.db.get(id);
+    if (request?.status !== "pending" && request?.status !== "delivered") return;
     const now = Date.now();
-    const cutoff = now - incidentPostmortemTimeoutMs;
-    for (const status of ["pending", "delivered"] as const) {
-      const lapsed = await ctx.db
-        .query("postmortemRequests")
-        .withIndex("by_status_createdAt", (q) => q.eq("status", status).lte("createdAt", cutoff))
-        .collect();
-      for (const request of lapsed) {
-        await ctx.db.patch(request._id, { status: "failed", updatedAt: now });
-        const incident = await ctx.db.get(request.incidentId);
-        // A newer request for the incident still in flight keeps it requested.
-        const newer = await requestsInFlight(ctx, request.incidentId);
-        if (incident?.postmortemState === "requested" && newer.length === 0) {
-          await ctx.db.patch(incident._id, { postmortemState: "failed", updatedAt: now });
-        }
-      }
+    await ctx.db.patch(id, { status: "failed", updatedAt: now });
+    const incident = await ctx.db.get(request.incidentId);
+    const newer = await requestsInFlight(ctx, request.incidentId);
+    if (incident?.postmortemState === "requested" && newer.length === 0) {
+      await ctx.db.patch(incident._id, { postmortemState: "failed", updatedAt: now });
     }
   },
 });

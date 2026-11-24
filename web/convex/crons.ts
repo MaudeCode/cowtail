@@ -74,11 +74,4 @@ crons.interval(
   {},
 );
 
-crons.interval(
-  "fail incident postmortems Hermes did not write in time",
-  { minutes: 1 },
-  (internal as any).incidents.failLapsedPostmortems,
-  {},
-);
-
 export default crons;
