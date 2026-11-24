@@ -330,6 +330,31 @@ test("a refused setting shows at once, then rolls back and says why", async () =
   expect(roundup).toHaveAttribute("aria-checked", String(preferences.dailyRoundupEnabled));
 });
 
+test("a setting whose write may have landed keeps what the server holds", async () => {
+  // The server commits the write, then the reply is lost to a gateway error.
+  let committed = false;
+  stubApi({
+    ...signedIn(),
+    get [SESSION]() {
+      return {
+        ok: true,
+        preferences: { ...preferences, dailyRoundupEnabled: !committed },
+      };
+    },
+    get "PUT /actions/api/me/notification-preferences"() {
+      committed = true;
+      return { status: 502, body: { ok: false, error: "Bad gateway" } };
+    },
+  });
+  renderApp("/settings");
+  const roundup = await screen.findByRole("switch", { name: "Daily roundup" });
+
+  await userEvent.click(roundup);
+
+  await waitFor(() => expect(roundup).toHaveAttribute("aria-checked", "false"));
+  expect(await screen.findByText("Bad gateway")).toBeInTheDocument();
+});
+
 test("an alert's old address opens its item", async () => {
   stubApi(
     signedIn({

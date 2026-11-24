@@ -1,4 +1,4 @@
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -29,17 +29,37 @@ export const getByTimeRange = internalQuery({
   },
 });
 
-// The fixes recorded against an alert, newest first, in the shape item responses ship.
-// ponytail: scans every fix per alert item; add an alertId index if fixes number thousands.
-export async function fixesForAlert(ctx: QueryCtx, alertId: Id<"alerts">) {
+type FixRecord = Omit<Doc<"fixes">, "_id" | "_creationTime" | "alertIds"> & {
+  id: string;
+  alertIds: string[];
+};
+
+// Every fix grouped by alert, newest first, read once per query however many items it
+// serializes.
+// ponytail: reads the whole fixes table once per query; index fixes by alert if they number
+// thousands.
+const fixesByAlertPerQuery = new WeakMap<QueryCtx, Promise<Map<string, FixRecord[]>>>();
+
+async function readFixesByAlert(ctx: QueryCtx) {
+  const byAlert = new Map<string, FixRecord[]>();
   const fixes = await ctx.db.query("fixes").withIndex("by_timestamp").order("desc").collect();
-  return fixes
-    .filter((fix) => fix.alertIds.includes(alertId))
-    .map(({ _id, _creationTime, alertIds, ...fields }) => ({
-      ...fields,
-      id: String(_id),
-      alertIds: alertIds.map(String),
-    }));
+  for (const { _id, _creationTime, alertIds, ...fields } of fixes) {
+    const record = { ...fields, id: String(_id), alertIds: alertIds.map(String) };
+    for (const alertId of record.alertIds) {
+      byAlert.set(alertId, [...(byAlert.get(alertId) ?? []), record]);
+    }
+  }
+  return byAlert;
+}
+
+// The fixes recorded against an alert, newest first, in the shape item responses ship.
+export async function fixesForAlert(ctx: QueryCtx, alertId: Id<"alerts">) {
+  let byAlert = fixesByAlertPerQuery.get(ctx);
+  if (!byAlert) {
+    byAlert = readFixesByAlert(ctx);
+    fixesByAlertPerQuery.set(ctx, byAlert);
+  }
+  return (await byAlert).get(String(alertId)) ?? [];
 }
 
 export const getById = internalQuery({

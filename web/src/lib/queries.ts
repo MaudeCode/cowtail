@@ -22,7 +22,7 @@ import {
 
 import { api, ApiError, SESSION_KEY } from "./api";
 
-// Inbox and Home show what needs the owner now.
+// Inbox, Home and an item's page show what is happening now.
 const LIVE_REFRESH_MS = 15_000;
 const HISTORY_PAGE_SIZE = 100;
 
@@ -64,10 +64,12 @@ export const sourcesQuery = queryOptions({
   queryFn: async () => (await api("/api/items/sources", itemSourcesResponseSchema)).sources,
 });
 
+// An open item's page follows Hermes and the producer as they post to its timeline.
 export const itemQuery = (id: string) =>
   queryOptions({
     queryKey: ["item", id],
     queryFn: () => api(`/api/items/${encodeURIComponent(id)}`, itemGetResponseSchema),
+    refetchInterval: LIVE_REFRESH_MS,
   });
 
 function search(params: Record<string, string | number | undefined>) {
@@ -140,8 +142,14 @@ export function usePreferencesUpdate() {
       if (previous) client.setQueryData(sessionQuery.queryKey, { ...previous, ...patch });
       return { previous };
     },
-    onError: (_error, _patch, context) => {
-      if (context?.previous) client.setQueryData(sessionQuery.queryKey, context.previous);
+    // A refusal rolls back. A dropped connection or a server error may still have committed
+    // the write, so the client rereads the server's value before keeping or undoing it.
+    onError: (error, _patch, context) => {
+      if (error instanceof ApiError && error.status < 500) {
+        if (context?.previous) client.setQueryData(sessionQuery.queryKey, context.previous);
+      } else {
+        return client.invalidateQueries({ queryKey: SESSION_KEY });
+      }
     },
     onSuccess: ({ preferences }) => client.setQueryData(sessionQuery.queryKey, preferences),
   });

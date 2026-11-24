@@ -828,6 +828,8 @@ extension Components {
             internal var storageTotal: Swift.Double
             /// - Remark: Generated from `#/components/schemas/HealthResponse/storageUnit`.
             internal var storageUnit: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthResponse/readyNodes`.
+            internal var readyNodes: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/HealthResponse/alertPipeline`.
             internal struct AlertPipelinePayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/HealthResponse/alertPipeline/state`.
@@ -869,6 +871,7 @@ extension Components {
             ///   - storageUsed:
             ///   - storageTotal:
             ///   - storageUnit:
+            ///   - readyNodes:
             ///   - alertPipeline:
             internal init(
                 version: Swift.Double? = nil,
@@ -878,6 +881,7 @@ extension Components {
                 storageUsed: Swift.Double,
                 storageTotal: Swift.Double,
                 storageUnit: Swift.String,
+                readyNodes: Swift.Int? = nil,
                 alertPipeline: Components.Schemas.HealthResponse.AlertPipelinePayload? = nil
             ) {
                 self.version = version
@@ -887,6 +891,7 @@ extension Components {
                 self.storageUsed = storageUsed
                 self.storageTotal = storageTotal
                 self.storageUnit = storageUnit
+                self.readyNodes = readyNodes
                 self.alertPipeline = alertPipeline
             }
             internal enum CodingKeys: String, CodingKey {
@@ -897,6 +902,7 @@ extension Components {
                 case storageUsed
                 case storageTotal
                 case storageUnit
+                case readyNodes
                 case alertPipeline
             }
         }

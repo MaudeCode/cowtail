@@ -53,6 +53,7 @@ export const health: HealthResponse = {
   storageUsed: 14.6,
   storageTotal: 24,
   storageUnit: "TiB",
+  readyNodes: 1,
   alertPipeline: { state: "ok", lastWatchdogAt: NOW - 2 * MINUTE },
 };
 

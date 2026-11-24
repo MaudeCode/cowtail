@@ -517,6 +517,10 @@
             "type": "string",
             "minLength": 1
           },
+          "readyNodes": {
+            "type": "integer",
+            "minimum": 0
+          },
           "alertPipeline": {
             "type": "object",
             "properties": {

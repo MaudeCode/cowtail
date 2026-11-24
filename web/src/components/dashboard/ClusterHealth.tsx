@@ -103,7 +103,6 @@ export default function ClusterHealth({
     );
   }
 
-  const ready = health.nodes.filter((node) => node.status === "Ready").length;
   return (
     <div>
       <Section label="Alert pipeline" detail={<Pipeline health={health} />}>
@@ -111,7 +110,10 @@ export default function ClusterHealth({
           <span className="font-mono">{watchdogAge(health)}</span>
         </KeyValue>
       </Section>
-      <SectionLabel label="Nodes" detail={`${ready} ready`} />
+      <SectionLabel
+        label="Nodes"
+        detail={health.readyNodes === undefined ? undefined : `${health.readyNodes} ready`}
+      />
       <Nodes health={health} />
       <Section label="Ceph" detail={ceph}>
         <KeyValue label="Status">{health.cephMessage}</KeyValue>

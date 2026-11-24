@@ -729,6 +729,7 @@ async function fetchClusterHealth(): Promise<HealthResponse> {
   return {
     version: 1,
     nodes,
+    readyNodes: nodes.filter((node) => node.status === "Ready").length,
     cephStatus: cephStatusMap[cephStatusValue] ?? "HEALTH_OK",
     cephMessage: cephStatusValue === 0 ? "All PGs active+clean" : "Degraded — check Ceph dashboard",
     storageUsed: Number.parseFloat(usedTiB.toFixed(2)),
