@@ -6,6 +6,7 @@ export * from "./fixes.ts";
 export * from "./health.ts";
 export * from "./hermesHooks.ts";
 export * from "./hermes.ts";
+export * from "./incidents.ts";
 export * from "./items.ts";
 export * from "./maintenance.ts";
 export * from "./push.ts";

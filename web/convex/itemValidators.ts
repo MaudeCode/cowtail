@@ -67,4 +67,8 @@ export const itemFields = {
   latestUpdate: v.optional(v.object({ text: v.string(), at: v.number() })),
   // The maintenance window that held back the item's push.
   maintenanceWindowId: v.optional(v.id("maintenanceWindows")),
+  // The incident the item belongs to.
+  incidentId: v.optional(v.id("incidents")),
+  // Alert items: the Alertmanager group of the notification that created the item.
+  groupKey: v.optional(v.string()),
 };
