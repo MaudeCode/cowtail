@@ -132,6 +132,22 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
     }
 
+    func testASecondTapWhileTheFirstIsOnItsWaySendsNothing() async {
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []))
+        let store = store(api: api)
+        await store.refresh()
+        await api.hold(itemID: approval.id)
+
+        let first = Task { await store.perform(.approve, on: approval) }
+        await api.waitUntilHeld()
+        await store.perform(.deny, on: approval)
+        await api.releaseHeld(with: CowtailAPIError.refused("The item is closed"))
+        await first.value
+
+        let attempts = await api.actionAttempts
+        XCTAssertEqual(attempts, 1)
+    }
+
     func testAnUnconfirmedWriteStaysShownAndTakesNoSecondAnswerUntilTheServerAnswers() async {
         let api = FakeItemAPI(
             inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []),

@@ -81,6 +81,8 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var actionErrors: [String: String] = [:]
     /// Writes whose outcome the server has not confirmed yet; their items take no new action.
     @Published private(set) var unconfirmedItemIDs: Set<String> = []
+    /// Items with a write on its way; a second tap waits for the first to settle.
+    private var itemIDsInFlight: Set<String> = []
     @Published private(set) var alertActionsInFlight: Set<String> = []
 
     @Published private(set) var historyFilter = HistoryFilter()
@@ -228,6 +230,9 @@ final class CowtailStore: ObservableObject {
             actionErrors[item.id] = Self.unconfirmedMessage
             return
         }
+        // Held from before the first suspension, so a second tap cannot overtake this write.
+        guard itemIDsInFlight.insert(item.id).inserted else { return }
+        defer { itemIDsInFlight.remove(item.id) }
         actionErrors[item.id] = nil
         // The server's word on the item and this device's setting both count; the server
         // refuses an approval sent without Face ID while the owner requires it.
