@@ -235,11 +235,6 @@ export default function History() {
             </button>
           </Badge>
         ))}
-        {items.data && (
-          <span className="ml-auto text-[0.7rem] text-gray-600">
-            {days.reduce((total, day) => total + day.count, 0)} items
-          </span>
-        )}
         {open && <FilterPopup params={params} set={set} />}
       </div>
 
