@@ -450,6 +450,34 @@ enum CowtailPreviewFixtures {
         ),
     ]
 
+    /// The crash-looping pod's memory, crossing its 512Mi limit while the alert fired; no other
+    /// item has a graph.
+    static func graph(for item: Item, range: ItemGraphRange) -> ItemGraph? {
+        guard item.id == crashLoop.id else { return nil }
+        let span: Double = switch range {
+        case .oneHour: 60
+        case .sixHours: 360
+        case .oneDay: 1440
+        }
+        let limit = 536_870_912.0
+        let firingStart = item.createdAt
+        let points = (0...60).map { step in
+            let at = minutesAgo(span * Double(60 - step) / 60)
+            let rising = 300_000_000 + 260_000_000 * Double(step) / 60
+            let value = at >= firingStart ? limit * 1.15 + Double(step % 3) * 30_000_000 : rising
+            return ItemGraph.Point(at: at, value: value)
+        }
+        return ItemGraph(
+            range: range,
+            query: "container_memory_working_set_bytes",
+            from: minutesAgo(span),
+            to: .now,
+            threshold: .init(op: ">", value: limit),
+            firing: .init(start: firingStart),
+            series: [.init(labels: ["pod": "transcoder-7d9f"], points: points)]
+        )
+    }
+
     /// The earlier firings item detail shows for an item's alert.
     static func priorOccurrences(for item: Item) -> [PriorOccurrence] {
         guard item.id == replicas.id else { return [] }

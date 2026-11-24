@@ -44,6 +44,8 @@ import {
   itemCreateResponseSchema,
   itemEventAppendRequestSchema,
   itemGetResponseSchema,
+  itemGraphQuerySchema,
+  itemGraphResponseSchema,
   itemInboxResponseSchema,
   itemSourcesResponseSchema,
   itemListQuerySchema,
@@ -92,6 +94,7 @@ import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecyc
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { hermesHookItem } from "./hermesHooks";
 import { itemErrorCode } from "./items";
+import { itemGraph, type RangeSeries } from "./itemGraph";
 import { expireWindowSilences, silenceWindow } from "./maintenance";
 import { resolveItemStatsRange } from "./itemStats";
 import {
@@ -639,10 +642,10 @@ type PrometheusResult = {
   value: [number, string];
 };
 
-type PrometheusResponse = {
+type PrometheusResponse<T> = {
   status: string;
   data?: {
-    result?: PrometheusResult[];
+    result?: T[];
   };
 };
 
@@ -664,9 +667,23 @@ function prometheusValue(result: PrometheusResult): number {
   return Number.parseFloat(result.value[1]);
 }
 
-async function promQuery(query: string): Promise<PrometheusResult[]> {
-  const url = new URL(`${prometheusBaseUrl()}/api/v1/query`);
+// An instant query, or a range query when `window` is given (in seconds).
+async function promQuery(query: string): Promise<PrometheusResult[]>;
+async function promQuery(
+  query: string,
+  window: { start: number; end: number; step: number },
+): Promise<RangeSeries[]>;
+async function promQuery(
+  query: string,
+  window?: { start: number; end: number; step: number },
+): Promise<PrometheusResult[] | RangeSeries[]> {
+  const url = new URL(`${prometheusBaseUrl()}/api/v1/${window ? "query_range" : "query"}`);
   url.searchParams.set("query", query);
+  if (window) {
+    url.searchParams.set("start", String(window.start));
+    url.searchParams.set("end", String(window.end));
+    url.searchParams.set("step", String(window.step));
+  }
 
   const response = await fetch(url, {
     headers: {
@@ -688,9 +705,9 @@ async function promQuery(query: string): Promise<PrometheusResult[]> {
     throw new Error("Prometheus returned HTML instead of JSON");
   }
 
-  let data: PrometheusResponse;
+  let data: PrometheusResponse<PrometheusResult | RangeSeries>;
   try {
-    data = JSON.parse(body) as PrometheusResponse;
+    data = JSON.parse(body) as PrometheusResponse<PrometheusResult | RangeSeries>;
   } catch {
     throw new Error("Prometheus returned invalid JSON");
   }
@@ -699,7 +716,7 @@ async function promQuery(query: string): Promise<PrometheusResult[]> {
     throw new Error("Prometheus query did not return a success result");
   }
 
-  return data.data.result;
+  return data.data.result as PrometheusResult[] | RangeSeries[];
 }
 
 async function fetchClusterHealth(): Promise<HealthResponse> {
@@ -1757,6 +1774,22 @@ app.get("/api/items/:id", async (c) => {
   const result = await c.env.runQuery((internal as any).items.get, { id: c.req.param("id") });
   if (!result) return jsonError("Item not found", 404);
   return c.json(itemGetResponseSchema.parse({ ok: true, ...result }));
+});
+
+// GET /api/items/:id/graph — the alert's own metric over 1h, 6h or 24h, with its threshold
+app.get("/api/items/:id/graph", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const parsed = itemGraphQuerySchema.safeParse({ range: nonEmptyString(c.req.query("range")) });
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const source = await c.env.runQuery((internal as any).items.graphAlert, {
+    id: c.req.param("id"),
+  });
+  if (!source) return jsonError("Item not found", 404);
+  const graph = await itemGraph(source.alert, parsed.data.range, Date.now(), promQuery);
+  return c.json(itemGraphResponseSchema.parse(graph));
 });
 
 // --- Sources --------------------------------------------------------------------------

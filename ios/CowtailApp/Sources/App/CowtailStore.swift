@@ -79,6 +79,8 @@ final class CowtailStore: ObservableObject {
 
     @Published private(set) var details: [String: ItemDetail] = [:]
     @Published private(set) var detailErrors: [String: String] = [:]
+    /// Each item's metric graph at the range last asked for; absent when the server has none.
+    @Published private(set) var graphs: [String: ItemGraph] = [:]
     @Published private(set) var itemIDsByAlertID: [String: String] = [:]
     @Published private(set) var actionErrors: [String: String] = [:]
     /// Writes whose outcome the server has not confirmed yet; their items take no new action.
@@ -295,6 +297,17 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             detailErrors[itemID] = error.localizedDescription
+        }
+    }
+
+    /// A failed read keeps the graph already shown.
+    func loadGraph(itemID: String, range: ItemGraphRange) async {
+        guard let token = await sessionToken() else { return }
+        do {
+            graphs[itemID] = try await api.fetchItemGraph(itemID: itemID, range: range, sessionToken: token)
+        } catch {
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
+            logger.error("Graph load failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

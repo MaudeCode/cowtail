@@ -117,6 +117,26 @@ extension CowtailAPI {
         )
     }
 
+    static func makeGraph(_ response: Components.Schemas.ItemGraphResponse) -> ItemGraph? {
+        guard response.available, let query = response.query, let from = response.from, let to = response.to,
+              let range = ItemGraphRange(rawValue: response.range.rawValue)
+        else { return nil }
+        return ItemGraph(
+            range: range,
+            query: query,
+            from: date(from),
+            to: date(to),
+            threshold: response.threshold.map { .init(op: $0.op.rawValue, value: $0.value) },
+            firing: response.firing.map { .init(start: date($0.startsAt), end: $0.endsAt.map(date)) },
+            series: (response.series ?? []).map { series in
+                .init(
+                    labels: series.labels.additionalProperties,
+                    points: series.points.map { .init(at: date($0.at), value: $0.value) }
+                )
+            }
+        )
+    }
+
     static func makeStats(_ response: Components.Schemas.ItemStatsResponse) -> ItemStats {
         let mix = response.outcomeMix
         return ItemStats(

@@ -19,6 +19,7 @@ import {
   stats,
 } from "./test/fixtures";
 import { renderWithProviders } from "./test/render";
+import { formatClock, formatWhen } from "./lib/format";
 
 function Address() {
   const location = useLocation();
@@ -104,6 +105,30 @@ const priorOccurrence = {
   fixes: [{ description: "Raise the limit", rootCause: "OOMKilled", commit: "7be01d4e" }],
 };
 
+const HOUR = 60 * 60_000;
+
+// The alert item's metric: one series crossing its threshold while it fired.
+const graph = {
+  ok: true,
+  available: true,
+  range: "6h",
+  query: "container_memory_working_set_bytes",
+  from: NOW - 6 * HOUR,
+  to: NOW,
+  threshold: { op: ">", value: 536870912 },
+  firing: { startsAt: NOW - HOUR, endsAt: NOW - 20 * 60_000 },
+  series: [
+    {
+      labels: { pod: "transcoder-7d9f" },
+      points: [
+        { at: NOW - 6 * HOUR, value: 300_000_000 },
+        { at: NOW - HOUR, value: 640_000_000 },
+        { at: NOW, value: 400_000_000 },
+      ],
+    },
+  ],
+};
+
 describe("each area's sections, in its figure's order", () => {
   test.each([
     ["/", ["Needs you", "Hermes is on it", "Upcoming", "Cluster", "Hermes", "Handled · 24h"]],
@@ -113,7 +138,10 @@ describe("each area's sections, in its figure's order", () => {
     ],
     ["/history", ["Outcomes", "Time to resolve", "Noise rate"]],
     ["/hermes", ["Cron", "Cron incidents", "Recent approvals and answers", "Status"]],
-    ["/items/item-9", ["Timeline", "Details", "Fix", "Past occurrences"]],
+    [
+      "/items/item-9",
+      ["Timeline", "container_memory_working_set_bytes", "Details", "Fix", "Past occurrences"],
+    ],
     ["/settings", ["Notifications", "Account", "Urgency overrides"]],
   ])("%s", async (route, labels) => {
     stubApi(
@@ -128,6 +156,7 @@ describe("each area's sections, in its figure's order", () => {
           fixes: fixed.fix ? [fixed.fix] : [],
           priorOccurrences: [priorOccurrence],
         },
+        "GET /actions/api/items/item-9/graph?range=6h": graph,
       }),
     );
 
@@ -881,8 +910,8 @@ describe("item detail", () => {
     ],
   };
 
-  function renderDetail() {
-    stubApi(
+  function renderDetail(graphRoutes: Record<string, unknown> = {}) {
+    const api = stubApi(
       signedIn({
         "GET /actions/api/items/item-9": {
           ok: true,
@@ -891,10 +920,59 @@ describe("item detail", () => {
           fixes: [],
           priorOccurrences: [priorOccurrence],
         },
+        ...graphRoutes,
       }),
     );
     renderApp("/items/item-9");
+    return api;
   }
+
+  test("the metric graph draws the alert's threshold and firing interval", async () => {
+    renderDetail({ "GET /actions/api/items/item-9/graph?range=6h": graph });
+
+    const chart = await screen.findByRole("img", { name: /^container_memory_working_set_bytes/ });
+    const firing = `firing ${formatClock(graph.firing.startsAt)}–${formatClock(graph.firing.endsAt)}`;
+    expect(chart).toHaveAccessibleName(
+      `container_memory_working_set_bytes over 6h, > 537M, ${firing}`,
+    );
+    expect([...chart.querySelectorAll("text")].map((text) => text.textContent)).toEqual([
+      "> 537M",
+      formatWhen(graph.from, graph.to),
+      firing,
+      formatClock(graph.to),
+    ]);
+    expect([...chart.querySelectorAll("polyline, line, rect")].map((mark) => mark.tagName)).toEqual(
+      ["rect", "line", "polyline"],
+    );
+  });
+
+  test("choosing a range asks the server for that range's graph", async () => {
+    const { calls } = renderDetail({
+      "GET /actions/api/items/item-9/graph?range=6h": graph,
+      "GET /actions/api/items/item-9/graph?range=24h": { ...graph, range: "24h" },
+    });
+
+    await userEvent.click(await screen.findByRole("radio", { name: "24h" }));
+
+    expect(await screen.findByRole("img", { name: /over 24h/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "24h" })).toBeChecked();
+    expect(calls.map((call) => call.path)).toContain("/actions/api/items/item-9/graph?range=24h");
+  });
+
+  test("the metric graph is hidden when the server has none", async () => {
+    renderDetail({
+      "GET /actions/api/items/item-9/graph?range=6h": {
+        ok: true,
+        available: false,
+        range: "6h",
+        reason: "The alert has no generator URL",
+      },
+    });
+
+    await screen.findByRole("heading", { name: "Past occurrences" });
+    expect(sectionLabels()).toEqual(["Timeline", "Details", "Past occurrences"]);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
 
   test("Hermes's evidence is a collapsed disclosure of numbered steps, each command with its output", async () => {
     renderDetail();

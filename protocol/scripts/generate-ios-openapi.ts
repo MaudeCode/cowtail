@@ -35,6 +35,8 @@ import {
   itemActionSchema,
   itemEventRecordSchema,
   itemGetResponseSchema,
+  itemGraphQuerySchema,
+  itemGraphResponseSchema,
   itemInboxResponseSchema,
   itemListQuerySchema,
   itemListResponseSchema,
@@ -119,6 +121,7 @@ const ItemResponse = itemResponseSchema.meta({ id: "ItemResponse" });
 const ItemListResponse = itemListResponseSchema.meta({ id: "ItemListResponse" });
 const ItemInboxResponse = itemInboxResponseSchema.meta({ id: "ItemInboxResponse" });
 const ItemGetResponse = itemGetResponseSchema.meta({ id: "ItemGetResponse" });
+const ItemGraphResponse = itemGraphResponseSchema.meta({ id: "ItemGraphResponse" });
 const ItemStatsResponse = itemStatsResponseSchema.meta({ id: "ItemStatsResponse" });
 const SnoozeOptionsResponse = snoozeOptionsResponseSchema.meta({ id: "SnoozeOptionsResponse" });
 const ItemSourcesResponse = itemSourcesResponseSchema.meta({ id: "ItemSourcesResponse" });
@@ -474,6 +477,23 @@ registry.registerPath({
   request: { params: z.object({ id: nonEmptyStringSchema }) },
   responses: {
     200: jsonResponse("The item and its events.", ItemGetResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+    404: jsonResponse("Item not found.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/items/{id}/graph",
+  operationId: "getItemGraph",
+  tags: ["items"],
+  summary: "An alert item's own metric over 1h, 6h or 24h, with its threshold and firing",
+  security: [{ appSession: [] }],
+  request: { params: z.object({ id: nonEmptyStringSchema }), query: itemGraphQuerySchema },
+  responses: {
+    200: jsonResponse("The graph, or why there is none.", ItemGraphResponse),
+    400: jsonResponse("Invalid range.", ErrorResponse),
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
     404: jsonResponse("Item not found.", ErrorResponse),

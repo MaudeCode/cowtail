@@ -10,6 +10,8 @@ protocol CowtailAPIClient: Sendable {
     func fetchItems(_ query: ItemListQuery, sessionToken: String) async throws -> ItemPage
     /// Nil when the server has no such item.
     func fetchItem(id: String, sessionToken: String) async throws -> ItemDetail?
+    /// Nil when the server has no graph for the item.
+    func fetchItemGraph(itemID: String, range: ItemGraphRange, sessionToken: String) async throws -> ItemGraph?
     /// Stats for the query's start, source, kind and outcome; no start means the last 7 days.
     func fetchItemStats(_ query: ItemListQuery, sessionToken: String) async throws -> ItemStats
     func fetchItemSources(sessionToken: String) async throws -> [String]
@@ -373,6 +375,27 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.requestFailed(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Item request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchItemGraph(itemID: String, range: ItemGraphRange, sessionToken: String) async throws -> ItemGraph? {
+        let response = try await sessionClient(sessionToken: sessionToken).getItemGraph(
+            path: .init(id: itemID),
+            query: .init(range: .init(rawValue: range.rawValue))
+        )
+        switch response {
+        case .ok(let response):
+            return Self.makeGraph(try response.body.json)
+        case .notFound:
+            return nil
+        case .badRequest(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Graph request failed with HTTP \(statusCode).")
         }
     }
 

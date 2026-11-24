@@ -235,6 +235,47 @@ struct PriorOccurrence: Identifiable, Hashable, Sendable {
     var id: String { alertID }
 }
 
+/// The span an item's metric graph covers.
+enum ItemGraphRange: String, CaseIterable, Hashable, Sendable {
+    case oneHour = "1h"
+    case sixHours = "6h"
+    case oneDay = "24h"
+}
+
+/// An alert's own metric over a range, as the server queried it. The server sends one only when
+/// it has samples to draw.
+struct ItemGraph: Hashable, Sendable {
+    struct Threshold: Hashable, Sendable {
+        /// `>`, `>=`, `<`, `<=`, `==` or `!=`.
+        let op: String
+        let value: Double
+    }
+
+    struct Firing: Hashable, Sendable {
+        let start: Date
+        var end: Date?
+    }
+
+    struct Point: Hashable, Sendable {
+        let at: Date
+        let value: Double
+    }
+
+    struct Series: Hashable, Sendable {
+        let labels: [String: String]
+        let points: [Point]
+    }
+
+    let range: ItemGraphRange
+    /// The expression drawn, and the section's label.
+    let query: String
+    let from: Date
+    let to: Date
+    var threshold: Threshold?
+    var firing: Firing?
+    let series: [Series]
+}
+
 struct ItemDetail: Hashable, Sendable {
     var item: Item
     let events: [ItemEvent]
