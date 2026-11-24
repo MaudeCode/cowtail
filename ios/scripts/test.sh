@@ -18,9 +18,13 @@ shift "${count}"
 
 cd "${IOS_ROOT}"
 ./generate.sh
+# CI reads each test's run time from this bundle (docs/testing.md); xcodebuild refuses to overwrite one.
+RESULT_BUNDLE="${IOS_ROOT}/build/TestResults.xcresult"
+rm -rf "${RESULT_BUNDLE}"
 # One build for every target named.
 xcodebuild test \
   -project Cowtail.xcodeproj \
   -scheme Cowtail \
   -destination "${DESTINATION}" \
+  -resultBundlePath "${RESULT_BUNDLE}" \
   "$@"

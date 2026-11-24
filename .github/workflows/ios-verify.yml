@@ -60,6 +60,11 @@ jobs:
         working-directory: ios
         run: scripts/test.sh CowtailTests CowtailUITests
 
+      - name: Check iOS test run times
+        run: |
+          xcrun xcresulttool get test-results tests --path ios/build/TestResults.xcresult > "${RUNNER_TEMP}/ios-tests.json"
+          pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/ios-tests.json"
+
       # The hosted image has no iOS 26 simulator, so this static check is CI's proof the app still launches on iOS 26.
       - name: Check the app has no strong iOS 27-only imports
         working-directory: ios

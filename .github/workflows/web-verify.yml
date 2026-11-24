@@ -29,6 +29,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run test:web
+      - run: pnpm run test:web --reporter=default --reporter=junit --outputFile.junit="${RUNNER_TEMP}/junit/web.xml"
+      - run: pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/junit/web.xml"
       - run: cd web && pnpm exec tsc -p convex/tsconfig.json --noEmit
       - run: pnpm run build:web
