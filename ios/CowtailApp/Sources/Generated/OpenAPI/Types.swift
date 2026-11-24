@@ -3,11 +3,16 @@
 import Foundation
 /// A type that performs HTTP operations defined by the OpenAPI document.
 internal protocol APIProtocol: Sendable {
-    /// Perform a typed Convex query request
+    /// List alerts in a time range, for the roundup
     ///
-    /// - Remark: HTTP `POST /query`.
-    /// - Remark: Generated from `#/paths//query/post(query)`.
-    func query(_ input: Operations.Query.Input) async throws -> Operations.Query.Output
+    /// - Remark: HTTP `GET /alerts`.
+    /// - Remark: Generated from `#/paths//alerts/get(listAlerts)`.
+    func listAlerts(_ input: Operations.ListAlerts.Input) async throws -> Operations.ListAlerts.Output
+    /// List fixes in a time range, for the roundup
+    ///
+    /// - Remark: HTTP `GET /fixes`.
+    /// - Remark: Generated from `#/paths//fixes/get(listFixes)`.
+    func listFixes(_ input: Operations.ListFixes.Input) async throws -> Operations.ListFixes.Output
     /// Fetch the cluster health payload
     ///
     /// - Remark: HTTP `GET /health`.
@@ -97,17 +102,30 @@ internal protocol APIProtocol: Sendable {
 
 /// Convenience overloads for operation inputs.
 extension APIProtocol {
-    /// Perform a typed Convex query request
+    /// List alerts in a time range, for the roundup
     ///
-    /// - Remark: HTTP `POST /query`.
-    /// - Remark: Generated from `#/paths//query/post(query)`.
-    internal func query(
-        headers: Operations.Query.Input.Headers = .init(),
-        body: Operations.Query.Input.Body
-    ) async throws -> Operations.Query.Output {
-        try await query(Operations.Query.Input(
-            headers: headers,
-            body: body
+    /// - Remark: HTTP `GET /alerts`.
+    /// - Remark: Generated from `#/paths//alerts/get(listAlerts)`.
+    internal func listAlerts(
+        query: Operations.ListAlerts.Input.Query = .init(),
+        headers: Operations.ListAlerts.Input.Headers = .init()
+    ) async throws -> Operations.ListAlerts.Output {
+        try await listAlerts(Operations.ListAlerts.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// List fixes in a time range, for the roundup
+    ///
+    /// - Remark: HTTP `GET /fixes`.
+    /// - Remark: Generated from `#/paths//fixes/get(listFixes)`.
+    internal func listFixes(
+        query: Operations.ListFixes.Input.Query = .init(),
+        headers: Operations.ListFixes.Input.Headers = .init()
+    ) async throws -> Operations.ListFixes.Output {
+        try await listFixes(Operations.ListFixes.Input(
+            query: query,
+            headers: headers
         ))
     }
     /// Fetch the cluster health payload

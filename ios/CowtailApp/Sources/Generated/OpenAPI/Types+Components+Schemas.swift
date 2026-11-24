@@ -4,130 +4,147 @@ import Foundation
 extension Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     internal enum Schemas {
-        /// - Remark: Generated from `#/components/schemas/ConvexQueryResponse`.
-        internal struct ConvexQueryResponse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexQueryResponse/value1`.
-            internal var value1: Components.Schemas.ConvexFetchAlertsResponse?
-            /// - Remark: Generated from `#/components/schemas/ConvexQueryResponse/value2`.
-            internal var value2: Components.Schemas.ConvexFetchAlertResponse?
-            /// - Remark: Generated from `#/components/schemas/ConvexQueryResponse/value3`.
-            internal var value3: Components.Schemas.ConvexFetchFixesResponse?
-            /// Creates a new `ConvexQueryResponse`.
+        /// - Remark: Generated from `#/components/schemas/AlertListResponse`.
+        internal struct AlertListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AlertListResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AlertListResponse/count`.
+            internal var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AlertListResponse/alerts`.
+            internal var alerts: [Components.Schemas.AlertRecord]
+            /// Creates a new `AlertListResponse`.
             ///
             /// - Parameters:
-            ///   - value1:
-            ///   - value2:
-            ///   - value3:
+            ///   - ok:
+            ///   - count:
+            ///   - alerts:
             internal init(
-                value1: Components.Schemas.ConvexFetchAlertsResponse? = nil,
-                value2: Components.Schemas.ConvexFetchAlertResponse? = nil,
-                value3: Components.Schemas.ConvexFetchFixesResponse? = nil
+                ok: Swift.Bool,
+                count: Swift.Int,
+                alerts: [Components.Schemas.AlertRecord]
             ) {
-                self.value1 = value1
-                self.value2 = value2
-                self.value3 = value3
-            }
-            internal init(from decoder: any Swift.Decoder) throws {
-                var errors: [any Swift.Error] = []
-                do {
-                    self.value1 = try .init(from: decoder)
-                } catch {
-                    errors.append(error)
-                }
-                do {
-                    self.value2 = try .init(from: decoder)
-                } catch {
-                    errors.append(error)
-                }
-                do {
-                    self.value3 = try .init(from: decoder)
-                } catch {
-                    errors.append(error)
-                }
-                try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
-                    [
-                        self.value1,
-                        self.value2,
-                        self.value3
-                    ],
-                    type: Self.self,
-                    codingPath: decoder.codingPath,
-                    errors: errors
-                )
-            }
-            internal func encode(to encoder: any Swift.Encoder) throws {
-                try self.value1?.encode(to: encoder)
-                try self.value2?.encode(to: encoder)
-                try self.value3?.encode(to: encoder)
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsResponse`.
-        internal struct ConvexFetchAlertsResponse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsResponse/status`.
-            internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-                case error = "error"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsResponse/status`.
-            internal var status: Components.Schemas.ConvexFetchAlertsResponse.StatusPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsResponse/value`.
-            internal var value: [Components.Schemas.ConvexAlertRecord]?
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsResponse/errorMessage`.
-            internal var errorMessage: Swift.String?
-            /// Creates a new `ConvexFetchAlertsResponse`.
-            ///
-            /// - Parameters:
-            ///   - status:
-            ///   - value:
-            ///   - errorMessage:
-            internal init(
-                status: Components.Schemas.ConvexFetchAlertsResponse.StatusPayload,
-                value: [Components.Schemas.ConvexAlertRecord]? = nil,
-                errorMessage: Swift.String? = nil
-            ) {
-                self.status = status
-                self.value = value
-                self.errorMessage = errorMessage
+                self.ok = ok
+                self.count = count
+                self.alerts = alerts
             }
             internal enum CodingKeys: String, CodingKey {
-                case status
-                case value
-                case errorMessage
+                case ok
+                case count
+                case alerts
             }
         }
-        /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord`.
-        internal struct ConvexAlertRecord: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/_id`.
-            internal var _id: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/timestamp`.
-            internal var timestamp: Swift.Double
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/alertname`.
+        /// - Remark: Generated from `#/components/schemas/AlertRecord`.
+        internal struct AlertRecord: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/timestamp`.
+            internal var timestamp: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/alertname`.
             internal var alertname: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/severity`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/severity`.
             internal var severity: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/namespace`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/namespace`.
             internal var namespace: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/node`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/node`.
             internal var node: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/status`.
-            internal var status: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/outcome`.
-            internal var outcome: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/summary`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/status`.
+            internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case firing = "firing"
+                case resolved = "resolved"
+            }
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/status`.
+            internal var status: Components.Schemas.AlertRecord.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/outcome`.
+            internal enum OutcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case pending = "pending"
+                case recorded = "recorded"
+                case fixed = "fixed"
+                case selfResolved = "self-resolved"
+                case noise = "noise"
+                case escalated = "escalated"
+            }
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/outcome`.
+            internal var outcome: Components.Schemas.AlertRecord.OutcomePayload
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/summary`.
             internal var summary: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/action`.
-            internal var action: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/rootCause`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/action`.
+            internal var action: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/rootCause`.
             internal var rootCause: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/resolvedAt`.
-            internal var resolvedAt: Swift.Double?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/messaged`.
-            internal var messaged: Swift.Bool?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/messaged`.
+            internal var messaged: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/resolvedAt`.
+            internal var resolvedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/source`.
+            internal enum SourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case alertmanager = "alertmanager"
+                case hermes = "hermes"
+                case manual = "manual"
+                case weeklyReview = "weekly-review"
+            }
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/source`.
+            internal var source: Components.Schemas.AlertRecord.SourcePayload?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/sourceEventId`.
+            internal var sourceEventId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/alertmanagerFingerprint`.
+            internal var alertmanagerFingerprint: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/dedupeKey`.
+            internal var dedupeKey: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/startsAt`.
+            internal var startsAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/endsAt`.
+            internal var endsAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/generatorURL`.
+            internal var generatorURL: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/labels`.
+            internal struct LabelsPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
+                /// Creates a new `LabelsPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                internal init(from decoder: any Swift.Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                internal func encode(to encoder: any Swift.Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/labels`.
+            internal var labels: Components.Schemas.AlertRecord.LabelsPayload?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/annotations`.
+            internal struct AnnotationsPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
+                /// Creates a new `AnnotationsPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                internal init(from decoder: any Swift.Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                internal func encode(to encoder: any Swift.Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/annotations`.
+            internal var annotations: Components.Schemas.AlertRecord.AnnotationsPayload?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/lastReceivedAt`.
+            internal var lastReceivedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/occurrenceCount`.
+            internal var occurrenceCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation`.
             internal struct InvestigationPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/id`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/id`.
                 internal var id: Swift.String
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/status`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/status`.
                 internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case queued = "queued"
                     case claimed = "claimed"
@@ -135,35 +152,35 @@ extension Components {
                     case failed = "failed"
                     case deadletter = "deadletter"
                 }
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/status`.
-                internal var status: Components.Schemas.ConvexAlertRecord.InvestigationPayload.StatusPayload
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/priority`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/status`.
+                internal var status: Components.Schemas.AlertRecord.InvestigationPayload.StatusPayload
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/priority`.
                 internal enum PriorityPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case low = "low"
                     case normal = "normal"
                     case high = "high"
                 }
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/priority`.
-                internal var priority: Components.Schemas.ConvexAlertRecord.InvestigationPayload.PriorityPayload
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/attempts`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/priority`.
+                internal var priority: Components.Schemas.AlertRecord.InvestigationPayload.PriorityPayload
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/attempts`.
                 internal var attempts: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/maxAttempts`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/maxAttempts`.
                 internal var maxAttempts: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/nextAttemptAt`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/nextAttemptAt`.
                 internal var nextAttemptAt: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/claimedAt`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/claimedAt`.
                 internal var claimedAt: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/leaseUntil`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/leaseUntil`.
                 internal var leaseUntil: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/lastError`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/lastError`.
                 internal var lastError: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/lastErrorPhase`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/lastErrorPhase`.
                 internal var lastErrorPhase: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/completedAt`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/completedAt`.
                 internal var completedAt: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/deadletteredAt`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/deadletteredAt`.
                 internal var deadletteredAt: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation/updatedAt`.
+                /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation/updatedAt`.
                 internal var updatedAt: Swift.Int
                 /// Creates a new `InvestigationPayload`.
                 ///
@@ -183,8 +200,8 @@ extension Components {
                 ///   - updatedAt:
                 internal init(
                     id: Swift.String,
-                    status: Components.Schemas.ConvexAlertRecord.InvestigationPayload.StatusPayload,
-                    priority: Components.Schemas.ConvexAlertRecord.InvestigationPayload.PriorityPayload,
+                    status: Components.Schemas.AlertRecord.InvestigationPayload.StatusPayload,
+                    priority: Components.Schemas.AlertRecord.InvestigationPayload.PriorityPayload,
                     attempts: Swift.Int,
                     maxAttempts: Swift.Int,
                     nextAttemptAt: Swift.Int,
@@ -226,23 +243,23 @@ extension Components {
                     case updatedAt
                 }
             }
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/investigation`.
-            internal var investigation: Components.Schemas.ConvexAlertRecord.InvestigationPayload?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/ownerDisposition`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/investigation`.
+            internal var investigation: Components.Schemas.AlertRecord.InvestigationPayload?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/ownerDisposition`.
             internal enum OwnerDispositionPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case noise = "noise"
                 case escalated = "escalated"
             }
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/ownerDisposition`.
-            internal var ownerDisposition: Components.Schemas.ConvexAlertRecord.OwnerDispositionPayload?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/ownerNote`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/ownerDisposition`.
+            internal var ownerDisposition: Components.Schemas.AlertRecord.OwnerDispositionPayload?
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/ownerNote`.
             internal var ownerNote: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/ConvexAlertRecord/ownerUpdatedAt`.
-            internal var ownerUpdatedAt: Swift.Double?
-            /// Creates a new `ConvexAlertRecord`.
+            /// - Remark: Generated from `#/components/schemas/AlertRecord/ownerUpdatedAt`.
+            internal var ownerUpdatedAt: Swift.Int?
+            /// Creates a new `AlertRecord`.
             ///
             /// - Parameters:
-            ///   - _id:
+            ///   - id:
             ///   - timestamp:
             ///   - alertname:
             ///   - severity:
@@ -253,32 +270,54 @@ extension Components {
             ///   - summary:
             ///   - action:
             ///   - rootCause:
-            ///   - resolvedAt:
             ///   - messaged:
+            ///   - resolvedAt:
+            ///   - source:
+            ///   - sourceEventId:
+            ///   - alertmanagerFingerprint:
+            ///   - dedupeKey:
+            ///   - startsAt:
+            ///   - endsAt:
+            ///   - generatorURL:
+            ///   - labels:
+            ///   - annotations:
+            ///   - lastReceivedAt:
+            ///   - occurrenceCount:
             ///   - investigation:
             ///   - ownerDisposition:
             ///   - ownerNote:
             ///   - ownerUpdatedAt:
             internal init(
-                _id: Swift.String,
-                timestamp: Swift.Double,
+                id: Swift.String,
+                timestamp: Swift.Int,
                 alertname: Swift.String,
                 severity: Swift.String,
                 namespace: Swift.String,
                 node: Swift.String? = nil,
-                status: Swift.String,
-                outcome: Swift.String,
+                status: Components.Schemas.AlertRecord.StatusPayload,
+                outcome: Components.Schemas.AlertRecord.OutcomePayload,
                 summary: Swift.String,
-                action: Swift.String? = nil,
+                action: Swift.String,
                 rootCause: Swift.String? = nil,
-                resolvedAt: Swift.Double? = nil,
-                messaged: Swift.Bool? = nil,
-                investigation: Components.Schemas.ConvexAlertRecord.InvestigationPayload? = nil,
-                ownerDisposition: Components.Schemas.ConvexAlertRecord.OwnerDispositionPayload? = nil,
+                messaged: Swift.Bool,
+                resolvedAt: Swift.Int? = nil,
+                source: Components.Schemas.AlertRecord.SourcePayload? = nil,
+                sourceEventId: Swift.String? = nil,
+                alertmanagerFingerprint: Swift.String? = nil,
+                dedupeKey: Swift.String? = nil,
+                startsAt: Swift.Int? = nil,
+                endsAt: Swift.Int? = nil,
+                generatorURL: Swift.String? = nil,
+                labels: Components.Schemas.AlertRecord.LabelsPayload? = nil,
+                annotations: Components.Schemas.AlertRecord.AnnotationsPayload? = nil,
+                lastReceivedAt: Swift.Int? = nil,
+                occurrenceCount: Swift.Int? = nil,
+                investigation: Components.Schemas.AlertRecord.InvestigationPayload? = nil,
+                ownerDisposition: Components.Schemas.AlertRecord.OwnerDispositionPayload? = nil,
                 ownerNote: Swift.String? = nil,
-                ownerUpdatedAt: Swift.Double? = nil
+                ownerUpdatedAt: Swift.Int? = nil
             ) {
-                self._id = _id
+                self.id = id
                 self.timestamp = timestamp
                 self.alertname = alertname
                 self.severity = severity
@@ -289,15 +328,26 @@ extension Components {
                 self.summary = summary
                 self.action = action
                 self.rootCause = rootCause
-                self.resolvedAt = resolvedAt
                 self.messaged = messaged
+                self.resolvedAt = resolvedAt
+                self.source = source
+                self.sourceEventId = sourceEventId
+                self.alertmanagerFingerprint = alertmanagerFingerprint
+                self.dedupeKey = dedupeKey
+                self.startsAt = startsAt
+                self.endsAt = endsAt
+                self.generatorURL = generatorURL
+                self.labels = labels
+                self.annotations = annotations
+                self.lastReceivedAt = lastReceivedAt
+                self.occurrenceCount = occurrenceCount
                 self.investigation = investigation
                 self.ownerDisposition = ownerDisposition
                 self.ownerNote = ownerNote
                 self.ownerUpdatedAt = ownerUpdatedAt
             }
             internal enum CodingKeys: String, CodingKey {
-                case _id
+                case id
                 case timestamp
                 case alertname
                 case severity
@@ -308,459 +358,134 @@ extension Components {
                 case summary
                 case action
                 case rootCause
-                case resolvedAt
                 case messaged
+                case resolvedAt
+                case source
+                case sourceEventId
+                case alertmanagerFingerprint
+                case dedupeKey
+                case startsAt
+                case endsAt
+                case generatorURL
+                case labels
+                case annotations
+                case lastReceivedAt
+                case occurrenceCount
                 case investigation
                 case ownerDisposition
                 case ownerNote
                 case ownerUpdatedAt
             }
         }
-        /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse`.
-        internal struct ConvexFetchAlertResponse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse/status`.
-            internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-                case error = "error"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse/status`.
-            internal var status: Components.Schemas.ConvexFetchAlertResponse.StatusPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse/value`.
-            internal struct ValuePayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse/value/value1`.
-                internal var value1: Components.Schemas.ConvexAlertRecord?
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse/value/value2`.
-                internal var value2: OpenAPIRuntime.OpenAPIValueContainer?
-                /// Creates a new `ValuePayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                ///   - value2:
-                internal init(
-                    value1: Components.Schemas.ConvexAlertRecord? = nil,
-                    value2: OpenAPIRuntime.OpenAPIValueContainer? = nil
-                ) {
-                    self.value1 = value1
-                    self.value2 = value2
-                }
-                internal init(from decoder: any Swift.Decoder) throws {
-                    var errors: [any Swift.Error] = []
-                    do {
-                        self.value1 = try .init(from: decoder)
-                    } catch {
-                        errors.append(error)
-                    }
-                    do {
-                        self.value2 = try .init(from: decoder)
-                    } catch {
-                        errors.append(error)
-                    }
-                    try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
-                        [
-                            self.value1,
-                            self.value2
-                        ],
-                        type: Self.self,
-                        codingPath: decoder.codingPath,
-                        errors: errors
-                    )
-                }
-                internal func encode(to encoder: any Swift.Encoder) throws {
-                    try self.value1?.encode(to: encoder)
-                    try self.value2?.encode(to: encoder)
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse/value`.
-            internal var value: Components.Schemas.ConvexFetchAlertResponse.ValuePayload?
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertResponse/errorMessage`.
-            internal var errorMessage: Swift.String?
-            /// Creates a new `ConvexFetchAlertResponse`.
+        /// - Remark: Generated from `#/components/schemas/ErrorResponse`.
+        internal struct ErrorResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ErrorResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/ErrorResponse/error`.
+            internal var error: Swift.String
+            /// Creates a new `ErrorResponse`.
             ///
             /// - Parameters:
-            ///   - status:
-            ///   - value:
-            ///   - errorMessage:
+            ///   - ok:
+            ///   - error:
             internal init(
-                status: Components.Schemas.ConvexFetchAlertResponse.StatusPayload,
-                value: Components.Schemas.ConvexFetchAlertResponse.ValuePayload? = nil,
-                errorMessage: Swift.String? = nil
+                ok: Swift.Bool,
+                error: Swift.String
             ) {
-                self.status = status
-                self.value = value
-                self.errorMessage = errorMessage
+                self.ok = ok
+                self.error = error
             }
             internal enum CodingKeys: String, CodingKey {
-                case status
-                case value
-                case errorMessage
+                case ok
+                case error
             }
         }
-        /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesResponse`.
-        internal struct ConvexFetchFixesResponse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesResponse/status`.
-            internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-                case error = "error"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesResponse/status`.
-            internal var status: Components.Schemas.ConvexFetchFixesResponse.StatusPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesResponse/value`.
-            internal var value: [Components.Schemas.ConvexFixRecord]?
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesResponse/errorMessage`.
-            internal var errorMessage: Swift.String?
-            /// Creates a new `ConvexFetchFixesResponse`.
+        /// - Remark: Generated from `#/components/schemas/FixListResponse`.
+        internal struct FixListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/FixListResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/FixListResponse/count`.
+            internal var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/FixListResponse/fixes`.
+            internal var fixes: [Components.Schemas.FixRecord]
+            /// Creates a new `FixListResponse`.
             ///
             /// - Parameters:
-            ///   - status:
-            ///   - value:
-            ///   - errorMessage:
+            ///   - ok:
+            ///   - count:
+            ///   - fixes:
             internal init(
-                status: Components.Schemas.ConvexFetchFixesResponse.StatusPayload,
-                value: [Components.Schemas.ConvexFixRecord]? = nil,
-                errorMessage: Swift.String? = nil
+                ok: Swift.Bool,
+                count: Swift.Int,
+                fixes: [Components.Schemas.FixRecord]
             ) {
-                self.status = status
-                self.value = value
-                self.errorMessage = errorMessage
+                self.ok = ok
+                self.count = count
+                self.fixes = fixes
             }
             internal enum CodingKeys: String, CodingKey {
-                case status
-                case value
-                case errorMessage
+                case ok
+                case count
+                case fixes
             }
         }
-        /// - Remark: Generated from `#/components/schemas/ConvexFixRecord`.
-        internal struct ConvexFixRecord: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFixRecord/_id`.
-            internal var _id: Swift.String
-            /// - Remark: Generated from `#/components/schemas/ConvexFixRecord/description`.
-            internal var description: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/ConvexFixRecord/rootCause`.
-            internal var rootCause: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/ConvexFixRecord/scope`.
-            internal var scope: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/ConvexFixRecord/timestamp`.
-            internal var timestamp: Swift.Double
-            /// Creates a new `ConvexFixRecord`.
+        /// - Remark: Generated from `#/components/schemas/FixRecord`.
+        internal struct FixRecord: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/FixRecord/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/FixRecord/timestamp`.
+            internal var timestamp: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/FixRecord/alertIds`.
+            internal var alertIds: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/FixRecord/description`.
+            internal var description: Swift.String
+            /// - Remark: Generated from `#/components/schemas/FixRecord/rootCause`.
+            internal var rootCause: Swift.String
+            /// - Remark: Generated from `#/components/schemas/FixRecord/scope`.
+            internal enum ScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case reactive = "reactive"
+                case weekly = "weekly"
+                case monthly = "monthly"
+            }
+            /// - Remark: Generated from `#/components/schemas/FixRecord/scope`.
+            internal var scope: Components.Schemas.FixRecord.ScopePayload
+            /// - Remark: Generated from `#/components/schemas/FixRecord/commit`.
+            internal var commit: Swift.String?
+            /// Creates a new `FixRecord`.
             ///
             /// - Parameters:
-            ///   - _id:
+            ///   - id:
+            ///   - timestamp:
+            ///   - alertIds:
             ///   - description:
             ///   - rootCause:
             ///   - scope:
-            ///   - timestamp:
+            ///   - commit:
             internal init(
-                _id: Swift.String,
-                description: Swift.String? = nil,
-                rootCause: Swift.String? = nil,
-                scope: Swift.String? = nil,
-                timestamp: Swift.Double
+                id: Swift.String,
+                timestamp: Swift.Int,
+                alertIds: [Swift.String],
+                description: Swift.String,
+                rootCause: Swift.String,
+                scope: Components.Schemas.FixRecord.ScopePayload,
+                commit: Swift.String? = nil
             ) {
-                self._id = _id
+                self.id = id
+                self.timestamp = timestamp
+                self.alertIds = alertIds
                 self.description = description
                 self.rootCause = rootCause
                 self.scope = scope
-                self.timestamp = timestamp
+                self.commit = commit
             }
             internal enum CodingKeys: String, CodingKey {
-                case _id
+                case id
+                case timestamp
+                case alertIds
                 case description
                 case rootCause
                 case scope
-                case timestamp
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ConvexQueryRequest`.
-        internal struct ConvexQueryRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexQueryRequest/value1`.
-            internal var value1: Components.Schemas.ConvexFetchAlertsRequest?
-            /// - Remark: Generated from `#/components/schemas/ConvexQueryRequest/value2`.
-            internal var value2: Components.Schemas.ConvexFetchAlertRequest?
-            /// - Remark: Generated from `#/components/schemas/ConvexQueryRequest/value3`.
-            internal var value3: Components.Schemas.ConvexFetchFixesRequest?
-            /// - Remark: Generated from `#/components/schemas/ConvexQueryRequest/value4`.
-            internal var value4: Components.Schemas.ConvexFetchFixesByTimeRangeRequest?
-            /// Creates a new `ConvexQueryRequest`.
-            ///
-            /// - Parameters:
-            ///   - value1:
-            ///   - value2:
-            ///   - value3:
-            ///   - value4:
-            internal init(
-                value1: Components.Schemas.ConvexFetchAlertsRequest? = nil,
-                value2: Components.Schemas.ConvexFetchAlertRequest? = nil,
-                value3: Components.Schemas.ConvexFetchFixesRequest? = nil,
-                value4: Components.Schemas.ConvexFetchFixesByTimeRangeRequest? = nil
-            ) {
-                self.value1 = value1
-                self.value2 = value2
-                self.value3 = value3
-                self.value4 = value4
-            }
-            internal init(from decoder: any Swift.Decoder) throws {
-                var errors: [any Swift.Error] = []
-                do {
-                    self.value1 = try .init(from: decoder)
-                } catch {
-                    errors.append(error)
-                }
-                do {
-                    self.value2 = try .init(from: decoder)
-                } catch {
-                    errors.append(error)
-                }
-                do {
-                    self.value3 = try .init(from: decoder)
-                } catch {
-                    errors.append(error)
-                }
-                do {
-                    self.value4 = try .init(from: decoder)
-                } catch {
-                    errors.append(error)
-                }
-                try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
-                    [
-                        self.value1,
-                        self.value2,
-                        self.value3,
-                        self.value4
-                    ],
-                    type: Self.self,
-                    codingPath: decoder.codingPath,
-                    errors: errors
-                )
-            }
-            internal func encode(to encoder: any Swift.Encoder) throws {
-                try self.value1?.encode(to: encoder)
-                try self.value2?.encode(to: encoder)
-                try self.value3?.encode(to: encoder)
-                try self.value4?.encode(to: encoder)
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest`.
-        internal struct ConvexFetchAlertsRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/path`.
-            internal enum PathPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case alerts_colon_getByTimeRange = "alerts:getByTimeRange"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/path`.
-            internal var path: Components.Schemas.ConvexFetchAlertsRequest.PathPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/args`.
-            internal struct ArgsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/args/from`.
-                internal var from: Swift.Double
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/args/to`.
-                internal var to: Swift.Double
-                /// Creates a new `ArgsPayload`.
-                ///
-                /// - Parameters:
-                ///   - from:
-                ///   - to:
-                internal init(
-                    from: Swift.Double,
-                    to: Swift.Double
-                ) {
-                    self.from = from
-                    self.to = to
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case from
-                    case to
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/args`.
-            internal var args: Components.Schemas.ConvexFetchAlertsRequest.ArgsPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/format`.
-            internal enum FormatPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case convexEncodedJson = "convex_encoded_json"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertsRequest/format`.
-            internal var format: Components.Schemas.ConvexFetchAlertsRequest.FormatPayload
-            /// Creates a new `ConvexFetchAlertsRequest`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - args:
-            ///   - format:
-            internal init(
-                path: Components.Schemas.ConvexFetchAlertsRequest.PathPayload,
-                args: Components.Schemas.ConvexFetchAlertsRequest.ArgsPayload,
-                format: Components.Schemas.ConvexFetchAlertsRequest.FormatPayload
-            ) {
-                self.path = path
-                self.args = args
-                self.format = format
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case path
-                case args
-                case format
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest`.
-        internal struct ConvexFetchAlertRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest/path`.
-            internal enum PathPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case alerts_colon_getById = "alerts:getById"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest/path`.
-            internal var path: Components.Schemas.ConvexFetchAlertRequest.PathPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest/args`.
-            internal struct ArgsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest/args/id`.
-                internal var id: Swift.String
-                /// Creates a new `ArgsPayload`.
-                ///
-                /// - Parameters:
-                ///   - id:
-                internal init(id: Swift.String) {
-                    self.id = id
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case id
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest/args`.
-            internal var args: Components.Schemas.ConvexFetchAlertRequest.ArgsPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest/format`.
-            internal enum FormatPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case convexEncodedJson = "convex_encoded_json"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchAlertRequest/format`.
-            internal var format: Components.Schemas.ConvexFetchAlertRequest.FormatPayload
-            /// Creates a new `ConvexFetchAlertRequest`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - args:
-            ///   - format:
-            internal init(
-                path: Components.Schemas.ConvexFetchAlertRequest.PathPayload,
-                args: Components.Schemas.ConvexFetchAlertRequest.ArgsPayload,
-                format: Components.Schemas.ConvexFetchAlertRequest.FormatPayload
-            ) {
-                self.path = path
-                self.args = args
-                self.format = format
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case path
-                case args
-                case format
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest`.
-        internal struct ConvexFetchFixesRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest/path`.
-            internal enum PathPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case fixes_colon_getByAlertIds = "fixes:getByAlertIds"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest/path`.
-            internal var path: Components.Schemas.ConvexFetchFixesRequest.PathPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest/args`.
-            internal struct ArgsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest/args/alertIds`.
-                internal var alertIds: [Swift.String]
-                /// Creates a new `ArgsPayload`.
-                ///
-                /// - Parameters:
-                ///   - alertIds:
-                internal init(alertIds: [Swift.String]) {
-                    self.alertIds = alertIds
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case alertIds
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest/args`.
-            internal var args: Components.Schemas.ConvexFetchFixesRequest.ArgsPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest/format`.
-            internal enum FormatPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case convexEncodedJson = "convex_encoded_json"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesRequest/format`.
-            internal var format: Components.Schemas.ConvexFetchFixesRequest.FormatPayload
-            /// Creates a new `ConvexFetchFixesRequest`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - args:
-            ///   - format:
-            internal init(
-                path: Components.Schemas.ConvexFetchFixesRequest.PathPayload,
-                args: Components.Schemas.ConvexFetchFixesRequest.ArgsPayload,
-                format: Components.Schemas.ConvexFetchFixesRequest.FormatPayload
-            ) {
-                self.path = path
-                self.args = args
-                self.format = format
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case path
-                case args
-                case format
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest`.
-        internal struct ConvexFetchFixesByTimeRangeRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/path`.
-            internal enum PathPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case fixes_colon_getByTimeRange = "fixes:getByTimeRange"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/path`.
-            internal var path: Components.Schemas.ConvexFetchFixesByTimeRangeRequest.PathPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/args`.
-            internal struct ArgsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/args/from`.
-                internal var from: Swift.Double
-                /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/args/to`.
-                internal var to: Swift.Double
-                /// Creates a new `ArgsPayload`.
-                ///
-                /// - Parameters:
-                ///   - from:
-                ///   - to:
-                internal init(
-                    from: Swift.Double,
-                    to: Swift.Double
-                ) {
-                    self.from = from
-                    self.to = to
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case from
-                    case to
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/args`.
-            internal var args: Components.Schemas.ConvexFetchFixesByTimeRangeRequest.ArgsPayload
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/format`.
-            internal enum FormatPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case convexEncodedJson = "convex_encoded_json"
-            }
-            /// - Remark: Generated from `#/components/schemas/ConvexFetchFixesByTimeRangeRequest/format`.
-            internal var format: Components.Schemas.ConvexFetchFixesByTimeRangeRequest.FormatPayload
-            /// Creates a new `ConvexFetchFixesByTimeRangeRequest`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - args:
-            ///   - format:
-            internal init(
-                path: Components.Schemas.ConvexFetchFixesByTimeRangeRequest.PathPayload,
-                args: Components.Schemas.ConvexFetchFixesByTimeRangeRequest.ArgsPayload,
-                format: Components.Schemas.ConvexFetchFixesByTimeRangeRequest.FormatPayload
-            ) {
-                self.path = path
-                self.args = args
-                self.format = format
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case path
-                case args
-                case format
+                case commit
             }
         }
         /// - Remark: Generated from `#/components/schemas/HealthResponse`.
@@ -1061,29 +786,6 @@ extension Components {
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case session
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/ErrorResponse`.
-        internal struct ErrorResponse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ErrorResponse/ok`.
-            internal var ok: Swift.Bool
-            /// - Remark: Generated from `#/components/schemas/ErrorResponse/error`.
-            internal var error: Swift.String
-            /// Creates a new `ErrorResponse`.
-            ///
-            /// - Parameters:
-            ///   - ok:
-            ///   - error:
-            internal init(
-                ok: Swift.Bool,
-                error: Swift.String
-            ) {
-                self.ok = ok
-                self.error = error
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case ok
-                case error
             }
         }
         /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffRequest`.
@@ -1455,351 +1157,7 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/ok`.
             internal var ok: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert`.
-            internal struct AlertPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/id`.
-                internal var id: Swift.String
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/timestamp`.
-                internal var timestamp: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/alertname`.
-                internal var alertname: Swift.String
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/severity`.
-                internal var severity: Swift.String
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/namespace`.
-                internal var namespace: Swift.String
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/node`.
-                internal var node: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/status`.
-                internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case firing = "firing"
-                    case resolved = "resolved"
-                }
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/status`.
-                internal var status: Components.Schemas.AlertHumanActionResponse.AlertPayload.StatusPayload
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/outcome`.
-                internal enum OutcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case pending = "pending"
-                    case recorded = "recorded"
-                    case fixed = "fixed"
-                    case selfResolved = "self-resolved"
-                    case noise = "noise"
-                    case escalated = "escalated"
-                }
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/outcome`.
-                internal var outcome: Components.Schemas.AlertHumanActionResponse.AlertPayload.OutcomePayload
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/summary`.
-                internal var summary: Swift.String
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/action`.
-                internal var action: Swift.String
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/rootCause`.
-                internal var rootCause: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/messaged`.
-                internal var messaged: Swift.Bool
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/resolvedAt`.
-                internal var resolvedAt: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/source`.
-                internal enum SourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case alertmanager = "alertmanager"
-                    case hermes = "hermes"
-                    case manual = "manual"
-                    case weeklyReview = "weekly-review"
-                }
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/source`.
-                internal var source: Components.Schemas.AlertHumanActionResponse.AlertPayload.SourcePayload?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/sourceEventId`.
-                internal var sourceEventId: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/alertmanagerFingerprint`.
-                internal var alertmanagerFingerprint: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/dedupeKey`.
-                internal var dedupeKey: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/startsAt`.
-                internal var startsAt: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/endsAt`.
-                internal var endsAt: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/generatorURL`.
-                internal var generatorURL: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/labels`.
-                internal struct LabelsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
-                    /// Creates a new `LabelsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    internal init(from decoder: any Swift.Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    internal func encode(to encoder: any Swift.Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/labels`.
-                internal var labels: Components.Schemas.AlertHumanActionResponse.AlertPayload.LabelsPayload?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/annotations`.
-                internal struct AnnotationsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    internal var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?]
-                    /// Creates a new `AnnotationsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    internal init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer?] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    internal init(from decoder: any Swift.Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    internal func encode(to encoder: any Swift.Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/annotations`.
-                internal var annotations: Components.Schemas.AlertHumanActionResponse.AlertPayload.AnnotationsPayload?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/lastReceivedAt`.
-                internal var lastReceivedAt: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/occurrenceCount`.
-                internal var occurrenceCount: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation`.
-                internal struct InvestigationPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/id`.
-                    internal var id: Swift.String
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/status`.
-                    internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case queued = "queued"
-                        case claimed = "claimed"
-                        case done = "done"
-                        case failed = "failed"
-                        case deadletter = "deadletter"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/status`.
-                    internal var status: Components.Schemas.AlertHumanActionResponse.AlertPayload.InvestigationPayload.StatusPayload
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/priority`.
-                    internal enum PriorityPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case low = "low"
-                        case normal = "normal"
-                        case high = "high"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/priority`.
-                    internal var priority: Components.Schemas.AlertHumanActionResponse.AlertPayload.InvestigationPayload.PriorityPayload
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/attempts`.
-                    internal var attempts: Swift.Int
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/maxAttempts`.
-                    internal var maxAttempts: Swift.Int
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/nextAttemptAt`.
-                    internal var nextAttemptAt: Swift.Int
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/claimedAt`.
-                    internal var claimedAt: Swift.Int?
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/leaseUntil`.
-                    internal var leaseUntil: Swift.Int?
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/lastError`.
-                    internal var lastError: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/lastErrorPhase`.
-                    internal var lastErrorPhase: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/completedAt`.
-                    internal var completedAt: Swift.Int?
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/deadletteredAt`.
-                    internal var deadletteredAt: Swift.Int?
-                    /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation/updatedAt`.
-                    internal var updatedAt: Swift.Int
-                    /// Creates a new `InvestigationPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - id:
-                    ///   - status:
-                    ///   - priority:
-                    ///   - attempts:
-                    ///   - maxAttempts:
-                    ///   - nextAttemptAt:
-                    ///   - claimedAt:
-                    ///   - leaseUntil:
-                    ///   - lastError:
-                    ///   - lastErrorPhase:
-                    ///   - completedAt:
-                    ///   - deadletteredAt:
-                    ///   - updatedAt:
-                    internal init(
-                        id: Swift.String,
-                        status: Components.Schemas.AlertHumanActionResponse.AlertPayload.InvestigationPayload.StatusPayload,
-                        priority: Components.Schemas.AlertHumanActionResponse.AlertPayload.InvestigationPayload.PriorityPayload,
-                        attempts: Swift.Int,
-                        maxAttempts: Swift.Int,
-                        nextAttemptAt: Swift.Int,
-                        claimedAt: Swift.Int? = nil,
-                        leaseUntil: Swift.Int? = nil,
-                        lastError: Swift.String? = nil,
-                        lastErrorPhase: Swift.String? = nil,
-                        completedAt: Swift.Int? = nil,
-                        deadletteredAt: Swift.Int? = nil,
-                        updatedAt: Swift.Int
-                    ) {
-                        self.id = id
-                        self.status = status
-                        self.priority = priority
-                        self.attempts = attempts
-                        self.maxAttempts = maxAttempts
-                        self.nextAttemptAt = nextAttemptAt
-                        self.claimedAt = claimedAt
-                        self.leaseUntil = leaseUntil
-                        self.lastError = lastError
-                        self.lastErrorPhase = lastErrorPhase
-                        self.completedAt = completedAt
-                        self.deadletteredAt = deadletteredAt
-                        self.updatedAt = updatedAt
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case id
-                        case status
-                        case priority
-                        case attempts
-                        case maxAttempts
-                        case nextAttemptAt
-                        case claimedAt
-                        case leaseUntil
-                        case lastError
-                        case lastErrorPhase
-                        case completedAt
-                        case deadletteredAt
-                        case updatedAt
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/investigation`.
-                internal var investigation: Components.Schemas.AlertHumanActionResponse.AlertPayload.InvestigationPayload?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/ownerDisposition`.
-                internal enum OwnerDispositionPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case noise = "noise"
-                    case escalated = "escalated"
-                }
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/ownerDisposition`.
-                internal var ownerDisposition: Components.Schemas.AlertHumanActionResponse.AlertPayload.OwnerDispositionPayload?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/ownerNote`.
-                internal var ownerNote: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert/ownerUpdatedAt`.
-                internal var ownerUpdatedAt: Swift.Int?
-                /// Creates a new `AlertPayload`.
-                ///
-                /// - Parameters:
-                ///   - id:
-                ///   - timestamp:
-                ///   - alertname:
-                ///   - severity:
-                ///   - namespace:
-                ///   - node:
-                ///   - status:
-                ///   - outcome:
-                ///   - summary:
-                ///   - action:
-                ///   - rootCause:
-                ///   - messaged:
-                ///   - resolvedAt:
-                ///   - source:
-                ///   - sourceEventId:
-                ///   - alertmanagerFingerprint:
-                ///   - dedupeKey:
-                ///   - startsAt:
-                ///   - endsAt:
-                ///   - generatorURL:
-                ///   - labels:
-                ///   - annotations:
-                ///   - lastReceivedAt:
-                ///   - occurrenceCount:
-                ///   - investigation:
-                ///   - ownerDisposition:
-                ///   - ownerNote:
-                ///   - ownerUpdatedAt:
-                internal init(
-                    id: Swift.String,
-                    timestamp: Swift.Int,
-                    alertname: Swift.String,
-                    severity: Swift.String,
-                    namespace: Swift.String,
-                    node: Swift.String? = nil,
-                    status: Components.Schemas.AlertHumanActionResponse.AlertPayload.StatusPayload,
-                    outcome: Components.Schemas.AlertHumanActionResponse.AlertPayload.OutcomePayload,
-                    summary: Swift.String,
-                    action: Swift.String,
-                    rootCause: Swift.String? = nil,
-                    messaged: Swift.Bool,
-                    resolvedAt: Swift.Int? = nil,
-                    source: Components.Schemas.AlertHumanActionResponse.AlertPayload.SourcePayload? = nil,
-                    sourceEventId: Swift.String? = nil,
-                    alertmanagerFingerprint: Swift.String? = nil,
-                    dedupeKey: Swift.String? = nil,
-                    startsAt: Swift.Int? = nil,
-                    endsAt: Swift.Int? = nil,
-                    generatorURL: Swift.String? = nil,
-                    labels: Components.Schemas.AlertHumanActionResponse.AlertPayload.LabelsPayload? = nil,
-                    annotations: Components.Schemas.AlertHumanActionResponse.AlertPayload.AnnotationsPayload? = nil,
-                    lastReceivedAt: Swift.Int? = nil,
-                    occurrenceCount: Swift.Int? = nil,
-                    investigation: Components.Schemas.AlertHumanActionResponse.AlertPayload.InvestigationPayload? = nil,
-                    ownerDisposition: Components.Schemas.AlertHumanActionResponse.AlertPayload.OwnerDispositionPayload? = nil,
-                    ownerNote: Swift.String? = nil,
-                    ownerUpdatedAt: Swift.Int? = nil
-                ) {
-                    self.id = id
-                    self.timestamp = timestamp
-                    self.alertname = alertname
-                    self.severity = severity
-                    self.namespace = namespace
-                    self.node = node
-                    self.status = status
-                    self.outcome = outcome
-                    self.summary = summary
-                    self.action = action
-                    self.rootCause = rootCause
-                    self.messaged = messaged
-                    self.resolvedAt = resolvedAt
-                    self.source = source
-                    self.sourceEventId = sourceEventId
-                    self.alertmanagerFingerprint = alertmanagerFingerprint
-                    self.dedupeKey = dedupeKey
-                    self.startsAt = startsAt
-                    self.endsAt = endsAt
-                    self.generatorURL = generatorURL
-                    self.labels = labels
-                    self.annotations = annotations
-                    self.lastReceivedAt = lastReceivedAt
-                    self.occurrenceCount = occurrenceCount
-                    self.investigation = investigation
-                    self.ownerDisposition = ownerDisposition
-                    self.ownerNote = ownerNote
-                    self.ownerUpdatedAt = ownerUpdatedAt
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case id
-                    case timestamp
-                    case alertname
-                    case severity
-                    case namespace
-                    case node
-                    case status
-                    case outcome
-                    case summary
-                    case action
-                    case rootCause
-                    case messaged
-                    case resolvedAt
-                    case source
-                    case sourceEventId
-                    case alertmanagerFingerprint
-                    case dedupeKey
-                    case startsAt
-                    case endsAt
-                    case generatorURL
-                    case labels
-                    case annotations
-                    case lastReceivedAt
-                    case occurrenceCount
-                    case investigation
-                    case ownerDisposition
-                    case ownerNote
-                    case ownerUpdatedAt
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/AlertHumanActionResponse/alert`.
-            internal var alert: Components.Schemas.AlertHumanActionResponse.AlertPayload
+            internal var alert: Components.Schemas.AlertRecord
             /// Creates a new `AlertHumanActionResponse`.
             ///
             /// - Parameters:
@@ -1807,7 +1165,7 @@ extension Components {
             ///   - alert:
             internal init(
                 ok: Swift.Bool,
-                alert: Components.Schemas.AlertHumanActionResponse.AlertPayload
+                alert: Components.Schemas.AlertRecord
             ) {
                 self.ok = ok
                 self.alert = alert
@@ -2127,66 +1485,7 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/ItemRecord/createdDate`.
             internal var createdDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/fix`.
-            internal struct FixPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/id`.
-                internal var id: Swift.String
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/timestamp`.
-                internal var timestamp: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/alertIds`.
-                internal var alertIds: [Swift.String]
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/description`.
-                internal var description: Swift.String
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/rootCause`.
-                internal var rootCause: Swift.String
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/scope`.
-                internal enum ScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case reactive = "reactive"
-                    case weekly = "weekly"
-                    case monthly = "monthly"
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/scope`.
-                internal var scope: Components.Schemas.ItemRecord.FixPayload.ScopePayload
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/fix/commit`.
-                internal var commit: Swift.String?
-                /// Creates a new `FixPayload`.
-                ///
-                /// - Parameters:
-                ///   - id:
-                ///   - timestamp:
-                ///   - alertIds:
-                ///   - description:
-                ///   - rootCause:
-                ///   - scope:
-                ///   - commit:
-                internal init(
-                    id: Swift.String,
-                    timestamp: Swift.Int,
-                    alertIds: [Swift.String],
-                    description: Swift.String,
-                    rootCause: Swift.String,
-                    scope: Components.Schemas.ItemRecord.FixPayload.ScopePayload,
-                    commit: Swift.String? = nil
-                ) {
-                    self.id = id
-                    self.timestamp = timestamp
-                    self.alertIds = alertIds
-                    self.description = description
-                    self.rootCause = rootCause
-                    self.scope = scope
-                    self.commit = commit
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case id
-                    case timestamp
-                    case alertIds
-                    case description
-                    case rootCause
-                    case scope
-                    case commit
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/ItemRecord/fix`.
-            internal var fix: Components.Schemas.ItemRecord.FixPayload?
+            internal var fix: Components.Schemas.FixRecord?
             /// Creates a new `ItemRecord`.
             ///
             /// - Parameters:
@@ -2260,7 +1559,7 @@ extension Components {
                 investigationResult: Components.Schemas.ItemRecord.InvestigationResultPayload? = nil,
                 approvalNeedsAuth: Swift.Bool? = nil,
                 createdDate: Swift.String? = nil,
-                fix: Components.Schemas.ItemRecord.FixPayload? = nil
+                fix: Components.Schemas.FixRecord? = nil
             ) {
                 self.id = id
                 self.source = source
@@ -3261,69 +2560,8 @@ extension Components {
             internal var item: Components.Schemas.ItemRecord
             /// - Remark: Generated from `#/components/schemas/ItemGetResponse/events`.
             internal var events: [Components.Schemas.ItemEventRecord]
-            /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload`.
-            internal struct FixesPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/id`.
-                internal var id: Swift.String
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/timestamp`.
-                internal var timestamp: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/alertIds`.
-                internal var alertIds: [Swift.String]
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/description`.
-                internal var description: Swift.String
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/rootCause`.
-                internal var rootCause: Swift.String
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/scope`.
-                internal enum ScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case reactive = "reactive"
-                    case weekly = "weekly"
-                    case monthly = "monthly"
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/scope`.
-                internal var scope: Components.Schemas.ItemGetResponse.FixesPayloadPayload.ScopePayload
-                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/commit`.
-                internal var commit: Swift.String?
-                /// Creates a new `FixesPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - id:
-                ///   - timestamp:
-                ///   - alertIds:
-                ///   - description:
-                ///   - rootCause:
-                ///   - scope:
-                ///   - commit:
-                internal init(
-                    id: Swift.String,
-                    timestamp: Swift.Int,
-                    alertIds: [Swift.String],
-                    description: Swift.String,
-                    rootCause: Swift.String,
-                    scope: Components.Schemas.ItemGetResponse.FixesPayloadPayload.ScopePayload,
-                    commit: Swift.String? = nil
-                ) {
-                    self.id = id
-                    self.timestamp = timestamp
-                    self.alertIds = alertIds
-                    self.description = description
-                    self.rootCause = rootCause
-                    self.scope = scope
-                    self.commit = commit
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case id
-                    case timestamp
-                    case alertIds
-                    case description
-                    case rootCause
-                    case scope
-                    case commit
-                }
-            }
             /// - Remark: Generated from `#/components/schemas/ItemGetResponse/fixes`.
-            internal typealias FixesPayload = [Components.Schemas.ItemGetResponse.FixesPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/ItemGetResponse/fixes`.
-            internal var fixes: Components.Schemas.ItemGetResponse.FixesPayload?
+            internal var fixes: [Components.Schemas.FixRecord]?
             /// Creates a new `ItemGetResponse`.
             ///
             /// - Parameters:
@@ -3335,7 +2573,7 @@ extension Components {
                 ok: Swift.Bool,
                 item: Components.Schemas.ItemRecord,
                 events: [Components.Schemas.ItemEventRecord],
-                fixes: Components.Schemas.ItemGetResponse.FixesPayload? = nil
+                fixes: [Components.Schemas.FixRecord]? = nil
             ) {
                 self.ok = ok
                 self.item = item

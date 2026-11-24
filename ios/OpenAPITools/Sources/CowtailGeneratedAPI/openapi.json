@@ -20,52 +20,41 @@
       }
     },
     "schemas": {
-      "ConvexQueryResponse": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ConvexFetchAlertsResponse"
-          },
-          {
-            "$ref": "#/components/schemas/ConvexFetchAlertResponse"
-          },
-          {
-            "$ref": "#/components/schemas/ConvexFetchFixesResponse"
-          }
-        ]
-      },
-      "ConvexFetchAlertsResponse": {
+      "AlertListResponse": {
         "type": "object",
         "properties": {
-          "status": {
-            "type": "string",
+          "ok": {
+            "type": "boolean",
             "enum": [
-              "success",
-              "error"
+              true
             ]
           },
-          "value": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "alerts": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ConvexAlertRecord"
+              "$ref": "#/components/schemas/AlertRecord"
             }
-          },
-          "errorMessage": {
-            "type": "string"
           }
         },
         "required": [
-          "status"
+          "ok",
+          "count",
+          "alerts"
         ]
       },
-      "ConvexAlertRecord": {
+      "AlertRecord": {
         "type": "object",
         "properties": {
-          "_id": {
+          "id": {
             "type": "string",
             "minLength": 1
           },
           "timestamp": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0
           },
           "alertname": {
@@ -73,35 +62,107 @@
             "minLength": 1
           },
           "severity": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "namespace": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "node": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "firing",
+              "resolved"
+            ]
           },
           "outcome": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "pending",
+              "recorded",
+              "fixed",
+              "self-resolved",
+              "noise",
+              "escalated"
+            ]
           },
           "summary": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "action": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "rootCause": {
-            "type": "string"
-          },
-          "resolvedAt": {
-            "type": "number",
-            "minimum": 0
+            "type": "string",
+            "minLength": 1
           },
           "messaged": {
             "type": "boolean"
+          },
+          "resolvedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "alertmanager",
+              "hermes",
+              "manual",
+              "weekly-review"
+            ]
+          },
+          "sourceEventId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "alertmanagerFingerprint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dedupeKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "startsAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endsAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "generatorURL": {
+            "type": "string",
+            "minLength": 1
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          },
+          "annotations": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          },
+          "lastReceivedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "occurrenceCount": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
           },
           "investigation": {
             "type": "object",
@@ -191,263 +252,115 @@
             "type": "string"
           },
           "ownerUpdatedAt": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0
           }
         },
         "required": [
-          "_id",
+          "id",
           "timestamp",
           "alertname",
           "severity",
           "namespace",
           "status",
           "outcome",
-          "summary"
+          "summary",
+          "action",
+          "messaged"
         ]
       },
-      "ConvexFetchAlertResponse": {
+      "ErrorResponse": {
         "type": "object",
         "properties": {
-          "status": {
-            "type": "string",
+          "ok": {
+            "type": "boolean",
             "enum": [
-              "success",
-              "error"
+              false
             ]
           },
-          "value": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ConvexAlertRecord"
-              },
-              {
-                "nullable": true
-              }
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
+          "error": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
-          "status"
+          "ok",
+          "error"
         ]
       },
-      "ConvexFetchFixesResponse": {
+      "FixListResponse": {
         "type": "object",
         "properties": {
-          "status": {
-            "type": "string",
+          "ok": {
+            "type": "boolean",
             "enum": [
-              "success",
-              "error"
+              true
             ]
           },
-          "value": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fixes": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ConvexFixRecord"
+              "$ref": "#/components/schemas/FixRecord"
             }
-          },
-          "errorMessage": {
-            "type": "string"
           }
         },
         "required": [
-          "status"
+          "ok",
+          "count",
+          "fixes"
         ]
       },
-      "ConvexFixRecord": {
+      "FixRecord": {
         "type": "object",
         "properties": {
-          "_id": {
+          "id": {
             "type": "string",
             "minLength": 1
           },
+          "timestamp": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "alertIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
           "description": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "rootCause": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "scope": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "reactive",
+              "weekly",
+              "monthly"
+            ]
           },
-          "timestamp": {
-            "type": "number",
-            "minimum": 0
+          "commit": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
-          "_id",
-          "timestamp"
-        ]
-      },
-      "ConvexQueryRequest": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ConvexFetchAlertsRequest"
-          },
-          {
-            "$ref": "#/components/schemas/ConvexFetchAlertRequest"
-          },
-          {
-            "$ref": "#/components/schemas/ConvexFetchFixesRequest"
-          },
-          {
-            "$ref": "#/components/schemas/ConvexFetchFixesByTimeRangeRequest"
-          }
-        ]
-      },
-      "ConvexFetchAlertsRequest": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string",
-            "enum": [
-              "alerts:getByTimeRange"
-            ]
-          },
-          "args": {
-            "type": "object",
-            "properties": {
-              "from": {
-                "type": "number",
-                "minimum": 0
-              },
-              "to": {
-                "type": "number",
-                "minimum": 0
-              }
-            },
-            "required": [
-              "from",
-              "to"
-            ]
-          },
-          "format": {
-            "type": "string",
-            "enum": [
-              "convex_encoded_json"
-            ]
-          }
-        },
-        "required": [
-          "path",
-          "args",
-          "format"
-        ]
-      },
-      "ConvexFetchAlertRequest": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string",
-            "enum": [
-              "alerts:getById"
-            ]
-          },
-          "args": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "id"
-            ]
-          },
-          "format": {
-            "type": "string",
-            "enum": [
-              "convex_encoded_json"
-            ]
-          }
-        },
-        "required": [
-          "path",
-          "args",
-          "format"
-        ]
-      },
-      "ConvexFetchFixesRequest": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string",
-            "enum": [
-              "fixes:getByAlertIds"
-            ]
-          },
-          "args": {
-            "type": "object",
-            "properties": {
-              "alertIds": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "minItems": 1
-              }
-            },
-            "required": [
-              "alertIds"
-            ]
-          },
-          "format": {
-            "type": "string",
-            "enum": [
-              "convex_encoded_json"
-            ]
-          }
-        },
-        "required": [
-          "path",
-          "args",
-          "format"
-        ]
-      },
-      "ConvexFetchFixesByTimeRangeRequest": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string",
-            "enum": [
-              "fixes:getByTimeRange"
-            ]
-          },
-          "args": {
-            "type": "object",
-            "properties": {
-              "from": {
-                "type": "number",
-                "minimum": 0
-              },
-              "to": {
-                "type": "number",
-                "minimum": 0
-              }
-            },
-            "required": [
-              "from",
-              "to"
-            ]
-          },
-          "format": {
-            "type": "string",
-            "enum": [
-              "convex_encoded_json"
-            ]
-          }
-        },
-        "required": [
-          "path",
-          "args",
-          "format"
+          "id",
+          "timestamp",
+          "alertIds",
+          "description",
+          "rootCause",
+          "scope"
         ]
       },
       "HealthResponse": {
@@ -661,25 +574,6 @@
         "required": [
           "ok",
           "session"
-        ]
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              false
-            ]
-          },
-          "error": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "ok",
-          "error"
         ]
       },
       "AuthOidcHandoffRequest": {
@@ -931,227 +825,7 @@
             ]
           },
           "alert": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "timestamp": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "alertname": {
-                "type": "string",
-                "minLength": 1
-              },
-              "severity": {
-                "type": "string",
-                "minLength": 1
-              },
-              "namespace": {
-                "type": "string",
-                "minLength": 1
-              },
-              "node": {
-                "type": "string",
-                "minLength": 1
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "firing",
-                  "resolved"
-                ]
-              },
-              "outcome": {
-                "type": "string",
-                "enum": [
-                  "pending",
-                  "recorded",
-                  "fixed",
-                  "self-resolved",
-                  "noise",
-                  "escalated"
-                ]
-              },
-              "summary": {
-                "type": "string",
-                "minLength": 1
-              },
-              "action": {
-                "type": "string",
-                "minLength": 1
-              },
-              "rootCause": {
-                "type": "string",
-                "minLength": 1
-              },
-              "messaged": {
-                "type": "boolean"
-              },
-              "resolvedAt": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "source": {
-                "type": "string",
-                "enum": [
-                  "alertmanager",
-                  "hermes",
-                  "manual",
-                  "weekly-review"
-                ]
-              },
-              "sourceEventId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "alertmanagerFingerprint": {
-                "type": "string",
-                "minLength": 1
-              },
-              "dedupeKey": {
-                "type": "string",
-                "minLength": 1
-              },
-              "startsAt": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "endsAt": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "generatorURL": {
-                "type": "string",
-                "minLength": 1
-              },
-              "labels": {
-                "type": "object",
-                "additionalProperties": {
-                  "nullable": true
-                }
-              },
-              "annotations": {
-                "type": "object",
-                "additionalProperties": {
-                  "nullable": true
-                }
-              },
-              "lastReceivedAt": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "occurrenceCount": {
-                "type": "integer",
-                "minimum": 0,
-                "exclusiveMinimum": true
-              },
-              "investigation": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "queued",
-                      "claimed",
-                      "done",
-                      "failed",
-                      "deadletter"
-                    ]
-                  },
-                  "priority": {
-                    "type": "string",
-                    "enum": [
-                      "low",
-                      "normal",
-                      "high"
-                    ]
-                  },
-                  "attempts": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "maxAttempts": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
-                  },
-                  "nextAttemptAt": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "claimedAt": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "leaseUntil": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "lastError": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "lastErrorPhase": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "completedAt": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "deadletteredAt": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "updatedAt": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                },
-                "required": [
-                  "id",
-                  "status",
-                  "priority",
-                  "attempts",
-                  "maxAttempts",
-                  "nextAttemptAt",
-                  "updatedAt"
-                ]
-              },
-              "ownerDisposition": {
-                "type": "string",
-                "enum": [
-                  "noise",
-                  "escalated"
-                ]
-              },
-              "ownerNote": {
-                "type": "string"
-              },
-              "ownerUpdatedAt": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
-            "required": [
-              "id",
-              "timestamp",
-              "alertname",
-              "severity",
-              "namespace",
-              "status",
-              "outcome",
-              "summary",
-              "action",
-              "messaged"
-            ]
+            "$ref": "#/components/schemas/AlertRecord"
           }
         },
         "required": [
@@ -1434,53 +1108,7 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "fix": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "timestamp": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "alertIds": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "minItems": 1
-              },
-              "description": {
-                "type": "string",
-                "minLength": 1
-              },
-              "rootCause": {
-                "type": "string",
-                "minLength": 1
-              },
-              "scope": {
-                "type": "string",
-                "enum": [
-                  "reactive",
-                  "weekly",
-                  "monthly"
-                ]
-              },
-              "commit": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "id",
-              "timestamp",
-              "alertIds",
-              "description",
-              "rootCause",
-              "scope"
-            ]
+            "$ref": "#/components/schemas/FixRecord"
           }
         },
         "required": [
@@ -2100,53 +1728,7 @@
           "fixes": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "timestamp": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "alertIds": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "minItems": 1
-                },
-                "description": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "rootCause": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "scope": {
-                  "type": "string",
-                  "enum": [
-                    "reactive",
-                    "weekly",
-                    "monthly"
-                  ]
-                },
-                "commit": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "id",
-                "timestamp",
-                "alertIds",
-                "description",
-                "rootCause",
-                "scope"
-              ]
+              "$ref": "#/components/schemas/FixRecord"
             }
           }
         },
@@ -2286,30 +1868,228 @@
     "parameters": {}
   },
   "paths": {
-    "/query": {
-      "post": {
-        "operationId": "query",
+    "/alerts": {
+      "get": {
+        "operationId": "listAlerts",
         "tags": [
-          "convexQuery"
+          "alerts"
         ],
-        "summary": "Perform a typed Convex query request",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConvexQueryRequest"
-              }
-            }
+        "summary": "List alerts in a time range, for the roundup",
+        "security": [
+          {
+            "appSession": []
           }
-        },
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "alertname",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "severity",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "namespace",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "firing",
+                "resolved"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "recorded",
+                "fixed",
+                "self-resolved",
+                "noise",
+                "escalated"
+              ]
+            },
+            "required": false,
+            "name": "outcome",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Convex query response.",
+            "description": "The matching alerts.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConvexQueryResponse"
+                  "$ref": "#/components/schemas/AlertListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fixes": {
+      "get": {
+        "operationId": "listFixes",
+        "tags": [
+          "alerts"
+        ],
+        "summary": "List fixes in a time range, for the roundup",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "reactive",
+                "weekly",
+                "monthly"
+              ]
+            },
+            "required": false,
+            "name": "scope",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "alertId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matching fixes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

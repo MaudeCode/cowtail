@@ -11,14 +11,19 @@ import { z } from "zod";
 
 import {
   alertHumanActionRequestSchema,
+  alertListQuerySchema,
+  alertListResponseSchema,
+  alertRecordSchema,
   alertHumanActionResponseSchema,
-  alertInvestigationSchema,
   authLogoutResponseSchema,
   authOidcHandoffRequestSchema,
   authOidcHandoffResponseSchema,
   authProvidersResponseSchema,
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
+  fixListQuerySchema,
+  fixListResponseSchema,
+  fixRecordSchema,
   healthResponseSchema,
   itemActionQuerySchema,
   itemActionRequestSchema,
@@ -49,120 +54,12 @@ zodToOpenAPIRegistry.add(itemActionSchema, { _internal: { refId: "ItemAction" } 
 zodToOpenAPIRegistry.add(itemEventRecordSchema, { _internal: { refId: "ItemEventRecord" } });
 
 const nonEmptyStringSchema = z.string().trim().min(1);
-const timestampSchema = z.number().finite().nonnegative();
-const convexStatusSchema = z.enum(["success", "error"]);
-const convexFormatSchema = z.literal("convex_encoded_json");
 
-const convexAlertRecordSchema = z
-  .object({
-    _id: nonEmptyStringSchema,
-    timestamp: timestampSchema,
-    alertname: nonEmptyStringSchema,
-    severity: z.string(),
-    namespace: z.string(),
-    node: z.string().optional(),
-    status: z.string(),
-    outcome: z.string(),
-    summary: z.string(),
-    action: z.string().optional(),
-    rootCause: z.string().optional(),
-    resolvedAt: timestampSchema.optional(),
-    messaged: z.boolean().optional(),
-    investigation: alertInvestigationSchema.optional(),
-    ownerDisposition: z.enum(["noise", "escalated"]).optional(),
-    ownerNote: z.string().optional(),
-    ownerUpdatedAt: timestampSchema.optional(),
-  })
-  .meta({ id: "ConvexAlertRecord" });
-
-const convexFixRecordSchema = z
-  .object({
-    _id: nonEmptyStringSchema,
-    description: z.string().optional(),
-    rootCause: z.string().optional(),
-    scope: z.string().optional(),
-    timestamp: timestampSchema,
-  })
-  .meta({ id: "ConvexFixRecord" });
-
-const fetchAlertsRequestSchema = z
-  .object({
-    path: z.literal("alerts:getByTimeRange"),
-    args: z.object({
-      from: timestampSchema,
-      to: timestampSchema,
-    }),
-    format: convexFormatSchema,
-  })
-  .meta({ id: "ConvexFetchAlertsRequest" });
-
-const fetchAlertRequestSchema = z
-  .object({
-    path: z.literal("alerts:getById"),
-    args: z.object({
-      id: nonEmptyStringSchema,
-    }),
-    format: convexFormatSchema,
-  })
-  .meta({ id: "ConvexFetchAlertRequest" });
-
-const fetchFixesRequestSchema = z
-  .object({
-    path: z.literal("fixes:getByAlertIds"),
-    args: z.object({
-      alertIds: z.array(nonEmptyStringSchema).min(1),
-    }),
-    format: convexFormatSchema,
-  })
-  .meta({ id: "ConvexFetchFixesRequest" });
-
-const fetchFixesByTimeRangeRequestSchema = z
-  .object({
-    path: z.literal("fixes:getByTimeRange"),
-    args: z.object({
-      from: timestampSchema,
-      to: timestampSchema,
-    }),
-    format: convexFormatSchema,
-  })
-  .meta({ id: "ConvexFetchFixesByTimeRangeRequest" });
-
-const convexQueryRequestSchema = z
-  .union([
-    fetchAlertsRequestSchema,
-    fetchAlertRequestSchema,
-    fetchFixesRequestSchema,
-    fetchFixesByTimeRangeRequestSchema,
-  ])
-  .meta({ id: "ConvexQueryRequest" });
-
-const fetchAlertsResponseSchema = z
-  .object({
-    status: convexStatusSchema,
-    value: z.array(convexAlertRecordSchema).optional(),
-    errorMessage: z.string().optional(),
-  })
-  .meta({ id: "ConvexFetchAlertsResponse" });
-
-const fetchAlertResponseSchema = z
-  .object({
-    status: convexStatusSchema,
-    value: z.union([convexAlertRecordSchema, z.null()]).optional(),
-    errorMessage: z.string().optional(),
-  })
-  .meta({ id: "ConvexFetchAlertResponse" });
-
-const fetchFixesResponseSchema = z
-  .object({
-    status: convexStatusSchema,
-    value: z.array(convexFixRecordSchema).optional(),
-    errorMessage: z.string().optional(),
-  })
-  .meta({ id: "ConvexFetchFixesResponse" });
-
-const convexQueryResponseSchema = z
-  .union([fetchAlertsResponseSchema, fetchAlertResponseSchema, fetchFixesResponseSchema])
-  .meta({ id: "ConvexQueryResponse" });
+// Alert and fix records are named types, so the roundup and item detail decode one type each.
+zodToOpenAPIRegistry.add(alertRecordSchema, { _internal: { refId: "AlertRecord" } });
+zodToOpenAPIRegistry.add(fixRecordSchema, { _internal: { refId: "FixRecord" } });
+const AlertListResponse = alertListResponseSchema.meta({ id: "AlertListResponse" });
+const FixListResponse = fixListResponseSchema.meta({ id: "FixListResponse" });
 
 const HealthResponse = healthResponseSchema.meta({ id: "HealthResponse" });
 const AuthSessionCreateRequest = authSessionCreateRequestSchema.meta({
@@ -231,19 +128,34 @@ function jsonResponse(description: string, schema: z.ZodTypeAny) {
 }
 
 registry.registerPath({
-  method: "post",
-  path: "/query",
-  operationId: "query",
-  tags: ["convexQuery"],
-  summary: "Perform a typed Convex query request",
-  request: {
-    body: {
-      required: true,
-      content: jsonContent(convexQueryRequestSchema),
-    },
-  },
+  method: "get",
+  path: "/alerts",
+  operationId: "listAlerts",
+  tags: ["alerts"],
+  summary: "List alerts in a time range, for the roundup",
+  security: [{ appSession: [] }],
+  request: { query: alertListQuerySchema },
   responses: {
-    200: jsonResponse("Convex query response.", convexQueryResponseSchema),
+    200: jsonResponse("The matching alerts.", AlertListResponse),
+    400: jsonResponse("Invalid filter.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/fixes",
+  operationId: "listFixes",
+  tags: ["alerts"],
+  summary: "List fixes in a time range, for the roundup",
+  security: [{ appSession: [] }],
+  request: { query: fixListQuerySchema },
+  responses: {
+    200: jsonResponse("The matching fixes.", FixListResponse),
+    400: jsonResponse("Invalid filter.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
   },
 });
 
