@@ -391,6 +391,28 @@ describe("postmortems", () => {
     });
   });
 
+  test("an older request's timeout leaves a newer request in flight", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await resolvedIncident(t);
+    const [member] = await rows(t, "items");
+    vi.advanceTimersByTime(20 * MINUTE);
+    await t.run(async (ctx) => {
+      await transitionItem(ctx, (await ctx.db.get(member._id))!, "open", {
+        actor: "alertmanager",
+        at: Date.now(),
+      });
+    });
+    await resolveItem(t, String(member._id));
+
+    await advance(t, 11 * MINUTE);
+    expect((await rows(t, "postmortemRequests")).map((entry) => entry.status)).toEqual([
+      "failed",
+      "pending",
+    ]);
+    const { incident } = await getIncident(t, id);
+    expect(incident).toMatchObject({ postmortemState: "requested", availableActions: [] });
+  });
+
   test("asking again after a failure queues a new request", async () => {
     const t = await newBackendWithSources("cron");
     const id = await resolvedIncident(t);
@@ -409,6 +431,19 @@ describe("postmortems", () => {
 });
 
 describe("lists", () => {
+  test("a filtered list shows an incident at its oldest member the filter keeps", async () => {
+    const t = await newBackendWithSources("cron");
+    await fire(t, ["CephOSDDown"]);
+    vi.advanceTimersByTime(MINUTE);
+    const backup = await createItem(t, "Nightly backup verify failed");
+    const [alert] = (await rows(t, "items")).filter((item) => item.source === "alertmanager");
+    await write(t, "/api/me/incidents", "POST", { itemIds: [String(alert._id), backup] });
+
+    const response = await request(t, "/api/items?source=cron", { bearer: SERVICE });
+    const { items } = itemListResponseSchema.parse(response.json);
+    expect(items.map((item) => [item.id, item.incident?.memberCount])).toEqual([[backup, 2]]);
+  });
+
   test("the inbox shows an incident once, in the first section a member is in", async () => {
     const t = await newBackendWithSources("cron");
     await fire(t, ["CephOSDDown", "CephHealthErr"]);

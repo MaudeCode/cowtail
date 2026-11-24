@@ -75,8 +75,6 @@ function summarize(incident: Doc<"incidents">, members: Doc<"items">[], now: num
     startedAt,
     resolvedAt: incident.state === "resolved" ? incident.resolvedAt : undefined,
     durationMs: Math.max(0, end - startedAt),
-    // The member a paged item list shows for the incident: its oldest, so it is listed once.
-    firstItemId: first ? String(first._id) : undefined,
   };
 }
 
@@ -537,7 +535,9 @@ export const failLapsedPostmortems = internalMutation({
       for (const request of lapsed) {
         await ctx.db.patch(request._id, { status: "failed", updatedAt: now });
         const incident = await ctx.db.get(request.incidentId);
-        if (incident?.postmortemState === "requested") {
+        // A newer request for the incident still in flight keeps it requested.
+        const newer = await requestsInFlight(ctx, request.incidentId);
+        if (incident?.postmortemState === "requested" && newer.length === 0) {
           await ctx.db.patch(incident._id, { postmortemState: "failed", updatedAt: now });
         }
       }
@@ -559,7 +559,7 @@ export const get = internalQuery({
     const incident = id ? await ctx.db.get(id) : null;
     if (!incident) return null;
     const members = await incidentMembers(ctx, incident._id);
-    const { firstItemId: _first, ...summary } = summarize(incident, members, Date.now());
+    const summary = summarize(incident, members, Date.now());
     const titles = new Map(members.map((member) => [String(member._id), member.title]));
     const events = await mergedEvents(ctx, incident._id, members);
     const records = [];

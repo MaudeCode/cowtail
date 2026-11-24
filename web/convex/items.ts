@@ -39,7 +39,7 @@ import { approvalsNeedAuth, preferencesRow } from "./notificationPreferences";
 import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
 import { sourceInfo } from "./sources";
-import { groupAlertItem, incidentSummary, settleIncident } from "./incidents";
+import { groupAlertItem, incidentMembers, incidentSummary, settleIncident } from "./incidents";
 
 type ItemFields = WithoutSystemFields<Doc<"items">>;
 type NewItem = Omit<
@@ -774,16 +774,12 @@ export const list = internalQuery({
     const collapse = args.alertId === undefined;
     // Only an open item can need the owner, so that filter reads open items alone.
     const state = args.needsOwner ? (args.state ?? "open") : args.state;
-    const matches = async (item: Doc<"items">) => {
+    const filtered = async (item: Doc<"items">) => {
       if (state !== undefined && item.state !== state) return null;
       if (source !== undefined && item.source !== source) return null;
       if (from !== undefined && item.createdAt < from) return null;
       if (to !== undefined && item.createdAt > to) return null;
       const record = await itemRecord(ctx, item);
-      // A paged list shows an incident at its oldest member, so it is listed once.
-      if (collapse && record.incident && record.incident.firstItemId !== String(item._id)) {
-        return null;
-      }
       const kept =
         (args.needsOwner === undefined || record.needsOwner === args.needsOwner) &&
         (kind === undefined || record.kind === kind) &&
@@ -792,6 +788,30 @@ export const list = internalQuery({
       return kept
         ? { ...record, createdDate: dateOnlyForInstant(new Date(item.createdAt), timeZone) }
         : null;
+    };
+    // A paged list shows an incident once, at its oldest member the filters keep, whatever
+    // page reads it.
+    const representatives = new Map<string, Promise<string | undefined>>();
+    const representative = (incidentId: Id<"incidents">) => {
+      let chosen = representatives.get(incidentId);
+      if (!chosen) {
+        chosen = (async () => {
+          const members = (await incidentMembers(ctx, incidentId)).sort(
+            (a, b) => a.createdAt - b.createdAt || a._id.localeCompare(b._id),
+          );
+          for (const member of members) if (await filtered(member)) return String(member._id);
+          return undefined;
+        })();
+        representatives.set(incidentId, chosen);
+      }
+      return chosen;
+    };
+    const matches = async (item: Doc<"items">) => {
+      const record = await filtered(item);
+      if (collapse && record && item.incidentId) {
+        return (await representative(item.incidentId)) === record.id ? record : null;
+      }
+      return record;
     };
     // ponytail: counts up to DAY_COUNT_READ_LIMIT items per listed day; keep a per-day
     // counter if a day ever holds more.
