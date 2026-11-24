@@ -15,6 +15,7 @@ extension CowtailAPI {
         Item(
             id: record.id,
             source: record.source,
+            sourceName: record.sourceInfo.displayName,
             kind: ItemKind(rawValue: record.kind.rawValue) ?? .fyi,
             urgency: ItemUrgency(rawValue: record.urgency.rawValue) ?? .whenever,
             state: ItemState(rawValue: record.state.rawValue) ?? .open,

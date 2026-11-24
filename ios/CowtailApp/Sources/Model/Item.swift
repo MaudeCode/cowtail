@@ -63,6 +63,8 @@ struct ItemUpdate: Hashable, Sendable {
 struct Item: Identifiable, Hashable, Sendable {
     let id: String
     let source: String
+    /// The registered source's display name.
+    let sourceName: String
     let kind: ItemKind
     let urgency: ItemUrgency
     var state: ItemState
@@ -91,6 +93,7 @@ struct Item: Identifiable, Hashable, Sendable {
     init(
         id: String,
         source: String,
+        sourceName: String? = nil,
         kind: ItemKind,
         urgency: ItemUrgency,
         state: ItemState = .open,
@@ -116,6 +119,7 @@ struct Item: Identifiable, Hashable, Sendable {
     ) {
         self.id = id
         self.source = source
+        self.sourceName = sourceName ?? source
         self.kind = kind
         self.urgency = urgency
         self.state = state

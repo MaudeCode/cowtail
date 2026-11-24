@@ -97,7 +97,7 @@ struct ItemDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(item.source)
+            Text(item.sourceName)
                 .font(.cowtailSans(12, relativeTo: .caption))
                 .foregroundStyle(palette.mutedInk)
             Text(item.title)

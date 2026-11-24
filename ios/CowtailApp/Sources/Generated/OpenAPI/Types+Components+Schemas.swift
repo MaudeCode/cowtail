@@ -1863,6 +1863,37 @@ extension Components {
             internal var id: Swift.String
             /// - Remark: Generated from `#/components/schemas/ItemRecord/source`.
             internal var source: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/sourceInfo`.
+            internal struct SourceInfoPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/sourceInfo/slug`.
+                internal var slug: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/sourceInfo/displayName`.
+                internal var displayName: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/sourceInfo/iconUrl`.
+                internal var iconUrl: Swift.String?
+                /// Creates a new `SourceInfoPayload`.
+                ///
+                /// - Parameters:
+                ///   - slug:
+                ///   - displayName:
+                ///   - iconUrl:
+                internal init(
+                    slug: Swift.String,
+                    displayName: Swift.String,
+                    iconUrl: Swift.String? = nil
+                ) {
+                    self.slug = slug
+                    self.displayName = displayName
+                    self.iconUrl = iconUrl
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case slug
+                    case displayName
+                    case iconUrl
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/sourceInfo`.
+            internal var sourceInfo: Components.Schemas.ItemRecord.SourceInfoPayload
             /// - Remark: Generated from `#/components/schemas/ItemRecord/kind`.
             internal enum KindPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case alert = "alert"
@@ -2043,6 +2074,7 @@ extension Components {
             /// - Parameters:
             ///   - id:
             ///   - source:
+            ///   - sourceInfo:
             ///   - kind:
             ///   - urgency:
             ///   - state:
@@ -2073,6 +2105,7 @@ extension Components {
             internal init(
                 id: Swift.String,
                 source: Swift.String,
+                sourceInfo: Components.Schemas.ItemRecord.SourceInfoPayload,
                 kind: Components.Schemas.ItemRecord.KindPayload,
                 urgency: Components.Schemas.ItemRecord.UrgencyPayload,
                 state: Components.Schemas.ItemRecord.StatePayload,
@@ -2103,6 +2136,7 @@ extension Components {
             ) {
                 self.id = id
                 self.source = source
+                self.sourceInfo = sourceInfo
                 self.kind = kind
                 self.urgency = urgency
                 self.state = state
@@ -2134,6 +2168,7 @@ extension Components {
             internal enum CodingKeys: String, CodingKey {
                 case id
                 case source
+                case sourceInfo
                 case kind
                 case urgency
                 case state

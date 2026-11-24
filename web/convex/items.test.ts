@@ -395,7 +395,7 @@ describe("item list", () => {
 
 describe("inbox", () => {
   test("splits open items by whether they need the owner and lists the day's resolved", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const bearer = await seedSession(t, OWNER);
     const resolve = (id: string) =>
       request(t, `/api/items/${id}/events`, {

@@ -72,19 +72,19 @@ struct ItemRow: View {
     private var meta: some View {
         switch style {
         case .needsYou:
-            Text("\(item.source) · \(item.kind.rawValue) · \(Text(needsYouStatus).foregroundStyle(item.urgency.tint(palette)))")
+            Text("\(item.sourceName) · \(item.kind.rawValue) · \(Text(needsYouStatus).foregroundStyle(item.urgency.tint(palette)))")
         case .withHermes:
             if let update = item.latestUpdate {
                 Text("\(Text("Hermes").foregroundStyle(palette.info)) \(update.text) · \(ItemFormat.age(of: update.at))")
             } else {
-                Text("\(item.source) · \(item.kind.rawValue) · \(item.investigationStep?.label ?? item.state.rawValue)")
+                Text("\(item.sourceName) · \(item.kind.rawValue) · \(item.investigationStep?.label ?? item.state.rawValue)")
             }
         case .handled:
-            Text([item.subtitle ?? item.source, item.resolvedAt.map(ItemFormat.time)].compactMap { $0 }.joined(separator: " · "))
+            Text([item.subtitle ?? item.sourceName, item.resolvedAt.map(ItemFormat.time)].compactMap { $0 }.joined(separator: " · "))
         case .history:
             Text(
                 [
-                    item.subtitle ?? item.source,
+                    item.subtitle ?? item.sourceName,
                     ItemFormat.time(item.createdAt),
                     item.resolvedAfter.map { ItemFormat.duration($0) },
                 ]
