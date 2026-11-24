@@ -1,9 +1,10 @@
 import type { MaintenanceMatcher, MaintenanceWindowRecord } from "@maudecode/cowtail-protocol";
+import { makeFunctionReference } from "convex/server";
 import { ConvexError, v } from "convex/values";
 
-import type { Doc } from "./_generated/dataModel";
-import { internalMutation, internalQuery } from "./_generated/server";
-import type { QueryCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import type { ActionCtx, QueryCtx } from "./_generated/server";
 
 // A window names `alertmanager` among its sources to cover every alert.
 const ALL_ALERTS_SOURCES = new Set(["alertmanager", "*"]);
@@ -114,19 +115,93 @@ export const recordSilence = internalMutation({
 
 /**
  * Ends a running window now. Ending a window that is already over changes nothing, so a
- * retried request is safe; only the call that ends it returns the silences to expire.
+ * retried request is safe. Its silences are expireWindowSilences' to remove.
  */
 export const end = internalMutation({
   args: { id: v.string(), now: v.number() },
   handler: async (ctx, { id, now }) => {
     const windowId = ctx.db.normalizeId("maintenanceWindows", id);
     const window = requireWindow(windowId ? await ctx.db.get(windowId) : null);
-    if (!windowRecord(window, now).active) {
-      return { window: windowRecord(window, now), silenceIds: [] };
+    if (windowRecord(window, now).active) await ctx.db.patch(window._id, { endedAt: now });
+    return windowRecord(requireWindow(await ctx.db.get(window._id)), now);
+  },
+});
+
+// A window ended early still holds silences until Cowtail expires them; past its end they
+// expire in Alertmanager by themselves.
+function silencesToExpire(window: Window, now: number) {
+  return window.endedAt !== undefined && window.endsAt > now ? window.silenceIds : [];
+}
+
+export const leftoverSilences = internalQuery({
+  args: { id: v.id("maintenanceWindows"), now: v.number() },
+  handler: async (ctx, { id, now }) => silencesToExpire(requireWindow(await ctx.db.get(id)), now),
+});
+
+export const windowsWithLeftoverSilences = internalQuery({
+  args: { now: v.number() },
+  handler: async (ctx, { now }) => {
+    const running = await ctx.db
+      .query("maintenanceWindows")
+      .withIndex("by_endsAt", (q) => q.gt("endsAt", now))
+      .collect();
+    return running.filter((window) => silencesToExpire(window, now).length > 0).map((w) => w._id);
+  },
+});
+
+// The silences Alertmanager expired leave the window; an error says why the rest stay.
+export const settleSilences = internalMutation({
+  args: {
+    id: v.id("maintenanceWindows"),
+    expired: v.array(v.string()),
+    silenceError: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, expired, silenceError }) => {
+    const window = requireWindow(await ctx.db.get(id));
+    await ctx.db.patch(id, {
+      silenceIds: window.silenceIds.filter((silenceId) => !expired.includes(silenceId)),
+      silenceError,
+    });
+  },
+});
+
+const leftoverSilencesRef = makeFunctionReference<
+  "query",
+  { id: Id<"maintenanceWindows">; now: number },
+  string[]
+>("maintenance:leftoverSilences");
+const windowsWithLeftoverSilencesRef = makeFunctionReference<
+  "query",
+  { now: number },
+  Id<"maintenanceWindows">[]
+>("maintenance:windowsWithLeftoverSilences");
+const settleSilencesRef = makeFunctionReference<
+  "mutation",
+  { id: Id<"maintenanceWindows">; expired: string[]; silenceError?: string }
+>("maintenance:settleSilences");
+
+/**
+ * Expires the silences a window ended early still holds. The end request, a start whose
+ * window ended while its silence was being made, and a retry every minute all run it, so a
+ * silence Alertmanager could not expire is removed once it answers again.
+ */
+export async function expireWindowSilences(
+  ctx: Pick<ActionCtx, "runQuery" | "runMutation">,
+  id: Id<"maintenanceWindows">,
+) {
+  const silenceIds = await ctx.runQuery(leftoverSilencesRef, { id, now: Date.now() });
+  if (silenceIds.length === 0) return;
+  const { expired, error } = await expireSilences(silenceIds);
+  await ctx.runMutation(settleSilencesRef, { id, expired, silenceError: error });
+}
+
+// Runs every minute.
+export const expireLeftoverSilences = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    for (const id of await ctx.runQuery(windowsWithLeftoverSilencesRef, { now: Date.now() })) {
+      await expireWindowSilences(ctx, id);
     }
-    await ctx.db.patch(window._id, { endedAt: now });
-    const ended = requireWindow(await ctx.db.get(window._id));
-    return { window: windowRecord(ended, now), silenceIds: window.silenceIds };
   },
 });
 
@@ -221,15 +296,17 @@ export async function silenceWindow(
   }
 }
 
-/** Expires the silences of a window ended early; the error of the first that failed. */
-export async function expireSilences(silenceIds: string[]): Promise<string | undefined> {
-  let failed: string | undefined;
+/** The silences Alertmanager expired, and the error of the first that it did not. */
+async function expireSilences(silenceIds: string[]) {
+  const expired: string[] = [];
+  let error: string | undefined;
   for (const id of silenceIds) {
     try {
       await alertmanager(`/api/v2/silence/${encodeURIComponent(id)}`, { method: "DELETE" });
-    } catch (error) {
-      failed ??= `Could not end the Alertmanager silence: ${(error as Error).message}`;
+      expired.push(id);
+    } catch (failure) {
+      error ??= `Could not end the Alertmanager silence: ${(failure as Error).message}`;
     }
   }
-  return failed;
+  return { expired, error };
 }

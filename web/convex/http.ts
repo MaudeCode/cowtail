@@ -92,7 +92,7 @@ import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecyc
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { hermesHookItem } from "./hermesHooks";
 import { itemErrorCode } from "./items";
-import { expireSilences, silenceWindow } from "./maintenance";
+import { expireWindowSilences, silenceWindow } from "./maintenance";
 import { resolveItemStatsRange } from "./itemStats";
 import {
   exchangeOidcCode,
@@ -1915,6 +1915,8 @@ app.post("/api/me/maintenance-windows", async (c) => {
       id: started.id,
       ...silence,
     });
+    // Another client may have ended the window while its silence was being made.
+    await expireWindowSilences(c.env, started.id);
   }
   const window = await c.env.runQuery((internal as any).maintenance.get, {
     id: started.id,
@@ -1933,12 +1935,12 @@ app.get("/api/me/maintenance-windows", async (c) => {
 });
 
 // POST /api/me/maintenance-windows/:id/end — end a running window now and expire its
-// silences; a window already over is returned as it is
+// silences; a window already over is returned as it is, after retrying its silences
 app.post("/api/me/maintenance-windows/:id/end", async (c) => {
   const caller = await requireOwnerOrService(c, [process.env.PUSH_API_BEARER_TOKEN]);
   if (caller instanceof Response) return caller;
 
-  let ended: { window: { id: string }; silenceIds: string[] };
+  let ended: { id: Id<"maintenanceWindows"> };
   try {
     ended = await c.env.runMutation((internal as any).maintenance.end, {
       id: c.req.param("id"),
@@ -1947,15 +1949,10 @@ app.post("/api/me/maintenance-windows/:id/end", async (c) => {
   } catch (error) {
     return codedErrorResponse(error);
   }
-  const silenceError = await expireSilences(ended.silenceIds);
-  if (silenceError) {
-    await c.env.runMutation((internal as any).maintenance.recordSilence, {
-      id: ended.window.id,
-      silenceError,
-    });
-  }
+  // Also retries any silence an earlier end could not expire.
+  await expireWindowSilences(c.env, ended.id);
   const window = await c.env.runQuery((internal as any).maintenance.get, {
-    id: ended.window.id,
+    id: ended.id,
     now: Date.now(),
   });
   return c.json(maintenanceWindowResponseSchema.parse({ ok: true, window }));

@@ -45,10 +45,11 @@ export const maintenanceWindowRecordSchema = z.object({
   allAlerts: z.boolean(),
   // Whether the window is running now: started, not ended and not past `endsAt`.
   active: z.boolean(),
-  // The Alertmanager silences the window created.
+  // The Alertmanager silences the window holds. A window ended early keeps the ones Cowtail
+  // could not yet expire, and Cowtail retries them every minute.
   silenceIds: z.array(nonEmptyStringSchema),
-  // Why Alertmanager could not silence the window's alerts. Cowtail still holds back their
-  // pushes.
+  // Why Alertmanager could not silence the window's alerts, or could not end a silence of a
+  // window ended early. Cowtail still holds back pushes while the window runs.
   silenceError: z.string().optional(),
 });
 
