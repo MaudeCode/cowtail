@@ -1,4 +1,4 @@
-import type { ItemEventType, ItemState } from "@maudecode/cowtail-protocol";
+import type { ItemEventType, ItemKind, ItemState, ItemUrgency } from "@maudecode/cowtail-protocol";
 import { ConvexError, v } from "convex/values";
 import { makeFunctionReference, type WithoutSystemFields } from "convex/server";
 
@@ -19,6 +19,8 @@ import {
   itemStateValidator,
   itemUrgencyValidator,
 } from "./itemValidators";
+import { preferencesRow } from "./notificationPreferences";
+import { cowtailOwnerUserId } from "./owner";
 
 type ItemFields = WithoutSystemFields<Doc<"items">>;
 type NewItem = Omit<
@@ -35,6 +37,8 @@ type Transition = {
   at: number;
   snoozedUntil?: number;
   payload?: Record<string, unknown>;
+  // False for writes that replay history, such as the alert backfill: they push nothing.
+  notify?: boolean;
 };
 
 export function itemErrorCode(error: unknown): string | undefined {
@@ -43,7 +47,7 @@ export function itemErrorCode(error: unknown): string | undefined {
     : undefined;
 }
 
-async function appendItemEvent(
+export async function appendItemEvent(
   ctx: MutationCtx,
   itemId: Id<"items">,
   type: ItemEventType,
@@ -58,6 +62,36 @@ async function patchItemContent(ctx: MutationCtx, id: Id<"items">, patch: ItemCo
   await ctx.db.patch(id, patch);
 }
 
+// --- Delivery -----------------------------------------------------------------------
+
+export type ItemDeliveryReason = "created" | "urgency_raised" | "reopened" | "resend";
+
+const deliverItemRef = makeFunctionReference<
+  "action",
+  { itemId: Id<"items">; reason: ItemDeliveryReason }
+>("itemDelivery:deliverItem");
+
+// Every push for an item runs through itemDelivery.deliverItem, which decides what it sends.
+async function scheduleDelivery(ctx: MutationCtx, itemId: Id<"items">, reason: ItemDeliveryReason) {
+  await ctx.scheduler.runAfter(0, deliverItemRef, { itemId, reason });
+}
+
+const urgencyRank: Record<ItemUrgency, number> = { whenever: 0, today: 1, now: 2 };
+
+function raisesUrgency(from: ItemUrgency, to: ItemUrgency) {
+  return urgencyRank[to] > urgencyRank[from];
+}
+
+// The owner's override for this source and kind, `source:kind` before `source`.
+async function ownerUrgency(
+  ctx: QueryCtx,
+  item: { source: string; kind: ItemKind; urgency: ItemUrgency },
+): Promise<ItemUrgency> {
+  const owner = cowtailOwnerUserId();
+  const overrides = owner ? (await preferencesRow(ctx, owner))?.urgencyOverrides : undefined;
+  return overrides?.[`${item.source}:${item.kind}`] ?? overrides?.[item.source] ?? item.urgency;
+}
+
 /**
  * The only writer of `items.state`. Creating an item and every later state change append
  * the timeline event that records it; a transition to the current state writes nothing.
@@ -66,7 +100,7 @@ export async function transitionItem(
   ctx: MutationCtx,
   target: Doc<"items"> | { create: NewItem },
   to: ItemState,
-  { actor, at, snoozedUntil, payload = {} }: Transition,
+  { actor, at, snoozedUntil, payload = {}, notify = true }: Transition,
 ): Promise<Id<"items">> {
   const timing = {
     updatedAt: at,
@@ -78,17 +112,20 @@ export async function transitionItem(
     const id = await ctx.db.insert("items", {
       occurrenceCount: 1,
       ...target.create,
+      urgency: await ownerUrgency(ctx, target.create),
       state: to,
       createdAt: at,
       ...timing,
     });
     await appendItemEvent(ctx, id, "created", actor, at, { ...payload, state: to });
+    if (notify) await scheduleDelivery(ctx, id, "created");
     return id;
   }
 
   const item = target;
   if (item.state === to && item.snoozedUntil === timing.snoozedUntil) return item._id;
   await ctx.db.patch(item._id, { state: to, ...timing });
+  if (notify && to === "open") await scheduleDelivery(ctx, item._id, "reopened");
   await appendItemEvent(
     ctx,
     item._id,
@@ -164,11 +201,12 @@ async function itemForAlert(ctx: QueryCtx, alertId: Id<"alerts">) {
 export async function syncAlertItem(
   ctx: MutationCtx,
   alertId: Id<"alerts">,
-  { actor, now }: { actor: string; now: number },
+  { actor, now, notify = true }: { actor: string; now: number; notify?: boolean },
 ) {
   const alert = await ctx.db.get(alertId);
   if (!alert) return;
-  const content = alertItemContent(alert);
+  const raw = alertItemContent(alert);
+  const content = { ...raw, urgency: await ownerUrgency(ctx, raw) };
   const occurrenceCount = alert.occurrenceCount ?? 1;
   const workflow = alertWorkflowState(alert);
   const wanted = alertItemState(workflow);
@@ -189,13 +227,14 @@ export async function syncAlertItem(
         },
       },
       "open",
-      { actor, at: alert.timestamp },
+      { actor, at: alert.timestamp, notify },
     );
     if (wanted === "resolved") {
       await transitionItem(ctx, (await ctx.db.get(id))!, "resolved", {
         actor,
         at: closedAt,
         payload: { workflow },
+        notify,
       });
     }
     return;
@@ -210,12 +249,25 @@ export async function syncAlertItem(
   if (occurrenceCount > item.occurrenceCount) {
     await appendItemEvent(ctx, item._id, "repeated", actor, now, { occurrenceCount });
   }
+  // A closed item that reopens below is delivered as reopened.
+  if (
+    notify &&
+    !terminalItemStates.has(item.state) &&
+    raisesUrgency(item.urgency, content.urgency)
+  ) {
+    await scheduleDelivery(ctx, item._id, "urgency_raised");
+  }
 
   item = (await ctx.db.get(item._id))!;
   if (wanted === "resolved") {
-    await transitionItem(ctx, item, "resolved", { actor, at: closedAt, payload: { workflow } });
+    await transitionItem(ctx, item, "resolved", {
+      actor,
+      at: closedAt,
+      payload: { workflow },
+      notify,
+    });
   } else if (terminalItemStates.has(item.state)) {
-    await transitionItem(ctx, item, "open", { actor, at: now, payload: { workflow } });
+    await transitionItem(ctx, item, "open", { actor, at: now, payload: { workflow }, notify });
   }
 }
 
@@ -262,6 +314,20 @@ async function alertWorkflowForItem(ctx: QueryCtx, item: Doc<"items">) {
   return alertWorkflowState(alert, newestInvestigationJob(jobs)?.status);
 }
 
+// The app badge: open items that need the owner.
+// ponytail: reads every open item per push; add a counter when open items number thousands.
+export async function ownerBadgeCount(ctx: QueryCtx) {
+  const open = await ctx.db
+    .query("items")
+    .withIndex("by_state_updatedAt", (q) => q.eq("state", "open"))
+    .collect();
+  let count = 0;
+  for (const item of open) {
+    if (itemNeedsOwner(item, await alertWorkflowForItem(ctx, item))) count += 1;
+  }
+  return count;
+}
+
 async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
   const { _id, _creationTime, alertId, investigationJobId, ...fields } = item;
   return {
@@ -301,11 +367,19 @@ export const create = internalMutation({
       const open = matches.find((item) => !terminalItemStates.has(item.state));
       if (open) {
         const occurrenceCount = open.occurrenceCount + 1;
-        await patchItemContent(ctx, open._id, { occurrenceCount, updatedAt: now });
+        const urgency = await ownerUrgency(ctx, request);
+        const raised = raisesUrgency(open.urgency, urgency);
+        await patchItemContent(ctx, open._id, {
+          occurrenceCount,
+          updatedAt: now,
+          ...(raised ? { urgency } : {}),
+        });
         await appendItemEvent(ctx, open._id, "repeated", actor, now, {
           occurrenceCount,
           title: request.title,
+          ...(raised ? { urgency } : {}),
         });
+        if (raised) await scheduleDelivery(ctx, open._id, "urgency_raised");
         return { id: String(open._id), created: false, occurrenceCount };
       }
     }
@@ -490,6 +564,7 @@ export const backfillAlertItems = internalMutation({
       if (await itemForAlert(ctx, alert._id)) continue;
       await syncAlertItem(ctx, alert._id, {
         actor: "backfill",
+        notify: false,
         now: alert.resolvedAt ?? alert.lastReceivedAt ?? alert.timestamp,
       });
       created += 1;

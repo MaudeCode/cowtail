@@ -12,6 +12,8 @@ import {
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
   healthResponseSchema,
+  itemActionRequestSchema,
+  itemResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
   pushRegisterRequestSchema,
@@ -161,6 +163,8 @@ const AlertHumanActionRequest = alertHumanActionRequestSchema.meta({
 const AlertHumanActionResponse = alertHumanActionResponseSchema.meta({
   id: "AlertHumanActionResponse",
 });
+const ItemActionRequest = itemActionRequestSchema.meta({ id: "ItemActionRequest" });
+const ItemResponse = itemResponseSchema.meta({ id: "ItemResponse" });
 const ErrorResponse = z
   .object({
     ok: z.literal(false),
@@ -319,6 +323,30 @@ registry.registerPath({
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
     404: jsonResponse("Alert not found.", ErrorResponse),
     409: jsonResponse("Alert workflow state conflict.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/me/items/{id}/actions",
+  operationId: "performItemAction",
+  tags: ["items"],
+  summary: "Ack, snooze or answer an item",
+  security: [{ appSession: [] }],
+  request: {
+    params: z.object({ id: nonEmptyStringSchema }),
+    body: {
+      required: true,
+      content: jsonContent(ItemActionRequest),
+    },
+  },
+  responses: {
+    200: jsonResponse("The item after the action.", ItemResponse),
+    400: jsonResponse("Invalid item action.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+    404: jsonResponse("Item not found.", ErrorResponse),
+    409: jsonResponse("The item is closed or does not offer the action.", ErrorResponse),
   },
 });
 

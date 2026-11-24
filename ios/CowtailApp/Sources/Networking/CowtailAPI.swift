@@ -33,7 +33,11 @@ actor CowtailAPI: CowtailAPIClient {
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "network"
     )
-    private let transport = CowtailAPI.makeTransport()
+    private let transport: any ClientTransport
+
+    init(transport: any ClientTransport = CowtailAPI.makeTransport()) {
+        self.transport = transport
+    }
 
     private static func makeTransport() -> URLSessionTransport {
         let configuration = URLSessionConfiguration.default
@@ -339,7 +343,7 @@ actor CowtailAPI: CowtailAPIClient {
             bearerToken: sessionToken
         )
 
-        return AppNotificationPreferences(dailyRoundupEnabled: response.preferences.dailyRoundupEnabled)
+        return AppNotificationPreferences(response.preferences)
     }
 
     func updateNotificationPreferences(
@@ -353,7 +357,35 @@ actor CowtailAPI: CowtailAPIClient {
             bearerToken: sessionToken
         )
 
-        return AppNotificationPreferences(dailyRoundupEnabled: response.preferences.dailyRoundupEnabled)
+        return AppNotificationPreferences(response.preferences)
+    }
+
+    /// Acks, snoozes or answers an item, as the owner.
+    func performItemAction(
+        itemID: String,
+        request: Components.Schemas.ItemActionRequest,
+        sessionToken: String
+    ) async throws {
+        let output = try await alertActionClient(sessionToken: sessionToken).performItemAction(
+            .init(path: .init(id: itemID), body: .json(request))
+        )
+
+        switch output {
+        case .ok:
+            return
+        case .badRequest(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .notFound(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .conflict(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Request failed with HTTP \(statusCode).")
+        }
     }
 
     func performAlertAction(
@@ -701,6 +733,12 @@ struct AppAuthSession: Sendable {
 
 struct AppNotificationPreferences: Sendable {
     let dailyRoundupEnabled: Bool
+    let requireAuthForApprovals: Bool
+
+    init(_ preferences: NotificationPreferencesResponse.PreferencesPayload) {
+        dailyRoundupEnabled = preferences.dailyRoundupEnabled
+        requireAuthForApprovals = preferences.requireAuthForApprovals
+    }
 }
 
 private struct APIErrorEnvelope: Decodable {

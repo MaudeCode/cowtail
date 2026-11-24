@@ -9,6 +9,12 @@ export const itemUrgencyValidator = literals(itemUrgencies);
 export const itemStateValidator = literals(itemStates);
 export const itemEventTypeValidator = literals(itemEventTypes);
 
+export const quietHoursValidator = v.object({
+  start: v.string(),
+  end: v.string(),
+  timeZone: v.string(),
+});
+
 export const itemActionValidator = v.union(
   v.object({ type: v.literal("approve") }),
   v.object({ type: v.literal("deny") }),

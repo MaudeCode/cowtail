@@ -2,7 +2,12 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { openclawEventTypes } from "@maudecode/cowtail-protocol";
 
-import { itemEventTypeValidator, itemFields } from "./itemValidators";
+import {
+  itemEventTypeValidator,
+  itemFields,
+  itemUrgencyValidator,
+  quietHoursValidator,
+} from "./itemValidators";
 import { openclawToolCallsValidator } from "./openclawValidators";
 
 export default defineSchema({
@@ -62,6 +67,13 @@ export default defineSchema({
     actor: v.string(),
     payload: v.record(v.string(), v.any()),
   }).index("by_item_at", ["itemId", "at"]),
+
+  // `today` items wait here for one summary push when the window ends.
+  itemPushBatches: defineTable({
+    windowEndsAt: v.number(),
+    itemIds: v.array(v.id("items")),
+    sentAt: v.optional(v.number()),
+  }).index("by_sentAt", ["sentAt"]),
 
   alertmanagerEvents: defineTable({
     receivedAt: v.number(),
@@ -175,6 +187,9 @@ export default defineSchema({
     lastRoundupKeySent: v.optional(v.string()),
     inFlightRoundupKey: v.optional(v.string()),
     inFlightRoundupClaimedAt: v.optional(v.number()),
+    quietHours: v.optional(quietHoursValidator),
+    urgencyOverrides: v.optional(v.record(v.string(), itemUrgencyValidator)),
+    requireAuthForApprovals: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

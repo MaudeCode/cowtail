@@ -60,7 +60,12 @@ test("notification preferences need a session", async () => {
   expect(signedIn.status).toBe(200);
   expect(notificationPreferencesResponseSchema.parse(signedIn.json)).toEqual({
     ok: true,
-    preferences: { dailyRoundupEnabled: false },
+    preferences: {
+      dailyRoundupEnabled: false,
+      quietHours: null,
+      urgencyOverrides: {},
+      requireAuthForApprovals: false,
+    },
   });
 });
 
