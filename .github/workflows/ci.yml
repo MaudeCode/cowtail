@@ -12,14 +12,39 @@ permissions:
   contents: read
 
 concurrency:
-  # A pull request's first attempt replaces its older runs, a push to main queues behind the one before it, and a
-  # re-run or a manual run stands alone.
+  # A push to main queues behind the one before it. Every other run stands alone: a pull request's first attempt
+  # cancels the runs it replaces in `supersede`, and never waits for them to stop.
   group: >-
-    ci-${{ github.run_attempt == '1' && (github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number)
-    || github.event_name == 'push' && github.ref) || format('run-{0}-{1}', github.run_id, github.run_attempt) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == '1' }}
+    ci-${{ github.event_name == 'push' && github.run_attempt == '1' && github.ref
+    || format('run-{0}-{1}', github.run_id, github.run_attempt) }}
+  cancel-in-progress: false
 
 jobs:
+  supersede:
+    name: Supersede
+    if: github.event_name == 'pull_request' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    continue-on-error: true # a fork's token cannot cancel
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel this pull request's older runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          BRANCH: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          workflow="$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .workflow_id)"
+          gh api --paginate "repos/$REPO/actions/workflows/$workflow/runs?event=pull_request&branch=$BRANCH&per_page=100" \
+            --jq ".workflow_runs[] | select(.id < $RUN_ID and .status != \"completed\"
+              and .head_repository.full_name == \"$HEAD_REPO\") | .id" |
+            while read -r id; do
+              gh api -X POST "repos/$REPO/actions/runs/$id/cancel" >/dev/null && echo "Cancelled run $id"
+            done
+
   changes:
     name: Changes
     runs-on: ubuntu-24.04
