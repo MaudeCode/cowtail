@@ -10,10 +10,16 @@ protocol CowtailAPIClient: Sendable {
     func fetchItems(_ query: ItemListQuery, sessionToken: String) async throws -> ItemPage
     /// Nil when the server has no such item.
     func fetchItem(id: String, sessionToken: String) async throws -> ItemDetail?
-    func fetchItemStats(from: Date?, to: Date?, sessionToken: String) async throws -> ItemStats
+    /// Stats for the query's start, source, kind and outcome; no start means the last 7 days.
+    func fetchItemStats(_ query: ItemListQuery, sessionToken: String) async throws -> ItemStats
     func fetchItemSources(sessionToken: String) async throws -> [String]
     func performItemAction(itemID: String, request: ItemActionRequest, sessionToken: String) async throws -> Item
-    func performAlertAction(alertID: String, action: AlertHumanAction, sessionToken: String) async throws
+    func performAlertAction(
+        alertID: String,
+        action: AlertHumanAction,
+        note: String?,
+        sessionToken: String
+    ) async throws
     func fetchDevices(sessionToken: String) async throws -> [UserDevice]
 }
 
@@ -278,6 +284,11 @@ actor CowtailAPI: CowtailAPIClient {
         case .ok(let response):
             let inbox = try response.body.json
             return ItemInbox(
+                counts: ItemInbox.Counts(
+                    needsYou: inbox.counts.needsYou,
+                    withHermes: inbox.counts.withHermes,
+                    handled: inbox.counts.handled
+                ),
                 needsYou: inbox.needsYou.map(Self.makeItem),
                 withHermes: inbox.withHermes.map(Self.makeItem),
                 handled: inbox.handled.map(Self.makeItem)
@@ -338,10 +349,13 @@ actor CowtailAPI: CowtailAPIClient {
         }
     }
 
-    func fetchItemStats(from: Date?, to: Date?, sessionToken: String) async throws -> ItemStats {
+    func fetchItemStats(_ scope: ItemListQuery, sessionToken: String) async throws -> ItemStats {
         let query = Operations.GetItemStats.Input.Query(
-            from: from.map(Self.milliseconds),
-            to: to.map(Self.milliseconds)
+            from: scope.from.map(Self.milliseconds),
+            to: scope.to.map(Self.milliseconds),
+            source: scope.source,
+            kind: scope.kind.flatMap { .init(rawValue: $0.rawValue) },
+            outcome: scope.outcome.flatMap { .init(rawValue: $0.rawValue) }
         )
         switch try await sessionClient(sessionToken: sessionToken).getItemStats(query: query) {
         case .ok(let response):
@@ -418,6 +432,7 @@ actor CowtailAPI: CowtailAPIClient {
     func performAlertAction(
         alertID: String,
         action: AlertHumanAction,
+        note: String?,
         sessionToken: String
     ) async throws {
         let generatedAction: AlertHumanActionRequest.ActionPayload = switch action {
@@ -428,7 +443,7 @@ actor CowtailAPI: CowtailAPIClient {
         let output = try await sessionClient(sessionToken: sessionToken).performAlertAction(
             .init(
                 path: .init(id: alertID),
-                body: .json(AlertHumanActionRequest(action: generatedAction, note: nil))
+                body: .json(AlertHumanActionRequest(action: generatedAction, note: note))
             )
         )
 

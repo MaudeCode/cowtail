@@ -23,18 +23,18 @@ struct InboxView: View {
                     .accessibilityIdentifier("text.inbox.error")
             }
 
-            section("Needs you", inbox.needsYou, style: .needsYou)
-            section("Hermes is on it", inbox.withHermes, style: .withHermes)
-            section("Handled · 24h", inbox.handled, style: .handled)
+            section("Needs you", inbox.needsYou, count: inbox.counts.needsYou, style: .needsYou)
+            section("Hermes is on it", inbox.withHermes, count: inbox.counts.withHermes, style: .withHermes)
+            section("Handled · 24h", inbox.handled, count: inbox.counts.handled, style: .handled)
         }
         .polling { await store.refresh() }
     }
 
     private func counts(_ inbox: ItemInbox) -> some View {
         HStack(spacing: 18) {
-            count(inbox.needsYou.count, "need you")
-            count(inbox.withHermes.count, "with Hermes")
-            count(inbox.handled.count, "handled")
+            count(inbox.counts.needsYou, "need you")
+            count(inbox.counts.withHermes, "with Hermes")
+            count(inbox.counts.handled, "handled")
             Spacer()
         }
         .padding(.top, 6)
@@ -54,8 +54,8 @@ struct InboxView: View {
     }
 
     @ViewBuilder
-    private func section(_ title: String, _ items: [Item], style: ItemRow.Style) -> some View {
-        CowtailSectionHeader(title: title, detail: "\(items.count)")
+    private func section(_ title: String, _ items: [Item], count: Int, style: ItemRow.Style) -> some View {
+        CowtailSectionHeader(title: title, detail: "\(count)")
         ForEach(items) { item in
             ItemRow(item: item, style: style)
         }

@@ -75,6 +75,7 @@ extension CowtailAPI {
     static func makeStats(_ response: Components.Schemas.ItemStatsResponse) -> ItemStats {
         let mix = response.outcomeMix
         return ItemStats(
+            from: date(response.from),
             createdCount: response.createdCount,
             resolvedCount: response.resolvedCount,
             outcomeMix: [

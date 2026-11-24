@@ -98,6 +98,7 @@ final class CowtailStoreTests: XCTestCase {
 
         XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
         XCTAssertEqual(store.inbox?.withHermes.map(\.id), [question.id])
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 1, handled: 0))
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
     }
 
@@ -232,7 +233,8 @@ private actor FakeItemAPI: CowtailAPIClient {
         if let inboxError {
             throw inboxError
         }
-        return inbox
+        // Totals follow the lists, as the server counts them.
+        return ItemInbox(needsYou: inbox.needsYou, withHermes: inbox.withHermes, handled: inbox.handled)
     }
 
     func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {
@@ -246,7 +248,7 @@ private actor FakeItemAPI: CowtailAPIClient {
         nil
     }
 
-    func fetchItemStats(from _: Date?, to _: Date?, sessionToken _: String) async throws -> ItemStats {
+    func fetchItemStats(_: ItemListQuery, sessionToken _: String) async throws -> ItemStats {
         CowtailPreviewFixtures.stats
     }
 
@@ -272,7 +274,12 @@ private actor FakeItemAPI: CowtailAPIClient {
         return item
     }
 
-    func performAlertAction(alertID _: String, action _: AlertHumanAction, sessionToken _: String) async throws {}
+    func performAlertAction(
+        alertID _: String,
+        action _: AlertHumanAction,
+        note _: String?,
+        sessionToken _: String
+    ) async throws {}
 
     func fetchItemSources(sessionToken _: String) async throws -> [String] {
         []

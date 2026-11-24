@@ -1617,10 +1617,18 @@ app.get("/api/items/stats", async (c) => {
     Date.now(),
     timeZone,
   );
-  const parsedRange = itemStatsQuerySchema.safeParse(range);
+  const parsedRange = itemStatsQuerySchema.safeParse({
+    ...range,
+    source: nonEmptyString(c.req.query("source")),
+    kind: nonEmptyString(c.req.query("kind")),
+    outcome: nonEmptyString(c.req.query("outcome")),
+  });
   if (!parsedRange.success) return jsonError(formatIssues(parsedRange.error.issues));
 
-  const stats = await c.env.runQuery((internal as any).itemStats.stats, { ...range, timeZone });
+  const stats = await c.env.runQuery((internal as any).itemStats.stats, {
+    ...parsedRange.data,
+    timeZone,
+  });
   return c.json(itemStatsResponseSchema.parse({ ok: true, ...stats }));
 });
 
@@ -1630,7 +1638,17 @@ app.get("/api/items/inbox", async (c) => {
   if (authError) return authError;
 
   const inbox = await c.env.runQuery((internal as any).items.inbox, { now: Date.now() });
-  return c.json(itemInboxResponseSchema.parse({ ok: true, ...inbox }));
+  return c.json(
+    itemInboxResponseSchema.parse({
+      ok: true,
+      counts: {
+        needsYou: inbox.needsYou.length,
+        withHermes: inbox.withHermes.length,
+        handled: inbox.handled.length,
+      },
+      ...inbox,
+    }),
+  );
 });
 
 // GET /api/items/sources — every source with an item, for the history filter

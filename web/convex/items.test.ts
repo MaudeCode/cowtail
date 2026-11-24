@@ -425,6 +425,7 @@ describe("inbox", () => {
 
     expect(response.status).toBe(200);
     const inbox = itemInboxResponseSchema.parse(response.json);
+    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, handled: 1 });
     const ids = (items: { id: string }[]) => items.map((entry) => entry.id);
     expect([ids(inbox.needsYou), ids(inbox.withHermes), ids(inbox.handled)]).toEqual([
       [approval.id],

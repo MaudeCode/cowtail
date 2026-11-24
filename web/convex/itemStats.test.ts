@@ -120,6 +120,40 @@ describe("item stats", () => {
     ]);
   });
 
+  test("a source, kind or outcome narrows the stats to the items History lists under it", async () => {
+    const t = newBackend();
+    const resolvedAt = NOW - 30 * MINUTE;
+    await seedItems(t, [
+      {
+        state: "resolved",
+        resolvedAt,
+        kind: "alert",
+        source: "alertmanager",
+        context: { disposition: "noise" },
+      },
+      {
+        state: "resolved",
+        resolvedAt,
+        kind: "failure",
+        source: "cron",
+        context: { disposition: "fixed" },
+      },
+      { state: "resolved", resolvedAt, kind: "failure", source: "hermes" },
+    ]);
+
+    const counts = async (filter: string) => {
+      const result = await stats(t, `${range}&${filter}`);
+      return [result.resolvedCount, result.createdCount, result.noiseRate];
+    };
+
+    expect(await counts("source=cron")).toEqual([1, 1, 0]);
+    expect(await counts("kind=failure")).toEqual([2, 2, 0]);
+    expect(await counts("outcome=noise")).toEqual([1, 1, 1]);
+    expect(
+      (await request(t, `/api/items/stats${range}&kind=nope`, { bearer: SERVICE })).status,
+    ).toBe(400);
+  });
+
   test("ranks repeat offenders by occurrences with their noise share and last sighting", async () => {
     const t = newBackend();
     const noisyAlert = (resolvedAt: number) =>

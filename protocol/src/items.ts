@@ -192,6 +192,11 @@ export const itemSourcesResponseSchema = z.object({
 export const itemInboxHandledWindowMs = 24 * 60 * 60 * 1000;
 export const itemInboxResponseSchema = z.object({
   ok: z.literal(true),
+  counts: z.object({
+    needsYou: z.number().int().nonnegative(),
+    withHermes: z.number().int().nonnegative(),
+    handled: z.number().int().nonnegative(),
+  }),
   needsYou: z.array(itemRecordSchema),
   withHermes: z.array(itemRecordSchema),
   handled: z.array(itemRecordSchema),
@@ -232,8 +237,15 @@ export const itemResponseSchema = z.object({
 const itemStatsMaxRangeMs = 92 * 24 * 60 * 60 * 1000;
 
 // Without a range, the stats cover the last 7 days in the server's time zone, today included.
+// A source, kind or outcome narrows them to the items History lists under that filter.
 export const itemStatsQuerySchema = z
-  .object({ from: timestampSchema.optional(), to: timestampSchema.optional() })
+  .object({
+    from: timestampSchema.optional(),
+    to: timestampSchema.optional(),
+    source: itemSourceSchema.optional(),
+    kind: itemKindSchema.optional(),
+    outcome: itemOutcomeSchema.optional(),
+  })
   .refine(({ from, to }) => from === undefined || to === undefined || from <= to, {
     message: "from must not be after to",
   })

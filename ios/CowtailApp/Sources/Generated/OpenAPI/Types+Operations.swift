@@ -2952,17 +2952,49 @@ internal enum Operations {
                 internal var from: Swift.Int?
                 /// - Remark: Generated from `#/paths/items/stats/GET/query/to`.
                 internal var to: Swift.Int?
+                /// - Remark: Generated from `#/paths/items/stats/GET/query/source`.
+                internal var source: Swift.String?
+                /// - Remark: Generated from `#/paths/items/stats/GET/query/kind`.
+                internal enum KindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case alert = "alert"
+                    case failure = "failure"
+                    case approval = "approval"
+                    case question = "question"
+                    case fyi = "fyi"
+                    case done = "done"
+                }
+                /// - Remark: Generated from `#/paths/items/stats/GET/query/kind`.
+                internal var kind: Operations.GetItemStats.Input.Query.KindPayload?
+                /// - Remark: Generated from `#/paths/items/stats/GET/query/outcome`.
+                internal enum OutcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case fixed = "fixed"
+                    case selfResolved = "self-resolved"
+                    case noise = "noise"
+                    case escalated = "escalated"
+                    case other = "other"
+                }
+                /// - Remark: Generated from `#/paths/items/stats/GET/query/outcome`.
+                internal var outcome: Operations.GetItemStats.Input.Query.OutcomePayload?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - from:
                 ///   - to:
+                ///   - source:
+                ///   - kind:
+                ///   - outcome:
                 internal init(
                     from: Swift.Int? = nil,
-                    to: Swift.Int? = nil
+                    to: Swift.Int? = nil,
+                    source: Swift.String? = nil,
+                    kind: Operations.GetItemStats.Input.Query.KindPayload? = nil,
+                    outcome: Operations.GetItemStats.Input.Query.OutcomePayload? = nil
                 ) {
                     self.from = from
                     self.to = to
+                    self.source = source
+                    self.kind = kind
+                    self.outcome = outcome
                 }
             }
             internal var query: Operations.GetItemStats.Input.Query

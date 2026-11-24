@@ -1662,6 +1662,28 @@
               true
             ]
           },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "needsYou": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "withHermes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "handled": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "needsYou",
+              "withHermes",
+              "handled"
+            ]
+          },
           "needsYou": {
             "type": "array",
             "items": {
@@ -1683,6 +1705,7 @@
         },
         "required": [
           "ok",
+          "counts",
           "needsYou",
           "withHermes",
           "handled"
@@ -2887,6 +2910,48 @@
             },
             "required": false,
             "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9:_-]*$"
+            },
+            "required": false,
+            "name": "source",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "alert",
+                "failure",
+                "approval",
+                "question",
+                "fyi",
+                "done"
+              ]
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "fixed",
+                "self-resolved",
+                "noise",
+                "escalated",
+                "other"
+              ]
+            },
+            "required": false,
+            "name": "outcome",
             "in": "query"
           }
         ],

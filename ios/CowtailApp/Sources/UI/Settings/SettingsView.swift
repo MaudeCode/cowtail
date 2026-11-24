@@ -410,6 +410,8 @@ struct SettingsView: View {
         needsAppleAccountConnection
             || notificationManager.dailyRoundupPreferenceRequiresSignIn
             || notificationManager.isLoadingDailyRoundupPreference
+            // One settings write at a time, so a refusal never meets a newer change.
+            || notificationManager.isSavingDailyRoundupPreference
     }
 
     private var needsAppleAccountConnection: Bool {

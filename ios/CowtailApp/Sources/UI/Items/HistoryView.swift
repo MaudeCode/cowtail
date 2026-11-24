@@ -122,7 +122,16 @@ struct HistoryView: View {
 
     @ViewBuilder
     private func outcomes(_ stats: ItemStats) -> some View {
-        CowtailSectionHeader(title: "Outcomes", detail: "\(stats.resolvedCount) resolved")
+        // The server's range: with no date filter, it counts the last 7 days.
+        CowtailSectionHeader(
+            title: "Outcomes",
+            detail: [
+                "\(stats.resolvedCount) resolved",
+                stats.from.map { "since \($0.formatted(.dateTime.day().month(.abbreviated)))" },
+            ]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+        )
         VStack(alignment: .leading, spacing: 8) {
             GeometryReader { geometry in
                 HStack(spacing: 2) {

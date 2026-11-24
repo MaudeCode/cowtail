@@ -131,6 +131,8 @@ struct ItemActionButtons: View {
     @Environment(\.openURL) private var openURL
     @State private var isReplying = false
     @State private var replyText = ""
+    @State private var noteAction: AlertHumanAction?
+    @State private var noteText = ""
 
     var body: some View {
         HStack(spacing: 6) {
@@ -157,6 +159,34 @@ struct ItemActionButtons: View {
             Button("Cancel", role: .cancel) {
                 replyText = ""
             }
+        }
+        .alert(
+            noteAction.map(Self.title) ?? "",
+            isPresented: Binding(get: { noteAction != nil }, set: {
+                if !$0 {
+                    noteAction = nil
+                }
+            })
+        ) {
+            TextField("Note (optional)", text: $noteText)
+            if let action = noteAction {
+                Button(Self.title(action)) {
+                    let note = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    noteText = ""
+                    Task { await store.perform(action, note: note.isEmpty ? nil : note, on: item) }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                noteText = ""
+            }
+        }
+    }
+
+    private static func title(_ action: AlertHumanAction) -> String {
+        switch action {
+        case .markNoise: ItemButton.markNoise.title
+        case .escalate: ItemButton.escalate.title
+        case .retryInvestigation: ItemButton.retryInvestigation.title
         }
     }
 
@@ -192,12 +222,13 @@ struct ItemActionButtons: View {
             isReplying = true
         case .open(let url):
             openURL(url)
+        // The owner's call on an alert takes an optional note, as it always has.
         case .markNoise:
-            Task { await store.perform(AlertHumanAction.markNoise, on: item) }
+            noteAction = .markNoise
         case .escalate:
-            Task { await store.perform(AlertHumanAction.escalate, on: item) }
+            noteAction = .escalate
         case .retryInvestigation:
-            Task { await store.perform(AlertHumanAction.retryInvestigation, on: item) }
+            noteAction = .retryInvestigation
         }
     }
 }

@@ -641,7 +641,10 @@ final class NotificationManager: NSObject, ObservableObject {
             )
         } catch CowtailAPIError.refused(let message) {
             logger.error("updatePreferences refused")
-            handleDailyRoundupPreferenceError(CowtailAPIError.refused(message), restoring: previous)
+            handleDailyRoundupPreferenceError(
+                CowtailAPIError.refused(message),
+                restoring: Self.reverting(change, in: preferences, to: previous)
+            )
         } catch {
             // The change may have landed: read the server before keeping or restoring it.
             logger.error("updatePreferences outcome unknown")
@@ -733,6 +736,28 @@ final class NotificationManager: NSObject, ObservableObject {
     private func removePersistedValue(for key: String) {
         keychain.remove(key)
         defaults.removeObject(forKey: key)
+    }
+
+    /// The current settings with only the fields this change touched put back.
+    private static func reverting(
+        _ change: NotificationPreferencesChange,
+        in current: AppNotificationPreferences,
+        to previous: AppNotificationPreferences
+    ) -> AppNotificationPreferences {
+        var reverted = current
+        if change.request.dailyRoundupEnabled != nil {
+            reverted.dailyRoundupEnabled = previous.dailyRoundupEnabled
+        }
+        if change.request.requireAuthForApprovals != nil {
+            reverted.requireAuthForApprovals = previous.requireAuthForApprovals
+        }
+        if change.request.quietHours != nil || change.quietHoursOff {
+            reverted.quietHours = previous.quietHours
+        }
+        if change.request.urgencyOverrides != nil {
+            reverted.urgencyOverrides = previous.urgencyOverrides
+        }
+        return reverted
     }
 
     private func handleDailyRoundupPreferenceError(_ error: Error, restoring previous: AppNotificationPreferences) {

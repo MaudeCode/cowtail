@@ -167,6 +167,14 @@ struct ItemDetail: Hashable, Sendable {
 }
 
 struct ItemInbox: Equatable, Sendable {
+    struct Counts: Equatable, Sendable {
+        var needsYou: Int
+        var withHermes: Int
+        var handled: Int
+    }
+
+    /// The server's totals, moved only by the owner's own optimistic writes.
+    var counts: Counts
     var needsYou: [Item]
     var withHermes: [Item]
     var handled: [Item]
@@ -175,6 +183,18 @@ struct ItemInbox: Equatable, Sendable {
 
     func item(withID id: String) -> Item? {
         (needsYou + withHermes + handled).first { $0.id == id }
+    }
+}
+
+extension ItemInbox {
+    /// An inbox whose totals are its lists, as a stand-in server builds it.
+    init(needsYou: [Item], withHermes: [Item], handled: [Item]) {
+        self.init(
+            counts: Counts(needsYou: needsYou.count, withHermes: withHermes.count, handled: handled.count),
+            needsYou: needsYou,
+            withHermes: withHermes,
+            handled: handled
+        )
     }
 }
 
@@ -227,6 +247,8 @@ struct ItemPage: Equatable, Sendable {
 }
 
 struct ItemStats: Equatable, Sendable {
+    /// The range the server counted.
+    var from: Date? = nil
     struct KindResolveTime: Equatable, Sendable {
         let kind: ItemKind
         let count: Int

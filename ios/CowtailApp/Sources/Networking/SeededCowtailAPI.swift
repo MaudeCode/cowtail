@@ -80,7 +80,7 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
         return ItemDetail(item: item, events: events[id] ?? [])
     }
 
-    func fetchItemStats(from _: Date?, to _: Date?, sessionToken _: String) async throws -> ItemStats {
+    func fetchItemStats(_: ItemListQuery, sessionToken _: String) async throws -> ItemStats {
         try requireItems()
         return seed.stats
     }
@@ -114,7 +114,12 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
         return item
     }
 
-    func performAlertAction(alertID _: String, action _: AlertHumanAction, sessionToken _: String) async throws {}
+    func performAlertAction(
+        alertID _: String,
+        action _: AlertHumanAction,
+        note _: String?,
+        sessionToken _: String
+    ) async throws {}
 
     func fetchItemSources(sessionToken _: String) async throws -> [String] {
         try requireItems()

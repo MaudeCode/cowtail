@@ -2680,6 +2680,37 @@ extension Components {
         internal struct ItemInboxResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/ok`.
             internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts`.
+            internal struct CountsPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/needsYou`.
+                internal var needsYou: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/withHermes`.
+                internal var withHermes: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/handled`.
+                internal var handled: Swift.Int
+                /// Creates a new `CountsPayload`.
+                ///
+                /// - Parameters:
+                ///   - needsYou:
+                ///   - withHermes:
+                ///   - handled:
+                internal init(
+                    needsYou: Swift.Int,
+                    withHermes: Swift.Int,
+                    handled: Swift.Int
+                ) {
+                    self.needsYou = needsYou
+                    self.withHermes = withHermes
+                    self.handled = handled
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case needsYou
+                    case withHermes
+                    case handled
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts`.
+            internal var counts: Components.Schemas.ItemInboxResponse.CountsPayload
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/needsYou`.
             internal var needsYou: [Components.Schemas.ItemRecord]
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/withHermes`.
@@ -2690,22 +2721,26 @@ extension Components {
             ///
             /// - Parameters:
             ///   - ok:
+            ///   - counts:
             ///   - needsYou:
             ///   - withHermes:
             ///   - handled:
             internal init(
                 ok: Swift.Bool,
+                counts: Components.Schemas.ItemInboxResponse.CountsPayload,
                 needsYou: [Components.Schemas.ItemRecord],
                 withHermes: [Components.Schemas.ItemRecord],
                 handled: [Components.Schemas.ItemRecord]
             ) {
                 self.ok = ok
+                self.counts = counts
                 self.needsYou = needsYou
                 self.withHermes = withHermes
                 self.handled = handled
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
+                case counts
                 case needsYou
                 case withHermes
                 case handled

@@ -4,6 +4,7 @@ import SwiftUI
 struct ItemDestinationView: View {
     let route: AppRoute
 
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
 
@@ -25,11 +26,23 @@ struct ItemDestinationView: View {
                 }
             }
         }
+        // Reloads every 30 seconds while open, on a push and when the app returns.
         .task(id: route) {
-            await load()
+            while !Task.isCancelled {
+                await load()
+                try? await Task.sleep(for: .seconds(30))
+            }
         }
         .refreshable {
             await load()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cowtailPushReceived)) { _ in
+            Task { await load() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await load() }
+            }
         }
     }
 

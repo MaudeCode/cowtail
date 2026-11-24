@@ -156,7 +156,7 @@ final class CowtailStore: ObservableObject {
 
     private func refreshClusterStats(sessionToken token: String) async {
         do {
-            clusterStats = try await api.fetchItemStats(from: nil, to: nil, sessionToken: token)
+            clusterStats = try await api.fetchItemStats(ItemListQuery(), sessionToken: token)
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             logger.error("refresh stats failed: \(String(describing: error), privacy: .public)")
@@ -269,9 +269,21 @@ final class CowtailStore: ObservableObject {
         }
     }
 
+    /// Changes the shown lists for the owner's own write, moving the server's totals with them.
+    private func adjustInbox(_ change: (inout ItemInbox) -> Void) {
+        guard var current = inbox else { return }
+        let before = current
+        change(&current)
+        current.counts.needsYou += current.needsYou.count - before.needsYou.count
+        current.counts.withHermes += current.withHermes.count - before.withHermes.count
+        current.counts.handled += current.handled.count - before.handled.count
+        inbox = current
+    }
+
     /// Puts one refused item back where it was, leaving every other item as it is now.
     private func restore(_ itemID: String, from before: ItemInbox?) {
-        guard var current = inbox, let before else { return }
+        guard let before else { return }
+        adjustInbox { current in
         current.needsYou.removeAll { $0.id == itemID }
         current.withHermes.removeAll { $0.id == itemID }
         current.handled.removeAll { $0.id == itemID }
@@ -279,10 +291,10 @@ final class CowtailStore: ObservableObject {
             guard let index = before[keyPath: section].firstIndex(where: { $0.id == itemID }) else { return }
             current[keyPath: section].insert(before[keyPath: section][index], at: min(index, current[keyPath: section].count))
         }
-        putBack(\.needsYou)
-        putBack(\.withHermes)
-        putBack(\.handled)
-        inbox = current
+            putBack(\.needsYou)
+            putBack(\.withHermes)
+            putBack(\.handled)
+        }
     }
 
     private func showOptimistically(_ request: ItemActionRequest, on item: Item) {
@@ -297,13 +309,12 @@ final class CowtailStore: ObservableObject {
         default: break
         }
 
-        if var current = inbox {
+        adjustInbox { current in
             current.needsYou.removeAll { $0.id == item.id }
             current.withHermes.removeAll { $0.id == item.id }
             if moved.state != .snoozed {
                 current.withHermes.insert(moved, at: 0)
             }
-            inbox = current
         }
         details[item.id]?.item = moved
     }
@@ -313,7 +324,7 @@ final class CowtailStore: ObservableObject {
     }
 
     /// Mark noise, escalate or retry: the server decides the result, so the control waits.
-    func perform(_ action: AlertHumanAction, on item: Item) async {
+    func perform(_ action: AlertHumanAction, note: String? = nil, on item: Item) async {
         guard let alertID = item.alertID, !alertActionsInFlight.contains(item.id) else { return }
         actionErrors[item.id] = nil
         guard let token = await sessionToken() else {
@@ -324,7 +335,7 @@ final class CowtailStore: ObservableObject {
         defer { alertActionsInFlight.remove(item.id) }
 
         do {
-            try await api.performAlertAction(alertID: alertID, action: action, sessionToken: token)
+            try await api.performAlertAction(alertID: alertID, action: action, note: note, sessionToken: token)
             await loadDetail(itemID: item.id)
             await reloadInbox(sessionToken: token)
         } catch {
@@ -347,7 +358,7 @@ final class CowtailStore: ObservableObject {
         let query = filter.query(now: .now)
         do {
             async let page = fetchHistoryPage(query, sessionToken: token)
-            async let stats = api.fetchItemStats(from: query.from, to: nil, sessionToken: token)
+            async let stats = api.fetchItemStats(query, sessionToken: token)
             async let sources = api.fetchItemSources(sessionToken: token)
             let (loadedPage, loadedStats, loadedSources) = try await (page, stats, sources)
             guard filter == historyFilter else { return }
