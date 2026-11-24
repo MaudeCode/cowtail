@@ -23,6 +23,8 @@ Use:
 The generated app reads those values through the project definition and `Info.plist`. Runtime access is centralized in `CowtailApp/Sources/App/AppConfig.swift`.
 
 ## Generate the project
+Install the workspace dependencies once from the repository root with `pnpm install`; the OpenAPI generator runs on Node.
+
 ```bash
 cd ios
 ./generate.sh

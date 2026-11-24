@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { nonEmptyStringSchema } from "./shared.js";
+import { nonEmptyStringSchema } from "./shared.ts";
 
 export const usersListEntrySchema = z.object({
   userId: nonEmptyStringSchema,

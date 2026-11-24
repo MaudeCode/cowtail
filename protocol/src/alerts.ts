@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { alertOutcomes, alertStatuses, nonEmptyStringSchema, timestampSchema } from "./shared.js";
+import { alertOutcomes, alertStatuses, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
 
 export const alertOutcomeSchema = z.enum(alertOutcomes);
 export const alertStatusSchema = z.enum(alertStatuses);

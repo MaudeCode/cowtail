@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 import {
   openclawActionSubmittedEventSchema,
@@ -16,8 +16,8 @@ import {
   openclawRealtimeServerMessageSchema,
   openclawThreadRecordSchema,
   openclawToolCallRecordSchema,
-} from "./openclaw.js";
-import { pushRegisterRequestSchema, pushResultSchema } from "./push.js";
+} from "./openclaw.ts";
+import { pushRegisterRequestSchema, pushResultSchema } from "./push.ts";
 
 describe("openclaw protocol schemas", () => {
   test("accepts plugin hello payload", () => {

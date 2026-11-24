@@ -4,14 +4,14 @@ import { dirname, join } from "node:path";
 const DEFAULT_APP_ID = "TEAMID.com.example.cowtail";
 
 const defaultTemplatePath = join(
-  import.meta.dir,
+  import.meta.dirname,
   "..",
   "templates",
   "apple-app-site-association.template",
 );
 const defaultOutputPaths = [
-  join(import.meta.dir, "..", "public", "apple-app-site-association"),
-  join(import.meta.dir, "..", "public", ".well-known", "apple-app-site-association"),
+  join(import.meta.dirname, "..", "public", "apple-app-site-association"),
+  join(import.meta.dirname, "..", "public", ".well-known", "apple-app-site-association"),
 ];
 
 export function renderAppleAppSiteAssociation(template: string, universalLinksAppId: string) {

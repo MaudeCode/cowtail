@@ -48,23 +48,22 @@ Browser ──→ nginx ──→ Static files (Vite build)
 
 ### Prerequisites
 
-- Node.js 22+ or Bun
+- Node.js, the version in `.node-version`, and pnpm, the version in `package.json`'s `packageManager`
 - A [Convex](https://convex.dev) deployment (cloud or self-hosted)
 - Prometheus (for cluster health panel)
 
 ### Development
 
 ```bash
-bun install
+pnpm install
 cp web/.env.example web/.env
 # Edit .env with your Convex URL
-cd web
-bun run dev
+pnpm run dev:web
 ```
 
 For container/runtime values, copy `web/.env.container.example` into your deployment environment and set the real upstreams there instead of hardcoding them in tracked nginx config.
 
-For CLI development, install dependencies inside `cli/` and run commands there.
+The root install covers the CLI too. Run its commands from `cli/`, or use `pnpm run build:cli`, `pnpm run check:cli` and `pnpm run test:cli` from the root.
 
 For iOS development, work from `ios/`, run `xcodegen generate`, and open `ios/Cowtail.xcodeproj`.
 

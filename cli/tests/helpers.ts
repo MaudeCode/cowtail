@@ -23,14 +23,10 @@ export function removeTempDir(path: string): void {
 
 export function buildCliBinary(tempDir: string): string {
   const binaryPath = join(tempDir, "cowtail");
-  const result = spawnSync(
-    "bun",
-    ["build", "./src/cli.ts", "--compile", "--outfile", binaryPath, "--env=COWTAIL_*"],
-    {
-      cwd: cliDir,
-      encoding: "utf8",
-    },
-  );
+  const result = spawnSync(process.execPath, ["scripts/build.mjs", binaryPath], {
+    cwd: cliDir,
+    encoding: "utf8",
+  });
 
   if (result.status !== 0) {
     throw new Error(`Failed to build test binary:\n${result.stderr || result.stdout}`);

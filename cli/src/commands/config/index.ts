@@ -1,8 +1,8 @@
-import { defineCommandEntry, defineCommandGroup } from "../types";
+import { defineCommandEntry, defineCommandGroup } from "../types.ts";
 
-import { ConfigDoctorCommand, CONFIG_DOCTOR_DESCRIPTION } from "./doctor";
-import { ConfigShowCommand, CONFIG_SHOW_DESCRIPTION } from "./show";
-import { ConfigValidateCommand, CONFIG_VALIDATE_DESCRIPTION } from "./validate";
+import { ConfigDoctorCommand, CONFIG_DOCTOR_DESCRIPTION } from "./doctor.ts";
+import { ConfigShowCommand, CONFIG_SHOW_DESCRIPTION } from "./show.ts";
+import { ConfigValidateCommand, CONFIG_VALIDATE_DESCRIPTION } from "./validate.ts";
 
 export const CONFIG_GROUP_DESCRIPTION = `Local config inspection commands.`;
 

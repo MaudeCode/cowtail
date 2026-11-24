@@ -1,14 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
-import { CliError } from "../src/lib/errors";
+import { CliError } from "../src/lib/errors.ts";
 import {
   optionalTrimmedString,
   parseCommaSeparatedStrings,
   parseJsonObject,
   parseTimestamp,
   requireNonEmptyString,
-} from "../src/lib/parse";
-import { formatOptionalText, formatTimestamp } from "../src/lib/render";
+} from "../src/lib/parse.ts";
+import { formatOptionalText, formatTimestamp } from "../src/lib/render.ts";
 
 describe("parse helpers", () => {
   test("requireNonEmptyString trims valid input", () => {

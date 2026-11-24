@@ -149,12 +149,6 @@ jobs:
           name: docker-arm64
           path: docker-arm64
 
-      - name: Download CLI release artifacts
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: cli-release
-          path: cli-release
-
       - name: Download CLI npm package
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
@@ -184,10 +178,6 @@ jobs:
         run: |
           test -s docker-amd64/image.tar
           test -s docker-arm64/image.tar
-          test -s cli-release/cowtail-darwin-arm64.tar.gz
-          test -s cli-release/cowtail-darwin-x64.tar.gz
-          test -s cli-release/cowtail-linux-arm64.tar.gz
-          test -s cli-release/cowtail-linux-x64.tar.gz
           test -s cli-npm-package/*.tgz
           test -s ios-ipa/*.ipa
           test -d ios-dsyms
@@ -250,7 +240,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "24"
+          node-version-file: .node-version
           registry-url: "https://registry.npmjs.org"
 
       - name: Check npm for this version
@@ -294,6 +284,11 @@ jobs:
           ref: ${{ needs.preflight.outputs.sha }}
           sparse-checkout: script/release
           persist-credentials: false
+
+      # Cone-mode sparse checkout keeps the root files, .node-version among them.
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
 
       - name: Log in to Container Registry
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
@@ -377,22 +372,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download CLI release artifacts
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: cli-release
-          path: cli-release
-
       - name: Download CLI npm package
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: cli-npm-package
           path: cli-npm-package
-
-      - name: Generate CLI checksums
-        run: |
-          cd cli-release
-          shasum -a 256 ./*.tar.gz > checksums.txt
 
       - name: Create the version tag
         uses: MaudeCode/.github/actions/release-tag@7142f8bc63e5e63cdc7d0c4605f3a283de59624c
@@ -406,7 +390,7 @@ jobs:
           TAG: ${{ needs.preflight.outputs.tag }}
           PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
         run: |
-          files=(cli-release/*.tar.gz cli-release/checksums.txt cli-npm-package/*.tgz)
+          files=(cli-npm-package/*.tgz)
           # A release left by an earlier attempt only needs its assets.
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
             gh release upload "${TAG}" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber

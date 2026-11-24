@@ -49,7 +49,7 @@ do
 done
 
 cd "${SCRIPT_DIR}/.."
-bun run codegen:ios
+pnpm run codegen:ios
 cd "${SCRIPT_DIR}"
 
 "${SCRIPT_DIR}/scripts/sync-openapi.sh"

@@ -1,9 +1,9 @@
-import { defineCommandEntry, defineCommandGroup } from "../types";
+import { defineCommandEntry, defineCommandGroup } from "../types.ts";
 
-import { FixCreateCommand, FIX_CREATE_DESCRIPTION } from "./create";
-import { FixDeleteCommand, FIX_DELETE_DESCRIPTION } from "./delete";
-import { FixListCommand, FIX_LIST_DESCRIPTION } from "./list";
-import { FixShowCommand, FIX_SHOW_DESCRIPTION } from "./show";
+import { FixCreateCommand, FIX_CREATE_DESCRIPTION } from "./create.ts";
+import { FixDeleteCommand, FIX_DELETE_DESCRIPTION } from "./delete.ts";
+import { FixListCommand, FIX_LIST_DESCRIPTION } from "./list.ts";
+import { FixShowCommand, FIX_SHOW_DESCRIPTION } from "./show.ts";
 
 export const FIX_GROUP_DESCRIPTION = `Fix record commands.`;
 

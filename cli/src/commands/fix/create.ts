@@ -2,15 +2,15 @@ import { Command, Option } from "clipanion";
 
 import { createResponseSchema, fixCreateRequestSchema } from "@maudecode/cowtail-protocol";
 
-import { formatIssueList, validationError } from "../../lib/errors";
-import { postJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
+import { formatIssueList, validationError } from "../../lib/errors.ts";
+import { postJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
 import {
   optionalTrimmedString,
   parseCommaSeparatedStrings,
   parseTimestamp,
   requireNonEmptyString,
-} from "../../lib/parse";
+} from "../../lib/parse.ts";
 
 export const FIX_CREATE_DESCRIPTION = `Create a fix linked to one or more alerts.`;
 

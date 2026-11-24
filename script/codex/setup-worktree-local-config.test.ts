@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
-const scriptPath = resolve(import.meta.dir, "setup-worktree-local-config.sh");
-const hookPath = resolve(import.meta.dir, "..", "..", ".githooks", "post-checkout");
+const scriptPath = resolve(import.meta.dirname, "setup-worktree-local-config.sh");
+const hookPath = resolve(import.meta.dirname, "..", "..", ".githooks", "post-checkout");
 const tempRoots: string[] = [];
 
 function makeTempDir(name: string) {

@@ -18,7 +18,7 @@ import {
   pushRegisterResponseSchema,
   pushUnregisterRequestSchema,
   pushUnregisterResponseSchema,
-} from "../src/index.js";
+} from "../src/index.ts";
 
 const registry = new OpenAPIRegistry();
 

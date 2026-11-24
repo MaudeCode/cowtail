@@ -2,10 +2,10 @@ import { Command, Option } from "clipanion";
 
 import { pushResultSchema, pushSendRequestSchema } from "@maudecode/cowtail-protocol";
 
-import { formatIssueList, validationError } from "../../lib/errors";
-import { postJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
-import { parseJsonObject, requireNonEmptyString } from "../../lib/parse";
+import { formatIssueList, validationError } from "../../lib/errors.ts";
+import { postJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
+import { parseJsonObject, requireNonEmptyString } from "../../lib/parse.ts";
 
 export const PUSH_SEND_DESCRIPTION = `Send a push notification to a Cowtail user.`;
 

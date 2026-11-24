@@ -13,7 +13,8 @@ on:
       - "main"
     paths:
       - "package.json"
-      - "bun.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "protocol/**"
       - "web/**"
       - ".github/workflows/web-verify.yml"
@@ -23,7 +24,8 @@ on:
       - "main"
     paths:
       - "package.json"
-      - "bun.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "protocol/**"
       - "web/**"
       - ".github/workflows/web-verify.yml"
@@ -40,8 +42,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun test web
-      - run: cd web && bunx tsc -p convex/tsconfig.json --noEmit
-      - run: bun run build:web
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:web
+      - run: cd web && pnpm exec tsc -p convex/tsconfig.json --noEmit
+      - run: pnpm run build:web

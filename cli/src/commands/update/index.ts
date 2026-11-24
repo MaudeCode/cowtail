@@ -1,9 +1,9 @@
 import { Command, Option } from "clipanion";
 
-import { JsonCommand } from "../../lib/output";
-import { checkForUpdate, installUpdate } from "../../lib/update";
+import { JsonCommand } from "../../lib/output.ts";
+import { checkForUpdate, installUpdate } from "../../lib/update.ts";
 
-export const UPDATE_DESCRIPTION = `Update the installed cowtail binary from GitHub releases.`;
+export const UPDATE_DESCRIPTION = `Update the installed cowtail npm package to a release.`;
 
 export class UpdateCommand extends JsonCommand {
   static paths = [[`update`]];
@@ -22,7 +22,7 @@ export class UpdateCommand extends JsonCommand {
   });
 
   force = Option.Boolean(`--force`, {
-    description: `Allow replacing a development build with a release binary.`,
+    description: `Allow replacing a development build with a release.`,
   });
 
   async execute(): Promise<void> {

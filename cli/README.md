@@ -3,9 +3,8 @@
 Cowtail CLI for Cowtail backend actions.
 
 ## Goals
-- Ship a real macOS arm64 executable binary
+- Ship as an npm package that runs on Node
 - Keep the codebase in TypeScript
-- Use Bun for local development and compilation
 - Give alertmanager-related automation a thin, standard interface into Cowtail
 
 ## Current status
@@ -38,34 +37,28 @@ Phase 1 is implemented:
 
 ## Development
 ```bash
-cd ..
-bun install
+pnpm install        # from the repository root; it covers the CLI
 cd cli
-bun install
-bun run check
-bun run dev -- help
+pnpm run check
+pnpm test
+pnpm run dev help
 ```
 
-## Build executable
+## Build
 ```bash
 cd cli
-bun run build
-./dist/cowtail help
+pnpm run build
+node dist/cowtail.js help
 ```
 
-## Install From A Release
-```bash
-curl -fsSL https://raw.githubusercontent.com/MaudeCode/cowtail/main/cli/install.sh | sh
-```
+The build bundles `src/cli.ts` for Node into `dist/cowtail.js` and inlines any `COWTAIL_*` variables set at build time, such as `COWTAIL_VERSION`.
 
-Set `COWTAIL_VERSION=vX.Y.Z` to pin a specific release tag. Set `INSTALL_DIR=/your/bin` to override the install location.
-
-## Install From npm
+## Install
 ```bash
 npm install -g @maudecode/cowtail-cli
 ```
 
-The npm package exposes the `cowtail` command. Releases publish the package through the root release workflow, with the npm version taken from the release version by removing the leading `v`.
+The npm package exposes the `cowtail` command. `cowtail update` installs a newer release of the package the same way. Releases publish the package through the root release workflow, with the npm version taken from the release version by removing the leading `v`.
 
 ## Config
 The CLI reads runtime settings from a JSON config file.

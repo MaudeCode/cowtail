@@ -2,8 +2,8 @@ import { Command } from "clipanion";
 
 import { healthResponseSchema } from "@maudecode/cowtail-protocol";
 
-import { getJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
+import { getJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
 
 export const HEALTH_SHOW_DESCRIPTION = `Show cluster health.`;
 

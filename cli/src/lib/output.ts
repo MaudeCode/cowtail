@@ -1,6 +1,6 @@
 import { Command, Option } from "clipanion";
 
-import { toCliError } from "./errors";
+import { toCliError } from "./errors.ts";
 
 type OutputStream = {
   write(chunk: string): unknown;

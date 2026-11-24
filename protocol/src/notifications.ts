@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { dateOnlyStringSchema, jsonObjectSchema, nonEmptyStringSchema } from "./shared.js";
+import { dateOnlyStringSchema, jsonObjectSchema, nonEmptyStringSchema } from "./shared.ts";
 
 export const notificationPreferencesSchema = z.object({
   dailyRoundupEnabled: z.boolean(),

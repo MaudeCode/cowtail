@@ -2,16 +2,16 @@
 
 import { Builtins, Cli, type Command as ClipanionCommand } from "clipanion";
 
-import { groupedCommandClasses, standaloneCommands } from "./commands";
+import { groupedCommandClasses, standaloneCommands } from "./commands/index.ts";
 import {
   HelpCompatCommand,
   getGroupHelpTopic,
   lookupHelpGroup,
   renderGroupHelp,
   renderRootHelp,
-} from "./commands/help";
-import { handleCommandError } from "./lib/output";
-import { cowtailVersionLabel } from "./lib/version";
+} from "./commands/help/index.ts";
+import { handleCommandError } from "./lib/output.ts";
+import { cowtailVersionLabel } from "./lib/version.ts";
 
 const cli = new Cli({
   binaryLabel: `Cowtail CLI`,

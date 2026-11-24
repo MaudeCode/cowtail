@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { describe, expect, test } from "vitest";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -15,7 +15,7 @@ describe("apple-app-site-association generation", () => {
       "apple-app-site-association",
     );
 
-    await Bun.write(
+    writeFileSync(
       templatePath,
       JSON.stringify(
         {

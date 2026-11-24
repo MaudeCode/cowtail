@@ -1,0 +1,6 @@
+packages:
+  - web
+  - protocol
+  - cli
+allowBuilds:
+  esbuild: true

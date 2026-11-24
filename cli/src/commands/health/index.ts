@@ -1,6 +1,6 @@
-import { defineCommandEntry, defineCommandGroup } from "../types";
+import { defineCommandEntry, defineCommandGroup } from "../types.ts";
 
-import { HealthShowCommand, HEALTH_SHOW_DESCRIPTION } from "./show";
+import { HealthShowCommand, HEALTH_SHOW_DESCRIPTION } from "./show.ts";
 
 export const HEALTH_GROUP_DESCRIPTION = `Cluster health commands.`;
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { nonEmptyStringSchema } from "./shared.js";
+import { nonEmptyStringSchema } from "./shared.ts";
 
 export const clusterNodeStatuses = ["Ready", "NotReady", "Unknown"] as const;
 export const cephHealthStatuses = ["HEALTH_OK", "HEALTH_WARN", "HEALTH_ERR"] as const;

@@ -1,13 +1,13 @@
-import { alertCommandGroup } from "./alert";
-import { configCommandGroup } from "./config";
-import { fixCommandGroup } from "./fix";
-import { healthCommandGroup } from "./health";
-import { pushCommandGroup } from "./push";
-import { roundupCommandGroup } from "./roundup";
-import { usersCommandGroup } from "./users";
-import { UpdateCommand, UPDATE_DESCRIPTION } from "./update";
-import { VersionCommand, VERSION_DESCRIPTION } from "./version";
-import type { CommandGroupDefinition } from "./types";
+import { alertCommandGroup } from "./alert/index.ts";
+import { configCommandGroup } from "./config/index.ts";
+import { fixCommandGroup } from "./fix/index.ts";
+import { healthCommandGroup } from "./health/index.ts";
+import { pushCommandGroup } from "./push/index.ts";
+import { roundupCommandGroup } from "./roundup/index.ts";
+import { usersCommandGroup } from "./users/index.ts";
+import { UpdateCommand, UPDATE_DESCRIPTION } from "./update/index.ts";
+import { VersionCommand, VERSION_DESCRIPTION } from "./version/index.ts";
+import type { CommandGroupDefinition } from "./types.ts";
 
 export const commandGroups: CommandGroupDefinition[] = [
   alertCommandGroup,
@@ -44,4 +44,4 @@ export const standaloneCommands = [
   },
 ];
 
-export type { CommandEntryDefinition, CommandGroupDefinition } from "./types";
+export type { CommandEntryDefinition, CommandGroupDefinition } from "./types.ts";

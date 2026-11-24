@@ -2,10 +2,10 @@ import { Command, Option } from "clipanion";
 
 import { alertCreateRequestSchema, createResponseSchema } from "@maudecode/cowtail-protocol";
 
-import { formatIssueList, validationError } from "../../lib/errors";
-import { postJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
-import { optionalTrimmedString, parseTimestamp, requireNonEmptyString } from "../../lib/parse";
+import { formatIssueList, validationError } from "../../lib/errors.ts";
+import { postJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
+import { optionalTrimmedString, parseTimestamp, requireNonEmptyString } from "../../lib/parse.ts";
 
 export const ALERT_CREATE_DESCRIPTION = `Create an alert record in Cowtail.`;
 

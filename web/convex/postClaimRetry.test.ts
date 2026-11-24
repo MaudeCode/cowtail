@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { fail } from "./investigationJobs";
 
 const run = (fail as any)._handler;

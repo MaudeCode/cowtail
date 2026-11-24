@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -10,7 +10,7 @@ import {
   runCliBinaryAsync,
   runCliBinary,
   writeTempConfig,
-} from "./helpers";
+} from "./helpers.ts";
 
 let tempDir = "";
 let binaryPath = "";

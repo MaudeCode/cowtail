@@ -1,7 +1,7 @@
 import { Command } from "clipanion";
 
-import { BaseCommand } from "../../lib/output";
-import { cowtailVersionLabel } from "../../lib/version";
+import { BaseCommand } from "../../lib/output.ts";
+import { cowtailVersionLabel } from "../../lib/version.ts";
 
 export const VERSION_DESCRIPTION = `Print the build version.`;
 

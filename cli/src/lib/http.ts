@@ -3,8 +3,8 @@ import { request as httpsRequest } from "node:https";
 
 import { errorResponseSchema } from "@maudecode/cowtail-protocol";
 
-import { loadConfig, requireBaseUrl } from "./config";
-import { configError, CliError } from "./errors";
+import { loadConfig, requireBaseUrl } from "./config.ts";
+import { configError, CliError } from "./errors.ts";
 
 type RequestOptions = {
   requireServiceAuth?: boolean;

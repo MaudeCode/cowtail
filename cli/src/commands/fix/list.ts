@@ -2,10 +2,10 @@ import { Command, Option } from "clipanion";
 
 import { fixListResponseSchema } from "@maudecode/cowtail-protocol";
 
-import { getJson } from "../../lib/http";
-import { JsonCommand } from "../../lib/output";
-import { parseTimestamp } from "../../lib/parse";
-import { formatTimestamp } from "../../lib/render";
+import { getJson } from "../../lib/http.ts";
+import { JsonCommand } from "../../lib/output.ts";
+import { parseTimestamp } from "../../lib/parse.ts";
+import { formatTimestamp } from "../../lib/render.ts";
 
 export const FIX_LIST_DESCRIPTION = `List fixes.`;
 

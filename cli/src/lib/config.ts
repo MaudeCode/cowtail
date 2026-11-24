@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { configError } from "./errors";
+import { configError } from "./errors.ts";
 
 export type CowtailConfig = {
   baseUrl?: string;

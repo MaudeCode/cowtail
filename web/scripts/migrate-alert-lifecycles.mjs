@@ -1,11 +1,17 @@
 import { spawnSync } from "node:child_process";
 
-const convexCommand = process.env.COWTAIL_CONVEX_COMMAND ?? "bunx";
+const [convexCommand, ...convexArgs] = (process.env.COWTAIL_CONVEX_COMMAND ?? "pnpm exec").split(
+  " ",
+);
 
 function runConvex(functionName, args) {
-  const result = spawnSync(convexCommand, ["convex", "run", functionName, JSON.stringify(args)], {
-    encoding: "utf8",
-  });
+  const result = spawnSync(
+    convexCommand,
+    [...convexArgs, "convex", "run", functionName, JSON.stringify(args)],
+    {
+      encoding: "utf8",
+    },
+  );
   if (result.status !== 0) {
     process.stderr.write(result.stderr);
     process.exit(result.status ?? 1);
