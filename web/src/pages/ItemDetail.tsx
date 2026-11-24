@@ -54,7 +54,7 @@ function PriorOccurrenceRow({ prior }: { prior: PriorOccurrence }) {
         <Badge tone={outcomeTone[prior.outcome]}>{prior.outcome}</Badge>
       </td>
       <td>{prior.rootCause ?? prior.summary}</td>
-      <td className="font-mono text-gray-600" title={fix?.description}>
+      <td className="whitespace-nowrap text-right font-mono text-gray-600" title={fix?.description}>
         {fix?.commit?.slice(0, 7) ?? "–"}
       </td>
     </tr>
