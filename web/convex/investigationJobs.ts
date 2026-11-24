@@ -1,4 +1,4 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -339,12 +339,12 @@ export const requeue = internalMutation({
   },
 });
 
-export const getById = query({
+export const getById = internalQuery({
   args: { id: v.id("investigationJobs") },
   handler: async (ctx, args) => await ctx.db.get(args.id),
 });
 
-export const deadletters = query({
+export const deadletters = internalQuery({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(args.limit ?? 50, 200));
@@ -355,7 +355,7 @@ export const deadletters = query({
   },
 });
 
-export const deadlettersByTimeRange = query({
+export const deadlettersByTimeRange = internalQuery({
   args: {
     from: v.number(),
     to: v.number(),

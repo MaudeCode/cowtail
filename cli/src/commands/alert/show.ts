@@ -24,7 +24,7 @@ export class AlertShowCommand extends JsonCommand {
   async execute(): Promise<void> {
     const id = requireNonEmptyString(this.id, "id");
     const response = alertGetResponseSchema.parse(
-      await getJson(`/api/alerts/${encodeURIComponent(id)}`),
+      await getJson(`/api/alerts/${encodeURIComponent(id)}`, { requireServiceAuth: true }),
     );
 
     if (this.json) {

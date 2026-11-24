@@ -56,7 +56,9 @@ export class AlertListCommand extends JsonCommand {
     addQueryParam(searchParams, "outcome", this.outcome?.trim());
 
     const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
-    const response = alertListResponseSchema.parse(await getJson(`/api/alerts${suffix}`));
+    const response = alertListResponseSchema.parse(
+      await getJson(`/api/alerts${suffix}`, { requireServiceAuth: true }),
+    );
 
     if (this.json) {
       this.printJson(response);

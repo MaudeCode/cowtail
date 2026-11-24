@@ -41,7 +41,9 @@ export class FixListCommand extends JsonCommand {
     addQueryParam(searchParams, "alertId", this.alertId?.trim());
 
     const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
-    const response = fixListResponseSchema.parse(await getJson(`/api/fixes${suffix}`));
+    const response = fixListResponseSchema.parse(
+      await getJson(`/api/fixes${suffix}`, { requireServiceAuth: true }),
+    );
 
     if (this.json) {
       this.printJson(response);

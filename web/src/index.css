@@ -24,6 +24,13 @@
   --color-escalated: #d4880a;
   --color-glow: rgba(184, 36, 44, 0.08);
   --color-grid-line: rgba(255, 255, 255, 0.025);
+
+  /* Item rewrite palette (docs/mockups/app-rewrite.html) */
+  --color-line: #26262a;
+  --color-accent-text: #ec6168;
+  --color-ok: #3fb868;
+  --color-info: #5b96e8;
+  --color-warn: #e0a030;
 }
 
 html,
@@ -36,7 +43,7 @@ body {
   overscroll-behavior: none;
 }
 
-input[type="date"] {
+:root {
   color-scheme: dark;
 }
 
@@ -61,10 +68,6 @@ input[type="date"] {
   background-size: 60px 60px;
 }
 
-.header-glow {
-  background: linear-gradient(180deg, var(--color-glow) 0%, transparent 100%);
-}
-
 .title-glow {
   text-shadow: 0 0 30px var(--color-accent-dim);
 }
@@ -73,37 +76,34 @@ input[type="date"] {
   text-shadow: 0 0 12px var(--color-accent-dim);
 }
 
-.node-notready-glow {
-  text-shadow: 0 0 10px var(--color-accent-dim);
+/* A table of rows split by hairlines, under a mono uppercase header. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
 }
 
-.ceph-warn-glow {
-  text-shadow: 0 0 12px rgba(212, 136, 10, 0.3);
+.data-table th {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-gray-600);
+  text-align: left;
+  padding: 10px 10px 5px 0;
+  border-bottom: 1px solid var(--color-gray-200);
+  white-space: nowrap;
 }
 
-.ceph-err-glow {
-  text-shadow: 0 0 12px var(--color-accent-dim);
+.data-table td {
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--color-line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
-.critical-num-glow {
-  text-shadow: 0 0 20px var(--color-accent-dim);
-}
-
-.bar-fill-high-glow {
-  box-shadow: 0 0 8px var(--color-accent-dim);
-}
-
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.slide-in {
-  animation: slide-in 0.2s ease-out;
+.data-table td:last-child,
+.data-table th:last-child {
+  padding-right: 0;
 }

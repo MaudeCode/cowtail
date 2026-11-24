@@ -118,6 +118,8 @@ export const itemRecordSchema = z.object({
   approvalNeedsAuth: z.boolean().optional(),
   // List results only: the day the item was created, in the server's time zone.
   createdDate: dateOnlyStringSchema.optional(),
+  // Alert items only: the newest fix recorded against the item's alert.
+  fix: fixRecordSchema.optional(),
 });
 
 export const itemEventRecordSchema = z.object({
@@ -343,6 +345,9 @@ export const itemStatsResponseSchema = z.object({
       namespace: z.string(),
       count: countSchema,
       itemIds: z.array(nonEmptyStringSchema),
+      // Each firing item's title once, in itemIds order. Optional so a client still decodes a
+      // server from before it.
+      titles: z.array(nonEmptyStringSchema).optional(),
     }),
   ),
 });

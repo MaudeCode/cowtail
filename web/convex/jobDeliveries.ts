@@ -1,4 +1,4 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 const deliveryTargetValidator = v.literal("hermes:cowtail-alert-job");
@@ -109,7 +109,7 @@ export const deferUntilJobDue = internalMutation({
   },
 });
 
-export const getPending = query({
+export const getPending = internalQuery({
   args: {
     now: v.number(),
     limit: v.optional(v.number()),
@@ -228,7 +228,7 @@ export const recoverUnclaimed = internalMutation({
   },
 });
 
-export const getById = query({
+export const getById = internalQuery({
   args: { id: v.id("jobDeliveries") },
   handler: async (ctx, args) => await ctx.db.get(args.id),
 });

@@ -3,55 +3,108 @@
 import Foundation
 /// API operations, with input and output types, generated from `#/paths` in the OpenAPI document.
 internal enum Operations {
-    /// Perform a typed Convex query request
+    /// List alerts in a time range, for the roundup
     ///
-    /// - Remark: HTTP `POST /query`.
-    /// - Remark: Generated from `#/paths//query/post(query)`.
-    internal enum Query {
-        internal static let id: Swift.String = "query"
+    /// - Remark: HTTP `GET /alerts`.
+    /// - Remark: Generated from `#/paths//alerts/get(listAlerts)`.
+    internal enum ListAlerts {
+        internal static let id: Swift.String = "listAlerts"
         internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/query/POST/header`.
+            /// - Remark: Generated from `#/paths/alerts/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/alerts/GET/query/from`.
+                internal var from: Swift.Int?
+                /// - Remark: Generated from `#/paths/alerts/GET/query/to`.
+                internal var to: Swift.Int?
+                /// - Remark: Generated from `#/paths/alerts/GET/query/alertname`.
+                internal var alertname: Swift.String?
+                /// - Remark: Generated from `#/paths/alerts/GET/query/severity`.
+                internal var severity: Swift.String?
+                /// - Remark: Generated from `#/paths/alerts/GET/query/namespace`.
+                internal var namespace: Swift.String?
+                /// - Remark: Generated from `#/paths/alerts/GET/query/status`.
+                internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case firing = "firing"
+                    case resolved = "resolved"
+                }
+                /// - Remark: Generated from `#/paths/alerts/GET/query/status`.
+                internal var status: Operations.ListAlerts.Input.Query.StatusPayload?
+                /// - Remark: Generated from `#/paths/alerts/GET/query/outcome`.
+                internal enum OutcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case pending = "pending"
+                    case recorded = "recorded"
+                    case fixed = "fixed"
+                    case selfResolved = "self-resolved"
+                    case noise = "noise"
+                    case escalated = "escalated"
+                }
+                /// - Remark: Generated from `#/paths/alerts/GET/query/outcome`.
+                internal var outcome: Operations.ListAlerts.Input.Query.OutcomePayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - from:
+                ///   - to:
+                ///   - alertname:
+                ///   - severity:
+                ///   - namespace:
+                ///   - status:
+                ///   - outcome:
+                internal init(
+                    from: Swift.Int? = nil,
+                    to: Swift.Int? = nil,
+                    alertname: Swift.String? = nil,
+                    severity: Swift.String? = nil,
+                    namespace: Swift.String? = nil,
+                    status: Operations.ListAlerts.Input.Query.StatusPayload? = nil,
+                    outcome: Operations.ListAlerts.Input.Query.OutcomePayload? = nil
+                ) {
+                    self.from = from
+                    self.to = to
+                    self.alertname = alertname
+                    self.severity = severity
+                    self.namespace = namespace
+                    self.status = status
+                    self.outcome = outcome
+                }
+            }
+            internal var query: Operations.ListAlerts.Input.Query
+            /// - Remark: Generated from `#/paths/alerts/GET/header`.
             internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.Query.AcceptableContentType>]
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListAlerts.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.Query.AcceptableContentType>] = .defaultValues()) {
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListAlerts.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            internal var headers: Operations.Query.Input.Headers
-            /// - Remark: Generated from `#/paths/query/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/query/POST/requestBody/content/application\/json`.
-                case json(Components.Schemas.ConvexQueryRequest)
-            }
-            internal var body: Operations.Query.Input.Body
+            internal var headers: Operations.ListAlerts.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - query:
             ///   - headers:
-            ///   - body:
             internal init(
-                headers: Operations.Query.Input.Headers = .init(),
-                body: Operations.Query.Input.Body
+                query: Operations.ListAlerts.Input.Query = .init(),
+                headers: Operations.ListAlerts.Input.Headers = .init()
             ) {
+                self.query = query
                 self.headers = headers
-                self.body = body
             }
         }
         internal enum Output: Sendable, Hashable {
             internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/query/POST/responses/200/content`.
+                /// - Remark: Generated from `#/paths/alerts/GET/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/query/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.ConvexQueryResponse)
+                    /// - Remark: Generated from `#/paths/alerts/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AlertListResponse)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.ConvexQueryResponse {
+                    internal var json: Components.Schemas.AlertListResponse {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -61,26 +114,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.Query.Output.Ok.Body
+                internal var body: Operations.ListAlerts.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.Query.Output.Ok.Body) {
+                internal init(body: Operations.ListAlerts.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// Convex query response.
+            /// The matching alerts.
             ///
-            /// - Remark: Generated from `#/paths//query/post(query)/responses/200`.
+            /// - Remark: Generated from `#/paths//alerts/get(listAlerts)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.Query.Output.Ok)
+            case ok(Operations.ListAlerts.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            internal var ok: Operations.Query.Output.Ok {
+            internal var ok: Operations.ListAlerts.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -88,6 +141,463 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/alerts/GET/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/alerts/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListAlerts.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListAlerts.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid filter.
+            ///
+            /// - Remark: Generated from `#/paths//alerts/get(listAlerts)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.ListAlerts.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.ListAlerts.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/alerts/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/alerts/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListAlerts.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListAlerts.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// App session required.
+            ///
+            /// - Remark: Generated from `#/paths//alerts/get(listAlerts)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.ListAlerts.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.ListAlerts.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/alerts/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/alerts/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListAlerts.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListAlerts.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Cowtail owner access required.
+            ///
+            /// - Remark: Generated from `#/paths//alerts/get(listAlerts)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.ListAlerts.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.ListAlerts.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List fixes in a time range, for the roundup
+    ///
+    /// - Remark: HTTP `GET /fixes`.
+    /// - Remark: Generated from `#/paths//fixes/get(listFixes)`.
+    internal enum ListFixes {
+        internal static let id: Swift.String = "listFixes"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/fixes/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/fixes/GET/query/from`.
+                internal var from: Swift.Int?
+                /// - Remark: Generated from `#/paths/fixes/GET/query/to`.
+                internal var to: Swift.Int?
+                /// - Remark: Generated from `#/paths/fixes/GET/query/scope`.
+                internal enum ScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case reactive = "reactive"
+                    case weekly = "weekly"
+                    case monthly = "monthly"
+                }
+                /// - Remark: Generated from `#/paths/fixes/GET/query/scope`.
+                internal var scope: Operations.ListFixes.Input.Query.ScopePayload?
+                /// - Remark: Generated from `#/paths/fixes/GET/query/alertId`.
+                internal var alertId: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - from:
+                ///   - to:
+                ///   - scope:
+                ///   - alertId:
+                internal init(
+                    from: Swift.Int? = nil,
+                    to: Swift.Int? = nil,
+                    scope: Operations.ListFixes.Input.Query.ScopePayload? = nil,
+                    alertId: Swift.String? = nil
+                ) {
+                    self.from = from
+                    self.to = to
+                    self.scope = scope
+                    self.alertId = alertId
+                }
+            }
+            internal var query: Operations.ListFixes.Input.Query
+            /// - Remark: Generated from `#/paths/fixes/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFixes.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListFixes.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.ListFixes.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            internal init(
+                query: Operations.ListFixes.Input.Query = .init(),
+                headers: Operations.ListFixes.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/fixes/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/fixes/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.FixListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.FixListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListFixes.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListFixes.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The matching fixes.
+            ///
+            /// - Remark: Generated from `#/paths//fixes/get(listFixes)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListFixes.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.ListFixes.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/fixes/GET/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/fixes/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListFixes.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListFixes.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid filter.
+            ///
+            /// - Remark: Generated from `#/paths//fixes/get(listFixes)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.ListFixes.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.ListFixes.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/fixes/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/fixes/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListFixes.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListFixes.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// App session required.
+            ///
+            /// - Remark: Generated from `#/paths//fixes/get(listFixes)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.ListFixes.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.ListFixes.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/fixes/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/fixes/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.ListFixes.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.ListFixes.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Cowtail owner access required.
+            ///
+            /// - Remark: Generated from `#/paths//fixes/get(listFixes)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.ListFixes.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.ListFixes.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
