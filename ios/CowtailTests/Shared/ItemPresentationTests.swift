@@ -26,14 +26,12 @@ final class ItemPresentationTests: XCTestCase {
         XCTAssertEqual(steps.map(\.block), ["$ kubectl logs api\nOOMKilled", "512Mi", nil])
     }
 
-    func testAPastOccurrenceShowsTheFirstFixCommitShortOrADash() {
-        let fix = { (commit: String?) in PriorOccurrence.Fix(description: "Fix", rootCause: "Cause", commit: commit) }
-        let prior = { (fixes: [PriorOccurrence.Fix]) in
-            PriorOccurrence(alertID: "a", firedAt: .now, outcome: .fixed, rootCause: nil, summary: "Crash loop", fixes: fixes)
+    func testAPastOccurrenceShowsItsFixCommitShortOrADash() {
+        let prior = { (commit: String?) in
+            PriorOccurrence(alertID: "a", firedAt: .now, outcome: .fixed, rootCause: nil, summary: "Crash", cause: "Crash", fixCommit: commit)
         }
 
-        XCTAssertEqual(prior([fix(nil), fix("7be01d4e9")]).fixCommit, "7be01d4")
-        XCTAssertEqual(prior([fix(nil)]).fixCommit, "–")
-        XCTAssertEqual(prior([]).cause, "Crash loop")
+        XCTAssertEqual(prior("7be01d4e9").fixCommitText, "7be01d4")
+        XCTAssertEqual(prior(nil).fixCommitText, "–")
     }
 }

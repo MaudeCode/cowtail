@@ -258,14 +258,9 @@ extension EvidenceStep {
 }
 
 extension PriorOccurrence {
-    /// The commit that fixed it, short, or a dash when no fix names one.
-    var fixCommit: String {
-        fixes.lazy.compactMap(\.commit).first.map { String($0.prefix(7)) } ?? "–"
-    }
-
-    /// Why it fired: its root cause, or its summary when none was recorded.
-    var cause: String {
-        rootCause ?? summary
+    /// The fix commit, short, or a dash without one.
+    var fixCommitText: String {
+        fixCommit.map { String($0.prefix(7)) } ?? "–"
     }
 }
 

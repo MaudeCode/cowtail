@@ -135,6 +135,8 @@ export const itemEventRecordSchema = z.object({
 
 // An earlier firing of the same alert: the same Alertmanager fingerprint first, then the same
 // alertname in the same namespace. `outcome` folds in the owner's call, as an item's does.
+// `cause` and `fixCommit` are what a row shows: the root cause, or the summary when none was
+// recorded, and the commit of the newest fix that names one.
 export const priorOccurrenceSchema = z.object({
   alertId: nonEmptyStringSchema,
   firedAt: timestampSchema,
@@ -143,6 +145,8 @@ export const priorOccurrenceSchema = z.object({
   rootCause: z.string().optional(),
   summary: z.string(),
   ownerDisposition: z.enum(["noise", "escalated"]).optional(),
+  cause: z.string(),
+  fixCommit: nonEmptyStringSchema.optional(),
   fixes: z.array(
     z.object({
       description: nonEmptyStringSchema,

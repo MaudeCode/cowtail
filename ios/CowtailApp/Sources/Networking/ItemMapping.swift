@@ -90,6 +90,8 @@ extension CowtailAPI {
             outcome: ItemOutcome(rawValue: record.outcome.rawValue) ?? .other,
             rootCause: record.rootCause,
             summary: record.summary,
+            cause: record.cause,
+            fixCommit: record.fixCommit,
             fixes: record.fixes.map {
                 PriorOccurrence.Fix(description: $0.description, rootCause: $0.rootCause, commit: $0.commit)
             }

@@ -55,20 +55,26 @@ export async function findPriorOccurrences(
 
   const priors = [...found.values()].sort((a, b) => b.timestamp - a.timestamp);
   return await Promise.all(
-    priors.map(async (prior) => ({
-      alertId: String(prior._id),
-      firedAt: prior.timestamp,
-      resolvedAt: prior.resolvedAt,
-      outcome: itemOutcome({ context: {} }, prior),
-      rootCause: prior.rootCause?.trim() || undefined,
-      summary: prior.summary,
-      ownerDisposition: prior.ownerDisposition,
-      fixes: (await fixesForAlert(ctx, prior._id)).map(({ description, rootCause, commit }) => ({
-        description,
+    priors.map(async (prior) => {
+      const rootCause = prior.rootCause?.trim() || undefined;
+      const fixes = (await fixesForAlert(ctx, prior._id)).map(
+        ({ description, rootCause, commit }) => ({ description, rootCause, commit }),
+      );
+      return {
+        alertId: String(prior._id),
+        firedAt: prior.timestamp,
+        resolvedAt: prior.resolvedAt,
+        outcome: itemOutcome({ context: {} }, prior),
         rootCause,
-        commit,
-      })),
-    })),
+        summary: prior.summary,
+        ownerDisposition: prior.ownerDisposition,
+        // What a row shows: the cause, or what happened when none was recorded, and the
+        // newest fix's commit.
+        cause: rootCause ?? prior.summary,
+        fixCommit: fixes.find((fix) => fix.commit)?.commit,
+        fixes,
+      };
+    }),
   );
 }
 

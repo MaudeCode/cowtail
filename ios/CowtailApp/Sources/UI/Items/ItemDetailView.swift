@@ -303,7 +303,7 @@ struct ItemDetailView: View {
                         .font(.cowtailSans(13, relativeTo: .footnote))
                         .foregroundStyle(palette.ink)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(prior.fixCommit)
+                    Text(prior.fixCommitText)
                         .font(.cowtailMono(11, relativeTo: .caption2))
                         .foregroundStyle(palette.mutedInk)
                 }

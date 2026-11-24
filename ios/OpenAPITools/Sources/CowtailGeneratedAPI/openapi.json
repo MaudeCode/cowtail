@@ -1861,6 +1861,13 @@
               "escalated"
             ]
           },
+          "cause": {
+            "type": "string"
+          },
+          "fixCommit": {
+            "type": "string",
+            "minLength": 1
+          },
           "fixes": {
             "type": "array",
             "items": {
@@ -1891,6 +1898,7 @@
           "firedAt",
           "outcome",
           "summary",
+          "cause",
           "fixes"
         ]
       },

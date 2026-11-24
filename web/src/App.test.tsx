@@ -94,8 +94,10 @@ const priorOccurrence = {
   firedAt: Date.UTC(2026, 10, 12, 12),
   resolvedAt: Date.UTC(2026, 10, 12, 13),
   outcome: "fixed" as const,
-  rootCause: "OOMKilled at 256Mi",
+  rootCause: "OOMKilled",
   summary: "Pod crash looped",
+  cause: "OOMKilled at 256Mi",
+  fixCommit: "7be01d4e",
   fixes: [{ description: "Raise the limit", rootCause: "OOMKilled", commit: "7be01d4e" }],
 };
 

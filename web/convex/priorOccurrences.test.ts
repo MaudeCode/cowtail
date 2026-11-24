@@ -131,6 +131,8 @@ test("item detail carries each earlier firing's result and its linked fixes", as
       outcome: "fixed",
       rootCause: "Memory limit too low",
       summary: "OOMKilled at 256Mi",
+      cause: "Memory limit too low",
+      fixCommit: "7be01d4",
       fixes: [
         {
           description: "Raise transcoder memory limit",
@@ -140,6 +142,27 @@ test("item detail carries each earlier firing's result and its linked fixes", as
       ],
     },
   ]);
+});
+
+test("a past occurrence shows its summary without a root cause, and the newest fix that names a commit", async () => {
+  const t = newBackend();
+  const ids = await seedAlerts(t, {
+    current: {},
+    prior: { timestamp: 400, summary: "Bad image tag, rolled back by hand" },
+  });
+  await t.run(async (ctx) => {
+    const fix = { alertIds: [ids.prior], rootCause: "Bad tag", scope: "reactive" as const };
+    await ctx.db.insert("fixes", { ...fix, timestamp: 470, description: "Pin the tag" });
+    await ctx.db.insert("fixes", { ...fix, timestamp: 460, description: "Fix", commit: "c0ffee1" });
+    await ctx.db.insert("fixes", { ...fix, timestamp: 450, description: "Old", commit: "0ld0001" });
+  });
+
+  const { priorOccurrences } = await itemDetail(t, ids.current);
+
+  expect(priorOccurrences?.[0]).toMatchObject({
+    cause: "Bad image tag, rolled back by hand",
+    fixCommit: "c0ffee1",
+  });
 });
 
 test("an investigation claim carries each member alert's earlier firings", async () => {

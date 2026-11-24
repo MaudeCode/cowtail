@@ -214,6 +214,10 @@ struct PriorOccurrence: Identifiable, Hashable, Sendable {
     let outcome: ItemOutcome
     let rootCause: String?
     let summary: String
+    /// What the row shows: the server's pick of the root cause, or the summary without one.
+    let cause: String
+    /// The newest fix's commit, as the server picked it.
+    var fixCommit: String?
     var fixes: [Fix] = []
 
     var id: String { alertID }

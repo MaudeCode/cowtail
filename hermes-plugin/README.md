@@ -45,7 +45,7 @@ The plugin does not receive webhooks itself. Hermes webhook subscriptions invoke
 
 Alertmanager may group hundreds of firing alerts into one investigation job. `job.claim` returns the immutable firing-at-ingest members in `relatedAlerts`; `job.complete` requires `batch_results` with exactly one terminal outcome for every member, even if one has since resolved. Cowtail rejects partial batch completion, preserving one-session storm control without leaving sibling alerts unhandled.
 
-`job.claim` and `job.get` also return `priorOccurrences`: for each member alert, up to 3 earlier firings of the same alert, newest first, with their outcome, root cause and linked fixes. The rendered prompt embeds them and asks Hermes to check whether a previous root cause and fix apply before investigating from scratch. Each `batch_results` entry, and a legacy single-alert completion, takes `evidence`: up to 20 steps of `{step, command?, output?, at?}`. Cowtail keeps the first 4 KB of each output and shows the steps on the item's timeline.
+`job.claim` and `job.get` also return `priorOccurrences`: for each member alert, up to 3 earlier firings of the same alert, newest first, with their outcome, root cause and linked fixes. A batch too large to inline them leaves them out of the prompt and the compacted claim; `job.history` with `job_id` and `alert_id` returns one member's. The rendered prompt embeds them and asks Hermes to check whether a previous root cause and fix apply before investigating from scratch. Each `batch_results` entry, and a legacy single-alert completion, takes `evidence`: up to 20 steps of `{step, command?, output?, at?}`. Cowtail keeps the first 4 KB of each output and shows the steps on the item's timeline.
 
 ## Terminal failure and handoff
 

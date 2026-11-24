@@ -21,6 +21,7 @@ _ACTIONS = [
     "job.complete",
     "job.fail",
     "job.handoff",
+    "job.history",
     "job.requeue",
     "job.deadletters",
     "webhook.render_alert_prompt",
@@ -46,8 +47,18 @@ _EVIDENCE_SCHEMA: dict[str, Any] = {
         "additionalProperties": False,
     },
 }
-# Prior occurrences past this size stay in the claim result instead of the prompt.
-_PROMPT_HISTORY_LIMIT = 20_000
+# Prior occurrences past this size leave the prompt and a compacted claim; job.history reads
+# one member alert's at a time.
+_HISTORY_LIMIT = 20_000
+_HISTORY_NOTE = "Too large to inline; read each member alert's with job.history and its alert_id."
+
+
+def _bounded_history(history: Any) -> str | None:
+    """Prior occurrences as JSON when there are any and they fit the budget."""
+    if not isinstance(history, dict) or not any(history.values()):
+        return None
+    text = json.dumps(history, sort_keys=True)
+    return text if len(text) <= _HISTORY_LIMIT else None
 
 COWTAIL_SCHEMA: dict[str, Any] = {
     "name": "cowtail",
@@ -224,6 +235,11 @@ def _compact_large_job_context(result: dict[str, Any]) -> dict[str, Any]:
         "sourceEvent": result.get("sourceEvent"),
         "relatedAlerts": [_compact_alert(alert) for alert in related],
     }
+    history = result.get("priorOccurrences")
+    if _bounded_history(history):
+        compact["priorOccurrences"] = history
+    elif isinstance(history, dict) and any(history.values()):
+        compact["priorOccurrencesNote"] = _HISTORY_NOTE
     if isinstance(compact["job"], dict):
         compact["job"] = dict(compact["job"])
         compact["job"].pop("claimToken", None)
@@ -234,13 +250,9 @@ def _prior_occurrences(client: CowtailClient, job_id: str) -> str | None:
     """Each member alert's earlier firings as JSON, or None when there are none or the job
     cannot be read: the history is a starting hint, never a reason to skip the investigation."""
     try:
-        history = client.get_job(job_id).get("priorOccurrences")
+        return _bounded_history(client.get_job(job_id).get("priorOccurrences"))
     except (CowtailError, OSError, ValueError):
         return None
-    if not isinstance(history, dict) or not any(history.values()):
-        return None
-    text = json.dumps(history, sort_keys=True)
-    return text if len(text) <= _PROMPT_HISTORY_LIMIT else None
 
 
 def _render_alert_prompt(args: dict[str, Any], client: CowtailClient) -> str:
@@ -254,7 +266,8 @@ def _render_alert_prompt(args: dict[str, Any], client: CowtailClient) -> str:
             "incident batch. Load the alertmanager skill before diagnosis. The claim's "
             "priorOccurrences lists each related alert's earlier firings with their root causes and "
             "fixes: check whether the previous root cause and fix apply before investigating from "
-            "scratch, and confirm it with current evidence. Previous attempts' "
+            "scratch, and confirm it with current evidence. When a large batch leaves it out, read "
+            "each member's with job.history. Previous attempts' "
             "root-cause summaries, deadletter reasons and upstream-release blockers are hypotheses, "
             "not established facts. Reuse primary evidence only after checking its exact version, "
             "resource identity and relevance; do not repeat expensive checks of unchanged valid evidence. "
@@ -374,6 +387,9 @@ def handle_cowtail(args: dict[str, Any], client: CowtailClient | None = None) ->
                     },
                 )
             )
+        if action == "job.history":
+            history = client.get_job(_required(args, "job_id")).get("priorOccurrences") or {}
+            return _ok(result=history.get(_required(args, "alert_id"), []))
         if action in ("job.fail", "job.handoff"):
             return _ok(result=guarded_action(client, args))
         if action == "job.requeue":

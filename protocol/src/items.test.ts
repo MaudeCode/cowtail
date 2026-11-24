@@ -89,6 +89,8 @@ describe("investigation history on item detail", () => {
       rootCause: "Memory limit too low",
       summary: "OOMKilled at 256Mi",
       ownerDisposition: "escalated",
+      cause: "Memory limit too low",
+      fixCommit: "7be01d4",
       fixes: [
         { description: "Raise the limit", rootCause: "Memory limit too low", commit: "7be01d4" },
         { description: "Drain the node", rootCause: "Bad node" },

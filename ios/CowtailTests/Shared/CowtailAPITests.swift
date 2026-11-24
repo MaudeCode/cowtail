@@ -97,7 +97,7 @@ final class CowtailAPITests: XCTestCase {
       "priorOccurrences": [
         {
           "alertId": "alert-0", "firedAt": 1795435200000, "outcome": "self-resolved",
-          "summary": "Node drain", "ownerDisposition": "escalated",
+          "summary": "Node drain", "ownerDisposition": "escalated", "cause": "Node drain", "fixCommit": "7be01d4",
           "fixes": [{"description": "Cordon the node", "rootCause": "Bad disk", "commit": "7be01d4"}]
         }
       ]
@@ -121,6 +121,8 @@ final class CowtailAPITests: XCTestCase {
                 outcome: .selfResolved,
                 rootCause: nil,
                 summary: "Node drain",
+                cause: "Node drain",
+                fixCommit: "7be01d4",
                 fixes: [.init(description: "Cordon the node", rootCause: "Bad disk", commit: "7be01d4")]
             ),
         ])

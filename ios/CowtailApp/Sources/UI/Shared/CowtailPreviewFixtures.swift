@@ -389,6 +389,8 @@ enum CowtailPreviewFixtures {
                 outcome: .fixed,
                 rootCause: "OOMKilled at 256Mi",
                 summary: "One replica crash looped.",
+                cause: "OOMKilled at 256Mi",
+                fixCommit: "7be01d4e",
                 fixes: [.init(description: "Raise the api memory limit", rootCause: "OOMKilled", commit: "7be01d4e")]
             ),
             PriorOccurrence(
@@ -396,7 +398,8 @@ enum CowtailPreviewFixtures {
                 firedAt: daysAgo(26, hour: 14),
                 outcome: .selfResolved,
                 rootCause: "Node drain",
-                summary: "Replicas rescheduled after a node drain."
+                summary: "Replicas rescheduled after a node drain.",
+                cause: "Node drain"
             ),
         ]
     }

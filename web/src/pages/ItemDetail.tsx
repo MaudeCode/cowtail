@@ -42,9 +42,9 @@ function Evidence({ steps }: { steps: NonNullable<ItemEventRecord["evidence"]> }
   );
 }
 
-// One earlier firing: when, how it ended, why, and the commit that fixed it.
+// One earlier firing, as the server chose to show it: when, how it ended, why, and the
+// commit that fixed it.
 function PriorOccurrenceRow({ prior }: { prior: PriorOccurrence }) {
-  const fix = prior.fixes.find((candidate) => candidate.commit) ?? prior.fixes[0];
   return (
     <tr>
       <td className="whitespace-nowrap font-mono text-gray-600">
@@ -53,9 +53,9 @@ function PriorOccurrenceRow({ prior }: { prior: PriorOccurrence }) {
       <td>
         <Badge tone={outcomeTone[prior.outcome]}>{prior.outcome}</Badge>
       </td>
-      <td>{prior.rootCause ?? prior.summary}</td>
-      <td className="whitespace-nowrap text-right font-mono text-gray-600" title={fix?.description}>
-        {fix?.commit?.slice(0, 7) ?? "–"}
+      <td>{prior.cause}</td>
+      <td className="whitespace-nowrap text-right font-mono text-gray-600">
+        {prior.fixCommit?.slice(0, 7) ?? "–"}
       </td>
     </tr>
   );

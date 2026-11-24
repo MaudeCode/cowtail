@@ -166,6 +166,43 @@ class HandlerTests(unittest.TestCase):
         self.assertNotIn("rawPayload", result["relatedAlerts"][0])
         self.assertLess(len(raw), 100_000)
 
+    def test_compacted_claim_keeps_history_that_fits_the_budget(self):
+        prior = {"alertId": "alert-old", "firedAt": 1, "outcome": "fixed", "cause": "OOMKilled", "fixes": []}
+
+        class LargeBatchClient(FakeCowtailClient):
+            def __init__(self, history):
+                super().__init__()
+                self.history = history
+
+            def claim_job(self, job_id=None, lease_seconds=900):
+                related = [{"id": f"alert-{index:03d}", "status": "firing"} for index in range(30)]
+                return {"ok": True, "claimed": True, "job": {"_id": job_id}, "relatedAlerts": related,
+                        "priorOccurrences": self.history}
+
+        def claim(history):
+            out = json.loads(handle_cowtail({"action": "job.claim", "job_id": "job-1"}, LargeBatchClient(history)))
+            return out["result"]
+
+        small = {"alert-000": [prior]}
+        large = {f"alert-{index:03d}": [{**prior, "cause": "x" * 1_000}] * 3 for index in range(30)}
+        self.assertEqual(claim(small)["priorOccurrences"], small)
+        self.assertNotIn("priorOccurrences", claim(large))
+        self.assertIn("job.history", claim(large)["priorOccurrencesNote"])
+
+    def test_job_history_returns_one_member_alerts_earlier_firings(self):
+        prior = {"alertId": "alert-old", "firedAt": 1, "outcome": "fixed", "cause": "OOMKilled", "fixes": []}
+
+        class HistoryClient(FakeCowtailClient):
+            def get_job(self, job_id):
+                return {**super().get_job(job_id), "priorOccurrences": {"alert-1": [prior], "alert-2": []}}
+
+        out = json.loads(handle_cowtail(
+            {"action": "job.history", "job_id": "job-1", "alert_id": "alert-1"}, HistoryClient()
+        ))
+
+        self.assertTrue(out["success"])
+        self.assertEqual(out["result"], [prior])
+
     def test_complete_requires_claim_token_and_maps_payload(self):
         client = FakeCowtailClient()
         out = json.loads(

@@ -2739,6 +2739,10 @@ extension Components {
             }
             /// - Remark: Generated from `#/components/schemas/PriorOccurrence/ownerDisposition`.
             internal var ownerDisposition: Components.Schemas.PriorOccurrence.OwnerDispositionPayload?
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/cause`.
+            internal var cause: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/fixCommit`.
+            internal var fixCommit: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PriorOccurrence/FixesPayload`.
             internal struct FixesPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/PriorOccurrence/FixesPayload/description`.
@@ -2782,6 +2786,8 @@ extension Components {
             ///   - rootCause:
             ///   - summary:
             ///   - ownerDisposition:
+            ///   - cause:
+            ///   - fixCommit:
             ///   - fixes:
             internal init(
                 alertId: Swift.String,
@@ -2791,6 +2797,8 @@ extension Components {
                 rootCause: Swift.String? = nil,
                 summary: Swift.String,
                 ownerDisposition: Components.Schemas.PriorOccurrence.OwnerDispositionPayload? = nil,
+                cause: Swift.String,
+                fixCommit: Swift.String? = nil,
                 fixes: Components.Schemas.PriorOccurrence.FixesPayload
             ) {
                 self.alertId = alertId
@@ -2800,6 +2808,8 @@ extension Components {
                 self.rootCause = rootCause
                 self.summary = summary
                 self.ownerDisposition = ownerDisposition
+                self.cause = cause
+                self.fixCommit = fixCommit
                 self.fixes = fixes
             }
             internal enum CodingKeys: String, CodingKey {
@@ -2810,6 +2820,8 @@ extension Components {
                 case rootCause
                 case summary
                 case ownerDisposition
+                case cause
+                case fixCommit
                 case fixes
             }
         }
