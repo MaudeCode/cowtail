@@ -209,4 +209,63 @@ final class CowtailAPITests: XCTestCase {
         let sent = try XCTUnwrap(transport.requests("POST /api/me/items/item-1/actions").first)
         XCTAssertEqual(try JSONSerialization.jsonObject(with: sent.body) as? [String: String], ["type": "unsnooze"])
     }
+
+    func testStartingAMaintenanceWindowSendsItsLengthInMillisecondsAndItsScope() async throws {
+        let transport = RecordingTransport(routes: [
+            "POST /api/me/maintenance-windows": .init(json: #"{"ok":true,"window":\#(Self.windowRecord)}"#),
+        ])
+
+        _ = try await CowtailAPI(transport: transport).startMaintenanceWindow(
+            MaintenanceWindowRequest(
+                title: "Disk swap",
+                duration: 90 * 60,
+                matchers: [.init(label: "namespace", value: "media")],
+                sources: ["hermes"]
+            ),
+            sessionToken: "session"
+        )
+
+        let sent = try XCTUnwrap(transport.requests("POST /api/me/maintenance-windows").first)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: sent.body) as? NSDictionary)
+        XCTAssertEqual(
+            body,
+            [
+                "title": "Disk swap",
+                "durationMs": 5_400_000,
+                "matchers": [["label": "namespace", "value": "media"]],
+                "sources": ["hermes"],
+            ] as NSDictionary
+        )
+    }
+
+    func testMaintenanceWindowsKeepTheServersScopeAndSilenceError() async throws {
+        let transport = RecordingTransport(routes: [
+            "GET /api/me/maintenance-windows": .init(json: #"{"ok":true,"active":[\#(Self.windowRecord)],"recent":[]}"#),
+        ])
+
+        let windows = try await CowtailAPI(transport: transport).fetchMaintenanceWindows(sessionToken: "session")
+
+        XCTAssertEqual(
+            windows,
+            [
+                MaintenanceWindow(
+                    id: "window-1",
+                    title: "Disk swap",
+                    startsAt: Date(timeIntervalSince1970: 1_800_000_000),
+                    endsAt: Date(timeIntervalSince1970: 1_800_005_400),
+                    matchers: [.init(label: "namespace", value: "media")],
+                    sources: ["hermes"],
+                    allAlerts: false,
+                    active: true,
+                    silenceError: "Alertmanager answered 503"
+                ),
+            ]
+        )
+    }
+
+    private static let windowRecord = """
+    {"id":"window-1","title":"Disk swap","startsAt":1800000000000,"endsAt":1800005400000,\
+    "createdBy":"owner","matchers":[{"label":"namespace","value":"media"}],"sources":["hermes"],\
+    "allAlerts":false,"active":true,"silenceIds":[],"silenceError":"Alertmanager answered 503"}
+    """
 }

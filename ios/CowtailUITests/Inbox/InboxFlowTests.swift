@@ -182,4 +182,44 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertTrue(icon.waitForExistence(timeout: 10))
         XCTAssertEqual(icon.label, "Alertmanager")
     }
+
+    func testARunningWindowsBannerSitsAboveNeedsYouUntilEndWindow() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_maintenance")
+        app.launch()
+
+        let banner = app.element("text.maintenance.window-upgrade")
+        XCTAssertTrue(banner.waitForExistence(timeout: 10))
+        XCTAssertTrue(banner.label.contains("Cluster upgrade"), banner.label)
+        XCTAssertTrue(banner.label.contains("All alerts silenced"), banner.label)
+        XCTAssertLessThan(banner.frame.maxY, app.element("section.Needs you").frame.minY)
+
+        app.buttons["button.maintenance.end.window-upgrade"].tap()
+
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: banner)
+        waitForExpectations(timeout: 10)
+    }
+
+    func testTheWrenchStartsAWindowFromTheSheet() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let wrench = app.buttons["button.inbox.maintenance"]
+        XCTAssertTrue(wrench.waitForExistence(timeout: 10))
+        XCTAssertEqual(wrench.label, "Start a maintenance window")
+        wrench.tap()
+
+        let title = app.textFields["field.maintenance.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        title.tap()
+        title.typeText("Disk swap")
+        app.segmentedControls.buttons["30m"].tap()
+        XCTAssertTrue(app.staticTexts["Cowtail's own watchdog items still push."].exists)
+        let start = app.buttons["button.maintenance.start"]
+        XCTAssertEqual(start.label, "Start 30m window")
+        start.tap()
+
+        let banner = app.element("text.maintenance.seeded-window-1")
+        XCTAssertTrue(banner.waitForExistence(timeout: 10))
+        XCTAssertTrue(banner.label.contains("Disk swap"), banner.label)
+    }
 }

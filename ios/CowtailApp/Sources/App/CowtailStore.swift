@@ -95,6 +95,12 @@ final class CowtailStore: ObservableObject {
     }
     @Published private(set) var alertActionsInFlight: Set<String> = []
 
+    /// The running maintenance windows, the soonest end first.
+    @Published private(set) var maintenanceWindows: [MaintenanceWindow] = []
+    @Published private(set) var maintenanceError: String?
+    /// Windows the owner ended that the server has not answered for; every read keeps them gone.
+    private var endingWindowIDs: Set<String> = []
+
     @Published private(set) var historyFilter = HistoryFilter()
     @Published private(set) var historyItems: [Item] = []
     @Published private(set) var historyDayCounts: [String: Int] = [:]
@@ -147,11 +153,13 @@ final class CowtailStore: ObservableObject {
         if let token {
             async let stats: Void = refreshClusterStats(sessionToken: token)
             async let hermes: Void = refreshHermes(sessionToken: token)
+            async let maintenance: Void = refreshMaintenance(sessionToken: token)
             if await reloadInbox(sessionToken: token) {
                 errorMessage = nil
             }
             await stats
             await hermes
+            await maintenance
         } else {
             errorMessage = Self.signInMessage
         }
@@ -188,6 +196,68 @@ final class CowtailStore: ObservableObject {
             logger.error("refresh Hermes failed: \(String(describing: error), privacy: .public)")
             hermesErrorMessage = error.localizedDescription
         }
+    }
+
+    private func refreshMaintenance(sessionToken token: String) async {
+        do {
+            let read = try await api.fetchMaintenanceWindows(sessionToken: token)
+            maintenanceWindows = read.filter { !endingWindowIDs.contains($0.id) }
+        } catch {
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
+            logger.error("refresh maintenance failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    // MARK: Maintenance windows
+
+    /// Starts a window now. The server silences Alertmanager and decides the window, so the
+    /// sheet waits for it. Nil once it started, otherwise why not.
+    func startMaintenance(_ request: MaintenanceWindowRequest) async -> String? {
+        guard let token = await sessionToken() else { return Self.signInMessage }
+        do {
+            let window = try await api.startMaintenanceWindow(request, sessionToken: token)
+            showWindow(window)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Ends a window: its banner goes at once and comes back if the server refuses. When the
+    /// reply is lost, a read from the server says whether it ended.
+    func endMaintenance(_ window: MaintenanceWindow) async {
+        guard let token = await sessionToken() else {
+            maintenanceError = Self.signInMessage
+            return
+        }
+        maintenanceError = nil
+        endingWindowIDs.insert(window.id)
+        maintenanceWindows.removeAll { $0.id == window.id }
+        do {
+            _ = try await api.endMaintenanceWindow(id: window.id, sessionToken: token)
+            endingWindowIDs.remove(window.id)
+        } catch CowtailAPIError.refused(let message) {
+            endingWindowIDs.remove(window.id)
+            showWindow(window)
+            maintenanceError = message
+        } catch {
+            endingWindowIDs.remove(window.id)
+            maintenanceError = error.localizedDescription
+            await refreshMaintenance(sessionToken: token)
+        }
+    }
+
+    private func showWindow(_ window: MaintenanceWindow) {
+        maintenanceWindows = (maintenanceWindows.filter { $0.id != window.id } + [window])
+            .sorted { $0.endsAt < $1.endsAt }
+    }
+
+    /// Every source with an item, for the maintenance sheet's source choices.
+    func itemSources() async throws -> [String] {
+        guard let token = await sessionToken() else {
+            throw CowtailAPIError.requestFailed(Self.signInMessage)
+        }
+        return try await api.fetchItemSources(sessionToken: token)
     }
 
     /// True when the server answered.

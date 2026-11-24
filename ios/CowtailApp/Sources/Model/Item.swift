@@ -106,6 +106,8 @@ struct Item: Identifiable, Hashable, Sendable {
     let resolvedAfter: TimeInterval?
     /// List results only: the server's day for the item, `yyyy-MM-dd`.
     var createdDate: String?
+    /// The maintenance window that held back the item's push.
+    let maintenanceWindowID: String?
 
     init(
         id: String,
@@ -141,7 +143,8 @@ struct Item: Identifiable, Hashable, Sendable {
         investigationStep: ItemInvestigationStep? = nil,
         outcome: ItemOutcome? = nil,
         resolvedAfter: TimeInterval? = nil,
-        createdDate: String? = nil
+        createdDate: String? = nil,
+        maintenanceWindowID: String? = nil
     ) {
         self.id = id
         self.source = source
@@ -177,6 +180,7 @@ struct Item: Identifiable, Hashable, Sendable {
         self.outcome = outcome
         self.resolvedAfter = resolvedAfter
         self.createdDate = createdDate
+        self.maintenanceWindowID = maintenanceWindowID
     }
 }
 

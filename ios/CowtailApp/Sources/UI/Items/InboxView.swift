@@ -3,6 +3,7 @@ import SwiftUI
 struct InboxView: View {
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
+    @State private var isStartingMaintenance = false
 
     var body: some View {
         CowtailScreen(title: "Inbox", identifier: "screen.inbox") {
@@ -17,6 +18,10 @@ struct InboxView: View {
                     .accessibilityLabel("Hermes \(level?.rawValue ?? "not reporting")")
                     .accessibilityIdentifier("chip.inbox.hermes")
             }
+            CowtailIconButton(title: "Start a maintenance window", systemImage: "wrench.adjustable") {
+                isStartingMaintenance = true
+            }
+            .accessibilityIdentifier("button.inbox.maintenance")
         } content: {
             let inbox = store.inbox ?? .empty
 
@@ -30,12 +35,26 @@ struct InboxView: View {
                     .accessibilityIdentifier("text.inbox.error")
             }
 
+            ForEach(store.maintenanceWindows) { window in
+                MaintenanceBanner(window: window)
+            }
+            if let error = store.maintenanceError {
+                Text(error)
+                    .font(.cowtailSans(12, relativeTo: .footnote))
+                    .foregroundStyle(palette.accent)
+                    .padding(.top, 6)
+                    .accessibilityIdentifier("text.maintenance.error")
+            }
+
             section("Needs you", inbox.needsYou, count: inbox.counts.needsYou, style: .needsYou)
             section("Hermes is on it", inbox.withHermes, count: inbox.counts.withHermes, style: .withHermes)
             section("Upcoming", inbox.upcoming, count: inbox.counts.upcoming, style: .upcoming)
             section("Handled · 24h", inbox.handled, count: inbox.counts.handled, style: .handled)
         }
         .polling { await store.refresh() }
+        .sheet(isPresented: $isStartingMaintenance) {
+            MaintenanceSheet()
+        }
     }
 
     private func counts(_ inbox: ItemInbox) -> some View {

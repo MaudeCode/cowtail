@@ -10,6 +10,8 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         var devices = CowtailPreviewFixtures.devices
         var roundupAlerts = CowtailPreviewFixtures.roundupAlerts
         var roundupFixes = CowtailPreviewFixtures.roundupFixes
+        /// The running maintenance windows.
+        var maintenanceWindows: [MaintenanceWindow] = []
         /// Every item request fails with this message.
         var itemErrorMessage: String?
         /// The server's OIDC provider; nil offers only Sign in with Apple.
@@ -182,6 +184,40 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
                 until: calendar.nextDate(after: tomorrow, matching: monday, matchingPolicy: .nextTime) ?? tomorrowMorning
             ),
         ]
+    }
+
+    func fetchMaintenanceWindows(sessionToken _: String) async throws -> [MaintenanceWindow] {
+        seed.maintenanceWindows.sorted { $0.endsAt < $1.endsAt }
+    }
+
+    /// Starts the window the way the server does: a window naming nothing covers all alerts.
+    func startMaintenanceWindow(
+        _ request: MaintenanceWindowRequest,
+        sessionToken _: String
+    ) async throws -> MaintenanceWindow {
+        let sources = request.sources.isEmpty && request.matchers.isEmpty ? ["alertmanager"] : request.sources
+        let window = MaintenanceWindow(
+            id: "seeded-window-\(seed.maintenanceWindows.count + 1)",
+            title: request.title,
+            startsAt: .now,
+            endsAt: .now.addingTimeInterval(request.duration),
+            matchers: request.matchers,
+            sources: sources,
+            allAlerts: sources.contains("alertmanager") || sources.contains("*"),
+            active: true
+        )
+        seed.maintenanceWindows.append(window)
+        return window
+    }
+
+    func endMaintenanceWindow(id: String, sessionToken _: String) async throws -> MaintenanceWindow {
+        guard let index = seed.maintenanceWindows.firstIndex(where: { $0.id == id }) else {
+            throw CowtailAPIError.refused("Maintenance window not found")
+        }
+        var ended = seed.maintenanceWindows.remove(at: index)
+        ended.active = false
+        ended.endedAt = .now
+        return ended
     }
 
     func createAuthSession(identityToken _: String) async throws -> AppAuthSession {

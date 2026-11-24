@@ -5,6 +5,7 @@ import UserNotifications
 struct UITestScenario {
     enum Name: String, CaseIterable, Equatable {
         case inboxPopulated = "inbox_populated"
+        case inboxMaintenance = "inbox_maintenance"
         case inboxEmpty = "inbox_empty"
         case inboxError = "inbox_error"
         case roundupPopulated = "roundup_populated"
@@ -148,6 +149,9 @@ private enum SeedFactory {
         switch name {
         case .inboxPopulated:
             return scenarioDefaults
+
+        case .inboxMaintenance:
+            return seed(server: SeededCowtailAPI.Seed(maintenanceWindows: [CowtailPreviewFixtures.maintenanceWindow]))
 
         case .inboxEmpty:
             return seed(server: SeededCowtailAPI.Seed(items: []))
