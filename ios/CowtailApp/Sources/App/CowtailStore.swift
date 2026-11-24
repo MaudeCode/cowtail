@@ -118,6 +118,13 @@ final class CowtailStore: ObservableObject {
 
     @Published private(set) var devices: [UserDevice] = []
 
+    /// The run the Hermes tab follows once the owner started or picked one; the newest otherwise.
+    @Published private(set) var selectedRunID: String?
+    @Published private(set) var runDetail: RunbookRunDetail?
+    @Published private(set) var runbookError: String?
+    /// Scripts whose run request is on its way; their buttons wait for the reply.
+    @Published private(set) var scriptsStarting: Set<String> = []
+
     private let api: any CowtailAPIClient
     private let sessionToken: @MainActor () async -> String?
     private let authenticator: any ApprovalAuthenticating
@@ -464,6 +471,93 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             actionErrors[item.id] = error.localizedDescription
+        }
+    }
+
+    // MARK: Runbook
+
+    var shownRunID: String? {
+        selectedRunID ?? hermes?.recentRuns.first?.id
+    }
+
+    /// Asks Hermes to run a script, for an item when `itemID` is set. The owner has accepted the
+    /// script's prompt when it has one. Face ID gates it as it gates approvals: the server's word
+    /// on the script and this device's setting both count. The run is the server's to create, so
+    /// the script's button waits for the reply.
+    func startRun(_ script: RunbookScript, itemID: String? = nil) async {
+        guard scriptsStarting.insert(script.id).inserted else { return }
+        defer { scriptsStarting.remove(script.id) }
+        let report: (String?) -> Void = { message in
+            if let itemID {
+                self.actionErrors[itemID] = message
+            } else {
+                self.runbookError = message
+            }
+        }
+        report(nil)
+
+        var authenticated: Bool?
+        if script.asksToConfirm, script.needsAuth || requiresApprovalAuthentication() {
+            guard await authenticator.authenticate(reason: "Confirm running “\(script.name)”.") else {
+                report("Running this script needs Face ID or your passcode.")
+                return
+            }
+            authenticated = true
+        }
+        guard let token = await sessionToken() else {
+            report(Self.signInMessage)
+            return
+        }
+
+        do {
+            let run = try await api.startRunbookRun(
+                scriptID: script.id,
+                itemID: itemID,
+                confirmed: script.asksToConfirm,
+                authenticated: authenticated,
+                sessionToken: token
+            )
+            selectedRunID = run.id
+            runDetail = RunbookRunDetail(run: run, output: "")
+            if let itemID {
+                if details[itemID] != nil {
+                    await loadDetail(itemID: itemID)
+                }
+                await reloadInbox(sessionToken: token)
+            }
+            await refreshHermes(sessionToken: token)
+        } catch {
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
+            report(error.localizedDescription)
+        }
+    }
+
+    func selectRun(_ id: String) {
+        selectedRunID = id
+        if runDetail?.run.id != id {
+            runDetail = nil
+        }
+    }
+
+    /// Reads the run every `interval` until it ends, then rereads Hermes, so its script's button
+    /// frees and the run moves into the recent runs.
+    func followRun(id: String, interval: Duration = .seconds(1)) async {
+        guard let token = await sessionToken() else { return }
+        while !Task.isCancelled {
+            do {
+                let detail = try await api.fetchRunbookRun(id: id, sessionToken: token)
+                guard shownRunID == id else { return }
+                runDetail = detail
+                runbookError = nil
+                if !detail.run.active {
+                    await refreshHermes(sessionToken: token)
+                    return
+                }
+            } catch {
+                guard !NetworkErrorClassifier.isCancellation(error) else { return }
+                runbookError = error.localizedDescription
+            }
+            try? await Task.sleep(for: interval)
         }
     }
 

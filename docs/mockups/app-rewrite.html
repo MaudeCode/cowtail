@@ -590,7 +590,12 @@ transcoder-7d9f   212m   610Mi      (limit 512Mi)</pre>
   <div class="kv"><span>Restart Hermes gateway<div class="s">Asks to confirm</div></span><button class="ib no" title="Run"><svg><use href="#play"/></svg></button></div>
   <div class="kv"><span>Restart script runner</span><button class="ib" title="Run"><svg><use href="#play"/></svg></button></div>
   <div class="lab"><span>Runbook · Diagnostics</span></div>
-  <div class="kv"><span>Disk usage</span><button class="ib" title="Run"><svg><use href="#play"/></svg></button></div>
+  <div class="kv"><span>Disk usage</span><button class="ib" title="Run" disabled style="opacity:.4"><svg><use href="#play"/></svg></button></div>
+  <div class="lab"><span>Run · Disk usage</span><span class="c-today">running · 0:07</span></div>
+  <pre>$ df -h /var/lib
+/dev/nvme0n1p2  916G  604G  266G  70% /
+▍</pre>
+  <div class="kv"><span>Restart script runner</span><span><span class="c-ok">exit 0</span> · Sun 21:14</span></div>
   <div class="lab"><span>Recent answers</span></div>
   <div class="kv"><span>Restart ingress in edge?</span><span><span class="c-ok">approved</span> · 09:42</span></div>
   <div class="kv"><span>Delete 14 stale PVCs?</span><span><span class="c-now">denied</span> · Sun</span></div>

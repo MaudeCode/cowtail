@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// What Hermes is doing: its heartbeat, platforms, cron jobs and incidents, kanban, budget,
-/// and the owner's recent answers. The server decides every level, order and link.
+/// the runbook and its runs, and the owner's recent answers. The server decides every level,
+/// order and link.
 struct HermesView: View {
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
+    @State private var confirming: RunbookScript?
 
     var body: some View {
         CowtailScreen(title: "Hermes", identifier: "screen.hermes") {
@@ -21,13 +23,120 @@ struct HermesView: View {
             if let status = store.hermes {
                 if let heartbeat = status.heartbeat {
                     sections(heartbeat)
+                    runbook(heartbeat.runbook)
                 } else {
                     note("Hermes has not sent a heartbeat yet.")
                 }
+                runView(status.recentRuns)
                 answers(status.recentAnswers)
             }
         }
         .polling { await store.refresh() }
+        .task(id: store.shownRunID) {
+            if let id = store.shownRunID {
+                await store.followRun(id: id)
+            }
+        }
+        .runbookConfirmation($confirming) { script in
+            Task { await store.startRun(script) }
+        }
+    }
+
+    /// One section per category. A script that asks to confirm says so and has a red Run
+    /// button; a script's button waits while a run of it is queued or running.
+    @ViewBuilder
+    private func runbook(_ sections: [RunbookSection]) -> some View {
+        ForEach(sections) { section in
+            CowtailSectionHeader(title: "Runbook · \(section.category)")
+            ForEach(section.scripts) { script in
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(script.name).font(.cowtailSans(14, relativeTo: .body))
+                        if script.asksToConfirm {
+                            Text("Asks to confirm")
+                                .font(.cowtailSans(12, relativeTo: .caption))
+                                .foregroundStyle(palette.mutedInk)
+                        }
+                    }
+                    Spacer()
+                    CowtailIconButton(
+                        title: "Run \(script.name)",
+                        systemImage: "play.fill",
+                        tint: script.asksToConfirm ? palette.accent : nil,
+                        isBusy: store.scriptsStarting.contains(script.id)
+                    ) {
+                        if script.asksToConfirm {
+                            confirming = script
+                        } else {
+                            Task { await store.startRun(script) }
+                        }
+                    }
+                    .disabled(script.running)
+                    .accessibilityIdentifier("button.runbook.\(script.id)")
+                }
+                .cowtailRow()
+            }
+        }
+        if let error = store.runbookError {
+            note(error, tint: palette.accent)
+        }
+    }
+
+    /// The run the owner started or picked, else the newest: its status and time, its output
+    /// as it arrives, then the recent runs.
+    @ViewBuilder
+    private func runView(_ runs: [RunbookRun]) -> some View {
+        let id = store.shownRunID
+        let detail = store.runDetail?.run.id == id ? store.runDetail : nil
+        if let run = detail?.run ?? runs.first(where: { $0.id == id }) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                CowtailSectionHeader(title: "Run · \(run.scriptName)") {
+                    Text([run.status.rawValue, run.elapsed(now: context.date)].joined(separator: " · "))
+                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .foregroundStyle(run.tint(palette))
+                        .accessibilityIdentifier("text.run.status")
+                }
+            }
+            Text(output(detail, run: run))
+                .font(.cowtailMono(11, relativeTo: .caption2))
+                .foregroundStyle(palette.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(palette.surfaceRaised)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(palette.border).frame(width: 2)
+                }
+                .padding(.vertical, 8)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("text.run.output")
+            ForEach(runs) { entry in
+                Button {
+                    store.selectRun(entry.id)
+                } label: {
+                    HStack {
+                        Text(entry.scriptName)
+                            .font(.cowtailSans(14, weight: entry.id == id ? .medium : .regular, relativeTo: .body))
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(Text(entry.result).foregroundStyle(entry.tint(palette))) · \(ItemFormat.when(entry.createdAt))")
+                            .font(.cowtailMono(12, relativeTo: .caption))
+                            .foregroundStyle(palette.mutedInk)
+                    }
+                    .cowtailRow()
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("row.hermes.run.\(entry.id)")
+            }
+        }
+    }
+
+    private func output(_ detail: RunbookRunDetail?, run: RunbookRun) -> String {
+        if let output = detail?.output, !output.isEmpty {
+            return output
+        }
+        return run.active ? "Waiting for output…" : "No output."
     }
 
     @ViewBuilder

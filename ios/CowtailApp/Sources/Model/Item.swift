@@ -41,11 +41,13 @@ enum ItemAction: Hashable, Sendable {
     case snooze
     case ack
     case open(URL)
+    /// Runs a runbook script for the item; the script's name is the action's label.
+    case run(RunbookScript)
 
     var isAnswer: Bool {
         switch self {
         case .approve, .deny, .choose, .reply: true
-        case .snooze, .ack, .open: false
+        case .snooze, .ack, .open, .run: false
         }
     }
 }
@@ -193,6 +195,8 @@ enum ItemEventType: String, CaseIterable, Sendable {
     case actionTaken = "action_taken"
     case stateChanged = "state_changed"
     case resolved
+    case runStarted = "run_started"
+    case runFinished = "run_finished"
 }
 
 /// One step Hermes recorded in an investigation: what it checked, the command and its output.

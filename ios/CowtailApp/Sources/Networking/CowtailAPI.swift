@@ -36,6 +36,16 @@ protocol CowtailAPIClient: Sendable {
     func fetchMaintenanceWindows(sessionToken: String) async throws -> MaintenanceWindows
     func startMaintenanceWindow(_ request: MaintenanceWindowRequest, sessionToken: String) async throws -> MaintenanceWindow
     func endMaintenanceWindow(id: String, sessionToken: String) async throws -> MaintenanceWindow
+    /// Asks Hermes to run a runbook script, for an item when `itemID` is set. `confirmed` says
+    /// the owner accepted the script's prompt, `authenticated` that they passed Face ID.
+    func startRunbookRun(
+        scriptID: String,
+        itemID: String?,
+        confirmed: Bool,
+        authenticated: Bool?,
+        sessionToken: String
+    ) async throws -> RunbookRun
+    func fetchRunbookRun(id: String, sessionToken: String) async throws -> RunbookRunDetail
 }
 
 /// Sign-in and sign-out, for Apple and the server's OIDC provider alike.
@@ -520,6 +530,51 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.refused(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Ending the window failed with HTTP \(statusCode).")
+        }
+    }
+
+    func startRunbookRun(
+        scriptID: String,
+        itemID: String?,
+        confirmed: Bool,
+        authenticated: Bool?,
+        sessionToken: String
+    ) async throws -> RunbookRun {
+        let body = Components.Schemas.RunbookRunRequest(
+            scriptId: scriptID,
+            itemId: itemID,
+            confirmed: confirmed,
+            authenticated: authenticated
+        )
+        switch try await sessionClient(sessionToken: sessionToken).startRunbookRun(.init(body: .json(body))) {
+        case .ok(let response):
+            return Self.makeRunbookRun(try response.body.json.run)
+        case .badRequest(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .notFound(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Run request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchRunbookRun(id: String, sessionToken: String) async throws -> RunbookRunDetail {
+        switch try await sessionClient(sessionToken: sessionToken).getRunbookRun(.init(path: .init(id: id))) {
+        case .ok(let response):
+            let reply = try response.body.json
+            return RunbookRunDetail(run: Self.makeRunbookRun(reply.run), output: reply.output)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .notFound(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Run request failed with HTTP \(statusCode).")
         }
     }
 

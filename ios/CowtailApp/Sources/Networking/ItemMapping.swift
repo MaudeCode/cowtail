@@ -78,7 +78,24 @@ extension CowtailAPI {
         case .case5: .snooze
         case .case6: .ack
         case .case7(let open): URL(string: open.url).map(ItemAction.open)
+        case .case8(let run):
+            .run(RunbookScript(id: run.scriptId, name: run.label, confirmText: run.confirmText, needsAuth: run.needsAuth ?? false))
         }
+    }
+
+    static func makeRunbookRun(_ record: Components.Schemas.RunbookRun) -> RunbookRun {
+        RunbookRun(
+            id: record.id,
+            scriptID: record.scriptId,
+            scriptName: record.scriptName,
+            itemID: record.itemId,
+            status: RunbookRun.Status(rawValue: record.status.rawValue) ?? .queued,
+            active: record.active,
+            exitCode: record.exitCode,
+            createdAt: date(record.createdAt),
+            startedAt: record.startedAt.map(date),
+            finishedAt: record.finishedAt.map(date)
+        )
     }
 
     static func makeEvent(_ record: Components.Schemas.ItemEventRecord) -> ItemEvent {
@@ -244,7 +261,21 @@ extension CowtailAPI {
                     rateLimits: limits(
                         snapshot.rateLimits?.additionalProperties.mapValues { limitText($0?.value1, $0?.value2, $0?.value3) },
                         order: status.rateLimitOrder
-                    )
+                    ),
+                    runbook: (status.runbook ?? []).map { section in
+                        RunbookSection(
+                            category: section.category,
+                            scripts: section.scripts.map {
+                                RunbookScript(
+                                    id: $0.id,
+                                    name: $0.name,
+                                    confirmText: $0.confirmText,
+                                    needsAuth: $0.needsAuth,
+                                    running: $0.running
+                                )
+                            }
+                        )
+                    }
                 )
             },
             recentAnswers: (response.recentAnswers ?? []).map { answer in
@@ -254,7 +285,8 @@ extension CowtailAPI {
                     answer: makeAnswer(answer.answer),
                     answeredAt: date(answer.answeredAt)
                 )
-            }
+            },
+            recentRuns: (response.recentRuns ?? []).map(makeRunbookRun)
         )
     }
 

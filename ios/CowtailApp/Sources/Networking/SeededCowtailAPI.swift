@@ -171,6 +171,52 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         seed.devices
     }
 
+    /// Queues the run at the front of the recent runs; it shows the seeded output and ends at once.
+    func startRunbookRun(
+        scriptID: String,
+        itemID: String?,
+        confirmed _: Bool,
+        authenticated _: Bool?,
+        sessionToken _: String
+    ) async throws -> RunbookRun {
+        let scripts = (seed.hermes.heartbeat?.runbook ?? []).flatMap(\.scripts)
+        guard let script = scripts.first(where: { $0.id == scriptID }) else {
+            throw CowtailAPIError.refused("Hermes does not report this script")
+        }
+        let run = RunbookRun(
+            id: "run-\(seed.hermes.recentRuns.count + 1)",
+            scriptID: scriptID,
+            scriptName: script.name,
+            itemID: itemID,
+            status: .succeeded,
+            active: false,
+            exitCode: 0,
+            createdAt: .now,
+            startedAt: .now,
+            finishedAt: .now
+        )
+        seed.hermes.recentRuns.insert(run, at: 0)
+        if let itemID {
+            events[itemID, default: []].append(
+                ItemEvent(
+                    id: "\(itemID)-run-\(run.id)",
+                    at: .now,
+                    type: .runStarted,
+                    actor: "owner",
+                    payload: ["scriptName": script.name]
+                )
+            )
+        }
+        return run
+    }
+
+    func fetchRunbookRun(id: String, sessionToken _: String) async throws -> RunbookRunDetail {
+        guard let run = seed.hermes.recentRuns.first(where: { $0.id == id }) else {
+            throw CowtailAPIError.requestFailed("Run not found")
+        }
+        return RunbookRunDetail(run: run, output: CowtailPreviewFixtures.runOutput)
+    }
+
     /// The server's presets, worked out from the seeded clock in the zone asked for.
     func fetchSnoozeOptions(timeZone: String, sessionToken _: String) async throws -> [SnoozeOption] {
         var calendar = Calendar(identifier: .gregorian)

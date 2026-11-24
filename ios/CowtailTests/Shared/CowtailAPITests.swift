@@ -40,8 +40,20 @@ final class CowtailAPITests: XCTestCase {
         "incidents": [
           {"id": "inc-1", "jobId": "job-2", "state": "open", "jobName": "backup-verify", "itemId": "item-7", "itemTitle": "Backup failed"},
           {"id": "inc-2", "jobId": "job-gone", "state": "open"}
+        ],
+        "runbook": [
+          {"category": "services", "scripts": [
+            {"id": "gateway-restart", "name": "Restart Hermes gateway", "category": "services", "confirm": "Restart?", "confirmText": "Restart?", "needsAuth": true, "running": false}
+          ]},
+          {"category": "diagnostics", "scripts": [
+            {"id": "disk-usage", "name": "Disk usage", "category": "diagnostics", "needsAuth": false, "running": true}
+          ]}
         ]
       },
+      "recentRuns": [
+        {"id": "run-2", "scriptId": "disk-usage", "scriptName": "Disk usage", "status": "running", "active": true, "createdAt": 1795521600000, "startedAt": 1795521601000},
+        {"id": "run-1", "scriptId": "gateway-restart", "scriptName": "Restart Hermes gateway", "itemId": "item-9", "status": "failed", "active": false, "exitCode": 1, "createdAt": 1795521500000}
+      ],
       "recentAnswers": [
         {"itemId": "item-4", "title": "Rebalance?", "answer": {"type": "choose", "option": "Wait"}, "answeredAt": 1795521600000},
         {"itemId": "item-3", "title": "Restart?", "answer": {"type": "deny"}, "answeredAt": 1795521500000}
@@ -71,6 +83,17 @@ final class CowtailAPITests: XCTestCase {
         )
         XCTAssertEqual(heartbeat.rateLimits, [.init(key: "anthropic", value: "ok")])
         XCTAssertEqual(status.recentAnswers.map(\.answer), [.choose("Wait"), .deny])
+        XCTAssertEqual(heartbeat.runbook.map(\.category), ["services", "diagnostics"])
+        XCTAssertEqual(
+            heartbeat.runbook.flatMap(\.scripts),
+            [
+                RunbookScript(id: "gateway-restart", name: "Restart Hermes gateway", confirmText: "Restart?", needsAuth: true),
+                RunbookScript(id: "disk-usage", name: "Disk usage", running: true),
+            ]
+        )
+        XCTAssertEqual(status.recentRuns.map(\.status), [.running, .failed])
+        XCTAssertEqual(status.recentRuns.map(\.exitCode), [nil, 1])
+        XCTAssertEqual(status.recentRuns.map(\.itemID), [nil, "item-9"])
     }
 
     /// An item's detail, as `GET /api/items/:id` sends it.
@@ -168,6 +191,28 @@ final class CowtailAPITests: XCTestCase {
             .fetchItemGraph(itemID: "item-1", range: .sixHours, sessionToken: "session")
 
         XCTAssertNil(fetched)
+    }
+
+    func testAnItemsScriptActionAndItsRunEventsKeepTheServersCalls() async throws {
+        let reply = """
+        {"ok":true,"item":{"id":"item-2","source":"cowtail","sourceInfo":{"slug":"cowtail","displayName":"Cowtail"},\
+        "kind":"failure","urgency":"now","state":"open","needsOwner":true,"title":"Gateway is not answering","body":"",\
+        "links":[],"context":{},"occurrenceCount":1,"createdAt":1,"updatedAt":2,\
+        "actions":[{"type":"run","scriptId":"gateway-restart","label":"Restart Hermes gateway"}],\
+        "availableActions":[{"type":"run","scriptId":"gateway-restart","label":"Restart Hermes gateway","confirmText":"Restart?","needsAuth":true}]},\
+        "events":[{"id":"e-1","itemId":"item-2","at":3,"type":"run_finished","actor":"hermes",\
+        "payload":{"scriptName":"Restart Hermes gateway","exitCode":0,"excerpt":"restarted"}}]}
+        """
+        let transport = RecordingTransport(routes: ["GET /api/items/item-2": .init(json: reply)])
+
+        let fetched = try await CowtailAPI(transport: transport).fetchItem(id: "item-2", sessionToken: "session")
+        let detail = try XCTUnwrap(fetched)
+
+        XCTAssertEqual(
+            detail.item.availableActions,
+            [.run(RunbookScript(id: "gateway-restart", name: "Restart Hermes gateway", confirmText: "Restart?", needsAuth: true))]
+        )
+        XCTAssertEqual(detail.events.map(\.text), ["Restart Hermes gateway · exit 0\nrestarted"])
     }
 
     func testHermesStatusBeforeTheFirstHeartbeatHasNoHeartbeat() async throws {

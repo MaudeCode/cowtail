@@ -134,6 +134,61 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(sentAuthentication, [true])
     }
 
+    private let restartGateway = RunbookScript(
+        id: "gateway-restart",
+        name: "Restart Hermes gateway",
+        confirmText: "Restart the Hermes gateway?"
+    )
+
+    func testAScriptThatAsksToConfirmWaitsForFaceIDWhileTheOwnerRequiresIt() async {
+        for allows in [false, true] {
+            let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+            let authenticator = FakeAuthenticator(allows: allows)
+            let store = store(api: api, authenticator: authenticator, requiresAuthentication: true)
+
+            await store.startRun(restartGateway, itemID: "item-1")
+
+            let started = await api.startedRuns
+            let asked = await authenticator.requests
+            XCTAssertEqual(asked, 1, "allows=\(allows)")
+            XCTAssertEqual(started.map(\.scriptID), allows ? ["gateway-restart"] : [], "allows=\(allows)")
+            XCTAssertEqual(started.map(\.itemID), allows ? ["item-1"] : [], "allows=\(allows)")
+            XCTAssertEqual(started.map(\.confirmed), allows ? [true] : [], "allows=\(allows)")
+            XCTAssertEqual(started.map(\.authenticated), allows ? [true] : [], "allows=\(allows)")
+            XCTAssertEqual(store.actionErrors["item-1"] != nil, !allows, "allows=\(allows)")
+            XCTAssertEqual(store.selectedRunID, allows ? "run-1" : nil, "allows=\(allows)")
+        }
+    }
+
+    func testAScriptAsksForFaceIDWhenTheServerSaysItNeedsIt() async {
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+        let authenticator = FakeAuthenticator(allows: true)
+        let store = store(api: api, authenticator: authenticator)
+        var guarded = restartGateway
+        guarded.needsAuth = true
+
+        await store.startRun(guarded)
+
+        let asked = await authenticator.requests
+        let started = await api.startedRuns
+        XCTAssertEqual(asked, 1)
+        XCTAssertEqual(started.map(\.authenticated), [true])
+    }
+
+    func testAScriptThatRunsOnATapNeverAsksForFaceID() async {
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+        let authenticator = FakeAuthenticator(allows: false)
+        let store = store(api: api, authenticator: authenticator, requiresAuthentication: true)
+
+        await store.startRun(RunbookScript(id: "disk-usage", name: "Disk usage"))
+
+        let asked = await authenticator.requests
+        let started = await api.startedRuns
+        XCTAssertEqual(asked, 0)
+        XCTAssertEqual(started.map(\.confirmed), [false])
+        XCTAssertEqual(started.map(\.authenticated), [nil])
+    }
+
     func testARefusedActionRollsTheInboxBackAndShowsTheServersError() async {
         let api = FakeItemAPI(
             inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []),
@@ -664,5 +719,37 @@ private actor FakeItemAPI: CowtailAPIClient {
         var ended = windows.remove(at: index)
         ended.active = false
         return ended
+    }
+
+    struct StartedRun {
+        let scriptID: String
+        let itemID: String?
+        let confirmed: Bool
+        let authenticated: Bool?
+    }
+
+    private(set) var startedRuns: [StartedRun] = []
+
+    func startRunbookRun(
+        scriptID: String,
+        itemID: String?,
+        confirmed: Bool,
+        authenticated: Bool?,
+        sessionToken _: String
+    ) async throws -> RunbookRun {
+        startedRuns.append(StartedRun(scriptID: scriptID, itemID: itemID, confirmed: confirmed, authenticated: authenticated))
+        return RunbookRun(
+            id: "run-\(startedRuns.count)",
+            scriptID: scriptID,
+            scriptName: scriptID,
+            itemID: itemID,
+            status: .queued,
+            active: true,
+            createdAt: .now
+        )
+    }
+
+    func fetchRunbookRun(id _: String, sessionToken _: String) async throws -> RunbookRunDetail {
+        throw CowtailAPIError.requestFailed("Run not found")
     }
 }

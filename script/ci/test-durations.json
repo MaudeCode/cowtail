@@ -2,6 +2,7 @@
   "budgetSeconds": 30,
   "overBudget": {
     "ClusterFlowTests::testClusterShowsPipelineStateAndItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "HermesFlowTests::testARunbookScriptShowsItsPromptThenTheNewRunsOutput": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "HermesFlowTests::testACronIncidentOpensItsItem": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "HermesFlowTests::testHermesShowsItsHeaderThenItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "HistoryFlowTests::testAFilterShowsAsAChipAndRemovingTheChipClearsIt": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",

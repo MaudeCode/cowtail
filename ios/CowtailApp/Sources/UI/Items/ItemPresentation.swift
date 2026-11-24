@@ -159,7 +159,7 @@ enum ItemButton: Hashable, Identifiable {
             case .ack: .ack
             case .snooze: .snooze
             case .open(let url): .open(url)
-            case .choose: nil
+            case .choose, .run: nil
             }
         }
     }
@@ -243,6 +243,11 @@ extension ItemEvent {
             let action = payload["type"] ?? "action"
             let detail = payload["option"] ?? payload["text"]
             return detail.map { "\(actor) · \(action): \($0)" } ?? "\(actor) · \(action)"
+        case .runStarted:
+            return "\(payload["scriptName"] ?? "Script") started"
+        case .runFinished:
+            let result = "\(payload["scriptName"] ?? "Script") · exit \(payload["exitCode"] ?? "?")"
+            return [result, payload["excerpt"]].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "\n")
         case .stateChanged, .resolved:
             let change = [payload["from"], payload["to"]].compactMap { $0 }.joined(separator: " → ")
             let reason = payload["reason"]
@@ -252,8 +257,8 @@ extension ItemEvent {
 
     func tint(_ palette: ThemePalette) -> Color {
         switch type {
-        case .hermesUpdate, .dispatched: palette.info
-        case .actionTaken: palette.warning
+        case .hermesUpdate, .dispatched, .runFinished: palette.info
+        case .actionTaken, .runStarted: palette.warning
         case .resolved: palette.success
         case .created, .repeated: palette.accent
         case .notified, .stateChanged: palette.mutedInk
@@ -288,7 +293,35 @@ extension PriorOccurrence {
     }
 }
 
+extension RunbookRun {
+    func tint(_ palette: ThemePalette) -> Color {
+        switch status {
+        case .queued: palette.mutedInk
+        case .running: palette.warning
+        case .succeeded: palette.success
+        case .failed: palette.accent
+        }
+    }
+
+    /// How long the run has taken, up to `now` while it runs.
+    func elapsed(now: Date = .now) -> String {
+        ItemFormat.elapsed((finishedAt ?? now).timeIntervalSince(startedAt ?? createdAt))
+    }
+
+    /// What a recent run's row ends in: its exit code, or its status while it has none.
+    var result: String {
+        exitCode.map { "exit \($0)" } ?? status.rawValue
+    }
+}
+
 enum ItemFormat {
+    /// 0:07, 12:40, 1:02:05.
+    static func elapsed(_ interval: TimeInterval) -> String {
+        let seconds = max(0, Int(interval))
+        let clock = String(format: "%d:%02d", seconds / 60 % 60, seconds % 60)
+        return seconds >= 3_600 ? String(format: "%d:%02d:%02d", seconds / 3_600, seconds / 60 % 60, seconds % 60) : clock
+    }
+
     static func duration(_ interval: TimeInterval, units: Int = 2) -> String {
         let formatter = DateComponentsFormatter()
         formatter.unitsStyle = .abbreviated

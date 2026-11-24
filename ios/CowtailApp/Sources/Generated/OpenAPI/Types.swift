@@ -108,6 +108,16 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /hermes/status`.
     /// - Remark: Generated from `#/paths//hermes/status/get(getHermesStatus)`.
     func getHermesStatus(_ input: Operations.GetHermesStatus.Input) async throws -> Operations.GetHermesStatus.Output
+    /// Ask Hermes to run a runbook script, optionally for an item
+    ///
+    /// - Remark: HTTP `POST /me/runbook/runs`.
+    /// - Remark: Generated from `#/paths//me/runbook/runs/post(startRunbookRun)`.
+    func startRunbookRun(_ input: Operations.StartRunbookRun.Input) async throws -> Operations.StartRunbookRun.Output
+    /// A runbook run and its output so far
+    ///
+    /// - Remark: HTTP `GET /me/runbook/runs/{id}`.
+    /// - Remark: Generated from `#/paths//me/runbook/runs/{id}/get(getRunbookRun)`.
+    func getRunbookRun(_ input: Operations.GetRunbookRun.Input) async throws -> Operations.GetRunbookRun.Output
     /// The signed-in account's enabled push devices
     ///
     /// - Remark: HTTP `GET /me/devices`.
@@ -370,6 +380,32 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//hermes/status/get(getHermesStatus)`.
     internal func getHermesStatus(headers: Operations.GetHermesStatus.Input.Headers = .init()) async throws -> Operations.GetHermesStatus.Output {
         try await getHermesStatus(Operations.GetHermesStatus.Input(headers: headers))
+    }
+    /// Ask Hermes to run a runbook script, optionally for an item
+    ///
+    /// - Remark: HTTP `POST /me/runbook/runs`.
+    /// - Remark: Generated from `#/paths//me/runbook/runs/post(startRunbookRun)`.
+    internal func startRunbookRun(
+        headers: Operations.StartRunbookRun.Input.Headers = .init(),
+        body: Operations.StartRunbookRun.Input.Body
+    ) async throws -> Operations.StartRunbookRun.Output {
+        try await startRunbookRun(Operations.StartRunbookRun.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// A runbook run and its output so far
+    ///
+    /// - Remark: HTTP `GET /me/runbook/runs/{id}`.
+    /// - Remark: Generated from `#/paths//me/runbook/runs/{id}/get(getRunbookRun)`.
+    internal func getRunbookRun(
+        path: Operations.GetRunbookRun.Input.Path,
+        headers: Operations.GetRunbookRun.Input.Headers = .init()
+    ) async throws -> Operations.GetRunbookRun.Output {
+        try await getRunbookRun(Operations.GetRunbookRun.Input(
+            path: path,
+            headers: headers
+        ))
     }
     /// The signed-in account's enabled push devices
     ///

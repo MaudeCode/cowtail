@@ -58,6 +58,12 @@ import {
   pushUnregisterRequestSchema,
   pushUnregisterResponseSchema,
   priorOccurrenceSchema,
+  runbookRunGetResponseSchema,
+  runbookRunRecordSchema,
+  runbookRunRequestSchema,
+  runbookRunResponseSchema,
+  runbookSectionSchema,
+  runbookStatusScriptSchema,
   userDevicesResponseSchema,
 } from "../src/index.ts";
 
@@ -85,7 +91,13 @@ const HealthResponse = healthResponseSchema.meta({ id: "HealthResponse" });
 zodToOpenAPIRegistry.add(hermesStatusCronJobSchema, { _internal: { refId: "HermesCronJob" } });
 zodToOpenAPIRegistry.add(hermesStatusIncidentSchema, { _internal: { refId: "HermesIncident" } });
 zodToOpenAPIRegistry.add(hermesRecentAnswerSchema, { _internal: { refId: "HermesRecentAnswer" } });
+zodToOpenAPIRegistry.add(runbookSectionSchema, { _internal: { refId: "RunbookSection" } });
+zodToOpenAPIRegistry.add(runbookStatusScriptSchema, { _internal: { refId: "RunbookScript" } });
+zodToOpenAPIRegistry.add(runbookRunRecordSchema, { _internal: { refId: "RunbookRun" } });
 const HermesStatusResponse = hermesStatusResponseSchema.meta({ id: "HermesStatusResponse" });
+const RunbookRunRequest = runbookRunRequestSchema.meta({ id: "RunbookRunRequest" });
+const RunbookRunResponse = runbookRunResponseSchema.meta({ id: "RunbookRunResponse" });
+const RunbookRunGetResponse = runbookRunGetResponseSchema.meta({ id: "RunbookRunGetResponse" });
 const AuthSessionCreateRequest = authSessionCreateRequestSchema.meta({
   id: "AuthSessionCreateRequest",
 });
@@ -511,6 +523,39 @@ registry.registerPath({
     200: jsonResponse("The Hermes status.", HermesStatusResponse),
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/me/runbook/runs",
+  operationId: "startRunbookRun",
+  tags: ["hermes"],
+  summary: "Ask Hermes to run a runbook script, optionally for an item",
+  security: [{ appSession: [] }],
+  request: { body: { required: true, content: jsonContent(RunbookRunRequest) } },
+  responses: {
+    200: jsonResponse("The queued run.", RunbookRunResponse),
+    400: jsonResponse("Invalid request, or the script asks to confirm.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Owner access, or Face ID for this script, required.", ErrorResponse),
+    404: jsonResponse("Unknown script or item.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/me/runbook/runs/{id}",
+  operationId: "getRunbookRun",
+  tags: ["hermes"],
+  summary: "A runbook run and its output so far",
+  security: [{ appSession: [] }],
+  request: { params: z.object({ id: nonEmptyStringSchema }) },
+  responses: {
+    200: jsonResponse("The run and its output.", RunbookRunGetResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+    404: jsonResponse("Run not found.", ErrorResponse),
   },
 });
 

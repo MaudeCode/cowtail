@@ -1812,6 +1812,53 @@ extension Components {
             }
             /// - Remark: Generated from `#/components/schemas/ItemAction/case7`.
             case case7(Components.Schemas.ItemAction.Case7Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case8`.
+            internal struct Case8Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case8/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case run = "run"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case8/type`.
+                internal var _type: Components.Schemas.ItemAction.Case8Payload._TypePayload
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case8/scriptId`.
+                internal var scriptId: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case8/label`.
+                internal var label: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case8/confirmText`.
+                internal var confirmText: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case8/needsAuth`.
+                internal var needsAuth: Swift.Bool?
+                /// Creates a new `Case8Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                ///   - scriptId:
+                ///   - label:
+                ///   - confirmText:
+                ///   - needsAuth:
+                internal init(
+                    _type: Components.Schemas.ItemAction.Case8Payload._TypePayload,
+                    scriptId: Swift.String,
+                    label: Swift.String,
+                    confirmText: Swift.String? = nil,
+                    needsAuth: Swift.Bool? = nil
+                ) {
+                    self._type = _type
+                    self.scriptId = scriptId
+                    self.label = label
+                    self.confirmText = confirmText
+                    self.needsAuth = needsAuth
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                    case scriptId
+                    case label
+                    case confirmText
+                    case needsAuth
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case8`.
+            case case8(Components.Schemas.ItemAction.Case8Payload)
             internal init(from decoder: any Swift.Decoder) throws {
                 var errors: [any Swift.Error] = []
                 do {
@@ -1856,6 +1903,12 @@ extension Components {
                 } catch {
                     errors.append(error)
                 }
+                do {
+                    self = .case8(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
                 throw Swift.DecodingError.failedToDecodeOneOfSchema(
                     type: Self.self,
                     codingPath: decoder.codingPath,
@@ -1877,6 +1930,8 @@ extension Components {
                 case let .case6(value):
                     try value.encode(to: encoder)
                 case let .case7(value):
+                    try value.encode(to: encoder)
+                case let .case8(value):
                     try value.encode(to: encoder)
                 }
             }
@@ -2719,6 +2774,8 @@ extension Components {
                 case actionTaken = "action_taken"
                 case stateChanged = "state_changed"
                 case resolved = "resolved"
+                case runStarted = "run_started"
+                case runFinished = "run_finished"
             }
             /// - Remark: Generated from `#/components/schemas/ItemEventRecord/type`.
             internal var _type: Components.Schemas.ItemEventRecord._TypePayload
@@ -3466,6 +3523,63 @@ extension Components {
                     }
                     /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits`.
                     internal var rateLimits: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RateLimitsPayload?
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload`.
+                    internal struct RunbookPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload/id`.
+                        internal var id: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload/name`.
+                        internal var name: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload/description`.
+                        internal var description: Swift.String?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload/category`.
+                        internal var category: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload/icon`.
+                        internal var icon: Swift.String?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload/confirm`.
+                        internal var confirm: Swift.String?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/RunbookPayload/danger`.
+                        internal var danger: Swift.Bool?
+                        /// Creates a new `RunbookPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id:
+                        ///   - name:
+                        ///   - description:
+                        ///   - category:
+                        ///   - icon:
+                        ///   - confirm:
+                        ///   - danger:
+                        internal init(
+                            id: Swift.String,
+                            name: Swift.String,
+                            description: Swift.String? = nil,
+                            category: Swift.String,
+                            icon: Swift.String? = nil,
+                            confirm: Swift.String? = nil,
+                            danger: Swift.Bool? = nil
+                        ) {
+                            self.id = id
+                            self.name = name
+                            self.description = description
+                            self.category = category
+                            self.icon = icon
+                            self.confirm = confirm
+                            self.danger = danger
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case id
+                            case name
+                            case description
+                            case category
+                            case icon
+                            case confirm
+                            case danger
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/runbook`.
+                    internal typealias RunbookPayload = [Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RunbookPayloadPayload]
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/runbook`.
+                    internal var runbook: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RunbookPayload?
                     /// Creates a new `SnapshotPayload`.
                     ///
                     /// - Parameters:
@@ -3477,6 +3591,7 @@ extension Components {
                     ///   - kanban:
                     ///   - budget:
                     ///   - rateLimits:
+                    ///   - runbook:
                     internal init(
                         platforms: [Swift.String],
                         model: Swift.String? = nil,
@@ -3485,7 +3600,8 @@ extension Components {
                         openIncidents: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.OpenIncidentsPayload,
                         kanban: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.KanbanPayload? = nil,
                         budget: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.BudgetPayload? = nil,
-                        rateLimits: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RateLimitsPayload? = nil
+                        rateLimits: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RateLimitsPayload? = nil,
+                        runbook: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RunbookPayload? = nil
                     ) {
                         self.platforms = platforms
                         self.model = model
@@ -3495,6 +3611,7 @@ extension Components {
                         self.kanban = kanban
                         self.budget = budget
                         self.rateLimits = rateLimits
+                        self.runbook = runbook
                     }
                     internal enum CodingKeys: String, CodingKey {
                         case platforms
@@ -3505,6 +3622,7 @@ extension Components {
                         case kanban
                         case budget
                         case rateLimits
+                        case runbook
                     }
                 }
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot`.
@@ -3533,6 +3651,8 @@ extension Components {
                 internal var budgetOrder: [Swift.String]?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/rateLimitOrder`.
                 internal var rateLimitOrder: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/runbook`.
+                internal var runbook: [Components.Schemas.RunbookSection]?
                 /// Creates a new `StatusPayload`.
                 ///
                 /// - Parameters:
@@ -3548,6 +3668,7 @@ extension Components {
                 ///   - kanbanBlocked:
                 ///   - budgetOrder:
                 ///   - rateLimitOrder:
+                ///   - runbook:
                 internal init(
                     receivedAt: Swift.Int,
                     heartbeatMissing: Swift.Bool,
@@ -3560,7 +3681,8 @@ extension Components {
                     incidentCount: Swift.Int? = nil,
                     kanbanBlocked: Swift.Bool? = nil,
                     budgetOrder: [Swift.String]? = nil,
-                    rateLimitOrder: [Swift.String]? = nil
+                    rateLimitOrder: [Swift.String]? = nil,
+                    runbook: [Components.Schemas.RunbookSection]? = nil
                 ) {
                     self.receivedAt = receivedAt
                     self.heartbeatMissing = heartbeatMissing
@@ -3574,6 +3696,7 @@ extension Components {
                     self.kanbanBlocked = kanbanBlocked
                     self.budgetOrder = budgetOrder
                     self.rateLimitOrder = rateLimitOrder
+                    self.runbook = runbook
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case receivedAt
@@ -3588,31 +3711,38 @@ extension Components {
                     case kanbanBlocked
                     case budgetOrder
                     case rateLimitOrder
+                    case runbook
                 }
             }
             /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status`.
             internal var status: Components.Schemas.HermesStatusResponse.StatusPayload?
             /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/recentAnswers`.
             internal var recentAnswers: [Components.Schemas.HermesRecentAnswer]?
+            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/recentRuns`.
+            internal var recentRuns: [Components.Schemas.RunbookRun]?
             /// Creates a new `HermesStatusResponse`.
             ///
             /// - Parameters:
             ///   - ok:
             ///   - status:
             ///   - recentAnswers:
+            ///   - recentRuns:
             internal init(
                 ok: Swift.Bool,
                 status: Components.Schemas.HermesStatusResponse.StatusPayload? = nil,
-                recentAnswers: [Components.Schemas.HermesRecentAnswer]? = nil
+                recentAnswers: [Components.Schemas.HermesRecentAnswer]? = nil,
+                recentRuns: [Components.Schemas.RunbookRun]? = nil
             ) {
                 self.ok = ok
                 self.status = status
                 self.recentAnswers = recentAnswers
+                self.recentRuns = recentRuns
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case status
                 case recentAnswers
+                case recentRuns
             }
         }
         /// - Remark: Generated from `#/components/schemas/HermesCronJob`.
@@ -3737,6 +3867,100 @@ extension Components {
                 case jobName
                 case itemId
                 case itemTitle
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunbookSection`.
+        internal struct RunbookSection: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunbookSection/category`.
+            internal var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookSection/scripts`.
+            internal var scripts: [Components.Schemas.RunbookScript]
+            /// Creates a new `RunbookSection`.
+            ///
+            /// - Parameters:
+            ///   - category:
+            ///   - scripts:
+            internal init(
+                category: Swift.String,
+                scripts: [Components.Schemas.RunbookScript]
+            ) {
+                self.category = category
+                self.scripts = scripts
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case category
+                case scripts
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunbookScript`.
+        internal struct RunbookScript: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/name`.
+            internal var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/description`.
+            internal var description: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/category`.
+            internal var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/icon`.
+            internal var icon: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/confirm`.
+            internal var confirm: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/danger`.
+            internal var danger: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/confirmText`.
+            internal var confirmText: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/needsAuth`.
+            internal var needsAuth: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunbookScript/running`.
+            internal var running: Swift.Bool
+            /// Creates a new `RunbookScript`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - description:
+            ///   - category:
+            ///   - icon:
+            ///   - confirm:
+            ///   - danger:
+            ///   - confirmText:
+            ///   - needsAuth:
+            ///   - running:
+            internal init(
+                id: Swift.String,
+                name: Swift.String,
+                description: Swift.String? = nil,
+                category: Swift.String,
+                icon: Swift.String? = nil,
+                confirm: Swift.String? = nil,
+                danger: Swift.Bool? = nil,
+                confirmText: Swift.String? = nil,
+                needsAuth: Swift.Bool,
+                running: Swift.Bool
+            ) {
+                self.id = id
+                self.name = name
+                self.description = description
+                self.category = category
+                self.icon = icon
+                self.confirm = confirm
+                self.danger = danger
+                self.confirmText = confirmText
+                self.needsAuth = needsAuth
+                self.running = running
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case description
+                case category
+                case icon
+                case confirm
+                case danger
+                case confirmText
+                case needsAuth
+                case running
             }
         }
         /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer`.
@@ -3948,6 +4172,171 @@ extension Components {
                 case title
                 case answer
                 case answeredAt
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunbookRun`.
+        internal struct RunbookRun: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/scriptId`.
+            internal var scriptId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/scriptName`.
+            internal var scriptName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/itemId`.
+            internal var itemId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/status`.
+            internal enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case queued = "queued"
+                case running = "running"
+                case succeeded = "succeeded"
+                case failed = "failed"
+            }
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/status`.
+            internal var status: Components.Schemas.RunbookRun.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/active`.
+            internal var active: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/exitCode`.
+            internal var exitCode: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/createdAt`.
+            internal var createdAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/startedAt`.
+            internal var startedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RunbookRun/finishedAt`.
+            internal var finishedAt: Swift.Int?
+            /// Creates a new `RunbookRun`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - scriptId:
+            ///   - scriptName:
+            ///   - itemId:
+            ///   - status:
+            ///   - active:
+            ///   - exitCode:
+            ///   - createdAt:
+            ///   - startedAt:
+            ///   - finishedAt:
+            internal init(
+                id: Swift.String,
+                scriptId: Swift.String,
+                scriptName: Swift.String,
+                itemId: Swift.String? = nil,
+                status: Components.Schemas.RunbookRun.StatusPayload,
+                active: Swift.Bool,
+                exitCode: Swift.Int? = nil,
+                createdAt: Swift.Int,
+                startedAt: Swift.Int? = nil,
+                finishedAt: Swift.Int? = nil
+            ) {
+                self.id = id
+                self.scriptId = scriptId
+                self.scriptName = scriptName
+                self.itemId = itemId
+                self.status = status
+                self.active = active
+                self.exitCode = exitCode
+                self.createdAt = createdAt
+                self.startedAt = startedAt
+                self.finishedAt = finishedAt
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case scriptId
+                case scriptName
+                case itemId
+                case status
+                case active
+                case exitCode
+                case createdAt
+                case startedAt
+                case finishedAt
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunbookRunResponse`.
+        internal struct RunbookRunResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunbookRunResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunbookRunResponse/run`.
+            internal var run: Components.Schemas.RunbookRun
+            /// Creates a new `RunbookRunResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - run:
+            internal init(
+                ok: Swift.Bool,
+                run: Components.Schemas.RunbookRun
+            ) {
+                self.ok = ok
+                self.run = run
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case run
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunbookRunRequest`.
+        internal struct RunbookRunRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunbookRunRequest/scriptId`.
+            internal var scriptId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunbookRunRequest/itemId`.
+            internal var itemId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunbookRunRequest/confirmed`.
+            internal var confirmed: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/RunbookRunRequest/authenticated`.
+            internal var authenticated: Swift.Bool?
+            /// Creates a new `RunbookRunRequest`.
+            ///
+            /// - Parameters:
+            ///   - scriptId:
+            ///   - itemId:
+            ///   - confirmed:
+            ///   - authenticated:
+            internal init(
+                scriptId: Swift.String,
+                itemId: Swift.String? = nil,
+                confirmed: Swift.Bool? = nil,
+                authenticated: Swift.Bool? = nil
+            ) {
+                self.scriptId = scriptId
+                self.itemId = itemId
+                self.confirmed = confirmed
+                self.authenticated = authenticated
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case scriptId
+                case itemId
+                case confirmed
+                case authenticated
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunbookRunGetResponse`.
+        internal struct RunbookRunGetResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunbookRunGetResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunbookRunGetResponse/run`.
+            internal var run: Components.Schemas.RunbookRun
+            /// - Remark: Generated from `#/components/schemas/RunbookRunGetResponse/output`.
+            internal var output: Swift.String
+            /// Creates a new `RunbookRunGetResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - run:
+            ///   - output:
+            internal init(
+                ok: Swift.Bool,
+                run: Components.Schemas.RunbookRun,
+                output: Swift.String
+            ) {
+                self.ok = ok
+                self.run = run
+                self.output = output
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case run
+                case output
             }
         }
         /// - Remark: Generated from `#/components/schemas/UserDevicesResponse`.
