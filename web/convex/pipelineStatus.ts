@@ -44,7 +44,7 @@ export const recordWatchdog = internalMutation({
       await ctx.db.insert("pipelineStatus", { firstWatchdogAt: now, lastWatchdogAt: now });
     }
 
-    const silent = await openItemByDedupeKey(ctx, SILENT_DEDUPE_KEY);
+    const silent = await openItemByDedupeKey(ctx, "cowtail", SILENT_DEDUPE_KEY);
     if (silent) {
       await transitionItem(ctx, silent, "resolved", {
         actor: "cowtail",
@@ -62,7 +62,7 @@ export const checkSilence = internalMutation({
     const now = Date.now();
     const row = await pipelineRow(ctx);
     if (pipelineState(row, now).state !== "silent") return;
-    if (await openItemByDedupeKey(ctx, SILENT_DEDUPE_KEY)) return;
+    if (await openItemByDedupeKey(ctx, "cowtail", SILENT_DEDUPE_KEY)) return;
 
     await createItem(
       ctx,

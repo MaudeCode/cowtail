@@ -10,6 +10,11 @@ type RequestOptions = {
   requireServiceAuth?: boolean;
 };
 
+type Method = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
+
+// A body sent as is, such as an image, instead of as JSON.
+type RawBody = { bytes: Uint8Array; contentType: string };
+
 type HttpResponse = {
   statusCode: number;
   statusMessage: string;
@@ -64,8 +69,8 @@ async function readErrorMessage(response: HttpResponse): Promise<string> {
 function requestJson(
   urlString: string,
   options: {
-    method: "DELETE" | "GET" | "POST";
-    body?: string;
+    method: Method;
+    body?: string | Uint8Array;
     headers: Record<string, string>;
     timeoutMs: number;
   },
@@ -118,14 +123,16 @@ function requestJson(
 }
 
 async function requestJsonResponse<T>(
-  method: "DELETE" | "GET" | "POST",
+  method: Method,
   path: string,
   body: unknown | undefined,
   options: RequestOptions = {},
+  raw?: RawBody,
 ): Promise<T> {
   const { config, headers } = buildHeaders(Boolean(options.requireServiceAuth));
   const url = buildRequestUrl(requireBaseUrl(config), path);
-  const requestBody = body === undefined ? undefined : JSON.stringify(body);
+  const requestBody = raw ? raw.bytes : body === undefined ? undefined : JSON.stringify(body);
+  if (raw) headers["content-type"] = raw.contentType;
 
   let response: HttpResponse;
   try {
@@ -163,6 +170,22 @@ export async function postJson<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   return await requestJsonResponse("POST", path, body, options);
+}
+
+export async function patchJson<T>(
+  path: string,
+  body: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
+  return await requestJsonResponse("PATCH", path, body, options);
+}
+
+export async function putBytes<T>(
+  path: string,
+  raw: RawBody,
+  options: RequestOptions = {},
+): Promise<T> {
+  return await requestJsonResponse("PUT", path, undefined, options, raw);
 }
 
 export async function getJson<T>(path: string, options: RequestOptions = {}): Promise<T> {

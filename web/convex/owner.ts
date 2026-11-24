@@ -6,3 +6,12 @@ export function cowtailOwnerUserId(): string | undefined {
   }
   return undefined;
 }
+
+// The web origin, which also serves the Convex HTTP actions under `/actions`.
+export function cowtailWebOrigin(): string {
+  for (const name of ["COWTAIL_WEB_ORIGIN", "SITE_ORIGIN"]) {
+    const value = process.env[name]?.trim();
+    if (value) return value.replace(/\/+$/, "");
+  }
+  return "https://cowtail.example.com";
+}

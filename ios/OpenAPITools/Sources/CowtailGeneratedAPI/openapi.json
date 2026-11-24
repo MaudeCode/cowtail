@@ -1186,6 +1186,27 @@
                 "type": "string",
                 "minLength": 1
               },
+              "sourceInfo": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "iconUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "slug",
+                  "displayName"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "enum": [
@@ -1418,6 +1439,7 @@
             "required": [
               "id",
               "source",
+              "sourceInfo",
               "kind",
               "urgency",
               "state",

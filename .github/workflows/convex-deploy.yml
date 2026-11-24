@@ -77,6 +77,10 @@ jobs:
         working-directory: web
         run: pnpm exec convex deploy
 
+      - name: Seed built-in notification sources
+        working-directory: web
+        run: pnpm exec convex run sources:seedBuiltinSources
+
       - name: Merge duplicate Alertmanager lifecycles
         working-directory: web
         run: node scripts/migrate-alert-lifecycles.mjs

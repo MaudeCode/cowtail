@@ -163,6 +163,16 @@ hooks:
 
 Cowtail refuses a delivery whose `X-Hermes-Signature-256` does not match with 401, stores each `delivery_id` once, and answers every other event with 200.
 
+### Notification sources
+
+Each service that posts items is a registered source with its own token, display name and icon. Register one with the CLI, which prints its token once:
+
+```bash
+cowtail sources add deployer --name "Mac deployer" --icon deployer.png
+```
+
+The service then posts with `Authorization: Bearer cts_…` to `POST /actions/api/items`, and Cowtail sets the item's `source` from the token. A source token reaches only item ingest and its own items' events. `cowtail sources rotate` issues a new token and `cowtail sources disable` stops the source. The release seeds the built-in sources `alertmanager`, `hermes`, `cowtail` and `manual`, which post with the service token.
+
 ## Design
 
 Swiss dark mode — dark background, red accents, Space Grotesk + DM Mono, grid precision.

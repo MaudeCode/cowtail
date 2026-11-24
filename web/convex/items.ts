@@ -22,6 +22,7 @@ import {
 } from "./itemValidators";
 import { preferencesRow } from "./notificationPreferences";
 import { cowtailOwnerUserId } from "./owner";
+import { sourceInfo } from "./sources";
 
 type ItemFields = WithoutSystemFields<Doc<"items">>;
 type NewItem = Omit<
@@ -358,6 +359,7 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
   return {
     ...fields,
     id: String(_id),
+    sourceInfo: await sourceInfo(ctx, item.source),
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
     needsOwner: itemNeedsOwner(item, await alertWorkflowForItem(ctx, item)),
@@ -383,20 +385,23 @@ export const createItemRequest = v.object({
 
 type CreateItemRequest = Infer<typeof createItemRequest>;
 
-/** The open item a producer's `dedupeKey` names, if any. */
-export async function openItemByDedupeKey(ctx: QueryCtx, dedupeKey: string) {
+/**
+ * The open item a source's `dedupeKey` names, if any. A dedupeKey belongs to its source:
+ * another source's item never answers for it.
+ */
+export async function openItemByDedupeKey(ctx: QueryCtx, source: string, dedupeKey: string) {
   const matches = await ctx.db
     .query("items")
     .withIndex("by_dedupeKey", (q) => q.eq("dedupeKey", dedupeKey))
     .collect();
-  return matches.find((item) => !terminalItemStates.has(item.state));
+  return matches.find((item) => item.source === source && !terminalItemStates.has(item.state));
 }
 
 /** Creates an item, or records a repeat on the open item that shares its `dedupeKey`. */
 export async function createItem(ctx: MutationCtx, request: CreateItemRequest, now: number) {
   const actor = request.source;
   if (request.dedupeKey) {
-    const open = await openItemByDedupeKey(ctx, request.dedupeKey);
+    const open = await openItemByDedupeKey(ctx, request.source, request.dedupeKey);
     if (open) {
       const occurrenceCount = open.occurrenceCount + 1;
       const urgency = await ownerUrgency(ctx, request);
@@ -450,10 +455,15 @@ export const appendEvent = internalMutation({
       }),
     ),
     actor: v.string(),
+    // Set for a source token, which may only touch its own source's items.
+    source: v.optional(v.string()),
     now: v.number(),
   },
-  handler: async (ctx, { id, event, actor, now }) => {
+  handler: async (ctx, { id, event, actor, source, now }) => {
     const item = await requireItem(ctx, id);
+    if (source !== undefined && item.source !== source) {
+      throw new ConvexError({ code: "ITEM_OTHER_SOURCE" });
+    }
     if (event.type === "hermes_update") {
       await appendItemEvent(ctx, item._id, "hermes_update", actor, now, { text: event.text });
       await patchItemContent(ctx, item._id, { updatedAt: now });

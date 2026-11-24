@@ -101,6 +101,7 @@ export function buildApnsPayload(args: SendApnsNotificationArgs): string {
         body: args.body,
       },
       sound: "default",
+      "mutable-content": extras.mutableContent,
       "interruption-level": extras.interruptionLevel,
       "thread-id": extras.threadId,
       badge: extras.badge,

@@ -13,7 +13,7 @@ import {
   type Backend,
   advance,
   alertFields,
-  newBackend,
+  newBackendWithSources,
   request,
   rows,
   seedSession,
@@ -79,7 +79,7 @@ function expectTimelineReplaysState({ item, events }: ItemGetResponse) {
 
 describe("item ingest", () => {
   test("a repeat of an open dedupeKey counts into the open item", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const body = { source: "cron", kind: "failure", urgency: "today", title: "Backup failed" };
 
     const first = await createItem(t, { ...body, dedupeKey: "backup" });
@@ -94,7 +94,7 @@ describe("item ingest", () => {
   });
 
   test("a resolved item's dedupeKey starts a new item", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const body = { source: "cron", kind: "failure", urgency: "today", title: "Backup failed" };
     const first = await createItem(t, { ...body, dedupeKey: "backup" });
     await request(t, `/api/items/${first.id}/events`, {
@@ -110,7 +110,7 @@ describe("item ingest", () => {
   });
 
   test("a producer posts progress, then resolves its item", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const { id } = await createItem(t, {
       source: "hermes",
       kind: "failure",
@@ -147,7 +147,7 @@ describe("item ingest", () => {
   });
 
   test("item endpoints refuse callers without a service token or the owner's session", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const stranger = await seedSession(t, "someone-else");
 
     const anonymousCreate = await request(t, "/api/items", {
@@ -170,7 +170,7 @@ describe("item ingest", () => {
 
 describe("item deadlines", () => {
   test("an item still waiting at its deadline expires", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const question = {
       source: "hermes",
       kind: "question",
@@ -200,7 +200,7 @@ describe("owner actions", () => {
   }
 
   test("the owner acks, then snoozes, an item and both land on its timeline", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const act = await ownerActions(t);
     const { id } = await createItem(t, {
       source: "alertmanager",
@@ -232,7 +232,7 @@ describe("owner actions", () => {
   });
 
   test("a snooze must end in the future", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const act = await ownerActions(t);
     const { id } = await createItem(t, {
       source: "cron",
@@ -248,7 +248,7 @@ describe("owner actions", () => {
   });
 
   test("an answer is recorded only for an action the item offers", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const act = await ownerActions(t);
     const { id } = await createItem(t, {
       source: "hermes",
@@ -275,7 +275,7 @@ describe("owner actions", () => {
   });
 
   test("a closed item takes no more actions", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const act = await ownerActions(t);
     const { id } = await createItem(t, {
       source: "cron",
@@ -298,7 +298,7 @@ describe("owner actions", () => {
 
 describe("item list", () => {
   test("filters by state, needsOwner, source and creation time", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const approval = await createItem(t, {
       source: "hermes",
       kind: "approval",
@@ -327,7 +327,7 @@ describe("item list", () => {
   });
 
   test("lists the newest created first, backfilled history included", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const fresh = await createItem(t, {
       source: "cron",
       kind: "fyi",
@@ -345,7 +345,7 @@ describe("item list", () => {
   });
 
   test("a page reads at most limit items and nextCursor continues it", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     for (const title of ["first", "second", "third"]) {
       await createItem(t, { source: "cron", kind: "fyi", urgency: "whenever", title });
       vi.advanceTimersByTime(1_000);
@@ -387,7 +387,7 @@ describe("alert items", () => {
   }
 
   test("an Alertmanager alert keeps one item through its lifecycle", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     const webhook = (status: "firing" | "resolved") =>
       request(t, "/api/alerts/webhook", {
         method: "POST",
@@ -493,7 +493,7 @@ describe("alert items", () => {
   ];
 
   test.each(workflowCases)("$workflow → $state, needsOwner $needsOwner", async (example) => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     await t.run(async (ctx) => {
       const alertId = await ctx.db.insert("alerts", alertFields(example.alert));
       if (!example.job) return;
@@ -535,7 +535,7 @@ describe("alert items", () => {
   });
 
   test("an alert whose source URL is not a web link still lists, without the link", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     await t.run((ctx) =>
       ctx.db.insert("alerts", alertFields({ generatorURL: "javascript:alert(1)" })),
     );
@@ -546,7 +546,7 @@ describe("alert items", () => {
   });
 
   test("the backfill creates one item per alert and is safe to run again", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     await t.run(async (ctx) => {
       for (const alertname of ["TargetDown", "CephHealthWarn", "NodeMemoryPressure"]) {
         await ctx.db.insert("alerts", alertFields({ alertname }));
@@ -564,7 +564,7 @@ describe("alert items", () => {
   });
 
   test("the owner's noise call resolves the alert's item", async () => {
-    const t = newBackend();
+    const t = await newBackendWithSources("cron");
     await request(t, "/api/alerts/webhook", {
       method: "POST",
       bearer: "alertmanager-token",
