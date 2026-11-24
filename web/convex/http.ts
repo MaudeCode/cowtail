@@ -36,6 +36,9 @@ import {
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
+  maintenanceWindowListResponseSchema,
+  maintenanceWindowResponseSchema,
+  maintenanceWindowStartRequestSchema,
   snoozeOptionsQuerySchema,
   snoozeOptionsResponseSchema,
   itemCreateResponseSchema,
@@ -89,6 +92,7 @@ import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecyc
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { hermesHookItem } from "./hermesHooks";
 import { itemErrorCode } from "./items";
+import { expireSilences, silenceWindow } from "./maintenance";
 import { resolveItemStatsRange } from "./itemStats";
 import {
   exchangeOidcCode,
@@ -1494,6 +1498,7 @@ const codedErrorStatus: Record<string, [number, string]> = {
   ANSWER_PENDING: [409, "An answer to this item is already on its way"],
   RESPONSE_NOT_FOUND: [404, "Response not found"],
   RESPONSE_NOT_CLAIMED: [409, "Response is not claimed with this token"],
+  MAINTENANCE_WINDOW_NOT_FOUND: [404, "Maintenance window not found"],
 };
 
 function codedErrorResponse(error: unknown) {
@@ -1503,14 +1508,21 @@ function codedErrorResponse(error: unknown) {
   return jsonError(known[1], known[0], { code });
 }
 
-// Readers of items, alerts and fixes are trusted services (the CLI, Hermes) or the owner's
-// app session.
-async function requireItemReader(c: RouteContext) {
+// A trusted service (the CLI, Hermes) or the owner's app session, and who is acting.
+async function requireOwnerOrService(c: RouteContext): Promise<{ actor: string } | Response> {
   const serviceTokens = [process.env.PUSH_API_BEARER_TOKEN, process.env.COWTAIL_WORKER_TOKEN];
-  if (isBearerTokenAuthorized(c.req.header("authorization"), serviceTokens)) return null;
+  if (isBearerTokenAuthorized(c.req.header("authorization"), serviceTokens)) {
+    return { actor: "service" };
+  }
   const auth = await requireAppSession(c);
-  if ("error" in auth) return auth.error;
-  return requireCowtailOwner(auth);
+  if (auth.error) return auth.error;
+  return requireCowtailOwner(auth) ?? { actor: auth.userId };
+}
+
+// Readers of items, alerts and fixes are trusted services or the owner's app session.
+async function requireItemReader(c: RouteContext) {
+  const reader = await requireOwnerOrService(c);
+  return reader instanceof Response ? reader : null;
 }
 
 async function itemResponse(c: RouteContext, id: string) {
@@ -1871,6 +1883,79 @@ app.get("/api/me/snooze-options", async (c) => {
       options: snoozeOptions(Date.now(), parsed.data.timeZone),
     }),
   );
+});
+
+// --- Maintenance windows ----------------------------------------------------------------
+
+// POST /api/me/maintenance-windows — start a window now; its alerts are silenced in
+// Alertmanager, and a failed silence is recorded on the window rather than refused
+app.post("/api/me/maintenance-windows", async (c) => {
+  const caller = await requireOwnerOrService(c);
+  if (caller instanceof Response) return caller;
+
+  const parsed = maintenanceWindowStartRequestSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const started = await c.env.runMutation((internal as any).maintenance.start, {
+    title: parsed.data.title,
+    durationMs: parsed.data.durationMs,
+    matchers: parsed.data.matchers ?? [],
+    sources: parsed.data.sources ?? [],
+    createdBy: caller.actor,
+    now: Date.now(),
+  });
+  const silence = await silenceWindow(started);
+  if (silence) {
+    await c.env.runMutation((internal as any).maintenance.recordSilence, {
+      id: started.id,
+      ...silence,
+    });
+  }
+  const window = await c.env.runQuery((internal as any).maintenance.get, {
+    id: started.id,
+    now: Date.now(),
+  });
+  return c.json(maintenanceWindowResponseSchema.parse({ ok: true, window }));
+});
+
+// GET /api/me/maintenance-windows — the running windows and the most recent ones over
+app.get("/api/me/maintenance-windows", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const windows = await c.env.runQuery((internal as any).maintenance.list, { now: Date.now() });
+  return c.json(maintenanceWindowListResponseSchema.parse({ ok: true, ...windows }));
+});
+
+// POST /api/me/maintenance-windows/:id/end — end a running window now and expire its
+// silences; a window already over is returned as it is
+app.post("/api/me/maintenance-windows/:id/end", async (c) => {
+  const caller = await requireOwnerOrService(c);
+  if (caller instanceof Response) return caller;
+
+  let ended: { window: { id: string }; silenceIds: string[] };
+  try {
+    ended = await c.env.runMutation((internal as any).maintenance.end, {
+      id: c.req.param("id"),
+      now: Date.now(),
+    });
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+  const silenceError = await expireSilences(ended.silenceIds);
+  if (silenceError) {
+    await c.env.runMutation((internal as any).maintenance.recordSilence, {
+      id: ended.window.id,
+      silenceError,
+    });
+  }
+  const window = await c.env.runQuery((internal as any).maintenance.get, {
+    id: ended.window.id,
+    now: Date.now(),
+  });
+  return c.json(maintenanceWindowResponseSchema.parse({ ok: true, window }));
 });
 
 // POST /api/me/items/:id/actions — the owner acks, snoozes or answers an item

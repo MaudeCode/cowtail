@@ -90,6 +90,7 @@ The Hermes plugin needs only Python 3.11 or later. Test it with `python -m unitt
    - `APPLE_AUTH_AUDIENCE` — optional explicit Sign in with Apple audience override; defaults to `APNS_TOPIC`
    - `COWTAIL_WATCHDOG_MAX_SILENCE_MINUTES` — optional; how long the Alertmanager Watchdog may stay silent before Cowtail raises "Alert pipeline silent" (default `15`)
    - `COWTAIL_HERMES_HOOK_SECRET` — the shared secret Hermes signs its outbound webhooks with
+   - `ALERTMANAGER_BASE_URL` — Alertmanager's API as Convex reaches it inside the cluster, such as `http://alertmanager.example:9093`. Maintenance windows silence alerts through it; unset, a window still holds back Cowtail's pushes and shows that the silence failed. No nginx route exposes it on the web origin.
 
 4. **Optional: sign in with Pocket ID (OIDC).** Cowtail is single-owner, and Pocket ID signs in as the same owner as Sign in with Apple.
    - In Pocket ID, add an OIDC client that is confidential (not public), with PKCE enabled and the callback URL `<COWTAIL_WEB_ORIGIN>/actions/api/auth/oidc/callback`.

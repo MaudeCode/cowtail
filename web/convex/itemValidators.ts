@@ -57,4 +57,6 @@ export const itemFields = {
   answeredAt: v.optional(v.number()),
   // The newest hermes_update, kept as it is written so no reader scans the timeline.
   latestUpdate: v.optional(v.object({ text: v.string(), at: v.number() })),
+  // The maintenance window that held back the item's push.
+  maintenanceWindowId: v.optional(v.id("maintenanceWindows")),
 };

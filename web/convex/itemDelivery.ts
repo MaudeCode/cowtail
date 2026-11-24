@@ -15,6 +15,7 @@ import { internalAction, internalMutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { ApsExtras } from "./apns";
 import { appendItemEvent, ownerBadgeCount, type ItemDeliveryReason } from "./items";
+import { coveringWindow } from "./maintenance";
 import { effectivePreferences, preferencesRow } from "./notificationPreferences";
 import { cowtailOwnerUserId } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
@@ -210,6 +211,16 @@ async function joinTodayBatch(ctx: MutationCtx, itemId: Id<"items">, now: number
   return batchId;
 }
 
+// An item a maintenance window covers is recorded against the window and pushes nothing.
+async function heldForMaintenance(ctx: MutationCtx, item: Doc<"items">, now: number) {
+  const window = await coveringWindow(ctx, item, now);
+  if (!window) return undefined;
+  if (item.maintenanceWindowId !== window._id) {
+    await ctx.db.patch(item._id, { maintenanceWindowId: window._id });
+  }
+  return { maintenanceWindowId: String(window._id) };
+}
+
 async function snoozedSince(ctx: QueryCtx, itemId: Id<"items">, since: number) {
   const events = await ctx.db
     .query("itemEvents")
@@ -234,8 +245,8 @@ export const planDelivery = internalMutation({
     const item = await ctx.db.get(itemId);
     if (!item) return null;
     const decided = { trigger: reason, attempt };
-    const skip = async (why: string) => {
-      await recordDecision(ctx, itemId, now, { ...decided, decision: "skipped", why });
+    const skip = async (why: string, extra: Record<string, unknown> = {}) => {
+      await recordDecision(ctx, itemId, now, { ...decided, decision: "skipped", why, ...extra });
       return null;
     };
 
@@ -252,6 +263,8 @@ export const planDelivery = internalMutation({
         itemIds: [itemId],
       };
     }
+    const held = await heldForMaintenance(ctx, item, now);
+    if (held) return await skip("maintenance", held);
     if (item.urgency === "whenever") return await skip("whenever");
     if (reason === "resend" && item.urgency !== "now") return await skip("not_now");
     if (
@@ -301,12 +314,28 @@ export const planBatch = internalMutation({
     const userId = cowtailOwnerUserId();
     if (!batch || batch.sentAt !== undefined || !userId) return null;
 
-    const items = (await Promise.all(batch.itemIds.map((id) => ctx.db.get(id)))).filter(
-      (item): item is Doc<"items"> => item !== null,
-    );
+    const decided = { trigger: "batch", batchId: String(batchId) };
+    // An item a maintenance window started since covers leaves the batch silently.
+    const items: Doc<"items">[] = [];
+    for (const item of await Promise.all(batch.itemIds.map((id) => ctx.db.get(id)))) {
+      if (!item) continue;
+      const held = item.state === "open" && (await heldForMaintenance(ctx, item, now));
+      if (!held) {
+        items.push(item);
+        continue;
+      }
+      await ctx.db.patch(batchId, {
+        itemIds: (await ctx.db.get(batchId))!.itemIds.filter((id) => id !== item._id),
+      });
+      await recordDecision(ctx, item._id, now, {
+        ...decided,
+        decision: "skipped",
+        why: "maintenance",
+        ...held,
+      });
+    }
     // An item raised to `now` was pushed on its own.
     const due = items.filter((item) => item.state === "open" && item.urgency === "today");
-    const decided = { trigger: "batch", batchId: String(batchId) };
 
     const { quietHours } = effectivePreferences(await preferencesRow(ctx, userId));
     const quietEnd = quietHours ? quietHoursEndAt(now, quietHours) : undefined;

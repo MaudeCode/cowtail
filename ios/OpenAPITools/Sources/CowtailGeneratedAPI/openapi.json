@@ -1110,6 +1110,10 @@
           },
           "fix": {
             "$ref": "#/components/schemas/FixRecord"
+          },
+          "maintenanceWindowId": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -2506,6 +2510,188 @@
           "count",
           "devices"
         ]
+      },
+      "MaintenanceWindowListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "active": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceWindowRecord"
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceWindowRecord"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "active",
+          "recent"
+        ]
+      },
+      "MaintenanceWindowRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "startsAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endsAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "matchers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ]
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^(\\*|[a-z0-9][a-z0-9:_-]*)$"
+            }
+          },
+          "allAlerts": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "silenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "silenceError": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "startsAt",
+          "endsAt",
+          "createdBy",
+          "matchers",
+          "sources",
+          "allAlerts",
+          "active",
+          "silenceIds"
+        ]
+      },
+      "MaintenanceWindowResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "window": {
+            "$ref": "#/components/schemas/MaintenanceWindowRecord"
+          }
+        },
+        "required": [
+          "ok",
+          "window"
+        ]
+      },
+      "MaintenanceWindowStartRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 60000,
+            "maximum": 604800000
+          },
+          "matchers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ]
+            },
+            "maxItems": 10
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^(\\*|[a-z0-9][a-z0-9:_-]*)$"
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "title",
+          "durationMs"
+        ]
       }
     },
     "parameters": {}
@@ -3829,6 +4015,182 @@
           },
           "401": {
             "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/maintenance-windows": {
+      "get": {
+        "operationId": "listMaintenanceWindows",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "The running maintenance windows and the most recent ones over",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The windows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceWindowListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "startMaintenanceWindow",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Start a maintenance window now",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaintenanceWindowStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The started window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceWindowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/maintenance-windows/{id}/end": {
+      "post": {
+        "operationId": "endMaintenanceWindow",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "End a maintenance window now",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The window, over.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceWindowResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Maintenance window not found.",
             "content": {
               "application/json": {
                 "schema": {

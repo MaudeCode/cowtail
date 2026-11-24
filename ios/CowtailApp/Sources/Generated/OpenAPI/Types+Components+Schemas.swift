@@ -1488,6 +1488,8 @@ extension Components {
             internal var createdDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/fix`.
             internal var fix: Components.Schemas.FixRecord?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/maintenanceWindowId`.
+            internal var maintenanceWindowId: Swift.String?
             /// Creates a new `ItemRecord`.
             ///
             /// - Parameters:
@@ -1527,6 +1529,7 @@ extension Components {
             ///   - approvalNeedsAuth:
             ///   - createdDate:
             ///   - fix:
+            ///   - maintenanceWindowId:
             internal init(
                 id: Swift.String,
                 source: Swift.String,
@@ -1563,7 +1566,8 @@ extension Components {
                 investigationResult: Components.Schemas.ItemRecord.InvestigationResultPayload? = nil,
                 approvalNeedsAuth: Swift.Bool? = nil,
                 createdDate: Swift.String? = nil,
-                fix: Components.Schemas.FixRecord? = nil
+                fix: Components.Schemas.FixRecord? = nil,
+                maintenanceWindowId: Swift.String? = nil
             ) {
                 self.id = id
                 self.source = source
@@ -1601,6 +1605,7 @@ extension Components {
                 self.approvalNeedsAuth = approvalNeedsAuth
                 self.createdDate = createdDate
                 self.fix = fix
+                self.maintenanceWindowId = maintenanceWindowId
             }
             internal enum CodingKeys: String, CodingKey {
                 case id
@@ -1639,6 +1644,7 @@ extension Components {
                 case approvalNeedsAuth
                 case createdDate
                 case fix
+                case maintenanceWindowId
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemAction`.
@@ -3844,6 +3850,226 @@ extension Components {
                 case userId
                 case count
                 case devices
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MaintenanceWindowListResponse`.
+        internal struct MaintenanceWindowListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowListResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowListResponse/active`.
+            internal var active: [Components.Schemas.MaintenanceWindowRecord]
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowListResponse/recent`.
+            internal var recent: [Components.Schemas.MaintenanceWindowRecord]
+            /// Creates a new `MaintenanceWindowListResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - active:
+            ///   - recent:
+            internal init(
+                ok: Swift.Bool,
+                active: [Components.Schemas.MaintenanceWindowRecord],
+                recent: [Components.Schemas.MaintenanceWindowRecord]
+            ) {
+                self.ok = ok
+                self.active = active
+                self.recent = recent
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case active
+                case recent
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord`.
+        internal struct MaintenanceWindowRecord: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/title`.
+            internal var title: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/startsAt`.
+            internal var startsAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/endsAt`.
+            internal var endsAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/endedAt`.
+            internal var endedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/createdBy`.
+            internal var createdBy: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/MatchersPayload`.
+            internal struct MatchersPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/MatchersPayload/label`.
+                internal var label: Swift.String
+                /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/MatchersPayload/value`.
+                internal var value: Swift.String
+                /// Creates a new `MatchersPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - label:
+                ///   - value:
+                internal init(
+                    label: Swift.String,
+                    value: Swift.String
+                ) {
+                    self.label = label
+                    self.value = value
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case label
+                    case value
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/matchers`.
+            internal typealias MatchersPayload = [Components.Schemas.MaintenanceWindowRecord.MatchersPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/matchers`.
+            internal var matchers: Components.Schemas.MaintenanceWindowRecord.MatchersPayload
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/sources`.
+            internal var sources: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/allAlerts`.
+            internal var allAlerts: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/active`.
+            internal var active: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/silenceIds`.
+            internal var silenceIds: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/silenceError`.
+            internal var silenceError: Swift.String?
+            /// Creates a new `MaintenanceWindowRecord`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - title:
+            ///   - startsAt:
+            ///   - endsAt:
+            ///   - endedAt:
+            ///   - createdBy:
+            ///   - matchers:
+            ///   - sources:
+            ///   - allAlerts:
+            ///   - active:
+            ///   - silenceIds:
+            ///   - silenceError:
+            internal init(
+                id: Swift.String,
+                title: Swift.String,
+                startsAt: Swift.Int,
+                endsAt: Swift.Int,
+                endedAt: Swift.Int? = nil,
+                createdBy: Swift.String,
+                matchers: Components.Schemas.MaintenanceWindowRecord.MatchersPayload,
+                sources: [Swift.String],
+                allAlerts: Swift.Bool,
+                active: Swift.Bool,
+                silenceIds: [Swift.String],
+                silenceError: Swift.String? = nil
+            ) {
+                self.id = id
+                self.title = title
+                self.startsAt = startsAt
+                self.endsAt = endsAt
+                self.endedAt = endedAt
+                self.createdBy = createdBy
+                self.matchers = matchers
+                self.sources = sources
+                self.allAlerts = allAlerts
+                self.active = active
+                self.silenceIds = silenceIds
+                self.silenceError = silenceError
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case title
+                case startsAt
+                case endsAt
+                case endedAt
+                case createdBy
+                case matchers
+                case sources
+                case allAlerts
+                case active
+                case silenceIds
+                case silenceError
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MaintenanceWindowResponse`.
+        internal struct MaintenanceWindowResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowResponse/window`.
+            internal var window: Components.Schemas.MaintenanceWindowRecord
+            /// Creates a new `MaintenanceWindowResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - window:
+            internal init(
+                ok: Swift.Bool,
+                window: Components.Schemas.MaintenanceWindowRecord
+            ) {
+                self.ok = ok
+                self.window = window
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case window
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest`.
+        internal struct MaintenanceWindowStartRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/title`.
+            internal var title: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/durationMs`.
+            internal var durationMs: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/MatchersPayload`.
+            internal struct MatchersPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/MatchersPayload/label`.
+                internal var label: Swift.String
+                /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/MatchersPayload/value`.
+                internal var value: Swift.String
+                /// Creates a new `MatchersPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - label:
+                ///   - value:
+                internal init(
+                    label: Swift.String,
+                    value: Swift.String
+                ) {
+                    self.label = label
+                    self.value = value
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case label
+                    case value
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/matchers`.
+            internal typealias MatchersPayload = [Components.Schemas.MaintenanceWindowStartRequest.MatchersPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/matchers`.
+            internal var matchers: Components.Schemas.MaintenanceWindowStartRequest.MatchersPayload?
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/sources`.
+            internal var sources: [Swift.String]?
+            /// Creates a new `MaintenanceWindowStartRequest`.
+            ///
+            /// - Parameters:
+            ///   - title:
+            ///   - durationMs:
+            ///   - matchers:
+            ///   - sources:
+            internal init(
+                title: Swift.String,
+                durationMs: Swift.Int,
+                matchers: Components.Schemas.MaintenanceWindowStartRequest.MatchersPayload? = nil,
+                sources: [Swift.String]? = nil
+            ) {
+                self.title = title
+                self.durationMs = durationMs
+                self.matchers = matchers
+                self.sources = sources
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case title
+                case durationMs
+                case matchers
+                case sources
             }
         }
     }

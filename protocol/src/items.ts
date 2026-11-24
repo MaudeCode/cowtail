@@ -128,6 +128,8 @@ export const itemRecordSchema = z.object({
   createdDate: dateOnlyStringSchema.optional(),
   // Alert items only: the newest fix recorded against the item's alert.
   fix: fixRecordSchema.optional(),
+  // The maintenance window that covered the item when Cowtail held back its push.
+  maintenanceWindowId: nonEmptyStringSchema.optional(),
 });
 
 export const itemEventRecordSchema = z.object({

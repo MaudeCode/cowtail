@@ -108,6 +108,21 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /me/devices`.
     /// - Remark: Generated from `#/paths//me/devices/get(listMyDevices)`.
     func listMyDevices(_ input: Operations.ListMyDevices.Input) async throws -> Operations.ListMyDevices.Output
+    /// The running maintenance windows and the most recent ones over
+    ///
+    /// - Remark: HTTP `GET /me/maintenance-windows`.
+    /// - Remark: Generated from `#/paths//me/maintenance-windows/get(listMaintenanceWindows)`.
+    func listMaintenanceWindows(_ input: Operations.ListMaintenanceWindows.Input) async throws -> Operations.ListMaintenanceWindows.Output
+    /// Start a maintenance window now
+    ///
+    /// - Remark: HTTP `POST /me/maintenance-windows`.
+    /// - Remark: Generated from `#/paths//me/maintenance-windows/post(startMaintenanceWindow)`.
+    func startMaintenanceWindow(_ input: Operations.StartMaintenanceWindow.Input) async throws -> Operations.StartMaintenanceWindow.Output
+    /// End a maintenance window now
+    ///
+    /// - Remark: HTTP `POST /me/maintenance-windows/{id}/end`.
+    /// - Remark: Generated from `#/paths//me/maintenance-windows/{id}/end/post(endMaintenanceWindow)`.
+    func endMaintenanceWindow(_ input: Operations.EndMaintenanceWindow.Input) async throws -> Operations.EndMaintenanceWindow.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -342,6 +357,39 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//me/devices/get(listMyDevices)`.
     internal func listMyDevices(headers: Operations.ListMyDevices.Input.Headers = .init()) async throws -> Operations.ListMyDevices.Output {
         try await listMyDevices(Operations.ListMyDevices.Input(headers: headers))
+    }
+    /// The running maintenance windows and the most recent ones over
+    ///
+    /// - Remark: HTTP `GET /me/maintenance-windows`.
+    /// - Remark: Generated from `#/paths//me/maintenance-windows/get(listMaintenanceWindows)`.
+    internal func listMaintenanceWindows(headers: Operations.ListMaintenanceWindows.Input.Headers = .init()) async throws -> Operations.ListMaintenanceWindows.Output {
+        try await listMaintenanceWindows(Operations.ListMaintenanceWindows.Input(headers: headers))
+    }
+    /// Start a maintenance window now
+    ///
+    /// - Remark: HTTP `POST /me/maintenance-windows`.
+    /// - Remark: Generated from `#/paths//me/maintenance-windows/post(startMaintenanceWindow)`.
+    internal func startMaintenanceWindow(
+        headers: Operations.StartMaintenanceWindow.Input.Headers = .init(),
+        body: Operations.StartMaintenanceWindow.Input.Body? = nil
+    ) async throws -> Operations.StartMaintenanceWindow.Output {
+        try await startMaintenanceWindow(Operations.StartMaintenanceWindow.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// End a maintenance window now
+    ///
+    /// - Remark: HTTP `POST /me/maintenance-windows/{id}/end`.
+    /// - Remark: Generated from `#/paths//me/maintenance-windows/{id}/end/post(endMaintenanceWindow)`.
+    internal func endMaintenanceWindow(
+        path: Operations.EndMaintenanceWindow.Input.Path,
+        headers: Operations.EndMaintenanceWindow.Input.Headers = .init()
+    ) async throws -> Operations.EndMaintenanceWindow.Output {
+        try await endMaintenanceWindow(Operations.EndMaintenanceWindow.Input(
+            path: path,
+            headers: headers
+        ))
     }
 }
 

@@ -43,6 +43,10 @@ import {
   itemSourcesResponseSchema,
   itemStatsQuerySchema,
   itemStatsResponseSchema,
+  maintenanceWindowListResponseSchema,
+  maintenanceWindowRecordSchema,
+  maintenanceWindowResponseSchema,
+  maintenanceWindowStartRequestSchema,
   snoozeOptionsQuerySchema,
   snoozeOptionsResponseSchema,
   notificationPreferencesResponseSchema,
@@ -119,6 +123,19 @@ const ItemStatsResponse = itemStatsResponseSchema.meta({ id: "ItemStatsResponse"
 const SnoozeOptionsResponse = snoozeOptionsResponseSchema.meta({ id: "SnoozeOptionsResponse" });
 const ItemSourcesResponse = itemSourcesResponseSchema.meta({ id: "ItemSourcesResponse" });
 const UserDevicesResponse = userDevicesResponseSchema.meta({ id: "UserDevicesResponse" });
+// The banner and the start sheet decode one window type.
+zodToOpenAPIRegistry.add(maintenanceWindowRecordSchema, {
+  _internal: { refId: "MaintenanceWindowRecord" },
+});
+const MaintenanceWindowStartRequest = maintenanceWindowStartRequestSchema.meta({
+  id: "MaintenanceWindowStartRequest",
+});
+const MaintenanceWindowResponse = maintenanceWindowResponseSchema.meta({
+  id: "MaintenanceWindowResponse",
+});
+const MaintenanceWindowListResponse = maintenanceWindowListResponseSchema.meta({
+  id: "MaintenanceWindowListResponse",
+});
 const ErrorResponse = z
   .object({
     ok: z.literal(false),
@@ -487,6 +504,52 @@ registry.registerPath({
   responses: {
     200: jsonResponse("The account's devices.", UserDevicesResponse),
     401: jsonResponse("App session required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/me/maintenance-windows",
+  operationId: "listMaintenanceWindows",
+  tags: ["maintenance"],
+  summary: "The running maintenance windows and the most recent ones over",
+  security: [{ appSession: [] }],
+  responses: {
+    200: jsonResponse("The windows.", MaintenanceWindowListResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/me/maintenance-windows",
+  operationId: "startMaintenanceWindow",
+  tags: ["maintenance"],
+  summary: "Start a maintenance window now",
+  security: [{ appSession: [] }],
+  request: { body: { content: jsonContent(MaintenanceWindowStartRequest) } },
+  responses: {
+    200: jsonResponse("The started window.", MaintenanceWindowResponse),
+    400: jsonResponse("Invalid window.", ErrorResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/me/maintenance-windows/{id}/end",
+  operationId: "endMaintenanceWindow",
+  tags: ["maintenance"],
+  summary: "End a maintenance window now",
+  security: [{ appSession: [] }],
+  request: { params: z.object({ id: nonEmptyStringSchema }) },
+  responses: {
+    200: jsonResponse("The window, over.", MaintenanceWindowResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+    404: jsonResponse("Maintenance window not found.", ErrorResponse),
   },
 });
 

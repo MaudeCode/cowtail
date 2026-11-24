@@ -423,7 +423,7 @@ export async function ownerBadgeCount(ctx: QueryCtx) {
 }
 
 async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
-  const { _id, _creationTime, alertId, investigationJobId, ...fields } = item;
+  const { _id, _creationTime, alertId, investigationJobId, maintenanceWindowId, ...fields } = item;
   const { alert, jobs, workflow } = await alertContext(ctx, item);
   const resolvedAt = item.state === "resolved" ? item.resolvedAt : undefined;
   return {
@@ -432,6 +432,7 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     sourceInfo: await sourceInfo(ctx, item.source),
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
+    maintenanceWindowId: maintenanceWindowId ? String(maintenanceWindowId) : undefined,
     needsOwner: itemNeedsOwner(item, workflow),
     needsOwnerWhenOpen:
       item.state === "snoozed" ? itemNeedsOwner({ ...item, state: "open" }, workflow) : undefined,

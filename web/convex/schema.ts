@@ -88,6 +88,22 @@ export default defineSchema({
     payload: v.record(v.string(), v.any()),
   }).index("by_item_at", ["itemId", "at"]),
 
+  // Planned work: alerts it covers are silenced in Alertmanager, and items it covers do not
+  // push. `endedAt` is set when the owner ends it before `endsAt`.
+  maintenanceWindows: defineTable({
+    title: v.string(),
+    startsAt: v.number(),
+    endsAt: v.number(),
+    endedAt: v.optional(v.number()),
+    createdBy: v.string(),
+    // Alert labels that must equal these values, ANDed.
+    matchers: v.array(v.object({ label: v.string(), value: v.string() })),
+    // Item sources it covers; `*` is every source and `alertmanager` every alert.
+    sources: v.array(v.string()),
+    silenceIds: v.array(v.string()),
+    silenceError: v.optional(v.string()),
+  }).index("by_endsAt", ["endsAt"]),
+
   // `today` items wait here for one summary push when the window ends.
   itemPushBatches: defineTable({
     windowEndsAt: v.number(),
