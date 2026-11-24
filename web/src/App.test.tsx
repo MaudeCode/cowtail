@@ -91,7 +91,7 @@ const fixed = item({
 
 describe("each area's sections, in its figure's order", () => {
   test.each([
-    ["/", ["Needs you", "Hermes is on it", "Cluster", "Hermes", "Handled · 24h"]],
+    ["/", ["Needs you", "Hermes is on it", "Upcoming", "Cluster", "Hermes", "Handled · 24h"]],
     [
       "/cluster",
       ["Alert pipeline", "Nodes", "Ceph", "Firing by namespace", "Volume · 7 days", "Noisiest"],
@@ -229,7 +229,22 @@ describe("acting from Home", () => {
     expect([approve, deny].map((button) => button.hasAttribute("disabled"))).toEqual([true, true]);
   });
 
-  test("Snooze posts a time in the future", async () => {
+  test("Snooze opens a picker of four presets, each with its time, then a custom time", async () => {
+    stubApi(routes());
+    renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Snooze" }));
+
+    const picker = screen.getByRole("dialog", { name: "Snooze until" });
+    expect(
+      within(picker)
+        .getAllByRole("button")
+        .map((button) => button.firstChild?.textContent),
+    ).toEqual(["1 hour", "4 hours", "Tomorrow", "Next Monday", ""]);
+    expect(within(picker).getByLabelText("Custom")).toHaveAttribute("type", "datetime-local");
+  });
+
+  test("a custom snooze posts the local time the owner entered", async () => {
     const { calls } = stubApi({
       ...routes(),
       "POST /actions/api/me/items/alert-1/actions": { ok: true, item: alert },
@@ -237,14 +252,47 @@ describe("acting from Home", () => {
     renderApp("/");
 
     await userEvent.click(await screen.findByRole("button", { name: "Snooze" }));
-    await userEvent.click(screen.getByRole("button", { name: "1h" }));
+    await userEvent.type(screen.getByLabelText("Custom"), "2030-01-02T09:00");
+    await userEvent.click(screen.getByRole("button", { name: "Snooze until this time" }));
 
-    await waitFor(() => expect(calls.filter((call) => call.method === "POST")).toHaveLength(1));
-    const { type, until } = calls.find((call) => call.method === "POST")!.body as {
-      type: string;
-      until: number;
-    };
-    expect([type, until > Date.now()]).toEqual(["snooze", true]);
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/items/alert-1/actions",
+          body: { type: "snooze", until: new Date(2030, 0, 2, 9, 0).getTime() },
+        },
+      ]),
+    );
+  });
+
+  test("Upcoming lists each snoozed item's return time, and Unsnooze brings it back", async () => {
+    const snoozed = item({
+      id: "snoozed-1",
+      state: "snoozed",
+      needsOwner: false,
+      title: "CephOSDNearFull",
+      snoozedUntil: new Date(2030, 0, 2, 9, 0).getTime(),
+    });
+    const { calls } = stubApi({
+      ...signedIn({ "GET /actions/api/items/inbox": inbox({ upcoming: [snoozed] }) }),
+      "POST /actions/api/me/items/snoozed-1/actions": { ok: true, item: snoozed },
+    });
+    renderApp("/");
+
+    const upcoming = (await screen.findByText("CephOSDNearFull")).closest("section")!;
+    expect(within(upcoming).getByText("02 Jan 09:00")).toBeInTheDocument();
+    await userEvent.click(within(upcoming).getByRole("button", { name: "Unsnooze" }));
+
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/items/snoozed-1/actions",
+          body: { type: "unsnooze" },
+        },
+      ]),
+    );
   });
 });
 

@@ -37,12 +37,19 @@ export function item(overrides: Partial<ItemRecord> = {}): ItemRecord {
 export function inbox(lists: Partial<Omit<ItemInboxResponse, "ok" | "counts">> = {}) {
   const needsYou = lists.needsYou ?? [];
   const withHermes = lists.withHermes ?? [];
+  const upcoming = lists.upcoming ?? [];
   const handled = lists.handled ?? [];
   return {
     ok: true,
-    counts: { needsYou: needsYou.length, withHermes: withHermes.length, handled: handled.length },
+    counts: {
+      needsYou: needsYou.length,
+      withHermes: withHermes.length,
+      upcoming: upcoming.length,
+      handled: handled.length,
+    },
     needsYou,
     withHermes,
+    upcoming,
     handled,
   };
 }

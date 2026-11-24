@@ -21,6 +21,18 @@ export function formatClock(at: number) {
   return new Date(at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+// Today 13:41, Fri 09:00 within the next six days, otherwise 30 Nov 09:00.
+export function formatReturnTime(at: number, now = Date.now()) {
+  const midnight = (instant: number) => new Date(instant).setHours(0, 0, 0, 0);
+  // Rounded, so a day that a DST change shortens or lengthens still counts as one.
+  const days = Math.round((midnight(at) - midnight(now)) / 86_400_000);
+  if (days === 0) return `Today ${formatClock(at)}`;
+  if (days > 0 && days < 7) {
+    return `${new Date(at).toLocaleDateString("en-GB", { weekday: "short" })} ${formatClock(at)}`;
+  }
+  return `${formatShortDate(at)} ${formatClock(at)}`;
+}
+
 // 12 Nov
 export function formatShortDate(at: number) {
   return new Date(at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
