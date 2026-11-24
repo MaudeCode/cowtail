@@ -32,6 +32,7 @@ struct InboxView: View {
 
             section("Needs you", inbox.needsYou, count: inbox.counts.needsYou, style: .needsYou)
             section("Hermes is on it", inbox.withHermes, count: inbox.counts.withHermes, style: .withHermes)
+            section("Upcoming", inbox.upcoming, count: inbox.counts.upcoming, style: .upcoming)
             section("Handled · 24h", inbox.handled, count: inbox.counts.handled, style: .handled)
         }
         .polling { await store.refresh() }

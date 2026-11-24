@@ -3,6 +3,7 @@ import {
   itemGetResponseSchema,
   notificationPreferencesResponseSchema,
 } from "@maudecode/cowtail-protocol";
+import { makeFunctionReference } from "convex/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
@@ -222,6 +223,148 @@ describe("item delivery", () => {
     expect((await getItem(t, cron)).item.urgency).toBe("whenever");
     expect((await getItem(t, question)).item.urgency).toBe("now");
     expect((await getItem(t, fyi)).item.urgency).toBe("today");
+  });
+});
+
+describe("reminders", () => {
+  const states = async (t: Backend, id: string) =>
+    (await getItem(t, id)).events
+      .filter((event) => event.type === "state_changed")
+      .map(({ actor, payload }) => ({ actor, ...payload }));
+  const triggers = async (t: Backend, id: string) =>
+    (await decisions(t, id)).map(({ trigger, decision }) => [trigger, decision]);
+
+  test("a snoozed item returns to open when its snooze ends and pushes once, at least as today", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "whenever", title: "Check the disk shipment" });
+    const snooze = await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 60 * MINUTE },
+    });
+    expect(snooze.status).toBe(200);
+
+    await advance(t, 59 * MINUTE);
+    expect((await getItem(t, id)).item.state).toBe("snoozed");
+
+    await advance(t, 60 * MINUTE);
+    expect((await getItem(t, id)).item.state).toBe("open");
+    expect((await states(t, id)).at(-1)).toEqual({
+      actor: "cowtail",
+      from: "snoozed",
+      to: "open",
+      reason: "reminder",
+    });
+    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+      title: "Check the disk shipment",
+      aps: { interruptionLevel: "active" },
+    });
+    expect(await triggers(t, id)).toEqual([
+      ["created", "skipped"],
+      ["reminder", "pushed"],
+    ]);
+  });
+
+  test("a today item snoozed out of its batch pushes only its reminder", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "today", title: "Cert renews in 9 days" });
+    await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 2 * MINUTE },
+    });
+
+    await advance(t, 30 * MINUTE);
+
+    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect((await triggers(t, id)).filter(([, decision]) => decision === "pushed")).toEqual([
+      ["reminder", "pushed"],
+    ]);
+  });
+
+  test("a today item snoozed and unsnoozed by hand before its batch sends pushes nothing", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "today", title: "Cert renews in 9 days" });
+    const act = async (body: Record<string, unknown>) =>
+      request(t, `/api/me/items/${id}/actions`, {
+        method: "POST",
+        bearer: await ownerSession(t),
+        body,
+      });
+    await act({ type: "snooze", until: NOW + 60 * MINUTE });
+    await advance(t, MINUTE);
+    await act({ type: "unsnooze" });
+
+    await advance(t, 30 * MINUTE);
+
+    expect(sendPushToUser).not.toHaveBeenCalled();
+  });
+
+  test("a now item snoozed between its re-sends pushes its reminder and no older re-send", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "now", title: "Restart ingress in edge?" });
+    await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 2 * MINUTE },
+    });
+
+    await advance(t, 60 * MINUTE);
+
+    expect((await triggers(t, id)).filter(([, decision]) => decision === "pushed")).toEqual([
+      ["created", "pushed"],
+      ["reminder", "pushed"],
+    ]);
+  });
+
+  test("a snoozed item whose deadline passed is left to expire, not returned", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, {
+      kind: "question",
+      urgency: "today",
+      title: "Rebalance now?",
+      expiresAt: NOW + 90_000,
+    });
+    await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 60_000 },
+    });
+    // Both came due since the last tick; the return job runs before the expiry job here.
+    vi.setSystemTime(NOW + 100_000);
+
+    await t.mutation(makeFunctionReference<"mutation">("items:returnSnoozedItems"), {});
+    await advance(t, 30 * MINUTE);
+
+    expect((await getItem(t, id)).item.state).toBe("expired");
+    expect(sendPushToUser).not.toHaveBeenCalled();
+  });
+
+  test("an item created with a future remindAt sends nothing until then, then returns the same way", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, {
+      urgency: "whenever",
+      title: "Ping about the renewal",
+      remindAt: NOW + 120 * MINUTE,
+    });
+    expect((await getItem(t, id)).item).toMatchObject({
+      state: "snoozed",
+      snoozedUntil: NOW + 120 * MINUTE,
+    });
+
+    await advance(t, 119 * MINUTE);
+    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(await decisions(t, id)).toEqual([]);
+
+    await advance(t, 60 * MINUTE);
+    expect((await states(t, id)).at(-1)).toMatchObject({ to: "open", reason: "reminder" });
+    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+      title: "Ping about the renewal",
+      aps: { interruptionLevel: "active" },
+    });
+    expect(await triggers(t, id)).toEqual([["reminder", "pushed"]]);
   });
 });
 

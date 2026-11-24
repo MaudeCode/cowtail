@@ -105,6 +105,7 @@ extension ItemActionRequest {
         case .deny: "denied"
         case .ack: "acknowledged"
         case .snooze: "snoozed"
+        case .unsnooze: "unsnoozed"
         case .choose(let option): option
         case .reply(let text): text
         }
@@ -119,10 +120,30 @@ extension ItemActionRequest {
     }
 }
 
+extension SnoozeOption.Preset {
+    var title: String {
+        switch self {
+        case .oneHour: "1 hour"
+        case .fourHours: "4 hours"
+        case .tomorrow: "Tomorrow"
+        case .nextMonday: "Next Monday"
+        }
+    }
+
+    var identifier: String {
+        switch self {
+        case .oneHour: "1h"
+        case .fourHours: "4h"
+        case .tomorrow: "tomorrow"
+        case .nextMonday: "next-monday"
+        }
+    }
+}
+
 /// A button an item row or the item header shows: one per action the item offers, and the
 /// owner's alert dispositions.
 enum ItemButton: Hashable, Identifiable {
-    case approve, deny, reply, ack, snooze
+    case approve, deny, reply, ack, snooze, unsnooze
     case open(URL)
     case markNoise, escalate, retryInvestigation
 
@@ -150,6 +171,7 @@ enum ItemButton: Hashable, Identifiable {
         case .reply: "Reply"
         case .ack: "Acknowledge"
         case .snooze: "Snooze"
+        case .unsnooze: "Unsnooze"
         case .open: "Open link"
         case .markNoise: "Mark as noise"
         case .escalate: "Escalate"
@@ -164,6 +186,7 @@ enum ItemButton: Hashable, Identifiable {
         case .reply: "arrowshape.turn.up.left"
         case .ack: "checkmark.circle"
         case .snooze: "clock"
+        case .unsnooze: "arrow.clockwise"
         case .open: "link"
         case .markNoise: "speaker.slash"
         case .escalate: "arrow.up.circle"
@@ -186,6 +209,7 @@ enum ItemButton: Hashable, Identifiable {
         case .reply: "reply"
         case .ack: "ack"
         case .snooze: "snooze"
+        case .unsnooze: "unsnooze"
         case .open: "open"
         case .markNoise: "mark-noise"
         case .escalate: "escalate"
@@ -286,6 +310,26 @@ enum ItemFormat {
         Calendar.current.isDate(date, inSameDayAs: now)
             ? time(date)
             : date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+
+    /// When a snoozed item returns, in the device's zone: Today 13:41, Fri 09:00 within the
+    /// coming six days, otherwise 30 Nov 09:00.
+    static func returnTime(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: now),
+            to: calendar.startOfDay(for: date)
+        ).day ?? 0
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        switch days {
+        case 0: formatter.dateFormat = "'Today' HH:mm"
+        case 1...6: formatter.dateFormat = "EEE HH:mm"
+        default: formatter.dateFormat = "d MMM HH:mm"
+        }
+        return formatter.string(from: date)
     }
 
     /// 12 Nov.

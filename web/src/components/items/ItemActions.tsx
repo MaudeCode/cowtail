@@ -1,16 +1,12 @@
 import type { ItemActionRequest, ItemRecord } from "@maudecode/cowtail-protocol";
+import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { errorMessage } from "../../lib/api";
-import { useItemAction } from "../../lib/queries";
+import { formatReturnTime } from "../../lib/format";
+import { snoozePresetLabel } from "../../lib/itemPresentation";
+import { snoozeOptionsQuery, useItemAction, useItemActionError } from "../../lib/queries";
 import { Icon, IconButton } from "../ui";
-
-const HOUR_MS = 60 * 60 * 1000;
-const SNOOZE_OPTIONS = [
-  ["1h", HOUR_MS],
-  ["4h", 4 * HOUR_MS],
-  ["24h", 24 * HOUR_MS],
-] as const;
 
 const optionButton =
   "h-[26px] cursor-pointer rounded-[7px] border border-gray-200 bg-surface-2 px-2 text-[0.7rem] text-txt disabled:cursor-default disabled:opacity-50";
@@ -19,6 +15,7 @@ const optionButton =
 // every other action is an icon button.
 export default function ItemActions({ item }: { item: ItemRecord }) {
   const action = useItemAction(item.id);
+  const actionError = useItemActionError(item.id);
   const [panel, setPanel] = useState<"reply" | "snooze" | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -41,7 +38,7 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
   };
 
   return (
-    <div className="ml-auto flex shrink-0 flex-col items-end gap-1.5">
+    <div className="relative ml-auto flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         {actions.map((offered) => {
           switch (offered.type) {
@@ -132,26 +129,89 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
         </form>
       )}
       {panel === "snooze" && (
-        <fieldset className="flex items-center gap-1.5">
-          <legend className="sr-only">Snooze for</legend>
-          {SNOOZE_OPTIONS.map(([label, ms]) => (
-            <button
-              key={label}
-              type="button"
-              className={optionButton}
-              disabled={busy !== null}
-              onClick={() => send(`snooze-${label}`, { type: "snooze", until: Date.now() + ms })}
-            >
-              {label}
-            </button>
-          ))}
-        </fieldset>
+        <SnoozePicker
+          busy={busy}
+          onClose={() => setPanel(null)}
+          onPick={(key, until) => send(key, { type: "snooze", until })}
+        />
       )}
-      {action.error && (
-        <p role="alert" className="text-[0.7rem] text-accent-text">
-          {errorMessage(action.error)}
-        </p>
-      )}
+      <ActionError error={actionError} />
     </div>
+  );
+}
+
+export function ActionError({ error }: { error: unknown }) {
+  if (!error) return null;
+  return (
+    <p role="alert" className="text-[0.7rem] text-accent-text">
+      {errorMessage(error)}
+    </p>
+  );
+}
+
+// The popover from the Snooze button: the server's four presets with the time each returns
+// at, then a custom date and time.
+function SnoozePicker({
+  busy,
+  onClose,
+  onPick,
+}: {
+  busy: string | null;
+  onClose: () => void;
+  onPick: (key: string, until: number) => void;
+}) {
+  const [now] = useState(() => Date.now());
+  const options = useQuery(snoozeOptionsQuery());
+  const [custom, setCustom] = useState("");
+  const customAt = custom ? new Date(custom).getTime() : Number.NaN;
+  const pickCustom = (event: FormEvent) => {
+    event.preventDefault();
+    if (customAt > Date.now()) onPick("snooze-custom", customAt);
+  };
+
+  return (
+    <dialog
+      open
+      aria-label="Snooze until"
+      onKeyDown={(event) => event.key === "Escape" && onClose()}
+      className="absolute top-full right-0 left-auto z-10 m-0 mt-1.5 grid w-[300px] grid-cols-[minmax(0,1fr)] max-w-[calc(100vw-32px)] rounded-[10px] border border-gray-200 bg-surface-2 px-3 pt-1 pb-2 text-txt shadow-[0_14px_34px_#000c]"
+    >
+      <h3 className="py-1.5 font-mono text-[0.6rem] font-normal uppercase tracking-[0.13em] text-gray-600">
+        Snooze until
+      </h3>
+      {options.error && <ActionError error={options.error} />}
+      {options.data?.map(({ preset, until }) => (
+        <button
+          key={preset}
+          type="button"
+          disabled={busy !== null}
+          aria-busy={busy === `snooze-${preset}`}
+          onClick={() => onPick(`snooze-${preset}`, until)}
+          className="flex cursor-pointer items-center justify-between gap-3 border-b border-line py-1.5 text-left text-[0.8rem] disabled:cursor-default disabled:opacity-50"
+        >
+          <span>{snoozePresetLabel[preset]}</span>
+          <span className="font-mono text-[0.7rem] text-gray-600">
+            {formatReturnTime(until, now)}
+          </span>
+        </button>
+      ))}
+      <form onSubmit={pickCustom} className="flex items-center gap-2 pt-1.5 text-[0.8rem]">
+        <label htmlFor="snooze-custom">Custom</label>
+        <input
+          id="snooze-custom"
+          type="datetime-local"
+          value={custom}
+          onChange={(event) => setCustom(event.target.value)}
+          className="h-[26px] min-w-0 flex-1 rounded-lg border border-gray-200 bg-bg px-1.5 font-mono text-[0.7rem]"
+        />
+        <IconButton
+          type="submit"
+          icon="check"
+          label="Snooze until this time"
+          disabled={busy !== null || !(customAt > now)}
+          aria-busy={busy === "snooze-custom"}
+        />
+      </form>
+    </dialog>
   );
 }

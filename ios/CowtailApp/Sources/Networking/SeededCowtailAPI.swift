@@ -41,6 +41,9 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         return ItemInbox(
             needsYou: byUpdate.filter { $0.state == .open && $0.needsOwner },
             withHermes: byUpdate.filter { ($0.state == .open || $0.state == .acked) && !$0.needsOwner },
+            upcoming: seed.items
+                .filter { $0.state == .snoozed }
+                .sorted { ($0.snoozedUntil ?? .distantFuture) < ($1.snoozedUntil ?? .distantFuture) },
             handled: byUpdate.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) >= dayAgo }
         )
     }
@@ -104,6 +107,7 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
             throw CowtailAPIError.refused("Item not found")
         }
         var item = seed.items[index]
+        let neededOwner = item.needsOwner
         item.needsOwner = false
         if request.isAnswer {
             item.availableActions.removeAll(where: \.isAnswer)
@@ -113,9 +117,20 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         case .ack:
             item.state = .acked
             payload = ["type": "ack"]
-        case .snooze:
+        case .snooze(let until):
             item.state = .snoozed
+            item.snoozedUntil = until
+            item.needsOwnerWhenOpen = neededOwner
             payload = ["type": "snooze"]
+        case .unsnooze:
+            guard item.state == .snoozed else {
+                throw CowtailAPIError.refused("Item is not snoozed")
+            }
+            item.state = .open
+            item.snoozedUntil = nil
+            item.needsOwner = item.needsOwnerWhenOpen ?? false
+            item.needsOwnerWhenOpen = nil
+            payload = ["type": "unsnooze"]
         case .approve: payload = ["type": "approve"]
         case .deny: payload = ["type": "deny"]
         case .choose(let option): payload = ["type": "choose", "option": option]
@@ -146,6 +161,27 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
 
     func fetchDevices(sessionToken _: String) async throws -> [UserDevice] {
         seed.devices
+    }
+
+    /// The server's presets, worked out from the seeded clock in the zone asked for.
+    func fetchSnoozeOptions(timeZone: String, sessionToken _: String) async throws -> [SnoozeOption] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZone) ?? .current
+        let now = Date.now
+        let tomorrow = calendar.startOfDay(for: now.addingTimeInterval(24 * 60 * 60))
+        let morning = DateComponents(hour: 9, minute: 0)
+        let tomorrowMorning = calendar.nextDate(after: tomorrow, matching: morning, matchingPolicy: .nextTime) ?? tomorrow
+        var monday = morning
+        monday.weekday = 2
+        return [
+            SnoozeOption(preset: .oneHour, until: now.addingTimeInterval(60 * 60)),
+            SnoozeOption(preset: .fourHours, until: now.addingTimeInterval(4 * 60 * 60)),
+            SnoozeOption(preset: .tomorrow, until: tomorrowMorning),
+            SnoozeOption(
+                preset: .nextMonday,
+                until: calendar.nextDate(after: tomorrow, matching: monday, matchingPolicy: .nextTime) ?? tomorrowMorning
+            ),
+        ]
     }
 
     func createAuthSession(identityToken _: String) async throws -> AppAuthSession {

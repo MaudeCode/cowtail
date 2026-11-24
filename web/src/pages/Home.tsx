@@ -32,6 +32,12 @@ export default function Home() {
             ))}
             {data?.withHermes.length === 0 && <Empty>Hermes has nothing open.</Empty>}
           </Section>
+          <Section label="Upcoming" detail={data?.counts.upcoming ?? data?.upcoming?.length}>
+            {data?.upcoming?.map((item) => (
+              <ItemRow key={item.id} item={item} variant="upcoming" />
+            ))}
+            {data?.upcoming?.length === 0 && <Empty>Nothing snoozed.</Empty>}
+          </Section>
         </div>
         <div>
           {health.data ? (

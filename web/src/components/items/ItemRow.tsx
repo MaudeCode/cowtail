@@ -1,11 +1,12 @@
 import type { ItemRecord } from "@maudecode/cowtail-protocol";
 import { Link } from "react-router-dom";
 
-import { formatAge, formatDuration } from "../../lib/format";
+import { formatAge, formatDuration, formatReturnTime } from "../../lib/format";
 import { investigationLabel, toneText, urgencyTone } from "../../lib/itemPresentation";
+import { useItemAction, useItemActionError } from "../../lib/queries";
 import { useNow } from "../../lib/useNow";
-import { Badge } from "../ui";
-import ItemActions from "./ItemActions";
+import { Badge, IconButton } from "../ui";
+import ItemActions, { ActionError } from "./ItemActions";
 import SourceIcon from "./SourceIcon";
 
 export function itemPath(id: string) {
@@ -22,13 +23,29 @@ function NeedsYouStatus({ item, now }: { item: ItemRecord; now: number }) {
   return <span className={toneText[urgencyTone[item.urgency]]}>{status}</span>;
 }
 
-// One item in Needs you or Hermes is on it.
+// A snoozed item comes back now; the row moves at once to the section it returns to.
+function Unsnooze({ item }: { item: ItemRecord }) {
+  const action = useItemAction(item.id);
+  const error = useItemActionError(item.id);
+  return (
+    <div className="ml-auto flex shrink-0 flex-col items-end gap-1.5">
+      <IconButton
+        icon="refresh"
+        label="Unsnooze"
+        onClick={() => action.mutate({ type: "unsnooze" })}
+      />
+      <ActionError error={error} />
+    </div>
+  );
+}
+
+// One item in Needs you, Hermes is on it or Upcoming.
 export default function ItemRow({
   item,
   variant,
 }: {
   item: ItemRecord;
-  variant: "needsYou" | "withHermes";
+  variant: "needsYou" | "withHermes" | "upcoming";
 }) {
   const source = item.sourceInfo.displayName;
   const now = useNow();
@@ -49,7 +66,9 @@ export default function ItemRow({
           </div>
         )}
         <div className="text-[0.7rem] text-gray-600 [overflow-wrap:anywhere]">
-          {variant === "needsYou" ? (
+          {variant === "upcoming" ? (
+            item.snoozedUntil !== undefined && formatReturnTime(item.snoozedUntil, now)
+          ) : variant === "needsYou" ? (
             <>
               {item.subtitle && `${item.subtitle} · `}
               {source} · {item.kind} · <NeedsYouStatus item={item} now={now} />
@@ -65,7 +84,9 @@ export default function ItemRow({
           )}
         </div>
       </div>
-      {variant === "needsYou" ? (
+      {variant === "upcoming" ? (
+        <Unsnooze item={item} />
+      ) : variant === "needsYou" ? (
         <ItemActions item={item} />
       ) : (
         <span className="shrink-0 font-mono text-[0.7rem] text-gray-600">

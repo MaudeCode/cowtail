@@ -8,6 +8,7 @@ import type {
   ItemRecord,
   ItemState,
   ItemUrgency,
+  SnoozePreset,
 } from "@maudecode/cowtail-protocol";
 
 // The one table of item wording and tones on the web. The server decides every value; these
@@ -61,6 +62,13 @@ export const outcomeColor: Record<ItemOutcome, string> = {
   noise: "var(--color-gray-400)",
   escalated: "var(--color-warn)",
   other: "var(--color-gray-200)",
+};
+
+export const snoozePresetLabel: Record<SnoozePreset, string> = {
+  "1h": "1 hour",
+  "4h": "4 hours",
+  tomorrow: "Tomorrow",
+  next_monday: "Next Monday",
 };
 
 export const investigationLabel: Record<ItemInvestigationStep, string> = {

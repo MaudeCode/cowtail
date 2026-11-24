@@ -2,18 +2,14 @@ import { z } from "zod";
 
 import { itemSourceSchema, itemUrgencySchema } from "./items.ts";
 import { sourceInfoSchema } from "./sources.ts";
-import { dateOnlyStringSchema, jsonObjectSchema, nonEmptyStringSchema } from "./shared.ts";
+import {
+  dateOnlyStringSchema,
+  jsonObjectSchema,
+  nonEmptyStringSchema,
+  timeZoneSchema,
+} from "./shared.ts";
 
 const clockTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Expected HH:MM");
-
-function isTimeZone(value: string) {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 // Quiet hours hold back `today` pushes; a window whose end comes before its start runs past
 // midnight.
@@ -21,7 +17,7 @@ export const quietHoursSchema = z
   .object({
     start: clockTimeSchema,
     end: clockTimeSchema,
-    timeZone: z.string().refine(isTimeZone, "Expected an IANA time zone"),
+    timeZone: timeZoneSchema,
   })
   .refine((hours) => hours.start !== hours.end, "Quiet hours need a start and end that differ");
 

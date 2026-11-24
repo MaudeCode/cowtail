@@ -1380,6 +1380,8 @@ extension Components {
             internal var expiresAt: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/snoozedUntil`.
             internal var snoozedUntil: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/needsOwnerWhenOpen`.
+            internal var needsOwnerWhenOpen: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/createdAt`.
             internal var createdAt: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ItemRecord/updatedAt`.
@@ -1508,6 +1510,7 @@ extension Components {
             ///   - investigationJobId:
             ///   - expiresAt:
             ///   - snoozedUntil:
+            ///   - needsOwnerWhenOpen:
             ///   - createdAt:
             ///   - updatedAt:
             ///   - resolvedAt:
@@ -1544,6 +1547,7 @@ extension Components {
                 investigationJobId: Swift.String? = nil,
                 expiresAt: Swift.Int? = nil,
                 snoozedUntil: Swift.Int? = nil,
+                needsOwnerWhenOpen: Swift.Bool? = nil,
                 createdAt: Swift.Int,
                 updatedAt: Swift.Int,
                 resolvedAt: Swift.Int? = nil,
@@ -1580,6 +1584,7 @@ extension Components {
                 self.investigationJobId = investigationJobId
                 self.expiresAt = expiresAt
                 self.snoozedUntil = snoozedUntil
+                self.needsOwnerWhenOpen = needsOwnerWhenOpen
                 self.createdAt = createdAt
                 self.updatedAt = updatedAt
                 self.resolvedAt = resolvedAt
@@ -1617,6 +1622,7 @@ extension Components {
                 case investigationJobId
                 case expiresAt
                 case snoozedUntil
+                case needsOwnerWhenOpen
                 case createdAt
                 case updatedAt
                 case resolvedAt
@@ -2021,6 +2027,27 @@ extension Components {
             }
             /// - Remark: Generated from `#/components/schemas/ItemActionRequest/case6`.
             case case6(Components.Schemas.ItemActionRequest.Case6Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemActionRequest/case7`.
+            internal struct Case7Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemActionRequest/case7/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case unsnooze = "unsnooze"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemActionRequest/case7/type`.
+                internal var _type: Components.Schemas.ItemActionRequest.Case7Payload._TypePayload
+                /// Creates a new `Case7Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                internal init(_type: Components.Schemas.ItemActionRequest.Case7Payload._TypePayload) {
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemActionRequest/case7`.
+            case case7(Components.Schemas.ItemActionRequest.Case7Payload)
             internal init(from decoder: any Swift.Decoder) throws {
                 var errors: [any Swift.Error] = []
                 do {
@@ -2059,6 +2086,12 @@ extension Components {
                 } catch {
                     errors.append(error)
                 }
+                do {
+                    self = .case7(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
                 throw Swift.DecodingError.failedToDecodeOneOfSchema(
                     type: Self.self,
                     codingPath: decoder.codingPath,
@@ -2078,6 +2111,8 @@ extension Components {
                 case let .case5(value):
                     try value.encode(to: encoder)
                 case let .case6(value):
+                    try value.encode(to: encoder)
+                case let .case7(value):
                     try value.encode(to: encoder)
                 }
             }
@@ -2148,6 +2183,61 @@ extension Components {
                 case days
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse`.
+        internal struct SnoozeOptionsResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload`.
+            internal struct OptionsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload/preset`.
+                internal enum PresetPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case _1h = "1h"
+                    case _4h = "4h"
+                    case tomorrow = "tomorrow"
+                    case nextMonday = "next_monday"
+                }
+                /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload/preset`.
+                internal var preset: Components.Schemas.SnoozeOptionsResponse.OptionsPayloadPayload.PresetPayload
+                /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/OptionsPayload/until`.
+                internal var until: Swift.Int
+                /// Creates a new `OptionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - preset:
+                ///   - until:
+                internal init(
+                    preset: Components.Schemas.SnoozeOptionsResponse.OptionsPayloadPayload.PresetPayload,
+                    until: Swift.Int
+                ) {
+                    self.preset = preset
+                    self.until = until
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case preset
+                    case until
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/options`.
+            internal typealias OptionsPayload = [Components.Schemas.SnoozeOptionsResponse.OptionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SnoozeOptionsResponse/options`.
+            internal var options: Components.Schemas.SnoozeOptionsResponse.OptionsPayload
+            /// Creates a new `SnoozeOptionsResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - options:
+            internal init(
+                ok: Swift.Bool,
+                options: Components.Schemas.SnoozeOptionsResponse.OptionsPayload
+            ) {
+                self.ok = ok
+                self.options = options
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case options
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/ItemInboxResponse`.
         internal struct ItemInboxResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/ok`.
@@ -2158,6 +2248,8 @@ extension Components {
                 internal var needsYou: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/withHermes`.
                 internal var withHermes: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/upcoming`.
+                internal var upcoming: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/handled`.
                 internal var handled: Swift.Int
                 /// Creates a new `CountsPayload`.
@@ -2165,19 +2257,23 @@ extension Components {
                 /// - Parameters:
                 ///   - needsYou:
                 ///   - withHermes:
+                ///   - upcoming:
                 ///   - handled:
                 internal init(
                     needsYou: Swift.Int,
                     withHermes: Swift.Int,
+                    upcoming: Swift.Int? = nil,
                     handled: Swift.Int
                 ) {
                     self.needsYou = needsYou
                     self.withHermes = withHermes
+                    self.upcoming = upcoming
                     self.handled = handled
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case needsYou
                     case withHermes
+                    case upcoming
                     case handled
                 }
             }
@@ -2187,6 +2283,8 @@ extension Components {
             internal var needsYou: [Components.Schemas.ItemRecord]
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/withHermes`.
             internal var withHermes: [Components.Schemas.ItemRecord]
+            /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/upcoming`.
+            internal var upcoming: [Components.Schemas.ItemRecord]?
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/handled`.
             internal var handled: [Components.Schemas.ItemRecord]
             /// Creates a new `ItemInboxResponse`.
@@ -2196,18 +2294,21 @@ extension Components {
             ///   - counts:
             ///   - needsYou:
             ///   - withHermes:
+            ///   - upcoming:
             ///   - handled:
             internal init(
                 ok: Swift.Bool,
                 counts: Components.Schemas.ItemInboxResponse.CountsPayload,
                 needsYou: [Components.Schemas.ItemRecord],
                 withHermes: [Components.Schemas.ItemRecord],
+                upcoming: [Components.Schemas.ItemRecord]? = nil,
                 handled: [Components.Schemas.ItemRecord]
             ) {
                 self.ok = ok
                 self.counts = counts
                 self.needsYou = needsYou
                 self.withHermes = withHermes
+                self.upcoming = upcoming
                 self.handled = handled
             }
             internal enum CodingKeys: String, CodingKey {
@@ -2215,6 +2316,7 @@ extension Components {
                 case counts
                 case needsYou
                 case withHermes
+                case upcoming
                 case handled
             }
         }

@@ -128,7 +128,7 @@ final class CowtailStoreTests: XCTestCase {
 
         XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
         XCTAssertEqual(store.inbox?.withHermes.map(\.id), [question.id])
-        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 1, handled: 0))
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 1, upcoming: 0, handled: 0))
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
     }
 
@@ -163,6 +163,131 @@ final class CowtailStoreTests: XCTestCase {
         let attempts = await api.actionAttempts
         XCTAssertEqual(store.inbox?.needsYou.map(\.id), [])
         XCTAssertEqual(attempts, 1)
+    }
+
+    // MARK: Snooze and unsnooze
+
+    private static let start = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func snoozed(_ id: String, hours: Double, needsOwnerWhenOpen: Bool = false) -> Item {
+        Item(
+            id: id,
+            source: "alertmanager",
+            kind: .alert,
+            urgency: .today,
+            state: .snoozed,
+            title: id,
+            snoozedUntil: Self.start.addingTimeInterval(hours * 3_600),
+            needsOwnerWhenOpen: needsOwnerWhenOpen,
+            createdAt: Self.start
+        )
+    }
+
+    private func snoozeInbox(_ soon: Item? = nil) -> ItemInbox {
+        ItemInbox(
+            needsYou: [approval],
+            withHermes: [],
+            upcoming: [soon ?? snoozed("soon", hours: 1), snoozed("later", hours: 72)],
+            handled: []
+        )
+    }
+
+    func testSnoozeShowsTheItemInUpcomingAtItsReturnTimeAtOnce() async {
+        let api = FakeItemAPI(inbox: snoozeInbox())
+        let store = store(api: api)
+        await store.refresh()
+        await api.hold(itemID: approval.id)
+
+        let snooze = Task { await store.perform(.snooze(until: Self.start.addingTimeInterval(4 * 3_600)), on: approval) }
+        await api.waitUntilHeld()
+
+        XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["soon", approval.id, "later"])
+        XCTAssertEqual(store.inbox?.needsYou, [])
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 0, withHermes: 0, upcoming: 3, handled: 0))
+        await api.releaseHeld(with: CowtailAPIError.refused("done"))
+        await snooze.value
+    }
+
+    func testARefusedSnoozeTakesTheItemOutOfUpcoming() async {
+        let api = FakeItemAPI(inbox: snoozeInbox(), actionError: CowtailAPIError.refused("The item is closed"))
+        let store = store(api: api)
+        await store.refresh()
+
+        await store.perform(.snooze(until: Self.start.addingTimeInterval(4 * 3_600)), on: approval)
+
+        XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["soon", "later"])
+        XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 0, upcoming: 2, handled: 0))
+        XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
+    }
+
+    func testUnsnoozeShowsTheItemAtOnceInTheSectionTheServerNamed() async {
+        for needsOwner in [true, false] {
+            let soon = snoozed("soon", hours: 1, needsOwnerWhenOpen: needsOwner)
+            let api = FakeItemAPI(inbox: snoozeInbox(soon))
+            let store = store(api: api)
+            await store.refresh()
+            await api.hold(itemID: soon.id)
+
+            let unsnooze = Task { await store.perform(.unsnooze, on: soon) }
+            await api.waitUntilHeld()
+
+            let inbox = store.inbox
+            XCTAssertEqual(inbox?.upcoming.map(\.id), ["later"], "needsOwner=\(needsOwner)")
+            XCTAssertEqual(inbox?.needsYou.map(\.id), needsOwner ? [soon.id, approval.id] : [approval.id], "needsOwner=\(needsOwner)")
+            XCTAssertEqual(inbox?.withHermes.map(\.id), needsOwner ? [] : [soon.id], "needsOwner=\(needsOwner)")
+            XCTAssertEqual(
+                inbox?.counts,
+                ItemInbox.Counts(needsYou: needsOwner ? 2 : 1, withHermes: needsOwner ? 0 : 1, upcoming: 1, handled: 0),
+                "needsOwner=\(needsOwner)"
+            )
+            let shown = inbox?.item(withID: soon.id)
+            XCTAssertEqual(shown?.state, .open, "needsOwner=\(needsOwner)")
+            XCTAssertNil(shown?.snoozedUntil, "needsOwner=\(needsOwner)")
+            await api.releaseHeld(with: CowtailAPIError.refused("done"))
+            await unsnooze.value
+        }
+    }
+
+    func testARefreshWhileTheUnsnoozeIsOnItsWayKeepsTheItemWhereItMoved() async {
+        let soon = snoozed("soon", hours: 1, needsOwnerWhenOpen: true)
+        let api = FakeItemAPI(inbox: snoozeInbox(soon))
+        let store = store(api: api)
+        await store.refresh()
+        await api.hold(itemID: soon.id)
+
+        let unsnooze = Task { await store.perform(.unsnooze, on: soon) }
+        await api.waitUntilHeld()
+        await store.refresh()
+
+        XCTAssertEqual(store.inbox?.needsYou.map(\.id), [soon.id, approval.id])
+        XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["later"])
+        await api.releaseHeld(with: CowtailAPIError.refused("done"))
+        await unsnooze.value
+    }
+
+    func testAPendingSnoozeOverTheServersResultOfItChangesNothing() {
+        let until = Self.start.addingTimeInterval(3_600)
+        let snoozedRead = snoozeInbox(snoozed("soon", hours: 1, needsOwnerWhenOpen: true))
+        let reopened = Item(id: "soon", source: "hermes", kind: .approval, urgency: .now, needsOwner: true, title: "soon", createdAt: Self.start)
+        let reopenedRead = ItemInbox(needsYou: [reopened], withHermes: [], handled: [])
+
+        XCTAssertEqual(snoozedRead.showingPending(.snooze(until: until), on: "soon"), snoozedRead)
+        XCTAssertEqual(reopenedRead.showingPending(.unsnooze, on: "soon"), reopenedRead)
+    }
+
+    func testARefusedUnsnoozePutsTheItemBackInItsPlace() async {
+        let soon = snoozed("soon", hours: 1, needsOwnerWhenOpen: true)
+        let api = FakeItemAPI(inbox: snoozeInbox(soon), actionError: CowtailAPIError.refused("The item is not snoozed"))
+        let store = store(api: api)
+        await store.refresh()
+
+        await store.perform(.unsnooze, on: soon)
+
+        XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["soon", "later"])
+        XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 0, upcoming: 2, handled: 0))
+        XCTAssertEqual(store.actionErrors[soon.id], "The item is not snoozed")
     }
 
     func testHistoryReadsPastPagesTheFiltersEmptied() async {
@@ -352,7 +477,7 @@ private actor FakeItemAPI: CowtailAPIClient {
             throw inboxError
         }
         // Totals follow the lists, as the server counts them.
-        return ItemInbox(needsYou: inbox.needsYou, withHermes: inbox.withHermes, handled: inbox.handled)
+        return ItemInbox(needsYou: inbox.needsYou, withHermes: inbox.withHermes, upcoming: inbox.upcoming, handled: inbox.handled)
     }
 
     func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {
@@ -415,6 +540,10 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func fetchDevices(sessionToken _: String) async throws -> [UserDevice] {
+        []
+    }
+
+    func fetchSnoozeOptions(timeZone _: String, sessionToken _: String) async throws -> [SnoozeOption] {
         []
     }
 }

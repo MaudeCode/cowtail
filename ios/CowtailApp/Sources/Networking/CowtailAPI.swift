@@ -28,6 +28,8 @@ protocol CowtailAPIClient: Sendable {
         sessionToken: String
     ) async throws
     func fetchDevices(sessionToken: String) async throws -> [UserDevice]
+    /// The snooze picker's presets, in picker order, for an IANA time zone.
+    func fetchSnoozeOptions(timeZone: String, sessionToken: String) async throws -> [SnoozeOption]
 }
 
 /// Sign-in and sign-out, for Apple and the server's OIDC provider alike.
@@ -300,10 +302,13 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
                 counts: ItemInbox.Counts(
                     needsYou: inbox.counts.needsYou,
                     withHermes: inbox.counts.withHermes,
+                    // Absent from a server that predates Upcoming.
+                    upcoming: inbox.counts.upcoming ?? 0,
                     handled: inbox.counts.handled
                 ),
                 needsYou: inbox.needsYou.map(Self.makeItem),
                 withHermes: inbox.withHermes.map(Self.makeItem),
+                upcoming: (inbox.upcoming ?? []).map(Self.makeItem),
                 handled: inbox.handled.map(Self.makeItem)
             )
         case .unauthorized(let response):
@@ -412,6 +417,25 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.requestFailed(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Hermes status request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchSnoozeOptions(timeZone: String, sessionToken: String) async throws -> [SnoozeOption] {
+        switch try await sessionClient(sessionToken: sessionToken).getSnoozeOptions(query: .init(timeZone: timeZone)) {
+        case .ok(let response):
+            return try response.body.json.options.compactMap { option in
+                SnoozeOption.Preset(rawValue: option.preset.rawValue).map {
+                    SnoozeOption(preset: $0, until: Self.date(option.until))
+                }
+            }
+        case .badRequest(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Snooze options request failed with HTTP \(statusCode).")
         }
     }
 

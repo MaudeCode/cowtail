@@ -2,11 +2,11 @@ import XCTest
 
 @MainActor
 final class InboxFlowTests: XCTestCase {
-    func testInboxShowsItsThreeSectionsInTheFiguresOrder() {
+    func testInboxShowsItsFourSectionsInTheFiguresOrder() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 
-        app.assertSections(["Needs you", "Hermes is on it", "Handled · 24h"])
+        app.assertSections(["Needs you", "Hermes is on it", "Upcoming", "Handled · 24h"])
     }
 
     func testTheHeaderShowsTheHermesDotBesideTheClusterDot() {
@@ -51,6 +51,47 @@ final class InboxFlowTests: XCTestCase {
         expectation(for: movedBelow, evaluatedWith: nil)
         waitForExpectations(timeout: 10)
         XCTAssertFalse(app.buttons["button.item.approve.approval-ingress"].exists)
+    }
+
+    func testAPickedSnoozeMovesTheItemIntoUpcoming() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let snooze = app.buttons["button.item.snooze.alert-crashloop"]
+        XCTAssertTrue(snooze.waitForExistence(timeout: 10))
+        snooze.tap()
+        let fourHours = app.buttons["button.snooze.4h"]
+        XCTAssertTrue(fourHours.waitForExistence(timeout: 10))
+        fourHours.tap()
+
+        let row = app.element("row.item.alert-crashloop")
+        let upcoming = app.element("section.Upcoming")
+        let handled = app.element("section.Handled · 24h")
+        let inUpcoming = NSPredicate { _, _ in
+            row.exists && upcoming.exists && handled.exists
+                && row.frame.minY > upcoming.frame.minY && row.frame.minY < handled.frame.minY
+        }
+        expectation(for: inUpcoming, evaluatedWith: nil)
+        waitForExpectations(timeout: 10)
+        XCTAssertTrue(app.buttons["button.item.unsnooze.alert-crashloop"].exists)
+    }
+
+    func testUnsnoozeReturnsTheItemToTheInbox() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let unsnooze = app.buttons["button.item.unsnooze.alert-osdfull"]
+        XCTAssertTrue(unsnooze.waitForExistence(timeout: 10))
+        XCTAssertEqual(unsnooze.label, "Unsnooze")
+        unsnooze.tap()
+
+        // The seeded server returns an item that needs the owner to Needs you.
+        let row = app.element("row.item.alert-osdfull")
+        let withHermes = app.element("section.Hermes is on it")
+        let inNeedsYou = NSPredicate { _, _ in row.exists && withHermes.exists && row.frame.minY < withHermes.frame.minY }
+        expectation(for: inNeedsYou, evaluatedWith: nil)
+        waitForExpectations(timeout: 10)
+        XCTAssertFalse(app.buttons["button.item.unsnooze.alert-osdfull"].exists)
     }
 
     func testItemDetailShowsATimelineOfEveryEventType() {

@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
+import {
+  dateOnlyStringSchema,
+  nonEmptyStringSchema,
+  timestampSchema,
+  timeZoneSchema,
+} from "./shared.ts";
 import { alertHumanActionSchema, investigationEvidenceSchema } from "./alerts.ts";
 import { fixRecordSchema } from "./fixes.ts";
 import { sourceInfoSchema } from "./sources.ts";
@@ -83,6 +88,9 @@ export const itemRecordSchema = z.object({
   investigationJobId: nonEmptyStringSchema.optional(),
   expiresAt: timestampSchema.optional(),
   snoozedUntil: timestampSchema.optional(),
+  // Snoozed items only: whether the item needs the owner once it is open again, so an unsnooze
+  // can show at once which section it returns to.
+  needsOwnerWhenOpen: z.boolean().optional(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
   resolvedAt: timestampSchema.optional(),
@@ -170,6 +178,9 @@ export const itemCreateRequestSchema = z.object({
   actions: z.array(itemActionSchema).max(20).optional(),
   replyTo: itemReplyToSchema.optional(),
   expiresAt: timestampSchema.optional(),
+  // A reminder: an item with a future `remindAt` waits snoozed and silent until then, then
+  // returns to the inbox and pushes once. A past `remindAt` creates it open as usual.
+  remindAt: timestampSchema.optional(),
 });
 
 export const itemCreateResponseSchema = z.object({
@@ -232,19 +243,22 @@ export const itemSourcesResponseSchema = z.object({
 });
 
 // The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked
-// items that do not. Handled: items resolved in the last 24 hours. Each list is the most
-// recently updated first. Each reads at most the 500 most recently updated items of its
-// states, and counts are of what it read.
+// items that do not. Upcoming: snoozed items, the soonest `snoozedUntil` first. Handled: items
+// resolved in the last 24 hours. Every other list is the most recently updated first. Each
+// reads at most 500 items of its states, and counts are of what it read.
 export const itemInboxHandledWindowMs = 24 * 60 * 60 * 1000;
 export const itemInboxResponseSchema = z.object({
   ok: z.literal(true),
   counts: z.object({
     needsYou: z.number().int().nonnegative(),
     withHermes: z.number().int().nonnegative(),
+    // Optional so a client still decodes a server from before it.
+    upcoming: z.number().int().nonnegative().optional(),
     handled: z.number().int().nonnegative(),
   }),
   needsYou: z.array(itemRecordSchema),
   withHermes: z.array(itemRecordSchema),
+  upcoming: z.array(itemRecordSchema).optional(),
   handled: z.array(itemRecordSchema),
 });
 
@@ -274,11 +288,22 @@ export const itemAnswerSchema = z.discriminatedUnion("type", [
   ...answerActionSchemas,
 ]);
 
-// The generated iOS client names these variants by position: keep their order.
+// The snooze picker's choices: an hour and four hours from now, and 09:00 tomorrow and on the
+// first Monday after today in the asking device's time zone. The client names each preset.
+export const snoozePresets = ["1h", "4h", "tomorrow", "next_monday"] as const;
+export const snoozeOptionsQuerySchema = z.object({ timeZone: timeZoneSchema });
+export const snoozeOptionsResponseSchema = z.object({
+  ok: z.literal(true),
+  options: z.array(z.object({ preset: z.enum(snoozePresets), until: timestampSchema })),
+});
+
+// The generated iOS client names these variants by position: keep their order, and add new
+// ones last. `unsnooze` returns a snoozed item to the inbox now.
 export const itemActionRequestSchema = z.discriminatedUnion("type", [
   ackActionSchema,
   z.object({ type: z.literal("snooze"), until: timestampSchema }),
   ...answerActionSchemas,
+  z.object({ type: z.literal("unsnooze") }),
 ]);
 
 // Whether the owner passed Face ID for this Approve or Deny: in the app, or through a held
@@ -404,3 +429,5 @@ export type ItemResponse = z.infer<typeof itemResponseSchema>;
 export type ItemOutcome = (typeof itemOutcomes)[number];
 export type ItemStatsQuery = z.infer<typeof itemStatsQuerySchema>;
 export type ItemStatsResponse = z.infer<typeof itemStatsResponseSchema>;
+export type SnoozePreset = (typeof snoozePresets)[number];
+export type SnoozeOptionsResponse = z.infer<typeof snoozeOptionsResponseSchema>;

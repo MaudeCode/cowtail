@@ -63,6 +63,7 @@ export default defineSchema({
     .index("by_alertId", ["alertId"])
     .index("by_createdAt", ["createdAt"])
     .index("by_state_expiresAt", ["state", "expiresAt"])
+    .index("by_state_snoozedUntil", ["state", "snoozedUntil"])
     .index("by_answeredAt", ["answeredAt"]),
 
   // Registered producers of items. A producer with a token posts as itself; only the token's

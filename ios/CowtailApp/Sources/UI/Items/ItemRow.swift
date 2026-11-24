@@ -5,6 +5,7 @@ struct ItemRow: View {
     enum Style {
         case needsYou
         case withHermes
+        case upcoming
         case handled
         case history
     }
@@ -82,6 +83,8 @@ struct ItemRow: View {
             } else {
                 Text("\(item.sourceName) · \(item.kind.rawValue) · \(item.investigationStep?.label ?? item.state.rawValue)")
             }
+        case .upcoming:
+            Text(item.snoozedUntil.map { ItemFormat.returnTime($0) } ?? item.state.rawValue)
         case .handled:
             Text([item.subtitle ?? item.sourceName, item.resolvedAt.map(ItemFormat.time)].compactMap { $0 }.joined(separator: " · "))
         case .history:
@@ -114,6 +117,8 @@ struct ItemRow: View {
             ItemActionButtons(item: item)
         case .withHermes:
             EmptyView()
+        case .upcoming:
+            ItemActionButtons(item: item, isUpcoming: true)
         case .handled, .history:
             if let outcome = item.outcome {
                 CowtailStatusBadge(title: outcome.label, tint: outcome.tint(palette))
@@ -166,10 +171,13 @@ struct ItemSourceIcon: View {
 struct ItemActionButtons: View {
     let item: Item
     var includesAlertActions = false
+    /// An Upcoming row offers only Unsnooze.
+    var isUpcoming = false
 
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
     @Environment(\.openURL) private var openURL
+    @State private var isSnoozing = false
     @State private var isReplying = false
     @State private var replyText = ""
     @State private var noteAction: AlertHumanAction?
@@ -187,6 +195,11 @@ struct ItemActionButtons: View {
                     run(button)
                 }
                 .accessibilityIdentifier("button.item.\(button.identifier).\(item.id)")
+            }
+        }
+        .sheet(isPresented: $isSnoozing) {
+            SnoozeSheet(load: { try await store.snoozeOptions() }) { until in
+                Task { await store.perform(.snooze(until: until), on: item) }
             }
         }
         .alert("Reply", isPresented: $isReplying) {
@@ -232,6 +245,9 @@ struct ItemActionButtons: View {
     }
 
     private var buttons: [ItemButton] {
+        if isUpcoming {
+            return [.unsnooze]
+        }
         var buttons = ItemButton.buttons(for: item)
         if includesAlertActions {
             buttons += item.alertActions.map { action in
@@ -261,7 +277,9 @@ struct ItemActionButtons: View {
         case .ack:
             Task { await store.perform(.ack, on: item) }
         case .snooze:
-            Task { await store.perform(.snooze(until: .now.addingTimeInterval(ItemNotifications.snoozeInterval)), on: item) }
+            isSnoozing = true
+        case .unsnooze:
+            Task { await store.perform(.unsnooze, on: item) }
         case .reply:
             isReplying = true
         case .open(let url):

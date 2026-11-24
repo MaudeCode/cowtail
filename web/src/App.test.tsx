@@ -1,3 +1,4 @@
+import type { ItemInboxResponse } from "@maudecode/cowtail-protocol";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
@@ -103,7 +104,7 @@ const priorOccurrence = {
 
 describe("each area's sections, in its figure's order", () => {
   test.each([
-    ["/", ["Needs you", "Hermes is on it", "Cluster", "Hermes", "Handled · 24h"]],
+    ["/", ["Needs you", "Hermes is on it", "Upcoming", "Cluster", "Hermes", "Handled · 24h"]],
     [
       "/cluster",
       ["Alert pipeline", "Nodes", "Ceph", "Firing by namespace", "Volume · 7 days", "Noisiest"],
@@ -242,22 +243,252 @@ describe("acting from Home", () => {
     expect([approve, deny].map((button) => button.hasAttribute("disabled"))).toEqual([true, true]);
   });
 
-  test("Snooze posts a time in the future", async () => {
+  const timeZone = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const SNOOZE_OPTIONS = `GET /actions/api/me/snooze-options?timeZone=${timeZone}`;
+  const tomorrow = new Date(2030, 0, 2, 9, 0).getTime();
+  const options = {
+    ok: true,
+    options: [
+      { preset: "1h", until: new Date(2030, 0, 1, 10, 41).getTime() },
+      { preset: "4h", until: new Date(2030, 0, 1, 13, 41).getTime() },
+      { preset: "tomorrow", until: tomorrow },
+      { preset: "next_monday", until: new Date(2030, 0, 7, 9, 0).getTime() },
+    ],
+  };
+
+  test("Snooze opens the server's four presets, each with its time, then a custom time", async () => {
+    stubApi({ ...routes(), [SNOOZE_OPTIONS]: options });
+    renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Snooze" }));
+
+    const picker = screen.getByRole("dialog", { name: "Snooze until" });
+    await within(picker).findByText("Next Monday");
+    expect(
+      within(picker)
+        .getAllByRole("button")
+        .map((button) => [...button.children].map((part) => part.textContent)),
+    ).toEqual([
+      ["1 hour", "01 Jan 10:41"],
+      ["4 hours", "01 Jan 13:41"],
+      ["Tomorrow", "02 Jan 09:00"],
+      ["Next Monday", "07 Jan 09:00"],
+      [""],
+    ]);
+    expect(within(picker).getByLabelText("Custom")).toHaveAttribute("type", "datetime-local");
+  });
+
+  test("a preset posts the time the server gave it", async () => {
     const { calls } = stubApi({
       ...routes(),
+      [SNOOZE_OPTIONS]: options,
       "POST /actions/api/me/items/alert-1/actions": { ok: true, item: alert },
     });
     renderApp("/");
 
     await userEvent.click(await screen.findByRole("button", { name: "Snooze" }));
-    await userEvent.click(screen.getByRole("button", { name: "1h" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Tomorrow/ }));
 
-    await waitFor(() => expect(calls.filter((call) => call.method === "POST")).toHaveLength(1));
-    const { type, until } = calls.find((call) => call.method === "POST")!.body as {
-      type: string;
-      until: number;
-    };
-    expect([type, until > Date.now()]).toEqual(["snooze", true]);
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/items/alert-1/actions",
+          body: { type: "snooze", until: tomorrow },
+        },
+      ]),
+    );
+  });
+
+  test("a custom snooze posts the local time the owner entered", async () => {
+    const { calls } = stubApi({
+      ...routes(),
+      [SNOOZE_OPTIONS]: options,
+      "POST /actions/api/me/items/alert-1/actions": { ok: true, item: alert },
+    });
+    renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Snooze" }));
+    await userEvent.type(screen.getByLabelText("Custom"), "2030-01-02T09:00");
+    await userEvent.click(screen.getByRole("button", { name: "Snooze until this time" }));
+
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/items/alert-1/actions",
+          body: { type: "snooze", until: new Date(2030, 0, 2, 9, 0).getTime() },
+        },
+      ]),
+    );
+  });
+
+  test("a snooze moves the item into Upcoming before the server answers", async () => {
+    stubApi({
+      ...routes(),
+      [SNOOZE_OPTIONS]: options,
+      "POST /actions/api/me/items/alert-1/actions": new Promise(() => {}),
+    });
+    renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Snooze" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Tomorrow/ }));
+
+    const upcoming = screen.getByRole("heading", { name: /Upcoming/ }).closest("section")!;
+    expect(within(upcoming).getByText("KubePodCrashLooping")).toBeInTheDocument();
+    expect(within(upcoming).getByText("02 Jan 09:00")).toBeInTheDocument();
+  });
+});
+
+describe("overlapping snoozes", () => {
+  const first = item({
+    id: "first-1",
+    title: "First alert",
+    availableActions: [{ type: "snooze" }],
+  });
+  const second = item({
+    id: "second-1",
+    title: "Second alert",
+    availableActions: [{ type: "snooze" }],
+  });
+  const timeZone = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const section = (label: RegExp) =>
+    screen.getByRole("heading", { name: label }).closest("section")!;
+  const snooze = async (title: string) => {
+    const row = (await screen.findByText(title)).closest<HTMLElement>("div.flex")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Snooze" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Tomorrow/ }));
+  };
+
+  test("a refusal puts back only its own item, and a write still in flight keeps its place", async () => {
+    let refuseFirst!: (reply: unknown) => void;
+    stubApi({
+      ...signedIn({ "GET /actions/api/items/inbox": inbox({ needsYou: [first, second] }) }),
+      [`GET /actions/api/me/snooze-options?timeZone=${timeZone}`]: {
+        ok: true,
+        options: [
+          { preset: "1h", until: new Date(2030, 0, 1, 10, 41).getTime() },
+          { preset: "4h", until: new Date(2030, 0, 1, 13, 41).getTime() },
+          { preset: "tomorrow", until: new Date(2030, 0, 2, 9, 0).getTime() },
+          { preset: "next_monday", until: new Date(2030, 0, 7, 9, 0).getTime() },
+        ],
+      },
+      "POST /actions/api/me/items/first-1/actions": new Promise((resolve) => {
+        refuseFirst = resolve;
+      }),
+      "POST /actions/api/me/items/second-1/actions": new Promise(() => {}),
+    });
+    renderApp("/");
+
+    await snooze("First alert");
+    await snooze("Second alert");
+    refuseFirst({ status: 409, body: { ok: false, error: "Item is closed" } });
+
+    expect(await within(section(/Needs you/)).findByRole("alert")).toHaveTextContent(
+      "Item is closed",
+    );
+    expect(within(section(/Needs you/)).getByText("First alert")).toBeInTheDocument();
+    expect(within(section(/Upcoming/)).getByText("Second alert")).toBeInTheDocument();
+  });
+});
+
+describe("Upcoming on Home", () => {
+  const snoozed = item({
+    id: "snoozed-1",
+    state: "snoozed",
+    needsOwner: false,
+    needsOwnerWhenOpen: true,
+    title: "CephOSDNearFull",
+    availableActions: [{ type: "ack" }],
+    snoozedUntil: new Date(2030, 0, 2, 9, 0).getTime(),
+  });
+  const routes = () => signedIn({ "GET /actions/api/items/inbox": inbox({ upcoming: [snoozed] }) });
+  const section = (label: RegExp) =>
+    screen.getByRole("heading", { name: label }).closest("section")!;
+
+  test("lists each snoozed item's return time, and Unsnooze posts unsnooze", async () => {
+    const { calls } = stubApi({
+      ...routes(),
+      "POST /actions/api/me/items/snoozed-1/actions": { ok: true, item: snoozed },
+    });
+    renderApp("/");
+
+    const upcoming = (await screen.findByText("CephOSDNearFull")).closest("section")!;
+    expect(within(upcoming).getByText("02 Jan 09:00")).toBeInTheDocument();
+    await userEvent.click(within(upcoming).getByRole("button", { name: "Unsnooze" }));
+
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/items/snoozed-1/actions",
+          body: { type: "unsnooze" },
+        },
+      ]),
+    );
+  });
+
+  test("Unsnooze moves the item to the section the server said it returns to, before it answers", async () => {
+    stubApi({ ...routes(), "POST /actions/api/me/items/snoozed-1/actions": new Promise(() => {}) });
+    renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unsnooze" }));
+
+    expect(within(section(/Needs you/)).getByText("CephOSDNearFull")).toBeInTheDocument();
+    expect(within(section(/Upcoming/)).queryByText("CephOSDNearFull")).not.toBeInTheDocument();
+  });
+
+  test("an inbox reread while the unsnooze is on its way keeps the item where it moved", async () => {
+    stubApi({ ...routes(), "POST /actions/api/me/items/snoozed-1/actions": new Promise(() => {}) });
+    const { queryClient } = renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unsnooze" }));
+    await queryClient.refetchQueries({ queryKey: ["inbox"] });
+
+    // The reread inbox is what the page renders next.
+    const shown = queryClient.getQueryData<ItemInboxResponse>(["inbox"])!;
+    expect([shown.needsYou, shown.upcoming].map((list) => list?.map((entry) => entry.id))).toEqual([
+      ["snoozed-1"],
+      [],
+    ]);
+  });
+
+  test("a second action on an item waits for the first one's reply before it is sent", async () => {
+    let answerUnsnooze!: (reply: unknown) => void;
+    const { calls } = stubApi({
+      ...routes(),
+      "POST /actions/api/me/items/snoozed-1/actions": new Promise((resolve) => {
+        answerUnsnooze = resolve;
+      }),
+    });
+    renderApp("/");
+    const posts = () => calls.filter((call) => call.method === "POST").map((call) => call.body);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unsnooze" }));
+    await userEvent.click(
+      within(section(/Needs you/)).getByRole("button", { name: "Acknowledge" }),
+    );
+
+    expect(posts()).toEqual([{ type: "unsnooze" }]);
+    answerUnsnooze({ ok: true, item: { ...snoozed, state: "open", snoozedUntil: undefined } });
+    await waitFor(() => expect(posts()).toEqual([{ type: "unsnooze" }, { type: "ack" }]));
+  });
+
+  test("a refused unsnooze puts the item back in Upcoming and says why", async () => {
+    stubApi({
+      ...routes(),
+      "POST /actions/api/me/items/snoozed-1/actions": {
+        status: 409,
+        body: { ok: false, error: "Item is not snoozed" },
+      },
+    });
+    renderApp("/");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unsnooze" }));
+
+    const upcoming = section(/Upcoming/);
+    expect(await within(upcoming).findByRole("alert")).toHaveTextContent("Item is not snoozed");
+    expect(within(upcoming).getByText("CephOSDNearFull")).toBeInTheDocument();
   });
 });
 

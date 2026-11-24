@@ -63,7 +63,7 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /me/alerts/{id}/actions`.
     /// - Remark: Generated from `#/paths//me/alerts/{id}/actions/post(performAlertAction)`.
     func performAlertAction(_ input: Operations.PerformAlertAction.Input) async throws -> Operations.PerformAlertAction.Output
-    /// Ack, snooze or answer an item
+    /// Ack, snooze, unsnooze or answer an item
     ///
     /// - Remark: HTTP `POST /me/items/{id}/actions`.
     /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
@@ -73,7 +73,12 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /items`.
     /// - Remark: Generated from `#/paths//items/get(listItems)`.
     func listItems(_ input: Operations.ListItems.Input) async throws -> Operations.ListItems.Output
-    /// The owner's inbox: needs you, with Hermes, and handled in the last 24 hours
+    /// The snooze picker's preset times in the device's time zone
+    ///
+    /// - Remark: HTTP `GET /me/snooze-options`.
+    /// - Remark: Generated from `#/paths//me/snooze-options/get(getSnoozeOptions)`.
+    func getSnoozeOptions(_ input: Operations.GetSnoozeOptions.Input) async throws -> Operations.GetSnoozeOptions.Output
+    /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
     ///
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.
@@ -241,7 +246,7 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Ack, snooze or answer an item
+    /// Ack, snooze, unsnooze or answer an item
     ///
     /// - Remark: HTTP `POST /me/items/{id}/actions`.
     /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
@@ -271,7 +276,20 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// The owner's inbox: needs you, with Hermes, and handled in the last 24 hours
+    /// The snooze picker's preset times in the device's time zone
+    ///
+    /// - Remark: HTTP `GET /me/snooze-options`.
+    /// - Remark: Generated from `#/paths//me/snooze-options/get(getSnoozeOptions)`.
+    internal func getSnoozeOptions(
+        query: Operations.GetSnoozeOptions.Input.Query,
+        headers: Operations.GetSnoozeOptions.Input.Headers = .init()
+    ) async throws -> Operations.GetSnoozeOptions.Output {
+        try await getSnoozeOptions(Operations.GetSnoozeOptions.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
     ///
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.

@@ -13,6 +13,26 @@ final class ItemPresentationTests: XCTestCase {
         XCTAssertEqual(text(["decision": "batched"]), "Batched")
     }
 
+    /// November 2026 in a fixed zone.
+    private static let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        return calendar
+    }()
+
+    private static func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    }
+
+    func testAReturnTimeNamesTodayThenTheWeekdayThenTheDate() {
+        let format = { (date: Date) in ItemFormat.returnTime(date, now: Self.date(23, 9, 41), calendar: Self.calendar) }
+
+        XCTAssertEqual(format(Self.date(23, 13, 41)), "Today 13:41")
+        XCTAssertEqual(format(Self.date(27, 9)), "Fri 09:00")
+        XCTAssertEqual(format(Self.date(29, 21, 5)), "Sun 21:05")
+        XCTAssertEqual(format(Self.date(30, 9)), "30 Nov 09:00")
+    }
+
     func testEvidenceNumbersEachStepAndJoinsItsCommandAndOutput() {
         let steps = [
             EvidenceStep(step: "Read logs", command: "kubectl logs api", output: "OOMKilled"),

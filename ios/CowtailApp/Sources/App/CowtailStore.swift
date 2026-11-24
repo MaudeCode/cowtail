@@ -85,6 +85,14 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var unconfirmedItemIDs: Set<String> = []
     /// Items with a write on its way; a second tap waits for the first to settle.
     private var itemIDsInFlight: Set<String> = []
+    /// Snoozes and unsnoozes sent and not yet answered, oldest first. Every inbox read shows
+    /// them still applied, so a poll cannot pull an item back before the server answers.
+    private var pendingSnoozes: [PendingSnooze] = []
+    private struct PendingSnooze {
+        let id = UUID()
+        let itemID: String
+        let request: ItemActionRequest
+    }
     @Published private(set) var alertActionsInFlight: Set<String> = []
 
     @Published private(set) var historyFilter = HistoryFilter()
@@ -186,7 +194,10 @@ final class CowtailStore: ObservableObject {
     @discardableResult
     private func reloadInbox(sessionToken token: String) async -> Bool {
         do {
-            inbox = try await api.fetchInbox(sessionToken: token)
+            let read = try await api.fetchInbox(sessionToken: token)
+            inbox = pendingSnoozes.reduce(read) { shown, pending in
+                shown.showingPending(pending.request, on: pending.itemID)
+            }
             unconfirmedItemIDs.removeAll()
             return true
         } catch {
@@ -271,14 +282,22 @@ final class CowtailStore: ObservableObject {
         let inboxBefore = inbox
         let detailBefore = details[item.id]
         showOptimistically(request, on: item)
+        let pending = PendingSnooze(itemID: item.id, request: request)
+        switch request {
+        case .snooze, .unsnooze: pendingSnoozes.append(pending)
+        default: break
+        }
 
         do {
+            // A failed reply ends the write's claim on later reads too.
+            defer { pendingSnoozes.removeAll { $0.id == pending.id } }
             let updated = try await api.performItemAction(
                 itemID: item.id,
                 request: request,
                 authenticated: authenticated,
                 sessionToken: token
             )
+            pendingSnoozes.removeAll { $0.id == pending.id }
             if details[item.id] != nil {
                 details[item.id]?.item = updated
                 await loadDetail(itemID: item.id)
@@ -306,52 +325,33 @@ final class CowtailStore: ObservableObject {
 
     /// Changes the shown lists for the owner's own write, moving the server's totals with them.
     private func adjustInbox(_ change: (inout ItemInbox) -> Void) {
-        guard var current = inbox else { return }
-        let before = current
-        change(&current)
-        current.counts.needsYou += current.needsYou.count - before.needsYou.count
-        current.counts.withHermes += current.withHermes.count - before.withHermes.count
-        current.counts.handled += current.handled.count - before.handled.count
-        inbox = current
+        inbox = inbox?.changed(change)
     }
 
     /// Puts one refused item back where it was, leaving every other item as it is now.
     private func restore(_ itemID: String, from before: ItemInbox?) {
         guard let before else { return }
+        let sections: [WritableKeyPath<ItemInbox, [Item]>] = [\.needsYou, \.withHermes, \.upcoming, \.handled]
         adjustInbox { current in
-        current.needsYou.removeAll { $0.id == itemID }
-        current.withHermes.removeAll { $0.id == itemID }
-        current.handled.removeAll { $0.id == itemID }
-        func putBack(_ section: WritableKeyPath<ItemInbox, [Item]>) {
-            guard let index = before[keyPath: section].firstIndex(where: { $0.id == itemID }) else { return }
-            current[keyPath: section].insert(before[keyPath: section][index], at: min(index, current[keyPath: section].count))
-        }
-            putBack(\.needsYou)
-            putBack(\.withHermes)
-            putBack(\.handled)
+            for section in sections {
+                current[keyPath: section].removeAll { $0.id == itemID }
+                guard let index = before[keyPath: section].firstIndex(where: { $0.id == itemID }) else { continue }
+                current[keyPath: section].insert(before[keyPath: section][index], at: min(index, current[keyPath: section].count))
+            }
         }
     }
 
     private func showOptimistically(_ request: ItemActionRequest, on item: Item) {
-        var moved = item
-        moved.needsOwner = false
-        if request.isAnswer {
-            moved.availableActions.removeAll(where: \.isAnswer)
-        }
-        switch request {
-        case .ack: moved.state = .acked
-        case .snooze: moved.state = .snoozed
-        default: break
-        }
+        inbox = inbox?.showing(request, on: item)
+        details[item.id]?.item = ItemInbox.item(item, showing: request)
+    }
 
-        adjustInbox { current in
-            current.needsYou.removeAll { $0.id == item.id }
-            current.withHermes.removeAll { $0.id == item.id }
-            if moved.state != .snoozed {
-                current.withHermes.insert(moved, at: 0)
-            }
+    /// The snooze picker's presets, worked out by the server in this device's zone.
+    func snoozeOptions(timeZone: TimeZone = .current) async throws -> [SnoozeOption] {
+        guard let token = await sessionToken() else {
+            throw CowtailAPIError.requestFailed(Self.signInMessage)
         }
-        details[item.id]?.item = moved
+        return try await api.fetchSnoozeOptions(timeZone: timeZone.identifier, sessionToken: token)
     }
 
     /// Face ID or the passcode, for a change that weakens approval protection.
@@ -470,6 +470,83 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             logger.error("load devices failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+}
+
+extension ItemInbox {
+    /// The lists after `change`, the server's totals moved by as many items as each list moved.
+    func changed(_ change: (inout ItemInbox) -> Void) -> ItemInbox {
+        var current = self
+        change(&current)
+        current.counts.needsYou += current.needsYou.count - needsYou.count
+        current.counts.withHermes += current.withHermes.count - withHermes.count
+        current.counts.upcoming += current.upcoming.count - upcoming.count
+        current.counts.handled += current.handled.count - handled.count
+        return current
+    }
+
+    /// The item as the owner's own write leaves it.
+    static func item(_ item: Item, showing request: ItemActionRequest) -> Item {
+        var moved = item
+        if request.isAnswer {
+            moved.availableActions.removeAll(where: \.isAnswer)
+        }
+        switch request {
+        case .ack:
+            moved.state = .acked
+            moved.needsOwner = false
+        case .snooze(let until):
+            moved.state = .snoozed
+            moved.snoozedUntil = until
+            // Snoozed already, the server's answer stands.
+            moved.needsOwnerWhenOpen = item.state == .snoozed ? item.needsOwnerWhenOpen : item.needsOwner
+            moved.needsOwner = false
+        case .unsnooze:
+            // The server named where the item returns to.
+            moved.state = .open
+            moved.snoozedUntil = nil
+            moved.needsOwner = item.needsOwnerWhenOpen == true
+            moved.needsOwnerWhenOpen = nil
+        default:
+            moved.needsOwner = false
+        }
+        return moved
+    }
+
+    /// The inbox with the owner's own write shown on `item`.
+    func showing(_ request: ItemActionRequest, on item: Item) -> ItemInbox {
+        let moved = Self.item(item, showing: request)
+        return changed { current in
+            current.needsYou.removeAll { $0.id == item.id }
+            current.withHermes.removeAll { $0.id == item.id }
+            current.upcoming.removeAll { $0.id == item.id }
+            switch request {
+            case .snooze(let until):
+                // Upcoming is the soonest return first; the server's next read keeps that order.
+                let index = current.upcoming.firstIndex { ($0.snoozedUntil ?? .distantFuture) > until }
+                current.upcoming.insert(moved, at: index ?? current.upcoming.endIndex)
+            case .unsnooze where moved.needsOwner:
+                current.needsYou.insert(moved, at: 0)
+            default:
+                current.withHermes.insert(moved, at: 0)
+            }
+        }
+    }
+
+    /// A snooze or unsnooze still waiting for its reply, shown over a read from the server. A
+    /// read that already shows the write's result keeps the server's own fields.
+    func showingPending(_ request: ItemActionRequest, on itemID: String) -> ItemInbox {
+        guard let item = item(withID: itemID) else { return self }
+        switch request {
+        case .snooze(let until) where item.state == .snoozed && item.snoozedUntil == until:
+            return self
+        case .unsnooze where item.state != .snoozed:
+            return self
+        case .snooze, .unsnooze:
+            return showing(request, on: item)
+        default:
+            return self
         }
     }
 }

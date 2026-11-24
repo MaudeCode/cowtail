@@ -112,6 +112,62 @@ enum CowtailPreviewFixtures {
         ),
     ]
 
+    /// 09:00 local, this many days from today.
+    private static func daysAhead(_ days: Int) -> Date {
+        let calendar = Calendar.current
+        let day = calendar.date(byAdding: .day, value: days, to: .now) ?? .now
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day) ?? day
+    }
+
+    /// Snoozed: back later today, in a few days, and after the coming week.
+    static let upcoming = [
+        Item(
+            id: "alert-osdfull",
+            source: "alertmanager",
+            sourceName: "Alertmanager",
+            kind: .alert,
+            urgency: .today,
+            state: .snoozed,
+            title: "CephOSDNearFull · osd.4",
+            actions: [.ack, .snooze],
+            alertID: "alert-7",
+            // Later today, however late the test runs.
+            snoozedUntil: min(
+                .now.addingTimeInterval(4 * 60 * 60),
+                Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: .now) ?? .now
+            ),
+            needsOwnerWhenOpen: true,
+            createdAt: minutesAgo(60),
+            subtitle: "storage"
+        ),
+        Item(
+            id: "reminder-disks",
+            source: "hermes",
+            sourceName: "Hermes",
+            kind: .fyi,
+            urgency: .whenever,
+            state: .snoozed,
+            title: "Check the new disk shipment",
+            snoozedUntil: daysAhead(3),
+            needsOwnerWhenOpen: true,
+            createdAt: minutesAgo(90)
+        ),
+        Item(
+            id: "alert-certexpiry",
+            source: "alertmanager",
+            sourceName: "Alertmanager",
+            kind: .alert,
+            urgency: .whenever,
+            state: .snoozed,
+            title: "CertificateExpiringSoon · edge",
+            actions: [.ack, .snooze],
+            alertID: "alert-8",
+            snoozedUntil: daysAhead(10),
+            needsOwnerWhenOpen: false,
+            createdAt: minutesAgo(200)
+        ),
+    ]
+
     /// Resolved and fixed, with one event of every type on its timeline.
     static let replicas = Item(
         id: "alert-replicas",
@@ -199,7 +255,7 @@ enum CowtailPreviewFixtures {
         ),
     ]
 
-    static let items = [approval, question, crashLoop] + withHermes + handled + older
+    static let items = [approval, question, crashLoop] + withHermes + upcoming + handled + older
 
     static func events(for item: Item) -> [ItemEvent] {
         func event(_ minutes: Double, _ type: ItemEventType, _ actor: String, _ payload: [String: String] = [:]) -> ItemEvent {
