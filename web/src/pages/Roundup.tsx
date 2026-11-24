@@ -1,40 +1,12 @@
 import { useSearchParams } from "react-router-dom";
+import { alertListResponseSchema, fixListResponseSchema } from "@maudecode/cowtail-protocol";
 import { useQuery } from "@tanstack/react-query";
-import { convexQuery } from "@convex-dev/react-query";
-import { api } from "../../convex/_generated/api";
 import { resolveRoundupWindow } from "../../convex/roundup";
+import { api } from "../lib/api";
 import { formatTs } from "../lib/format";
 import { parseLocalDate, formatDateLocal } from "../lib/dates";
-import { BuildVersion } from "../components/ui";
-import type { FixScope, Outcome } from "../types";
-
-interface ConvexAlert {
-  _id: string;
-  _creationTime: number;
-  timestamp: number;
-  alertname: string;
-  severity: string;
-  namespace: string;
-  node?: string;
-  status: string;
-  outcome: string;
-  summary: string;
-  action: string;
-  rootCause?: string;
-  messaged: boolean;
-  resolvedAt?: number;
-}
-
-interface ConvexFix {
-  _id: string;
-  _creationTime: number;
-  timestamp: number;
-  alertIds: string[];
-  description: string;
-  rootCause: string;
-  commit?: string;
-  scope: FixScope;
-}
+import { BuildVersion, SeverityLabel } from "../components/ui";
+import type { AlertOutcome as Outcome } from "@maudecode/cowtail-protocol";
 
 const outcomeColors: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-gray-500", text: "text-gray-500", label: "Pending" },
@@ -43,12 +15,6 @@ const outcomeColors: Record<string, { bg: string; text: string; label: string }>
   "self-resolved": { bg: "bg-self-resolved", text: "text-self-resolved", label: "Self Resolved" },
   noise: { bg: "bg-noise", text: "text-noise", label: "Noise" },
   escalated: { bg: "bg-escalated", text: "text-escalated", label: "Escalated" },
-};
-
-const severityStyle: Record<string, string> = {
-  critical: "text-accent font-bold",
-  warning: "text-escalated",
-  info: "text-gray-400",
 };
 
 function formatDateRange(from: string, to: string) {
@@ -80,21 +46,18 @@ export default function Roundup() {
   const roundupTimeZone = import.meta.env.VITE_ROUNDUP_TIMEZONE || "America/New_York";
   const roundupWindow = resolveRoundupWindow(fromParam, toParam, roundupTimeZone);
 
-  const { data: convexAlerts, isPending } = useQuery(
-    convexQuery(api.alerts.getByTimeRange, {
-      from: roundupWindow.fromTimestamp,
-      to: roundupWindow.toTimestamp,
-    }),
-  );
-  const { data: convexFixes, isPending: fixesPending } = useQuery(
-    convexQuery(api.fixes.getByTimeRange, {
-      from: roundupWindow.fromTimestamp,
-      to: roundupWindow.toTimestamp,
-    }),
-  );
+  const range = `?from=${roundupWindow.fromTimestamp}&to=${roundupWindow.toTimestamp}`;
+  const { data: alertList, isPending } = useQuery({
+    queryKey: ["roundup", "alerts", range],
+    queryFn: () => api(`/api/alerts${range}`, alertListResponseSchema),
+  });
+  const { data: fixList, isPending: fixesPending } = useQuery({
+    queryKey: ["roundup", "fixes", range],
+    queryFn: () => api(`/api/fixes${range}`, fixListResponseSchema),
+  });
 
-  const alerts = (convexAlerts as ConvexAlert[] | undefined) ?? [];
-  const fixes = (convexFixes as ConvexFix[] | undefined) ?? [];
+  const alerts = alertList?.alerts ?? [];
+  const fixes = fixList?.fixes ?? [];
 
   const stats = {
     total: alerts.length,
@@ -108,7 +71,7 @@ export default function Roundup() {
   };
 
   // Group by outcome
-  const grouped = alerts.reduce<Record<string, ConvexAlert[]>>((acc, a) => {
+  const grouped = alerts.reduce<Record<string, typeof alerts>>((acc, a) => {
     (acc[a.outcome] ??= []).push(a);
     return acc;
   }, {});
@@ -138,7 +101,7 @@ export default function Roundup() {
               href="/"
               className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-gray-400 hover:text-accent transition-colors pb-1"
             >
-              ← Dashboard
+              ← Home
             </a>
           </div>
           <div className="font-mono text-[0.75rem] text-gray-400 uppercase tracking-[0.12em] mt-2">
@@ -193,7 +156,7 @@ export default function Roundup() {
                     .sort((a, b) => a.timestamp - b.timestamp)
                     .map((a) => (
                       <div
-                        key={a._id}
+                        key={a.id}
                         className="mb-4 border-l-[3px] border-l-gray-200 pl-4 pb-4 last:pb-0 hover:border-l-accent transition-colors duration-150"
                       >
                         <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -202,11 +165,7 @@ export default function Roundup() {
                           >
                             {oc.label}
                           </span>
-                          <span
-                            className={`font-mono text-[0.65rem] uppercase ${severityStyle[a.severity] ?? ""}`}
-                          >
-                            {a.severity}
-                          </span>
+                          <SeverityLabel severity={a.severity} className="text-[0.65rem]" />
                           <span className="font-mono text-[0.65rem] text-gray-400">
                             {formatTs(new Date(a.timestamp).toISOString())}
                           </span>
@@ -256,7 +215,7 @@ export default function Roundup() {
                   .sort((a, b) => a.timestamp - b.timestamp)
                   .map((fix) => (
                     <div
-                      key={fix._id}
+                      key={fix.id}
                       className="mb-4 border-l-[3px] border-l-gray-200 pl-4 pb-4 last:pb-0 hover:border-l-accent transition-colors duration-150"
                     >
                       <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -299,10 +258,10 @@ export default function Roundup() {
             {/* Footer */}
             <div className="border-t border-gray-200 pt-4 mt-8 text-center">
               <a
-                href={`/?from=${fromParam}&to=${toParam}`}
+                href={`/history?from=${fromParam}&to=${toParam}`}
                 className="font-mono text-[0.7rem] uppercase tracking-[0.08em] text-accent hover:text-txt transition-colors"
               >
-                ← View in Dashboard
+                ← View in History
               </a>
             </div>
           </>

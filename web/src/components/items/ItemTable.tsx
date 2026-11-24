@@ -1,0 +1,95 @@
+import type { ItemListResponse, ItemRecord } from "@maudecode/cowtail-protocol";
+import { Fragment } from "react";
+import { Link } from "react-router-dom";
+
+import { formatClock, formatDay, formatDuration } from "../../lib/format";
+import { itemResult } from "../../lib/itemPresentation";
+import { Badge } from "../ui";
+import { itemPath } from "./ItemRow";
+
+function Row({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
+  const result = itemResult(item);
+  return (
+    <tr>
+      <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
+        {formatClock(withFix ? item.createdAt : (item.resolvedAt ?? item.updatedAt))}
+      </td>
+      <td className="max-[599px]:hidden">{item.sourceInfo.displayName}</td>
+      <td className="font-medium">
+        <Link to={itemPath(item.id)} className="hover:underline">
+          {item.subtitle ? `${item.title} · ${item.subtitle}` : item.title}
+        </Link>
+        {/* Narrow screens fold the Source column into the item. */}
+        <div className="text-[0.7rem] font-normal text-gray-600 min-[600px]:hidden">
+          {item.sourceInfo.displayName}
+        </div>
+      </td>
+      <td>
+        <Badge tone={result.tone}>{result.label}</Badge>
+      </td>
+      <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
+        {item.resolvedAfterMs === undefined ? "–" : formatDuration(item.resolvedAfterMs)}
+      </td>
+      {withFix && (
+        <td className="font-mono text-[0.7rem] text-gray-600" title={item.fix?.description}>
+          {item.fix ? (item.fix.commit?.slice(0, 7) ?? item.fix.scope) : "–"}
+        </td>
+      )}
+    </tr>
+  );
+}
+
+const headers = ["Time", "Source", "Item", "Outcome", "Took"];
+
+// Handled items on Home, or the History log grouped by the server's day with each day's count.
+export default function ItemTable({
+  items,
+  days,
+}: {
+  items: ItemRecord[];
+  days?: NonNullable<ItemListResponse["days"]>;
+}) {
+  const withFix = days !== undefined;
+  const columns = withFix ? [...headers, "Fix"] : headers;
+  const dayCount = new Map(days?.map((day) => [day.date, day.count]));
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          {columns.map((column) => (
+            <th
+              key={column}
+              scope="col"
+              className={column === "Source" ? "max-[599px]:hidden" : ""}
+            >
+              {column}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item, index) => {
+          const day = withFix ? item.createdDate : undefined;
+          const startsDay = day !== undefined && day !== items[index - 1]?.createdDate;
+          return (
+            <Fragment key={item.id}>
+              {startsDay && (
+                <tr>
+                  <th
+                    colSpan={columns.length}
+                    scope="colgroup"
+                    className="!pt-3.5 !tracking-[0.13em]"
+                  >
+                    {formatDay(day)}
+                    <span className="float-right">{dayCount.get(day)}</span>
+                  </th>
+                </tr>
+              )}
+              <Row item={item} withFix={withFix} />
+            </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}

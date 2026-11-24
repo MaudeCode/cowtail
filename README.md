@@ -20,14 +20,14 @@ This repo contains five projects:
 
 ## Features
 
-- **Alert history** — every alert that fired, with timestamp, severity, namespace, outcome
-- **Outcome tracking** — fixed, self-resolved, noise, escalated — with filterable stats
-- **Grouped alerts** — repeated alerts grouped by name with expand/collapse
-- **Date range picker** — presets (24h, 7d, 30d) or custom range with URL params
-- **Cluster health** — live node CPU/memory, readiness status, Ceph storage from Prometheus
+- **Signed-in web app** — the owner signs in with Pocket ID; without a session every page shows the login page, and item, alert and fix reads answer only the owner's session or a service token
+- **Home** — what needs the owner, with Approve, Deny, Reply, Acknowledge and Snooze, what Hermes is on, cluster health, and what was handled in the last 24 hours
+- **Cluster** — the alert pipeline's Watchdog state, node CPU/memory and readiness, Ceph storage, firing alerts by namespace, 7-day volume and the noisiest alerts
+- **History** — outcome mix, time to resolve and noise rate over an item log grouped by day, with each item's fix; the filter lives in the address (`/history?q=&source=&kind=&outcome=&from=&to=`)
+- **Item detail** — the item's timeline, details, links and linked fix at `/items/:id`
+- **Settings** — quiet hours, urgency overrides, approval and roundup preferences, and Sign out
 - **Roundup page** — shareable summary view at `/roundup?from=...&to=...`
 - **Email roundup** — pre-rendered HTML endpoint for automated email reports
-- **Mobile layout** — responsive with bottom-sheet cluster health panel
 - **PWA** — installable with custom icon
 
 ## Architecture

@@ -231,9 +231,6 @@ importers:
 
   web:
     dependencies:
-      '@convex-dev/react-query':
-        specifier: ^0.1.0
-        version: 0.1.0(@tanstack/react-query@5.108.3(@types/react@19.3.0)(react@19.3.1))(convex@1.51.0(react@19.3.1))
       '@maudecode/cowtail-protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -323,12 +320,6 @@ packages:
   '@babel/runtime@7.29.15':
     resolution: {integrity: sha512-304gsbbGVmQc+cNGHzwHBlqepYdWLKj3VXCQBGt/EGcV7PUPfKI7kAUNW1FZEOCwlQiLvQjg1JEaAlRQ616h+Q==}
     engines: {node: '>=6.9.0'}
-
-  '@convex-dev/react-query@0.1.0':
-    resolution: {integrity: sha512-ULmBZCtAQDUePdBhUv7hj1Yy4QiCelhi6uEIOtMpjW8db6W9CFKvQwLt9heLngccFyMFfAZdOfSrT+cP4AH0Jw==}
-    peerDependencies:
-      '@tanstack/react-query': ^5.0.0
-      convex: ^1.29.3
 
   '@emnapi/core@2.0.0-beta.2':
     resolution: {integrity: sha512-MzCVoWtcg4Pm2B3je5mMvYMvj3MmBKw+fU7vbsJc9/iT8ip6/eYIHo/Dsm/mr+wsHB6SEyJDuxB09Yy6r/8+4A==}
@@ -1983,11 +1974,6 @@ snapshots:
   '@babel/helper-validator-identifier@7.29.7': {}
 
   '@babel/runtime@7.29.15': {}
-
-  '@convex-dev/react-query@0.1.0(@tanstack/react-query@5.108.3(@types/react@19.3.0)(react@19.3.1))(convex@1.51.0(react@19.3.1))':
-    dependencies:
-      '@tanstack/react-query': 5.108.3(@types/react@19.3.0)(react@19.3.1)
-      convex: 1.51.0(react@19.3.1)
 
   '@emnapi/core@2.0.0-beta.2':
     dependencies:
