@@ -34,6 +34,7 @@ jobs:
       cli: ${{ steps.suites.outputs.cli }}
       ios: ${{ steps.suites.outputs.ios }}
       docker: ${{ steps.suites.outputs.docker }}
+      plugin: ${{ steps.suites.outputs.plugin }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -73,9 +74,15 @@ jobs:
     if: needs.changes.outputs.docker == 'true'
     uses: ./.github/workflows/docker-verify.yml
 
+  plugin:
+    name: plugin
+    needs: changes
+    if: needs.changes.outputs.plugin == 'true'
+    uses: ./.github/workflows/hermes-plugin-verify.yml
+
   gate:
     name: CI Gate
-    needs: [changes, global, web, cli, ios, docker]
+    needs: [changes, global, web, cli, ios, docker, plugin]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
