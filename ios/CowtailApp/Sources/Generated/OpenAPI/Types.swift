@@ -98,6 +98,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /items/{id}`.
     /// - Remark: Generated from `#/paths//items/{id}/get(getItem)`.
     func getItem(_ input: Operations.GetItem.Input) async throws -> Operations.GetItem.Output
+    /// An alert item's own metric over 1h, 6h or 24h, with its threshold and firing
+    ///
+    /// - Remark: HTTP `GET /items/{id}/graph`.
+    /// - Remark: Generated from `#/paths//items/{id}/graph/get(getItemGraph)`.
+    func getItemGraph(_ input: Operations.GetItemGraph.Input) async throws -> Operations.GetItemGraph.Output
     /// Hermes's latest heartbeat, how alive it looks, and the owner's recent answers
     ///
     /// - Remark: HTTP `GET /hermes/status`.
@@ -326,6 +331,21 @@ extension APIProtocol {
     ) async throws -> Operations.GetItem.Output {
         try await getItem(Operations.GetItem.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// An alert item's own metric over 1h, 6h or 24h, with its threshold and firing
+    ///
+    /// - Remark: HTTP `GET /items/{id}/graph`.
+    /// - Remark: Generated from `#/paths//items/{id}/graph/get(getItemGraph)`.
+    internal func getItemGraph(
+        path: Operations.GetItemGraph.Input.Path,
+        query: Operations.GetItemGraph.Input.Query = .init(),
+        headers: Operations.GetItemGraph.Input.Headers = .init()
+    ) async throws -> Operations.GetItemGraph.Output {
+        try await getItemGraph(Operations.GetItemGraph.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }

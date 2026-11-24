@@ -4,6 +4,7 @@ import {
   healthResponseSchema,
   hermesStatusResponseSchema,
   itemGetResponseSchema,
+  itemGraphResponseSchema,
   itemInboxResponseSchema,
   itemListResponseSchema,
   itemResponseSchema,
@@ -13,6 +14,7 @@ import {
   snoozeOptionsResponseSchema,
   type ItemActionRequest,
   type ItemInboxResponse,
+  type ItemGraphRange,
   type NotificationPreferences,
   type NotificationPreferencesUpdateRequest,
 } from "@maudecode/cowtail-protocol";
@@ -125,6 +127,15 @@ export const itemQuery = (id: string) =>
   queryOptions({
     queryKey: ["item", id],
     queryFn: () => api(`/api/items/${encodeURIComponent(id)}`, itemGetResponseSchema),
+    refetchInterval: LIVE_REFRESH_MS,
+  });
+
+// The alert's metric over the chosen range, refreshed with the page.
+export const itemGraphQuery = (id: string, range: ItemGraphRange) =>
+  queryOptions({
+    queryKey: ["item", id, "graph", range],
+    queryFn: () =>
+      api(`/api/items/${encodeURIComponent(id)}/graph?range=${range}`, itemGraphResponseSchema),
     refetchInterval: LIVE_REFRESH_MS,
   });
 

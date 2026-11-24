@@ -901,6 +901,27 @@ export const get = internalQuery({
   },
 });
 
+// What an item's metric graph draws from: its alert's expression and firing interval. `null`
+// when there is no such item; `alert: null` when it has no alert.
+export const graphAlert = internalQuery({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    const id = ctx.db.normalizeId("items", args.id);
+    const item = id ? await ctx.db.get(id) : null;
+    if (!item) return null;
+    const alert = item.alertId ? await ctx.db.get(item.alertId) : null;
+    if (!alert) return { alert: null };
+    return {
+      alert: {
+        generatorURL: alert.generatorURL,
+        labels: alert.labels,
+        firedAt: alert.startsAt ?? alert.timestamp,
+        resolvedAt: alert.status === "resolved" ? (alert.resolvedAt ?? alert.endsAt) : undefined,
+      },
+    };
+  },
+});
+
 const BACKFILL_PAGE_SIZE = 100;
 // The committed generated api predates this module; Convex resolves it by name.
 const backfillAlertItemsRef = makeFunctionReference<

@@ -128,6 +128,48 @@ final class CowtailAPITests: XCTestCase {
         ])
     }
 
+    func testItemGraphAsksForItsRangeAndKeepsTheThresholdAndFiring() async throws {
+        let transport = RecordingTransport(routes: ["GET /api/items/item-1/graph": .init(json: """
+        {
+          "ok": true, "available": true, "range": "24h", "query": "container_memory_working_set_bytes",
+          "from": 1795435200000, "to": 1795521600000,
+          "threshold": {"op": ">=", "value": 536870912},
+          "firing": {"startsAt": 1795500000000},
+          "series": [{"labels": {"pod": "api-1"}, "points": [{"at": 1795500000000, "value": 6.1e8}]}]
+        }
+        """)])
+
+        let fetched = try await CowtailAPI(transport: transport)
+            .fetchItemGraph(itemID: "item-1", range: .oneDay, sessionToken: "session")
+
+        XCTAssertEqual(transport.requests("GET /api/items/item-1/graph").map(\.request.path), [
+            "/api/items/item-1/graph?range=24h",
+        ])
+        XCTAssertEqual(fetched, ItemGraph(
+            range: .oneDay,
+            query: "container_memory_working_set_bytes",
+            from: Date(timeIntervalSince1970: 1_795_435_200),
+            to: Date(timeIntervalSince1970: 1_795_521_600),
+            threshold: .init(op: ">=", value: 536_870_912),
+            firing: .init(start: Date(timeIntervalSince1970: 1_795_500_000)),
+            series: [.init(
+                labels: ["pod": "api-1"],
+                points: [.init(at: Date(timeIntervalSince1970: 1_795_500_000), value: 6.1e8)]
+            )]
+        ))
+    }
+
+    func testAnUnavailableItemGraphIsNoGraph() async throws {
+        let transport = RecordingTransport(routes: ["GET /api/items/item-1/graph": .init(json: """
+        {"ok": true, "available": false, "range": "6h", "reason": "The alert has no generator URL"}
+        """)])
+
+        let fetched = try await CowtailAPI(transport: transport)
+            .fetchItemGraph(itemID: "item-1", range: .sixHours, sessionToken: "session")
+
+        XCTAssertNil(fetched)
+    }
+
     func testHermesStatusBeforeTheFirstHeartbeatHasNoHeartbeat() async throws {
         let transport = RecordingTransport(routes: [
             "GET /api/hermes/status": .init(json: #"{"ok": true, "status": null, "recentAnswers": []}"#),

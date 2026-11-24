@@ -92,6 +92,11 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         )
     }
 
+    func fetchItemGraph(itemID: String, range: ItemGraphRange, sessionToken _: String) async throws -> ItemGraph? {
+        try requireItems()
+        return seed.items.first { $0.id == itemID }.flatMap { CowtailPreviewFixtures.graph(for: $0, range: range) }
+    }
+
     func fetchItemStats(_: ItemListQuery, sessionToken _: String) async throws -> ItemStats {
         try requireItems()
         return seed.stats

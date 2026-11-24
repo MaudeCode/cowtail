@@ -492,6 +492,10 @@ private actor FakeItemAPI: CowtailAPIClient {
         nil
     }
 
+    func fetchItemGraph(itemID _: String, range _: ItemGraphRange, sessionToken _: String) async throws -> ItemGraph? {
+        nil
+    }
+
     func fetchItemStats(_: ItemListQuery, sessionToken _: String) async throws -> ItemStats {
         CowtailPreviewFixtures.stats
     }

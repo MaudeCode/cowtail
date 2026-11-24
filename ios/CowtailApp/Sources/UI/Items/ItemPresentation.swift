@@ -337,7 +337,27 @@ enum ItemFormat {
         date.formatted(.dateTime.day(.twoDigits).month(.abbreviated))
     }
 
+    /// 537M, 0.9, 12.5K.
+    static func compact(_ value: Double) -> String {
+        value.formatted(.number.notation(.compactName).precision(.significantDigits(1...3)))
+    }
+
     static func percent(_ share: Double) -> String {
         share.formatted(.percent.precision(.fractionLength(0...1)))
+    }
+}
+
+extension ItemGraph {
+    /// > 537M
+    var thresholdText: String? {
+        threshold.map { "\($0.op) \(ItemFormat.compact($0.value))" }
+    }
+
+    /// firing 09:12–09:40, or firing since 09:12 while it still fires.
+    var firingText: String? {
+        firing.map { firing in
+            firing.end.map { "firing \(ItemFormat.time(firing.start))–\(ItemFormat.time($0))" }
+                ?? "firing since \(ItemFormat.time(firing.start))"
+        }
     }
 }

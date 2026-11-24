@@ -1967,6 +1967,125 @@
           "fixes"
         ]
       },
+      "ItemGraphResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "range": {
+            "type": "string",
+            "enum": [
+              "1h",
+              "6h",
+              "24h"
+            ]
+          },
+          "query": {
+            "type": "string"
+          },
+          "from": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "threshold": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  ">",
+                  ">=",
+                  "<",
+                  "<=",
+                  "==",
+                  "!="
+                ]
+              },
+              "value": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "op",
+              "value"
+            ]
+          },
+          "firing": {
+            "type": "object",
+            "properties": {
+              "startsAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "endsAt": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "startsAt"
+            ]
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "labels": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "at": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "value": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "at",
+                      "value"
+                    ]
+                  },
+                  "maxItems": 120
+                }
+              },
+              "required": [
+                "labels",
+                "points"
+              ]
+            },
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "ok",
+          "available",
+          "range"
+        ]
+      },
       "HermesStatusResponse": {
         "type": "object",
         "properties": {
@@ -3721,6 +3840,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ItemGetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/graph": {
+      "get": {
+        "operationId": "getItemGraph",
+        "tags": [
+          "items"
+        ],
+        "summary": "An alert item's own metric over 1h, 6h or 24h, with its threshold and firing",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1h",
+                "6h",
+                "24h"
+              ],
+              "default": "6h"
+            },
+            "required": false,
+            "name": "range",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The graph, or why there is none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemGraphResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
