@@ -27,7 +27,6 @@ This repo contains five projects:
 - **Item detail** — the item's timeline, details, links and linked fix at `/items/:id`
 - **Settings** — quiet hours, urgency overrides, approval and roundup preferences, and Sign out
 - **Roundup page** — shareable summary view at `/roundup?from=...&to=...`
-- **Email roundup** — pre-rendered HTML endpoint for automated email reports
 - **PWA** — installable with custom icon
 
 ## Architecture
@@ -85,7 +84,7 @@ The Hermes plugin needs only Python 3.11 or later. Test it with `python -m unitt
 
 3. **Set environment variables** for the Convex HTTP actions:
    - `COWTAIL_WEB_ORIGIN` — your Cowtail URL (used in alert deep links)
-   - `SITE_ORIGIN` — your Cowtail URL (used in roundup email links)
+   - `SITE_ORIGIN` — older name for `COWTAIL_WEB_ORIGIN`, read when that is unset
    - `PROMETHEUS_BASE_URL` — optional explicit Prometheus endpoint if it does not live behind `/prometheus`
    - `APNS_TOPIC` — the native app bundle identifier used for APNs
    - `APPLE_AUTH_AUDIENCE` — optional explicit Sign in with Apple audience override; defaults to `APNS_TOPIC`
