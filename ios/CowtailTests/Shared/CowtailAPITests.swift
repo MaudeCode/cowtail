@@ -32,6 +32,8 @@ final class CowtailAPITests: XCTestCase {
           {"id": "job-1", "name": "roundup-digest", "schedule": "0 8 * * *", "failing": false}
         ],
         "failingCronCount": 1,
+        "budgetOrder": ["spent", "capped"],
+        "rateLimitOrder": ["anthropic"],
         "incidents": [
           {"id": "inc-1", "jobId": "job-2", "state": "open", "jobName": "backup-verify", "itemId": "item-7", "itemTitle": "Backup failed"},
           {"id": "inc-2", "jobId": "job-gone", "state": "open"}
@@ -58,7 +60,7 @@ final class CowtailAPITests: XCTestCase {
         XCTAssertEqual(heartbeat.incidents.map(\.jobName), ["backup-verify", "job-gone"])
         XCTAssertEqual(
             heartbeat.budget,
-            [.init(key: "capped", value: "no"), .init(key: "spent", value: "4.2")]
+            [.init(key: "spent", value: "4.2"), .init(key: "capped", value: "no")]
         )
         XCTAssertEqual(heartbeat.rateLimits, [.init(key: "anthropic", value: "ok")])
         XCTAssertEqual(status.recentAnswers.map(\.answer), [.choose("Wait"), .deny])

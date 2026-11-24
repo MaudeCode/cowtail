@@ -361,6 +361,20 @@ describe("Hermes status for the owner", () => {
     expect(current?.failingCronCount).toBe(2);
   });
 
+  test("budget and rate-limit keys come in name order", async () => {
+    const t = await newBackendWithSources();
+    await heartbeat(t, {
+      ...snapshot,
+      budget: { weekly: "40%", daily: "62%" },
+      rateLimits: { openai: "ok", anthropic: "limited" },
+    });
+
+    expect(await status(t)).toMatchObject({
+      budgetOrder: ["daily", "weekly"],
+      rateLimitOrder: ["anthropic", "openai"],
+    });
+  });
+
   test("an incident names its job and links the item whose dedupeKey is cron-incident:<id>", async () => {
     const t = await newBackendWithSources();
     const itemId = await createItem(t, {

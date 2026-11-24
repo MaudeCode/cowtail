@@ -2002,6 +2002,18 @@
                 "items": {
                   "$ref": "#/components/schemas/HermesIncident"
                 }
+              },
+              "budgetOrder": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rateLimitOrder": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [

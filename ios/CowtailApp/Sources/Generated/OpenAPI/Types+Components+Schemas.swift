@@ -3053,6 +3053,10 @@ extension Components {
                 internal var failingCronCount: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/incidents`.
                 internal var incidents: [Components.Schemas.HermesIncident]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/budgetOrder`.
+                internal var budgetOrder: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/rateLimitOrder`.
+                internal var rateLimitOrder: [Swift.String]?
                 /// Creates a new `StatusPayload`.
                 ///
                 /// - Parameters:
@@ -3063,6 +3067,8 @@ extension Components {
                 ///   - cronJobs:
                 ///   - failingCronCount:
                 ///   - incidents:
+                ///   - budgetOrder:
+                ///   - rateLimitOrder:
                 internal init(
                     receivedAt: Swift.Int,
                     heartbeatMissing: Swift.Bool,
@@ -3070,7 +3076,9 @@ extension Components {
                     statusLevel: Components.Schemas.HermesStatusResponse.StatusPayload.StatusLevelPayload? = nil,
                     cronJobs: [Components.Schemas.HermesCronJob]? = nil,
                     failingCronCount: Swift.Int? = nil,
-                    incidents: [Components.Schemas.HermesIncident]? = nil
+                    incidents: [Components.Schemas.HermesIncident]? = nil,
+                    budgetOrder: [Swift.String]? = nil,
+                    rateLimitOrder: [Swift.String]? = nil
                 ) {
                     self.receivedAt = receivedAt
                     self.heartbeatMissing = heartbeatMissing
@@ -3079,6 +3087,8 @@ extension Components {
                     self.cronJobs = cronJobs
                     self.failingCronCount = failingCronCount
                     self.incidents = incidents
+                    self.budgetOrder = budgetOrder
+                    self.rateLimitOrder = rateLimitOrder
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case receivedAt
@@ -3088,6 +3098,8 @@ extension Components {
                     case cronJobs
                     case failingCronCount
                     case incidents
+                    case budgetOrder
+                    case rateLimitOrder
                 }
             }
             /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status`.

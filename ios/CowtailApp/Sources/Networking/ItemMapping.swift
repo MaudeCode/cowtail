@@ -175,12 +175,14 @@ extension CowtailAPI {
                         )
                     },
                     kanban: snapshot.kanban.map { HermesStatus.Kanban(blocked: $0.blocked, running: $0.running) },
-                    budget: limits(snapshot.budget?.additionalProperties.mapValues {
-                        limitText($0?.value1, $0?.value2, $0?.value3)
-                    }),
-                    rateLimits: limits(snapshot.rateLimits?.additionalProperties.mapValues {
-                        limitText($0?.value1, $0?.value2, $0?.value3)
-                    })
+                    budget: limits(
+                        snapshot.budget?.additionalProperties.mapValues { limitText($0?.value1, $0?.value2, $0?.value3) },
+                        order: status.budgetOrder
+                    ),
+                    rateLimits: limits(
+                        snapshot.rateLimits?.additionalProperties.mapValues { limitText($0?.value1, $0?.value2, $0?.value3) },
+                        order: status.rateLimitOrder
+                    )
                 )
             },
             recentAnswers: (response.recentAnswers ?? []).map { answer in
@@ -209,10 +211,8 @@ extension CowtailAPI {
         text ?? number?.formatted() ?? flag.map { $0 ? "yes" : "no" } ?? "–"
     }
 
-    /// Hermes's keys in name order; JSON gives them no order of their own.
-    private static func limits(_ values: [String: String]?) -> [HermesStatus.Limit] {
-        (values ?? [:])
-            .map { HermesStatus.Limit(key: $0.key, value: $0.value) }
-            .sorted { $0.key < $1.key }
+    /// The server's order of Hermes's keys.
+    private static func limits(_ values: [String: String]?, order: [String]?) -> [HermesStatus.Limit] {
+        (order ?? []).map { HermesStatus.Limit(key: $0, value: values?[$0] ?? "–") }
     }
 }

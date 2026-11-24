@@ -118,6 +118,9 @@ export const hermesStatusResponseSchema = z.object({
       failingCronCount: z.number().int().nonnegative().optional(),
       // The snapshot's open incidents, in Hermes's order.
       incidents: z.array(hermesStatusIncidentSchema).optional(),
+      // The snapshot's budget and rate-limit keys in the order to show them.
+      budgetOrder: z.array(z.string()).optional(),
+      rateLimitOrder: z.array(z.string()).optional(),
     })
     .nullable(),
   // Newest answer first, at most 20.

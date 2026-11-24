@@ -92,13 +92,18 @@ function RecentAnswers({ reply, now }: { reply: HermesStatusResponse; now: numbe
   );
 }
 
-// Budget and rate limits are whatever keys Hermes reports.
-function Limits({ values }: { values?: Record<string, unknown> }) {
-  return Object.entries(values ?? {}).map(([key, value]) => (
-    <KeyValue key={key} label={key}>
-      <span className="font-mono">{value === null ? "–" : String(value)}</span>
-    </KeyValue>
-  ));
+// Budget and rate limits are whatever keys Hermes reports, in the server's order.
+function Limits({ values, order }: { values?: Record<string, unknown>; order?: string[] }) {
+  return (order ?? []).map((key) => {
+    const value = values?.[key];
+    return (
+      <KeyValue key={key} label={key}>
+        <span className="font-mono">
+          {value === null || value === undefined ? "–" : String(value)}
+        </span>
+      </KeyValue>
+    );
+  });
 }
 
 function StatusSection({ status, now }: { status: Status | null; now: number }) {
@@ -139,8 +144,8 @@ function StatusSection({ status, now }: { status: Status | null; now: number }) 
           · {snapshot.kanban.running} running
         </KeyValue>
       )}
-      <Limits values={snapshot.budget} />
-      <Limits values={snapshot.rateLimits} />
+      <Limits values={snapshot.budget} order={status.budgetOrder} />
+      <Limits values={snapshot.rateLimits} order={status.rateLimitOrder} />
     </Section>
   );
 }

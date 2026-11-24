@@ -240,6 +240,8 @@ export const getStatus = internalQuery({
         cronJobs: jobs,
         failingCronCount: jobs.filter((job) => job.failing).length,
         incidents: await incidents(ctx, snapshot),
+        budgetOrder: Object.keys(snapshot.budget ?? {}).sort(),
+        rateLimitOrder: Object.keys(snapshot.rateLimits ?? {}).sort(),
       },
       recentAnswers: answers,
     };
