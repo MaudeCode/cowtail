@@ -109,6 +109,19 @@ export const alertGetResponseSchema = z.object({
   alert: alertRecordSchema,
 });
 
+// One step of what Hermes did in an investigation: a numbered line, then the command it ran
+// and the key output. Completion takes at most 20 steps; Cowtail cuts each output to 4 KB.
+export const investigationEvidenceMaxSteps = 20;
+export const investigationEvidenceStepSchema = z.object({
+  step: nonEmptyStringSchema.max(2_000),
+  command: z.string().max(20_000).optional(),
+  output: z.string().optional(),
+  at: timestampSchema.optional(),
+});
+export const investigationEvidenceSchema = z
+  .array(investigationEvidenceStepSchema)
+  .max(investigationEvidenceMaxSteps);
+
 export type AlertCreateRequest = z.infer<typeof alertCreateRequestSchema>;
 export type AlertRecord = z.infer<typeof alertRecordSchema>;
 export type AlertListQuery = z.infer<typeof alertListQuerySchema>;
@@ -121,4 +134,5 @@ export type AlertInvestigation = z.infer<typeof alertInvestigationSchema>;
 export type AlertInvestigationStatus = z.infer<typeof alertInvestigationStatusSchema>;
 export type AlertHumanAction = z.infer<typeof alertHumanActionSchema>;
 export type AlertHumanActionRequest = z.infer<typeof alertHumanActionRequestSchema>;
+export type InvestigationEvidenceStep = z.infer<typeof investigationEvidenceStepSchema>;
 export type AlertHumanActionResponse = z.infer<typeof alertHumanActionResponseSchema>;

@@ -237,6 +237,33 @@ extension ItemEvent {
     }
 }
 
+extension ItemEvent {
+    /// The collapsed evidence's title: "Evidence · 3 steps".
+    var evidenceTitle: String {
+        "Evidence · \(evidence.count) \(evidence.count == 1 ? "step" : "steps")"
+    }
+}
+
+extension EvidenceStep {
+    /// The step's numbered line: "1 · Read the logs".
+    func line(_ number: Int) -> String {
+        "\(number) · \(step)"
+    }
+
+    /// The command and its output as one monospace block, or nil when the step has neither.
+    var block: String? {
+        let parts = [command.map { "$ \($0)" }, output].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+}
+
+extension PriorOccurrence {
+    /// The fix commit, short, or a dash without one.
+    var fixCommitText: String {
+        fixCommit.map { String($0.prefix(7)) } ?? "–"
+    }
+}
+
 enum ItemFormat {
     static func duration(_ interval: TimeInterval, units: Int = 2) -> String {
         let formatter = DateComponentsFormatter()
@@ -259,6 +286,11 @@ enum ItemFormat {
         Calendar.current.isDate(date, inSameDayAs: now)
             ? time(date)
             : date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+
+    /// 12 Nov.
+    static func day(_ date: Date) -> String {
+        date.formatted(.dateTime.day(.twoDigits).month(.abbreviated))
     }
 
     static func percent(_ share: Double) -> String {

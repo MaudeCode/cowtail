@@ -32,6 +32,7 @@ import {
   hermesResponseFailRequestSchema,
   hermesSnapshotSchema,
   hermesStatusResponseSchema,
+  investigationEvidenceSchema,
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
@@ -1132,10 +1133,17 @@ async function loadInvestigationJobContext(c: RouteContext, job: any) {
         })
       : [];
 
+  const memberIds = [...new Set([job?.alertId, ...relatedAlerts.map((a: any) => a._id)])];
+  const priorOccurrences = await c.env.runQuery((internal as any).priorOccurrences.forAlerts, {
+    alertIds: memberIds.filter(Boolean),
+  });
+
   return {
     job,
     alert: alert ? mapAlertRecord(alert as any) : null,
     relatedAlerts: relatedAlerts.map((relatedAlert: any) => mapAlertRecord(relatedAlert)),
+    // Each member alert's earlier firings, by alert ID, newest first.
+    priorOccurrences,
     sourceEvent: sourceEvent
       ? {
           id: String(sourceEvent._id),
@@ -1270,6 +1278,7 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
         action,
         rootCause: nonEmptyString(body.rootCause),
         messaged: typeof body.messaged === "boolean" ? body.messaged : false,
+        evidence: body.evidence,
       },
     ];
   }
@@ -1287,6 +1296,10 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
     if (!result || !resultOutcome || !alertId || !resultSummary || !resultAction) {
       return jsonError("each batch result requires alertId, a valid outcome, summary, and action");
     }
+    const evidence = investigationEvidenceSchema.optional().safeParse(result.evidence ?? undefined);
+    if (!evidence.success) {
+      return jsonError(`evidence: ${formatIssues(evidence.error.issues)}`);
+    }
     results.push({
       alertId,
       outcome: resultOutcome,
@@ -1294,6 +1307,7 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
       action: resultAction,
       rootCause: nonEmptyString(result.rootCause),
       messaged: typeof result.messaged === "boolean" ? result.messaged : false,
+      evidence: evidence.data,
     });
   }
 

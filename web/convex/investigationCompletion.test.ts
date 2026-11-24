@@ -227,6 +227,18 @@ describe("investigation completion resolution gate", () => {
   }
 });
 
+async function request(
+  t: Backend,
+  f: Awaited<ReturnType<typeof fixture>>,
+  payload: Record<string, unknown>,
+) {
+  return await httpRequest(t, `/api/investigation-jobs/${f.jobId}/complete`, {
+    method: "POST",
+    bearer: "completion-test-token",
+    body: { claimToken: "claim-1", ...payload },
+  });
+}
+
 describe("HTTP completion resolution gate", () => {
   beforeEach(() => {
     stubEnv({ COWTAIL_WORKER_TOKEN: "completion-test-token" });
@@ -234,18 +246,6 @@ describe("HTTP completion resolution gate", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
-
-  async function request(
-    t: Backend,
-    f: Awaited<ReturnType<typeof fixture>>,
-    payload: Record<string, unknown>,
-  ) {
-    return await httpRequest(t, `/api/investigation-jobs/${f.jobId}/complete`, {
-      method: "POST",
-      bearer: "completion-test-token",
-      body: { claimToken: "claim-1", ...payload },
-    });
-  }
 
   for (const format of ["legacy", "batch"]) {
     for (const outcome of ["noise", "recorded", "fixed", "escalated"]) {
@@ -295,5 +295,77 @@ describe("HTTP completion resolution gate", () => {
     const before = await snapshot(t);
     expect((await request(t, f, f.args.results[0])).status).toBe(409);
     expect(await snapshot(t)).toEqual(before);
+  });
+});
+
+describe("HTTP completion evidence", () => {
+  beforeEach(() => {
+    stubEnv({ COWTAIL_WORKER_TOKEN: "completion-test-token" });
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const evidence = [
+    {
+      step: "Read the last termination state",
+      command: "kubectl -n media describe pod transcoder-7d9f",
+      output: "Reason: OOMKilled",
+      at: 450,
+    },
+    { step: "Raise the limit in GitOps and wait for rollout" },
+  ];
+
+  async function hermesUpdates(t: Backend) {
+    return (await rows(t, "itemEvents")).filter((event) => event.type === "hermes_update");
+  }
+
+  for (const format of ["legacy", "batch"]) {
+    test(`${format} completion stores evidence on the item's hermes_update`, async () => {
+      const t = newBackend();
+      const f = await fixture(t, ["resolved"]);
+      const result = { ...f.args.results[0], evidence };
+      const payload = format === "batch" ? { results: [result] } : result;
+
+      expect((await request(t, f, payload)).status).toBe(200);
+
+      expect((await hermesUpdates(t)).map((event) => event.payload)).toEqual([
+        { text: "New summary", evidence },
+      ]);
+    });
+  }
+
+  test("cuts an output over 4 KB and marks the cut", async () => {
+    const t = newBackend();
+    const f = await fixture(t, ["resolved"]);
+    const step = { step: "Dump the logs", output: "x".repeat(5_000) };
+
+    await request(t, f, { results: [{ ...f.args.results[0], evidence: [step] }] });
+
+    const [update] = await hermesUpdates(t);
+    expect(update?.payload.evidence?.[0].output).toBe(`${"x".repeat(4_096)}\n… [output truncated]`);
+  });
+
+  test("rejects more than 20 steps without writing", async () => {
+    const t = newBackend();
+    const f = await fixture(t, ["resolved"]);
+    const steps = Array.from({ length: 21 }, (_, index) => ({ step: `Step ${index + 1}` }));
+    const before = await snapshot(t);
+
+    const response = await request(t, f, { results: [{ ...f.args.results[0], evidence: steps }] });
+
+    expect(response.status).toBe(400);
+    expect(await snapshot(t)).toEqual(before);
+  });
+
+  test("completion without evidence records the summary alone", async () => {
+    const t = newBackend();
+    const f = await fixture(t, ["resolved"]);
+
+    expect((await request(t, f, { results: f.args.results })).status).toBe(200);
+
+    expect((await hermesUpdates(t)).map((event) => event.payload)).toEqual([
+      { text: "New summary" },
+    ]);
   });
 });

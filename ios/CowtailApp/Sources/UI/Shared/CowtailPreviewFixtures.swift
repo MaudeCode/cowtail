@@ -212,7 +212,21 @@ enum CowtailPreviewFixtures {
                 event(150, .dispatched, "cowtail"),
                 event(150, .notified, "cowtail", ["decision": "pushed"]),
                 event(145, .repeated, "alertmanager", ["occurrenceCount": "2"]),
-                event(140, .hermesUpdate, "hermes", ["text": "One replica is OOMKilled. Raising the limit."]),
+                ItemEvent(
+                    id: "\(item.id)-hermes_update-140",
+                    at: minutesAgo(140),
+                    type: .hermesUpdate,
+                    actor: "hermes",
+                    payload: ["text": "One replica is OOMKilled. Raising the limit."],
+                    evidence: [
+                        EvidenceStep(
+                            step: "Read the replica's last termination state",
+                            command: "kubectl -n api describe pod api-7d9f | grep -A3 \"Last State\"",
+                            output: "Last State:  Terminated\n  Reason:    OOMKilled\n  Exit Code: 137"
+                        ),
+                        EvidenceStep(step: "Raise the limit in GitOps and wait for rollout"),
+                    ]
+                ),
                 event(138, .actionTaken, "owner", ["type": "ack"]),
                 event(138, .stateChanged, "owner", ["from": "open", "to": "acked"]),
                 event(122, .resolved, "alertmanager", ["from": "acked", "to": "resolved"]),
@@ -364,6 +378,31 @@ enum CowtailPreviewFixtures {
             messaged: true
         ),
     ]
+
+    /// The earlier firings item detail shows for an item's alert.
+    static func priorOccurrences(for item: Item) -> [PriorOccurrence] {
+        guard item.id == replicas.id else { return [] }
+        return [
+            PriorOccurrence(
+                alertID: "alert-replicas-prior-1",
+                firedAt: daysAgo(12, hour: 9),
+                outcome: .fixed,
+                rootCause: "OOMKilled at 256Mi",
+                summary: "One replica crash looped.",
+                cause: "OOMKilled at 256Mi",
+                fixCommit: "7be01d4e",
+                fixes: [.init(description: "Raise the api memory limit", rootCause: "OOMKilled", commit: "7be01d4e")]
+            ),
+            PriorOccurrence(
+                alertID: "alert-replicas-prior-2",
+                firedAt: daysAgo(26, hour: 14),
+                outcome: .selfResolved,
+                rootCause: "Node drain",
+                summary: "Replicas rescheduled after a node drain.",
+                cause: "Node drain"
+            ),
+        ]
+    }
 
     static let roundupFixes = [
         AlertFix(

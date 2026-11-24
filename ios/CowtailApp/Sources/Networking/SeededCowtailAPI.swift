@@ -81,7 +81,12 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         try requireItems()
         guard let item = seed.items.first(where: { $0.id == id }) else { return nil }
         let fixes = item.id == CowtailPreviewFixtures.replicas.id ? CowtailPreviewFixtures.roundupFixes : []
-        return ItemDetail(item: item, events: events[id] ?? [], fixes: fixes)
+        return ItemDetail(
+            item: item,
+            events: events[id] ?? [],
+            fixes: fixes,
+            priorOccurrences: CowtailPreviewFixtures.priorOccurrences(for: item)
+        )
     }
 
     func fetchItemStats(_: ItemListQuery, sessionToken _: String) async throws -> ItemStats {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
-import { alertHumanActionSchema } from "./alerts.ts";
+import { alertHumanActionSchema, investigationEvidenceSchema } from "./alerts.ts";
 import { fixRecordSchema } from "./fixes.ts";
 import { sourceInfoSchema } from "./sources.ts";
 
@@ -129,6 +129,31 @@ export const itemEventRecordSchema = z.object({
   type: itemEventTypeSchema,
   actor: nonEmptyStringSchema,
   payload: z.record(z.string(), z.unknown()),
+  // A `hermes_update` from a finished investigation: the steps Hermes recorded, in order.
+  evidence: investigationEvidenceSchema.optional(),
+});
+
+// An earlier firing of the same alert: the same Alertmanager fingerprint first, then the same
+// alertname in the same namespace. `outcome` folds in the owner's call, as an item's does.
+// `cause` and `fixCommit` are what a row shows: the root cause, or the summary when none was
+// recorded, and the commit of the newest fix that names one.
+export const priorOccurrenceSchema = z.object({
+  alertId: nonEmptyStringSchema,
+  firedAt: timestampSchema,
+  resolvedAt: timestampSchema.optional(),
+  outcome: itemOutcomeSchema,
+  rootCause: z.string().optional(),
+  summary: z.string(),
+  ownerDisposition: z.enum(["noise", "escalated"]).optional(),
+  cause: z.string(),
+  fixCommit: nonEmptyStringSchema.optional(),
+  fixes: z.array(
+    z.object({
+      description: nonEmptyStringSchema,
+      rootCause: nonEmptyStringSchema,
+      commit: nonEmptyStringSchema.optional(),
+    }),
+  ),
 });
 
 // A source token posts as its own source and ignores `source`; a service token must name a
@@ -230,6 +255,9 @@ export const itemGetResponseSchema = z.object({
   // Alert items: the fixes recorded against the alert, newest first. Optional so a client
   // still decodes a server from before it.
   fixes: z.array(fixRecordSchema).optional(),
+  // Alert items: up to 3 earlier firings of the alert, newest first. Optional so a client
+  // still decodes a server from before it.
+  priorOccurrences: z.array(priorOccurrenceSchema).optional(),
 });
 
 const ackActionSchema = z.object({ type: z.literal("ack") });
@@ -360,6 +388,7 @@ export type ItemLink = z.infer<typeof itemLinkSchema>;
 export type ItemAction = z.infer<typeof itemActionSchema>;
 export type ItemRecord = z.infer<typeof itemRecordSchema>;
 export type ItemEventRecord = z.infer<typeof itemEventRecordSchema>;
+export type PriorOccurrence = z.infer<typeof priorOccurrenceSchema>;
 export type ItemCreateRequest = z.infer<typeof itemCreateRequestSchema>;
 export type ItemCreateResponse = z.infer<typeof itemCreateResponseSchema>;
 export type ItemEventAppendRequest = z.infer<typeof itemEventAppendRequestSchema>;

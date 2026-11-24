@@ -2562,6 +2562,8 @@ extension Components {
             internal var events: [Components.Schemas.ItemEventRecord]
             /// - Remark: Generated from `#/components/schemas/ItemGetResponse/fixes`.
             internal var fixes: [Components.Schemas.FixRecord]?
+            /// - Remark: Generated from `#/components/schemas/ItemGetResponse/priorOccurrences`.
+            internal var priorOccurrences: [Components.Schemas.PriorOccurrence]?
             /// Creates a new `ItemGetResponse`.
             ///
             /// - Parameters:
@@ -2569,22 +2571,26 @@ extension Components {
             ///   - item:
             ///   - events:
             ///   - fixes:
+            ///   - priorOccurrences:
             internal init(
                 ok: Swift.Bool,
                 item: Components.Schemas.ItemRecord,
                 events: [Components.Schemas.ItemEventRecord],
-                fixes: [Components.Schemas.FixRecord]? = nil
+                fixes: [Components.Schemas.FixRecord]? = nil,
+                priorOccurrences: [Components.Schemas.PriorOccurrence]? = nil
             ) {
                 self.ok = ok
                 self.item = item
                 self.events = events
                 self.fixes = fixes
+                self.priorOccurrences = priorOccurrences
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case item
                 case events
                 case fixes
+                case priorOccurrences
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemEventRecord`.
@@ -2630,6 +2636,8 @@ extension Components {
             }
             /// - Remark: Generated from `#/components/schemas/ItemEventRecord/payload`.
             internal var payload: Components.Schemas.ItemEventRecord.PayloadPayload
+            /// - Remark: Generated from `#/components/schemas/ItemEventRecord/evidence`.
+            internal var evidence: [Components.Schemas.InvestigationEvidenceStep]?
             /// Creates a new `ItemEventRecord`.
             ///
             /// - Parameters:
@@ -2639,13 +2647,15 @@ extension Components {
             ///   - _type:
             ///   - actor:
             ///   - payload:
+            ///   - evidence:
             internal init(
                 id: Swift.String,
                 itemId: Swift.String,
                 at: Swift.Int,
                 _type: Components.Schemas.ItemEventRecord._TypePayload,
                 actor: Swift.String,
-                payload: Components.Schemas.ItemEventRecord.PayloadPayload
+                payload: Components.Schemas.ItemEventRecord.PayloadPayload,
+                evidence: [Components.Schemas.InvestigationEvidenceStep]? = nil
             ) {
                 self.id = id
                 self.itemId = itemId
@@ -2653,6 +2663,7 @@ extension Components {
                 self._type = _type
                 self.actor = actor
                 self.payload = payload
+                self.evidence = evidence
             }
             internal enum CodingKeys: String, CodingKey {
                 case id
@@ -2661,6 +2672,157 @@ extension Components {
                 case _type = "type"
                 case actor
                 case payload
+                case evidence
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InvestigationEvidenceStep`.
+        internal struct InvestigationEvidenceStep: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InvestigationEvidenceStep/step`.
+            internal var step: Swift.String
+            /// - Remark: Generated from `#/components/schemas/InvestigationEvidenceStep/command`.
+            internal var command: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/InvestigationEvidenceStep/output`.
+            internal var output: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/InvestigationEvidenceStep/at`.
+            internal var at: Swift.Int?
+            /// Creates a new `InvestigationEvidenceStep`.
+            ///
+            /// - Parameters:
+            ///   - step:
+            ///   - command:
+            ///   - output:
+            ///   - at:
+            internal init(
+                step: Swift.String,
+                command: Swift.String? = nil,
+                output: Swift.String? = nil,
+                at: Swift.Int? = nil
+            ) {
+                self.step = step
+                self.command = command
+                self.output = output
+                self.at = at
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case step
+                case command
+                case output
+                case at
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PriorOccurrence`.
+        internal struct PriorOccurrence: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/alertId`.
+            internal var alertId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/firedAt`.
+            internal var firedAt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/resolvedAt`.
+            internal var resolvedAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/outcome`.
+            internal enum OutcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case fixed = "fixed"
+                case selfResolved = "self-resolved"
+                case noise = "noise"
+                case escalated = "escalated"
+                case other = "other"
+            }
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/outcome`.
+            internal var outcome: Components.Schemas.PriorOccurrence.OutcomePayload
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/rootCause`.
+            internal var rootCause: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/summary`.
+            internal var summary: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/ownerDisposition`.
+            internal enum OwnerDispositionPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case noise = "noise"
+                case escalated = "escalated"
+            }
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/ownerDisposition`.
+            internal var ownerDisposition: Components.Schemas.PriorOccurrence.OwnerDispositionPayload?
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/cause`.
+            internal var cause: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/fixCommit`.
+            internal var fixCommit: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/FixesPayload`.
+            internal struct FixesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PriorOccurrence/FixesPayload/description`.
+                internal var description: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PriorOccurrence/FixesPayload/rootCause`.
+                internal var rootCause: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PriorOccurrence/FixesPayload/commit`.
+                internal var commit: Swift.String?
+                /// Creates a new `FixesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - description:
+                ///   - rootCause:
+                ///   - commit:
+                internal init(
+                    description: Swift.String,
+                    rootCause: Swift.String,
+                    commit: Swift.String? = nil
+                ) {
+                    self.description = description
+                    self.rootCause = rootCause
+                    self.commit = commit
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case description
+                    case rootCause
+                    case commit
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/fixes`.
+            internal typealias FixesPayload = [Components.Schemas.PriorOccurrence.FixesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PriorOccurrence/fixes`.
+            internal var fixes: Components.Schemas.PriorOccurrence.FixesPayload
+            /// Creates a new `PriorOccurrence`.
+            ///
+            /// - Parameters:
+            ///   - alertId:
+            ///   - firedAt:
+            ///   - resolvedAt:
+            ///   - outcome:
+            ///   - rootCause:
+            ///   - summary:
+            ///   - ownerDisposition:
+            ///   - cause:
+            ///   - fixCommit:
+            ///   - fixes:
+            internal init(
+                alertId: Swift.String,
+                firedAt: Swift.Int,
+                resolvedAt: Swift.Int? = nil,
+                outcome: Components.Schemas.PriorOccurrence.OutcomePayload,
+                rootCause: Swift.String? = nil,
+                summary: Swift.String,
+                ownerDisposition: Components.Schemas.PriorOccurrence.OwnerDispositionPayload? = nil,
+                cause: Swift.String,
+                fixCommit: Swift.String? = nil,
+                fixes: Components.Schemas.PriorOccurrence.FixesPayload
+            ) {
+                self.alertId = alertId
+                self.firedAt = firedAt
+                self.resolvedAt = resolvedAt
+                self.outcome = outcome
+                self.rootCause = rootCause
+                self.summary = summary
+                self.ownerDisposition = ownerDisposition
+                self.cause = cause
+                self.fixCommit = fixCommit
+                self.fixes = fixes
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case alertId
+                case firedAt
+                case resolvedAt
+                case outcome
+                case rootCause
+                case summary
+                case ownerDisposition
+                case cause
+                case fixCommit
+                case fixes
             }
         }
         /// - Remark: Generated from `#/components/schemas/HermesStatusResponse`.

@@ -86,6 +86,7 @@ struct ItemDetailView: View {
                     timeline
                     details
                     fixes
+                    priorOccurrences
                 }
                 .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
                 .padding(.bottom, 28)
@@ -144,29 +145,35 @@ struct ItemDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             CowtailSectionHeader(title: "Timeline")
             ForEach(detail.events) { event in
-                HStack(alignment: .top, spacing: 10) {
-                    Circle()
-                        .fill(event.tint(palette))
-                        .frame(width: 7, height: 7)
-                        .padding(.top, 5)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(event.type.rawValue)
-                            .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
-                            .foregroundStyle(event.tint(palette))
-                        if !event.text.isEmpty {
-                            Text(event.text)
-                                .font(.cowtailSans(13, relativeTo: .footnote))
-                                .foregroundStyle(palette.ink)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(event.tint(palette))
+                            .frame(width: 7, height: 7)
+                            .padding(.top, 5)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(event.type.rawValue)
+                                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
+                                .foregroundStyle(event.tint(palette))
+                            if !event.text.isEmpty {
+                                Text(event.text)
+                                    .font(.cowtailSans(13, relativeTo: .footnote))
+                                    .foregroundStyle(palette.ink)
+                            }
                         }
+                        Spacer(minLength: 8)
+                        Text(ItemFormat.time(event.at))
+                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .foregroundStyle(palette.mutedInk)
                     }
-                    Spacer(minLength: 8)
-                    Text(ItemFormat.time(event.at))
-                        .font(.cowtailMono(11, relativeTo: .caption2))
-                        .foregroundStyle(palette.mutedInk)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("event.\(event.type.rawValue)")
+                    if !event.evidence.isEmpty {
+                        evidence(event)
+                            .padding(.leading, 17)
+                    }
                 }
                 .padding(.vertical, 6)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("event.\(event.type.rawValue)")
             }
         }
     }
@@ -241,6 +248,68 @@ struct ItemDetailView: View {
                 }
                 .cowtailRow()
                 .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// The steps behind a Hermes update, collapsed: each a numbered line, then its command and
+    /// output in one monospace block.
+    private func evidence(_ event: ItemEvent) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(event.evidence.enumerated()), id: \.offset) { index, step in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(step.line(index + 1))
+                            .font(.cowtailSans(12, relativeTo: .caption))
+                            .foregroundStyle(palette.mutedInk)
+                        if let block = step.block {
+                            Text(block)
+                                .font(.cowtailMono(11, relativeTo: .caption2))
+                                .foregroundStyle(palette.ink)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 7)
+                                .background(palette.surface)
+                                .overlay(alignment: .leading) {
+                                    Rectangle().fill(palette.border).frame(width: 2)
+                                }
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            Text(event.evidenceTitle)
+                .font(.cowtailSans(12, relativeTo: .caption))
+                .foregroundStyle(palette.mutedInk)
+        }
+        .tint(palette.mutedInk)
+        .padding(.top, 4)
+    }
+
+    /// The mockup's last section: earlier firings of the alert, newest first.
+    @ViewBuilder
+    private var priorOccurrences: some View {
+        if !detail.priorOccurrences.isEmpty {
+            CowtailSectionHeader(title: "Past occurrences")
+            ForEach(detail.priorOccurrences) { prior in
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(ItemFormat.day(prior.firedAt))
+                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .foregroundStyle(palette.mutedInk)
+                    CowtailStatusBadge(title: prior.outcome.label, tint: prior.outcome.tint(palette))
+                    Text(prior.cause)
+                        .font(.cowtailSans(13, relativeTo: .footnote))
+                        .foregroundStyle(palette.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(prior.fixCommitText)
+                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .foregroundStyle(palette.mutedInk)
+                }
+                .cowtailRow()
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("row.prior-occurrence.\(prior.id)")
             }
         }
     }
