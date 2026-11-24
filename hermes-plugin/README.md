@@ -1,6 +1,6 @@
 # hermes-cowtail-tool
 
-Standalone Hermes plugin exposing one typed `cowtail` tool for Cowtail alert and investigation-job operations.
+Hermes plugin with two roles: a typed `cowtail` tool for Cowtail alert and investigation-job operations, and a `cowtail` platform that makes Cowtail one of Hermes's messaging platforms.
 
 ## Environment
 
@@ -8,7 +8,21 @@ Standalone Hermes plugin exposing one typed `cowtail` tool for Cowtail alert and
 COWTAIL_API_BASE=https://cowtail-actions.example.com
 COWTAIL_WORKER_TOKEN=<secret>
 COWTAIL_WORKER_ID=hermes-default-gateway
+COWTAIL_PLATFORM_ENABLED=true   # run the platform; the tool works without it
+COWTAIL_HOME_CHANNEL=owner      # optional; the name cron delivery uses for the Cowtail inbox
 ```
+
+## Platform
+
+With `COWTAIL_PLATFORM_ENABLED=true` the gateway runs the `cowtail` platform beside the tool:
+
+- A message Hermes sends becomes a Cowtail item through `POST /api/items`: `kind=fyi`, `urgency=today`, unless the sender's metadata names another `kind` or `urgency`.
+- `cowtail` is a cron `deliver` and `failure_deliver` target. A failure notice becomes a `failure` item with `dedupeKey=cron-incident:<incidentId>` and an Ack action; acking it acknowledges the Hermes incident, so repeats of that failure stay quiet.
+- A dangerous-command approval becomes an `approval` item with Approve and Deny that expires at Hermes's approval deadline. The item binds to the Hermes request id and shows the whole command; an approval that cannot be shown whole or bound is refused, and Hermes falls back to its text prompt. A `clarify` question becomes a `question` item with Reply, plus Choose when Hermes offers choices, that expires at the clarify timeout.
+- Every 3 seconds the platform claims the owner's answers from `POST /api/hermes/responses/claim` and applies each one: Approve resolves the approval once, Deny denies it, a reply or choice answers the question, Ack acknowledges the cron incident. It confirms with `/complete`, or `/fail` when Hermes no longer holds the request. Cowtail then resolves or expires the item. Answers are pulled, so no port opens on the Hermes host, and a lease brings an answer back after a Hermes restart. An approval answer targets the exact Hermes request it was shown for, and an answer Hermes already applied is confirmed again on its next lease, never applied twice.
+- Every 60 seconds the platform posts `POST /api/hermes/heartbeat` with the connected platforms, model and provider, cron jobs, open cron incidents and kanban counts. Cowtail raises a `hermes:heartbeat-missing` failure item after 5 minutes of silence and resolves it on the next heartbeat.
+
+Approvals and questions reach the adapter of the platform the session runs on, so Cowtail receives those for sessions that run on Cowtail.
 
 ## Tool actions
 
@@ -72,7 +86,7 @@ From `hermes-plugin/`:
 
 ```sh
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q __init__.py handlers.py handoff.py cowtail_client.py
+python3 -m compileall -q __init__.py handlers.py handoff.py cowtail_client.py cowtail_platform.py
 hermes plugins validate .
 hermes plugins doctor . --ci
 ```

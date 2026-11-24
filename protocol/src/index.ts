@@ -5,6 +5,7 @@ export * from "./openclaw.ts";
 export * from "./fixes.ts";
 export * from "./health.ts";
 export * from "./hermesHooks.ts";
+export * from "./hermes.ts";
 export * from "./items.ts";
 export * from "./push.ts";
 export * from "./responses.ts";

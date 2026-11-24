@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { Doc } from "./_generated/dataModel";
 import {
   type Backend,
+  advance,
   alertFields,
   newBackend,
   request,
@@ -164,6 +165,30 @@ describe("item ingest", () => {
     expect(strangerList.status).toBe(403);
     expect(serviceAction.status).toBe(401);
     expect(await rows(t, "items")).toEqual([]);
+  });
+});
+
+describe("item deadlines", () => {
+  test("an item still waiting at its deadline expires", async () => {
+    const t = newBackend();
+    const question = {
+      source: "hermes",
+      kind: "question",
+      urgency: "now",
+      title: "Which pool?",
+      actions: [{ type: "reply" }],
+    };
+    const timed = await createItem(t, { ...question, expiresAt: NOW + 5 * 60_000 });
+    const open = await createItem(t, question);
+
+    await advance(t, 4 * 60_000);
+    expect((await getItem(t, timed.id)).item.state).toBe("open");
+
+    await advance(t, 2 * 60_000);
+    const expired = await getItem(t, timed.id);
+    expect(expired.item).toMatchObject({ state: "expired", needsOwner: false });
+    expectTimelineReplaysState(expired);
+    expect((await getItem(t, open.id)).item.state).toBe("open");
   });
 });
 

@@ -26,6 +26,12 @@ import {
   fixCreateRequestSchema,
   healthResponseSchema,
   hermesHookPayloadSchema,
+  hermesResponseClaimRequestSchema,
+  hermesResponseClaimResponseSchema,
+  hermesResponseCompleteRequestSchema,
+  hermesResponseFailRequestSchema,
+  hermesSnapshotSchema,
+  hermesStatusResponseSchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
   itemCreateResponseSchema,
@@ -1396,6 +1402,9 @@ const itemErrorStatus: Record<string, [number, string]> = {
   ITEM_CLOSED: [409, "Item is already closed"],
   ACTION_NOT_OFFERED: [409, "Item does not offer this action"],
   INVALID_SNOOZE: [400, "Snooze must end in the future"],
+  ANSWER_PENDING: [409, "An answer to this item is already on its way"],
+  RESPONSE_NOT_FOUND: [404, "Response not found"],
+  RESPONSE_NOT_CLAIMED: [409, "Response is not claimed with this token"],
 };
 
 function itemErrorResponse(error: unknown) {
@@ -1427,6 +1436,13 @@ app.post("/api/items", async (c) => {
 
   const parsed = itemCreateRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  // The owner's answers to an item go to the Hermes worker, so only the worker may route them.
+  const fromWorker = isBearerTokenAuthorized(c.req.header("authorization"), [
+    process.env.COWTAIL_WORKER_TOKEN,
+  ]);
+  if (parsed.data.replyTo && !fromWorker) {
+    return jsonError("Only the worker token may set replyTo", 403);
+  }
 
   const result = await c.env.runMutation((internal as any).items.create, {
     ...parsed.data,
@@ -1591,6 +1607,95 @@ app.post("/api/me/items/:id/actions", async (c) => {
     return itemErrorResponse(error);
   }
   return await itemResponse(c, id);
+});
+
+// --- Hermes platform ------------------------------------------------------------------
+
+const HERMES_RESPONSE_LEASE_SECONDS = 60;
+
+// POST /api/hermes/responses/claim — lease the oldest owner answer waiting for Hermes
+app.post("/api/hermes/responses/claim", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = hermesResponseClaimRequestSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const response = await c.env.runMutation((internal as any).hermes.claimResponse, {
+    workerId: parsed.data.workerId ?? "hermes-default-gateway",
+    claimToken: generateClaimToken(),
+    leaseSeconds: parsed.data.leaseSeconds ?? HERMES_RESPONSE_LEASE_SECONDS,
+    now: Date.now(),
+  });
+  return c.json(
+    hermesResponseClaimResponseSchema.parse({ ok: true, response: response ?? undefined }),
+  );
+});
+
+// POST /api/hermes/responses/:id/complete — Hermes applied the answer; the item resolves
+app.post("/api/hermes/responses/:id/complete", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = hermesResponseCompleteRequestSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  try {
+    await c.env.runMutation((internal as any).hermes.completeResponse, {
+      id: c.req.param("id"),
+      ...parsed.data,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return itemErrorResponse(error);
+  }
+  return c.json(okResponseSchema.parse({ ok: true }));
+});
+
+// POST /api/hermes/responses/:id/fail — Hermes no longer holds the request; the item expires
+app.post("/api/hermes/responses/:id/fail", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = hermesResponseFailRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  try {
+    await c.env.runMutation((internal as any).hermes.failResponse, {
+      id: c.req.param("id"),
+      ...parsed.data,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return itemErrorResponse(error);
+  }
+  return c.json(okResponseSchema.parse({ ok: true }));
+});
+
+// POST /api/hermes/heartbeat — Hermes is alive; store what it is doing
+app.post("/api/hermes/heartbeat", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = hermesSnapshotSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  await c.env.runMutation((internal as any).hermes.recordHeartbeat, {
+    snapshot: parsed.data,
+    now: Date.now(),
+  });
+  return c.json(okResponseSchema.parse({ ok: true }));
+});
+
+// GET /api/hermes/status — the latest heartbeat and whether Hermes has gone quiet
+app.get("/api/hermes/status", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const status = await c.env.runQuery((internal as any).hermes.getStatus, { now: Date.now() });
+  return c.json(hermesStatusResponseSchema.parse({ ok: true, status }));
 });
 
 // POST /api/auth/session — exchange a fresh Apple identity token for an app session

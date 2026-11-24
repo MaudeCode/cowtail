@@ -1,7 +1,30 @@
 name: cowtail
-version: 0.1.0
-description: "Typed Hermes interface for Cowtail alerts, investigation jobs, outcomes, and fixes."
+label: Cowtail
+version: 0.2.0
+description: "Cowtail for Hermes: a typed tool for alerts, investigation jobs, outcomes and fixes, and a cowtail platform that turns messages, cron results, approvals and clarify questions into Cowtail items and brings the owner's answers back."
 author: MaudeCode
 kind: standalone
 provides_tools:
   - cowtail
+requires_env:
+  - name: COWTAIL_API_BASE
+    description: "Cowtail API base URL"
+    prompt: "Cowtail API base URL"
+    password: false
+  - name: COWTAIL_WORKER_TOKEN
+    description: "Cowtail worker token, shared by the tool and the platform"
+    prompt: "Cowtail worker token"
+    password: true
+optional_env:
+  - name: COWTAIL_WORKER_ID
+    description: "Worker name Cowtail records on claims (default: hermes-default-gateway)"
+    prompt: "Cowtail worker ID (or empty)"
+    password: false
+  - name: COWTAIL_PLATFORM_ENABLED
+    description: "Run the cowtail platform: items out, answers and heartbeat back (true/false)"
+    prompt: "Enable the Cowtail platform? (true/false)"
+    password: false
+  - name: COWTAIL_HOME_CHANNEL
+    description: "Name for the Cowtail inbox that cron jobs deliver to (default: owner)"
+    prompt: "Cowtail home channel (or empty)"
+    password: false

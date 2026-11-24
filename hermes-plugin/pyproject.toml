@@ -1,7 +1,7 @@
 [project]
 name = "hermes-cowtail-tool"
-version = "0.1.0"
-description = "Hermes plugin for Cowtail alert and investigation job operations"
+version = "0.2.0"
+description = "Hermes plugin for Cowtail: the cowtail tool and the cowtail platform"
 requires-python = ">=3.11"
 
 [tool.ruff]

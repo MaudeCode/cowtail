@@ -16,7 +16,15 @@ export const itemEventTypes = [
   "resolved",
 ] as const;
 // `source` is open: producers name themselves. These are the values Cowtail knows.
-export const knownItemSources = ["alertmanager", "hermes", "cron", "webhook", "manual"] as const;
+// `cowtail` marks Cowtail's own watchdog items, which maintenance windows never suppress.
+export const knownItemSources = [
+  "alertmanager",
+  "hermes",
+  "cron",
+  "webhook",
+  "manual",
+  "cowtail",
+] as const;
 
 export const itemKindSchema = z.enum(itemKinds);
 export const itemUrgencySchema = z.enum(itemUrgencies);
@@ -31,7 +39,7 @@ export const itemSourceSchema = z
 
 const webUrlSchema = z.url({ protocol: /^https?$/ });
 // Convex refuses empty keys and keys that start with `$` or `_`.
-const fieldNameSchema = z
+export const fieldNameSchema = z
   .string()
   .max(64)
   .regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/, "Expected a key of letters, digits, _ . : or -");
@@ -150,13 +158,25 @@ export const itemGetResponseSchema = z.object({
   events: z.array(itemEventRecordSchema),
 });
 
-export const itemActionRequestSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("ack") }),
-  z.object({ type: z.literal("snooze"), until: timestampSchema }),
+const ackActionSchema = z.object({ type: z.literal("ack") });
+const answerActionSchemas = [
   z.object({ type: z.literal("approve") }),
   z.object({ type: z.literal("deny") }),
   z.object({ type: z.literal("choose"), option: nonEmptyStringSchema }),
   z.object({ type: z.literal("reply"), text: nonEmptyStringSchema.max(20_000) }),
+] as const;
+
+// The owner's answers to an item; a producer that set `replyTo` receives them.
+export const itemAnswerSchema = z.discriminatedUnion("type", [
+  ackActionSchema,
+  ...answerActionSchemas,
+]);
+
+// The generated iOS client names these variants by position: keep their order.
+export const itemActionRequestSchema = z.discriminatedUnion("type", [
+  ackActionSchema,
+  z.object({ type: z.literal("snooze"), until: timestampSchema }),
+  ...answerActionSchemas,
 ]);
 
 export const itemResponseSchema = z.object({
@@ -252,6 +272,7 @@ export type ItemEventAppendRequest = z.infer<typeof itemEventAppendRequestSchema
 export type ItemListQuery = z.infer<typeof itemListQuerySchema>;
 export type ItemListResponse = z.infer<typeof itemListResponseSchema>;
 export type ItemGetResponse = z.infer<typeof itemGetResponseSchema>;
+export type ItemAnswer = z.infer<typeof itemAnswerSchema>;
 export type ItemActionRequest = z.infer<typeof itemActionRequestSchema>;
 export type ItemResponse = z.infer<typeof itemResponseSchema>;
 export type ItemOutcome = (typeof itemOutcomes)[number];

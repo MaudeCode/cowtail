@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { openclawEventTypes } from "@maudecode/cowtail-protocol";
 
 import {
+  itemAnswerValidator,
   itemEventTypeValidator,
   itemFields,
   itemUrgencyValidator,
@@ -58,7 +59,8 @@ export default defineSchema({
     .index("by_dedupeKey", ["dedupeKey"])
     .index("by_source_createdAt", ["source", "createdAt"])
     .index("by_alertId", ["alertId"])
-    .index("by_createdAt", ["createdAt"]),
+    .index("by_createdAt", ["createdAt"])
+    .index("by_state_expiresAt", ["state", "expiresAt"]),
 
   itemEvents: defineTable({
     itemId: v.id("items"),
@@ -82,6 +84,30 @@ export default defineSchema({
   })
     .index("by_deliveryId", ["deliveryId"])
     .index("by_receivedAt", ["receivedAt"]),
+
+  // An owner's answer to an item with a `replyTo`, waiting for Hermes to claim and apply it.
+  itemResponses: defineTable({
+    itemId: v.id("items"),
+    answer: itemAnswerValidator,
+    status: v.union(v.literal("pending"), v.literal("done"), v.literal("failed")),
+    // When the row can next be claimed: its creation, then the end of each lease.
+    availableAt: v.number(),
+    claimToken: v.optional(v.string()),
+    claimedBy: v.optional(v.string()),
+    leaseUntil: v.optional(v.number()),
+    attempts: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_status_availableAt", ["status", "availableAt"])
+    .index("by_itemId_status", ["itemId", "status"]),
+
+  // One row: the latest Hermes heartbeat.
+  hermesStatus: defineTable({
+    receivedAt: v.number(),
+    snapshot: v.any(),
+  }),
 
   alertmanagerEvents: defineTable({
     receivedAt: v.number(),
