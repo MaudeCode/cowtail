@@ -8,6 +8,7 @@ import { Empty, QueryError } from "./components/ui";
 import { api } from "./lib/api";
 import { sessionQuery } from "./lib/queries";
 import Cluster from "./pages/Cluster";
+import Hermes from "./pages/Hermes";
 import History from "./pages/History";
 import Home from "./pages/Home";
 import ItemDetail from "./pages/ItemDetail";
@@ -47,6 +48,7 @@ export function AppRoutes() {
         <Route index element={<Home />} />
         <Route path="/cluster" element={<Cluster />} />
         <Route path="/history" element={<History />} />
+        <Route path="/hermes" element={<Hermes />} />
         <Route path="/items/:id" element={<ItemDetail />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/alerts/:alertId" element={<AlertRedirect />} />

@@ -1,11 +1,20 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { useLocation } from "react-router-dom";
 
 import { AppRoutes } from "./App";
 import { stubApi } from "./test/api";
-import { inbox, item, NOW, preferences, SESSION, signedIn, stats } from "./test/fixtures";
+import {
+  hermesStatus,
+  inbox,
+  item,
+  NOW,
+  preferences,
+  SESSION,
+  signedIn,
+  stats,
+} from "./test/fixtures";
 import { renderWithProviders } from "./test/render";
 
 function Address() {
@@ -82,12 +91,13 @@ const fixed = item({
 
 describe("each area's sections, in its figure's order", () => {
   test.each([
-    ["/", ["Needs you", "Hermes is on it", "Cluster", "Handled · 24h"]],
+    ["/", ["Needs you", "Hermes is on it", "Cluster", "Hermes", "Handled · 24h"]],
     [
       "/cluster",
       ["Alert pipeline", "Nodes", "Ceph", "Firing by namespace", "Volume · 7 days", "Noisiest"],
     ],
     ["/history", ["Outcomes", "Time to resolve", "Noise rate"]],
+    ["/hermes", ["Cron", "Cron incidents", "Recent approvals and answers", "Status"]],
     ["/items/item-9", ["Timeline", "Details", "Fix"]],
     ["/settings", ["Notifications", "Account", "Urgency overrides"]],
   ])("%s", async (route, labels) => {
@@ -484,4 +494,71 @@ test("an alert's old address opens its item", async () => {
   expect(
     await screen.findByRole("heading", { level: 1, name: "KubePodCrashLooping" }),
   ).toBeInTheDocument();
+});
+
+describe("Hermes", () => {
+  test("the top bar links Hermes between History and Settings, with its dot in the server's level", async () => {
+    stubApi(signedIn({ "GET /actions/api/items/inbox": inbox() }));
+
+    renderApp("/");
+
+    const nav = await screen.findByRole("navigation");
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Home", "Cluster", "History", "Hermes", "Settings"]);
+    const chip = screen.getByText("hermes");
+    await waitFor(() => expect(chip.querySelector("i")).toHaveClass("bg-warn"));
+  });
+
+  test("Home's Hermes block shows the heartbeat with the model, then the failing cron count", async () => {
+    // Ages read the clock: hold it at the fixtures' time, and leave timers real.
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    stubApi(signedIn({ "GET /actions/api/items/inbox": inbox() }));
+
+    renderApp("/");
+
+    expect(await screen.findByText("Heartbeat 38s ago")).toBeInTheDocument();
+    expect(screen.getAllByText("opus-5.5 · anthropic")).toHaveLength(1);
+    expect(screen.getByText("1 failing ·")).toBeInTheDocument();
+    expect(screen.getByText("2 jobs")).toBeInTheDocument();
+  });
+
+  test("/hermes lists cron jobs in the server's order and links each incident to its item", async () => {
+    stubApi(signedIn());
+
+    renderApp("/hermes");
+
+    const incident = await screen.findByRole("link", { name: "Nightly backup verify failed" });
+    expect(incident).toHaveAttribute("href", "/items/item-7");
+    const jobs = within(screen.getAllByRole("table")[0]).getAllByRole("row").slice(1);
+    expect(jobs.map((row) => row.firstChild?.textContent)).toEqual([
+      "backup-verify",
+      "roundup-digest",
+    ]);
+  });
+
+  test("/hermes words each recent answer: approved, the chosen option, denied", async () => {
+    stubApi(signedIn());
+
+    renderApp("/hermes");
+
+    const table = (await screen.findByRole("link", { name: "Restart ingress in edge?" })).closest(
+      "table",
+    )!;
+    const answers = within(table)
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.children[1].textContent);
+    expect(answers).toEqual(["approved", "Wait", "denied"]);
+  });
+
+  test("/hermes says when Hermes has never sent a heartbeat", async () => {
+    stubApi(signedIn({ "GET /actions/api/hermes/status": { ...hermesStatus, status: null } }));
+
+    renderApp("/hermes");
+
+    expect(await screen.findByText("Hermes has not sent a heartbeat yet.")).toBeInTheDocument();
+  });
 });

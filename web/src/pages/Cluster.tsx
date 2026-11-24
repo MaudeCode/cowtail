@@ -2,8 +2,8 @@ import type { ItemStatsResponse } from "@maudecode/cowtail-protocol";
 import { useQuery } from "@tanstack/react-query";
 
 import ClusterHealth from "../components/dashboard/ClusterHealth";
-import { Empty, KeyValue, QueryError, Section } from "../components/ui";
-import { formatClock, formatDay, formatPercent, formatShortDate } from "../lib/format";
+import { DataTable, Empty, KeyValue, QueryError, Section } from "../components/ui";
+import { formatDay, formatPercent, formatWhen } from "../lib/format";
 import { healthQuery, statsQuery } from "../lib/queries";
 
 // One colour per source, in the order the legend lists them.
@@ -58,12 +58,6 @@ function Volume({ stats }: { stats: ItemStatsResponse }) {
   );
 }
 
-function lastSeen(at: number) {
-  return formatShortDate(at) === formatShortDate(Date.now())
-    ? formatClock(at)
-    : `${formatShortDate(at)} ${formatClock(at)}`;
-}
-
 export default function Cluster() {
   const health = useQuery(healthQuery);
   const stats = useQuery(statsQuery());
@@ -109,27 +103,16 @@ export default function Cluster() {
         {data ? <Volume stats={data} /> : <Section label="Volume · 7 days" />}
         <Section label="Noisiest">
           {data && data.repeatOffenders.length > 0 && (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  {["Alert", "Count", "Noise", "Last seen"].map((column) => (
-                    <th key={column} scope="col">
-                      {column}
-                    </th>
-                  ))}
+            <DataTable columns={["Alert", "Count", "Noise", "Last seen"]}>
+              {data.repeatOffenders.map((row) => (
+                <tr key={row.dedupeKey}>
+                  <td>{row.title}</td>
+                  <td className="font-mono">{row.occurrenceCount}</td>
+                  <td className="font-mono">{formatPercent(row.noiseShare)}</td>
+                  <td className="font-mono text-gray-600">{formatWhen(row.lastSeenAt)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {data.repeatOffenders.map((row) => (
-                  <tr key={row.dedupeKey}>
-                    <td>{row.title}</td>
-                    <td className="font-mono">{row.occurrenceCount}</td>
-                    <td className="font-mono">{formatPercent(row.noiseShare)}</td>
-                    <td className="font-mono text-gray-600">{lastSeen(row.lastSeenAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </DataTable>
           )}
           {data?.repeatOffenders.length === 0 && <Empty>No repeats this week.</Empty>}
         </Section>

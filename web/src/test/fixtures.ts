@@ -1,5 +1,6 @@
 import type {
   HealthResponse,
+  HermesStatusResponse,
   ItemInboxResponse,
   ItemRecord,
   ItemStatsResponse,
@@ -84,6 +85,68 @@ export const stats: ItemStatsResponse = {
   ],
 };
 
+export const hermesStatus: HermesStatusResponse = {
+  ok: true,
+  status: {
+    receivedAt: NOW - 38_000,
+    heartbeatMissing: false,
+    statusLevel: "amber",
+    snapshot: {
+      platforms: ["cowtail", "telegram"],
+      model: "opus-5.5",
+      provider: "anthropic",
+      cronJobs: [],
+      openIncidents: [],
+      kanban: { blocked: 2, running: 1 },
+      budget: { today: "62%" },
+      rateLimits: { anthropic: "ok" },
+    },
+    // The server's order: failing first.
+    cronJobs: [
+      {
+        id: "job-2",
+        name: "backup-verify",
+        schedule: "0 3 * * *",
+        lastStatus: "error",
+        failing: true,
+      },
+      {
+        id: "job-1",
+        name: "roundup-digest",
+        schedule: "0 8 * * *",
+        lastStatus: "ok",
+        failing: false,
+      },
+    ],
+    failingCronCount: 1,
+    incidents: [
+      {
+        id: "inc-1",
+        jobId: "job-2",
+        state: "open",
+        jobName: "backup-verify",
+        itemId: "item-7",
+        itemTitle: "Nightly backup verify failed",
+      },
+    ],
+  },
+  recentAnswers: [
+    {
+      itemId: "item-3",
+      title: "Restart ingress in edge?",
+      answer: { type: "approve" },
+      answeredAt: NOW,
+    },
+    {
+      itemId: "item-4",
+      title: "Rebalance now or wait?",
+      answer: { type: "choose", option: "Wait" },
+      answeredAt: NOW,
+    },
+    { itemId: "item-5", title: "Delete 14 stale PVCs?", answer: { type: "deny" }, answeredAt: NOW },
+  ],
+};
+
 export const preferences: NotificationPreferences = {
   dailyRoundupEnabled: true,
   quietHours: null,
@@ -99,6 +162,7 @@ export function signedIn(routes: Record<string, unknown> = {}) {
     [SESSION]: { ok: true, preferences },
     "GET /actions/api/auth/providers": { apple: true, oidc: { name: "Pocket ID" } },
     "GET /actions/api/health": health,
+    "GET /actions/api/hermes/status": hermesStatus,
     ...routes,
   };
 }

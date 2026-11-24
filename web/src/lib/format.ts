@@ -60,6 +60,18 @@ export function formatAge(at: number, now = Date.now()) {
   return formatDuration(now - at).split(" ")[0];
 }
 
+// 18h, until a time to come, from the largest unit only.
+export function formatUntil(at: number, now = Date.now()) {
+  return formatAge(now, at);
+}
+
+// 14:02 today, otherwise 12 Nov 14:02.
+export function formatWhen(at: number, now = Date.now()) {
+  return formatShortDate(at) === formatShortDate(now)
+    ? formatClock(at)
+    : `${formatShortDate(at)} ${formatClock(at)}`;
+}
+
 export function formatPercent(share: number) {
   return `${Math.round(share * 1000) / 10}%`;
 }
