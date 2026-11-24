@@ -40,6 +40,13 @@ crons.interval(
 );
 
 crons.interval(
+  "expire items past their deadline",
+  { minutes: 1 },
+  (internal as any).items.expireDueItems,
+  {},
+);
+
+crons.interval(
   "watch the Hermes heartbeat",
   { minutes: 1 },
   (internal as any).hermes.checkHeartbeat,

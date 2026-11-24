@@ -512,6 +512,37 @@ export const applyAction = internalMutation({
   },
 });
 
+const EXPIRE_BATCH_SIZE = 100;
+
+// Runs every minute: an item still waiting past its deadline expires. An item whose answer is
+// on its way to the producer waits for the producer, who resolves or expires it.
+export const expireDueItems = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    for (const state of ["open", "acked", "snoozed"] as const) {
+      const due = await ctx.db
+        .query("items")
+        .withIndex("by_state_expiresAt", (q) =>
+          q.eq("state", state).gte("expiresAt", 0).lte("expiresAt", now),
+        )
+        .take(EXPIRE_BATCH_SIZE);
+      for (const item of due) {
+        const answering = await ctx.db
+          .query("itemResponses")
+          .withIndex("by_itemId_status", (q) => q.eq("itemId", item._id).eq("status", "pending"))
+          .first();
+        if (answering) continue;
+        await transitionItem(ctx, item, "expired", {
+          actor: "cowtail",
+          at: now,
+          payload: { reason: "The deadline passed without an answer" },
+        });
+      }
+    }
+  },
+});
+
 export const list = internalQuery({
   args: {
     state: v.optional(itemStateValidator),

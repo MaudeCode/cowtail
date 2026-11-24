@@ -158,6 +158,23 @@ describe("owner answers for Hermes", () => {
     );
   });
 
+  test("an answer on its way to Hermes holds its item open past the deadline", async () => {
+    const t = newBackend();
+    const id = await createItem(t, { ...approval, expiresAt: NOW + MINUTE });
+    expect((await answer(t, id, { type: "approve" })).status).toBe(200);
+
+    await advance(t, 2 * MINUTE);
+
+    expect((await getItem(t, id)).item.state).toBe("open");
+    const response = await claim(t);
+    await request(t, `/api/hermes/responses/${response!.id}/complete`, {
+      method: "POST",
+      bearer: WORKER,
+      body: { claimToken: response!.claimToken },
+    });
+    expect((await getItem(t, id)).item.state).toBe("resolved");
+  });
+
   test("only an offered action on an item with a replyTo goes back, one answer at a time", async () => {
     const t = newBackend();
     const plain = await createItem(t, { ...approval, replyTo: undefined });
