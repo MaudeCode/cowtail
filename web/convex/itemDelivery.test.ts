@@ -1,6 +1,7 @@
 import {
   itemCreateResponseSchema,
   itemGetResponseSchema,
+  maintenanceWindowResponseSchema,
   notificationPreferencesResponseSchema,
 } from "@maudecode/cowtail-protocol";
 import { makeFunctionReference } from "convex/server";
@@ -11,6 +12,7 @@ import {
   advance,
   newBackendWithSources,
   request,
+  rows,
   seedSession,
   stubEnv,
 } from "../test/convexHarness";
@@ -42,6 +44,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 async function createItem(t: Backend, body: Record<string, unknown>) {
@@ -365,6 +368,114 @@ describe("reminders", () => {
       aps: { interruptionLevel: "active" },
     });
     expect(await triggers(t, id)).toEqual([["reminder", "pushed"]]);
+  });
+});
+
+describe("maintenance windows", () => {
+  // Sources alone need no Alertmanager silence, so these windows make no outside call.
+  async function startWindow(t: Backend, body: Record<string, unknown>) {
+    const response = await request(t, "/api/me/maintenance-windows", {
+      method: "POST",
+      bearer: SERVICE,
+      body: { title: "Cluster upgrade", durationMs: 60 * MINUTE, ...body },
+    });
+    expect(response.status).toBe(200);
+    return maintenanceWindowResponseSchema.parse(response.json).window;
+  }
+
+  test("an item a window covers records the window and pushes nothing", async () => {
+    const t = await newBackendWithSources("cron");
+    const window = await startWindow(t, { sources: ["hermes"] });
+    const id = await createItem(t, { urgency: "now", title: "Gateway restarted" });
+    await advance(t, 30 * MINUTE);
+
+    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect((await getItem(t, id)).item.maintenanceWindowId).toBe(window.id);
+    expect(await decisions(t, id)).toEqual([
+      {
+        trigger: "created",
+        attempt: 0,
+        decision: "skipped",
+        why: "maintenance",
+        maintenanceWindowId: window.id,
+      },
+    ]);
+  });
+
+  test("an item from a source the window leaves out pushes as usual", async () => {
+    const t = await newBackendWithSources("cron");
+    await startWindow(t, { sources: ["cron"] });
+    const id = await createItem(t, { urgency: "now", title: "Gateway restarted" });
+
+    expect(pushTitles()).toEqual(["Gateway restarted"]);
+    expect((await getItem(t, id)).item.maintenanceWindowId).toBeUndefined();
+  });
+
+  test("Cowtail's own now items push through a window over every source", async () => {
+    const t = await newBackendWithSources("cron");
+    await startWindow(t, { sources: ["*"] });
+    await createItem(t, { source: "cowtail", urgency: "now", title: "Alert pipeline silent" });
+
+    expect(pushTitles()).toEqual(["Alert pipeline silent"]);
+  });
+
+  test("an alert whose labels equal the window's matchers pushes nothing", async () => {
+    const t = await newBackendWithSources("cron");
+    vi.stubEnv("COWTAIL_ALERTMANAGER_WEBHOOK_TOKEN", "alertmanager-token");
+    vi.stubEnv("ALERTMANAGER_BASE_URL", "https://alertmanager.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (url) => {
+        if (String(url) !== "https://alertmanager.test/api/v2/silences") {
+          throw new Error(`unexpected fetch ${url}`);
+        }
+        return Response.json({ silenceID: "silence-1" });
+      }),
+    );
+    const window = await startWindow(t, { matchers: [{ label: "namespace", value: "media" }] });
+    const fire = (namespace: string) =>
+      request(t, "/api/alerts/webhook", {
+        method: "POST",
+        bearer: "alertmanager-token",
+        body: {
+          status: "firing",
+          alerts: [
+            {
+              status: "firing",
+              fingerprint: `fp-${namespace}`,
+              startsAt: new Date(NOW).toISOString(),
+              labels: { alertname: "KubePodCrashLooping", severity: "critical", namespace },
+              annotations: { description: "Pod restarted" },
+            },
+          ],
+        },
+      });
+    expect((await fire("media")).status).toBe(200);
+    expect((await fire("edge")).status).toBe(200);
+    await advance(t, 1);
+
+    const alerts = (await rows(t, "items")).map((item) => [
+      item.context.namespace,
+      item.maintenanceWindowId,
+    ]);
+    expect(alerts).toEqual([
+      ["media", window.id],
+      ["edge", undefined],
+    ]);
+    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+  });
+
+  test("a today item batched before a window starts drops out of the batch", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "today", title: "Backup verify failed" });
+    await startWindow(t, { sources: ["hermes"] });
+    await advance(t, 5 * MINUTE);
+
+    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect((await decisions(t, id)).map(({ decision, why }) => [decision, why])).toEqual([
+      ["batched", undefined],
+      ["skipped", "maintenance"],
+    ]);
   });
 });
 

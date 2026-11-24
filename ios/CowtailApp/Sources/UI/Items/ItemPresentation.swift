@@ -347,6 +347,22 @@ enum ItemFormat {
     }
 }
 
+extension MaintenanceWindow {
+    /// What the window silences: all alerts or its label matchers, then the other sources it
+    /// holds back.
+    var scope: String {
+        let alerts = allAlerts ? ["All alerts"] : []
+        let matched = matchers.map { "\($0.label)=\($0.value)" }
+        let held = heldSources.map { $0 == "*" ? "every source" : $0 }
+        return (alerts + matched + held).joined(separator: ", ")
+    }
+
+    /// The time left, in whole minutes rounded up.
+    func remaining(now: Date = .now) -> String {
+        ItemFormat.duration((endsAt.timeIntervalSince(now) / 60).rounded(.up) * 60)
+    }
+}
+
 extension ItemGraph {
     /// > 537M
     var thresholdText: String? {

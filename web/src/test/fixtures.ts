@@ -4,6 +4,7 @@ import type {
   ItemInboxResponse,
   ItemRecord,
   ItemStatsResponse,
+  MaintenanceWindowRecord,
   NotificationPreferences,
 } from "@maudecode/cowtail-protocol";
 
@@ -55,6 +56,27 @@ export function inbox(
     handled,
   };
 }
+
+export function maintenanceWindow(
+  overrides: Partial<MaintenanceWindowRecord> = {},
+): MaintenanceWindowRecord {
+  return {
+    id: "window-1",
+    title: "Cluster upgrade",
+    startsAt: NOW - 18 * MINUTE,
+    endsAt: NOW + 42 * MINUTE,
+    createdBy: "owner",
+    matchers: [],
+    sources: ["alertmanager"],
+    allAlerts: true,
+    heldSources: [],
+    active: true,
+    silenceIds: ["silence-1"],
+    ...overrides,
+  };
+}
+
+export const MAINTENANCE = "GET /actions/api/me/maintenance-windows";
 
 export const health: HealthResponse = {
   nodes: [{ name: "node-1", status: "Ready", cpu: 34, memory: 58 }],
@@ -177,6 +199,7 @@ export function signedIn(routes: Record<string, unknown> = {}) {
     "GET /actions/api/auth/providers": { apple: true, oidc: { name: "Pocket ID" } },
     "GET /actions/api/health": health,
     "GET /actions/api/hermes/status": hermesStatus,
+    [MAINTENANCE]: { ok: true, active: [], recent: [], sourceChoices: [] },
     ...routes,
   };
 }

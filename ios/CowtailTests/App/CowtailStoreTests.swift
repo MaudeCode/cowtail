@@ -27,6 +27,51 @@ final class CowtailStoreTests: XCTestCase {
         )
     }
 
+    private let upgrade = MaintenanceWindow(
+        id: "window-upgrade",
+        title: "Cluster upgrade",
+        startsAt: Date(timeIntervalSince1970: 1_800_000_000),
+        endsAt: Date(timeIntervalSince1970: 1_800_003_600),
+        matchers: [],
+        sources: ["alertmanager"],
+        allAlerts: true,
+        heldSources: [],
+        active: true
+    )
+
+    func testEndingAWindowTakesItsBannerAwayBeforeTheServerAnswersAndThroughAPoll() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.runWindows([upgrade])
+        await api.holdEnd()
+        let store = store(api: api)
+        await store.refresh()
+        XCTAssertEqual(store.maintenanceWindows, [upgrade])
+
+        let ending = Task { await store.endMaintenance(upgrade) }
+        await api.waitUntilEndHeld()
+        XCTAssertEqual(store.maintenanceWindows, [])
+        // The server still lists the window until it answers; the poll keeps it gone.
+        await store.refresh()
+        XCTAssertEqual(store.maintenanceWindows, [])
+
+        await api.releaseEnd()
+        await ending.value
+        XCTAssertEqual(store.maintenanceWindows, [])
+        XCTAssertNil(store.maintenanceError)
+    }
+
+    func testAWindowTheServerRefusesToEndComesBackWithTheReason() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.runWindows([upgrade], refusingEndWith: "Maintenance window not found")
+        let store = store(api: api)
+        await store.refresh()
+
+        await store.endMaintenance(upgrade)
+
+        XCTAssertEqual(store.maintenanceWindows, [upgrade])
+        XCTAssertEqual(store.maintenanceError, "Maintenance window not found")
+    }
+
     func testApproveWaitsForLocalAuthenticationWhenTheOwnerRequiresIt() async {
         for allows in [false, true] {
             let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []))
@@ -549,5 +594,75 @@ private actor FakeItemAPI: CowtailAPIClient {
 
     func fetchSnoozeOptions(timeZone _: String, sessionToken _: String) async throws -> [SnoozeOption] {
         []
+    }
+
+    // MARK: Maintenance windows
+
+    private var windows: [MaintenanceWindow] = []
+    private var endRefusal: String?
+    private var holdsEnd = false
+    private var heldEnd: CheckedContinuation<Void, Never>?
+    private var heldEndWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func runWindows(_ running: [MaintenanceWindow], refusingEndWith refusal: String? = nil) {
+        windows = running
+        endRefusal = refusal
+    }
+
+    /// The next end waits at the server until `releaseEnd`.
+    func holdEnd() {
+        holdsEnd = true
+    }
+
+    func waitUntilEndHeld() async {
+        if heldEnd != nil {
+            return
+        }
+        await withCheckedContinuation { heldEndWaiters.append($0) }
+    }
+
+    func releaseEnd() {
+        heldEnd?.resume()
+        heldEnd = nil
+    }
+
+    func fetchMaintenanceWindows(sessionToken _: String) async throws -> MaintenanceWindows {
+        MaintenanceWindows(active: windows, sourceChoices: [])
+    }
+
+    func startMaintenanceWindow(_ request: MaintenanceWindowRequest, sessionToken _: String) async throws -> MaintenanceWindow {
+        let window = MaintenanceWindow(
+            id: "window-\(windows.count + 1)",
+            title: request.title,
+            startsAt: Date(timeIntervalSince1970: 1_800_000_000),
+            endsAt: Date(timeIntervalSince1970: 1_800_000_000 + request.duration),
+            matchers: request.matchers,
+            sources: request.sources,
+            allAlerts: request.sources.contains("alertmanager"),
+            heldSources: request.sources.filter { $0 != "alertmanager" },
+            active: true
+        )
+        windows.append(window)
+        return window
+    }
+
+    func endMaintenanceWindow(id: String, sessionToken _: String) async throws -> MaintenanceWindow {
+        if holdsEnd {
+            holdsEnd = false
+            await withCheckedContinuation { continuation in
+                heldEnd = continuation
+                heldEndWaiters.forEach { $0.resume() }
+                heldEndWaiters.removeAll()
+            }
+        }
+        if let endRefusal {
+            throw CowtailAPIError.refused(endRefusal)
+        }
+        guard let index = windows.firstIndex(where: { $0.id == id }) else {
+            throw CowtailAPIError.refused("Maintenance window not found")
+        }
+        var ended = windows.remove(at: index)
+        ended.active = false
+        return ended
     }
 }

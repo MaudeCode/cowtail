@@ -60,4 +60,11 @@ crons.interval(
   {},
 );
 
+crons.interval(
+  "expire the silences of maintenance windows ended early",
+  { minutes: 1 },
+  (internal as any).maintenance.expireLeftoverSilences,
+  {},
+);
+
 export default crons;

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { MaintenanceBanners } from "../components/app/Maintenance";
 import ClusterHealth from "../components/dashboard/ClusterHealth";
 import HermesSummary from "../components/dashboard/HermesSummary";
 import ItemRow from "../components/items/ItemRow";
@@ -19,6 +20,7 @@ export default function Home() {
     <>
       <div className="grid gap-x-[30px] min-[960px]:grid-cols-[1.65fr_1fr]">
         <div>
+          <MaintenanceBanners />
           <Section label="Needs you" detail={data?.counts.needsYou}>
             {inbox.error && <QueryError error={inbox.error} />}
             {data?.needsYou.map((item) => (

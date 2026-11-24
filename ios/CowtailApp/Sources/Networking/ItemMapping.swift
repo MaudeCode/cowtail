@@ -48,7 +48,24 @@ extension CowtailAPI {
             investigationStep: record.investigationStep.flatMap { .init(rawValue: $0.rawValue) },
             outcome: record.outcome.flatMap { .init(rawValue: $0.rawValue) },
             resolvedAfter: record.resolvedAfterMs.map { TimeInterval($0) / 1000 },
-            createdDate: record.createdDate
+            createdDate: record.createdDate,
+            maintenanceWindowID: record.maintenanceWindowId
+        )
+    }
+
+    static func makeMaintenanceWindow(_ record: Components.Schemas.MaintenanceWindowRecord) -> MaintenanceWindow {
+        MaintenanceWindow(
+            id: record.id,
+            title: record.title,
+            startsAt: date(record.startsAt),
+            endsAt: date(record.endsAt),
+            endedAt: record.endedAt.map(date),
+            matchers: record.matchers.map { MaintenanceWindow.Matcher(label: $0.label, value: $0.value) },
+            sources: record.sources,
+            allAlerts: record.allAlerts,
+            heldSources: record.heldSources,
+            active: record.active,
+            silenceError: record.silenceError
         )
     }
 

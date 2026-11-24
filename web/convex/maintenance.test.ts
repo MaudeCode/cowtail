@@ -1,0 +1,298 @@
+import {
+  maintenanceWindowListResponseSchema,
+  maintenanceWindowResponseSchema,
+} from "@maudecode/cowtail-protocol";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+import {
+  type Backend,
+  advance,
+  newBackend,
+  newBackendWithSources,
+  request,
+  stubEnv,
+} from "../test/convexHarness";
+
+const NOW = Date.UTC(2026, 10, 24, 12, 0, 0);
+const HOUR = 60 * 60_000;
+const SERVICE = "service-token";
+const ALERTMANAGER = "https://alertmanager.test";
+
+beforeEach(() => {
+  vi.useFakeTimers({ now: NOW });
+  stubEnv({
+    PUSH_API_BEARER_TOKEN: SERVICE,
+    COWTAIL_WORKER_TOKEN: "worker-token",
+    ALERTMANAGER_BASE_URL: ALERTMANAGER,
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
+type Call = { method: string; path: string; body: unknown };
+
+// Every silence leaves the Watchdog firing, so the pipeline check keeps its heartbeat.
+const WATCHDOG_KEPT = { name: "alertname", value: "Watchdog", isRegex: false, isEqual: false };
+
+// Alertmanager's v2 silence API: it records each request, keeps the silences it made, and
+// answers `status`, refusing any other URL. `onCreate` runs while a silence is being made,
+// before Alertmanager answers; with `loseCreateReply` it makes the silence and the reply fails.
+function fakeAlertmanager(status = 200, onCreate?: () => Promise<unknown>) {
+  const calls: Call[] = [];
+  const silences: { id: string; comment: string; createdBy: string; status: { state: string } }[] =
+    [];
+  const fake = { calls, status, loseCreateReply: false };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (url, init) => {
+      const path = String(url).slice(ALERTMANAGER.length);
+      if (!String(url).startsWith(`${ALERTMANAGER}/api/v2/silence`)) {
+        throw new Error(`unexpected fetch ${url}`);
+      }
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+      calls.push({ method: init?.method ?? "GET", path, body });
+      const method = init?.method ?? "GET";
+      if (method === "POST" && fake.loseCreateReply) {
+        silences.push({ ...body, id: "silence-1", status: { state: "active" } });
+        throw new TypeError("fetch failed");
+      }
+      if (fake.status !== 200) return new Response("down", { status: fake.status });
+      if (method === "GET") return Response.json(silences);
+      if (method === "DELETE") {
+        const silence = silences.find((entry) => path.endsWith(`/${entry.id}`));
+        if (silence) silence.status.state = "expired";
+        return new Response();
+      }
+      await onCreate?.();
+      silences.push({ ...body, id: "silence-1", status: { state: "active" } });
+      return Response.json({ silenceID: "silence-1" });
+    }),
+  );
+  return fake;
+}
+
+async function start(t: Backend, body: Record<string, unknown>) {
+  const response = await request(t, "/api/me/maintenance-windows", {
+    method: "POST",
+    bearer: SERVICE,
+    body: { title: "Cluster upgrade", durationMs: HOUR, ...body },
+  });
+  expect(response.status).toBe(200);
+  return maintenanceWindowResponseSchema.parse(response.json).window;
+}
+
+test("Hermes's worker token cannot start a window", async () => {
+  const { calls } = fakeAlertmanager();
+  const response = await request(newBackend(), "/api/me/maintenance-windows", {
+    method: "POST",
+    bearer: "worker-token",
+    body: { title: "Cluster upgrade", durationMs: HOUR },
+  });
+
+  expect([response.status, calls]).toEqual([401, []]);
+});
+
+describe("maintenance window silences", () => {
+  test("starting a window silences its matchers in Alertmanager for its time", async () => {
+    const { calls } = fakeAlertmanager();
+    const window = await start(newBackend(), {
+      matchers: [{ label: "namespace", value: "media" }],
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/api/v2/silences",
+        body: {
+          matchers: [
+            { name: "namespace", value: "media", isRegex: false, isEqual: true },
+            WATCHDOG_KEPT,
+          ],
+          startsAt: new Date(NOW).toISOString(),
+          endsAt: new Date(NOW + HOUR).toISOString(),
+          createdBy: "cowtail",
+          // The window's tag finds the silence again if its reply is lost.
+          comment: `Cluster upgrade (cowtail window ${window.id})`,
+        },
+      },
+    ]);
+    expect(window).toMatchObject({ active: true, allAlerts: false, silenceIds: ["silence-1"] });
+  });
+
+  test("a window that names nothing silences every alert", async () => {
+    const { calls } = fakeAlertmanager();
+    const window = await start(newBackend(), {});
+
+    expect(window).toMatchObject({ sources: ["alertmanager"], allAlerts: true });
+    expect(calls.map((call) => (call.body as { matchers: unknown }).matchers)).toEqual([
+      [{ name: "alertname", value: ".+", isRegex: true, isEqual: true }, WATCHDOG_KEPT],
+    ]);
+  });
+
+  test("ending a window early expires its silence and lists it as over", async () => {
+    const { calls } = fakeAlertmanager();
+    const backend = newBackend();
+    const window = await start(backend, {});
+    vi.advanceTimersByTime(10 * 60_000);
+
+    const ended = await request(backend, `/api/me/maintenance-windows/${window.id}/end`, {
+      method: "POST",
+      bearer: SERVICE,
+    });
+    expect(ended.status).toBe(200);
+    expect(maintenanceWindowResponseSchema.parse(ended.json).window).toMatchObject({
+      active: false,
+      endedAt: NOW + 10 * 60_000,
+    });
+    expect(calls.map(({ method, path }) => `${method} ${path}`)).toEqual([
+      "POST /api/v2/silences",
+      "DELETE /api/v2/silence/silence-1",
+    ]);
+
+    const list = maintenanceWindowListResponseSchema.parse(
+      (await request(backend, "/api/me/maintenance-windows", { bearer: SERVICE })).json,
+    );
+    expect([list.active, list.recent.map((entry) => entry.id)]).toEqual([[], [window.id]]);
+  });
+
+  test("a silence Alertmanager could not expire at the end is expired once it answers again", async () => {
+    const fake = fakeAlertmanager();
+    const backend = newBackend();
+    const window = await start(backend, {});
+    fake.status = 503;
+    const ended = await request(backend, `/api/me/maintenance-windows/${window.id}/end`, {
+      method: "POST",
+      bearer: SERVICE,
+    });
+    expect(maintenanceWindowResponseSchema.parse(ended.json).window).toMatchObject({
+      active: false,
+      silenceIds: ["silence-1"],
+      silenceError: "Could not end the Alertmanager silence: Alertmanager answered 503",
+    });
+
+    fake.status = 200;
+    await advance(backend, 60_000);
+
+    const [over] = maintenanceWindowListResponseSchema.parse(
+      (await request(backend, "/api/me/maintenance-windows", { bearer: SERVICE })).json,
+    ).recent;
+    expect([over.silenceIds, over.silenceError]).toEqual([[], undefined]);
+    expect(fake.calls.filter((call) => call.method === "DELETE")).toHaveLength(2);
+  });
+
+  test("a window ended while its silence was being made expires that silence", async () => {
+    const backend = newBackend();
+    const endRunning = async () => {
+      const list = maintenanceWindowListResponseSchema.parse(
+        (await request(backend, "/api/me/maintenance-windows", { bearer: SERVICE })).json,
+      );
+      const ending = `/api/me/maintenance-windows/${list.active[0].id}/end`;
+      return await request(backend, ending, { method: "POST", bearer: SERVICE });
+    };
+    const fake = fakeAlertmanager(200, endRunning);
+
+    const window = await start(backend, {});
+
+    expect(window).toMatchObject({ active: false, silenceIds: [] });
+    expect(fake.calls.map(({ method, path }) => `${method} ${path}`)).toEqual([
+      "POST /api/v2/silences",
+      "DELETE /api/v2/silence/silence-1",
+    ]);
+  });
+
+  test("a silence made without its reply reaching Cowtail is found and expired when the window ends", async () => {
+    const fake = fakeAlertmanager();
+    fake.loseCreateReply = true;
+    const backend = newBackend();
+    const window = await start(backend, {});
+    expect(window).toMatchObject({ silenceIds: [], silenceError: expect.any(String) });
+
+    fake.loseCreateReply = false;
+    const ended = await request(backend, `/api/me/maintenance-windows/${window.id}/end`, {
+      method: "POST",
+      bearer: SERVICE,
+    });
+
+    expect(maintenanceWindowResponseSchema.parse(ended.json).window).toMatchObject({
+      active: false,
+      silenceIds: [],
+    });
+    expect(fake.calls.map(({ method, path }) => `${method} ${path}`)).toEqual([
+      "POST /api/v2/silences",
+      "GET /api/v2/silences",
+      "DELETE /api/v2/silence/silence-1",
+    ]);
+  });
+
+  test("a start repeated with its requestId returns the first window and makes no second silence", async () => {
+    const { calls } = fakeAlertmanager();
+    const backend = newBackend();
+    const requestId = "0b6f1e2a-4c3d-4e5f-8a9b-0c1d2e3f4a5b";
+
+    const first = await start(backend, { requestId });
+    const again = await start(backend, { requestId });
+
+    expect(again.id).toBe(first.id);
+    expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
+  });
+
+  test("a window starts with silenceError when Alertmanager refuses the silence", async () => {
+    fakeAlertmanager(503);
+    const window = await start(newBackend(), {});
+
+    expect(window).toMatchObject({
+      active: true,
+      silenceIds: [],
+      silenceError: "Alertmanager answered 503",
+    });
+  });
+
+  test("a window starts with silenceError when no Alertmanager is configured", async () => {
+    vi.stubEnv("ALERTMANAGER_BASE_URL", "");
+    const { calls } = fakeAlertmanager();
+    const window = await start(newBackend(), {});
+
+    expect(window).toMatchObject({
+      active: true,
+      silenceError: "ALERTMANAGER_BASE_URL is not set",
+    });
+    expect(calls).toEqual([]);
+  });
+});
+
+test("a new window's source choices are the sources with items, but Alertmanager", async () => {
+  const backend = await newBackendWithSources("cron");
+  for (const source of ["hermes", "cron"]) {
+    const created = await request(backend, "/api/items", {
+      method: "POST",
+      bearer: SERVICE,
+      body: { source, kind: "fyi", urgency: "whenever", title: "Item" },
+    });
+    expect(created.status).toBe(200);
+  }
+  await backend.run(async (ctx) => {
+    await ctx.db.insert("items", {
+      source: "alertmanager",
+      kind: "alert",
+      urgency: "today",
+      state: "open",
+      title: "TargetDown",
+      body: "",
+      links: [],
+      context: {},
+      occurrenceCount: 1,
+      actions: [],
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+  });
+
+  const list = maintenanceWindowListResponseSchema.parse(
+    (await request(backend, "/api/me/maintenance-windows", { bearer: SERVICE })).json,
+  );
+  expect(list.sourceChoices).toEqual(["cron", "hermes"]);
+});

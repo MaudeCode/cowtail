@@ -8,6 +8,7 @@ import type {
   ItemRecord,
   ItemState,
   ItemUrgency,
+  MaintenanceWindowRecord,
   SnoozePreset,
 } from "@maudecode/cowtail-protocol";
 
@@ -168,3 +169,14 @@ export const eventTone: Record<ItemEventRecord["type"], Tone> = {
   state_changed: "muted",
   resolved: "ok",
 };
+
+// What a maintenance window silences: all alerts or its label matchers, then the other
+// sources it holds back.
+export function maintenanceScope(window: MaintenanceWindowRecord) {
+  const parts = [
+    ...(window.allAlerts ? ["All alerts"] : []),
+    ...window.matchers.map(({ label, value }) => `${label}=${value}`),
+    ...window.heldSources.map((source) => (source === "*" ? "every source" : source)),
+  ];
+  return parts.join(", ");
+}

@@ -56,6 +56,13 @@ struct ItemRow: View {
                 if item.occurrenceCount > 1 {
                     CowtailStatusBadge(title: "×\(item.occurrenceCount)")
                 }
+                if item.maintenanceWindowID != nil, style == .handled || style == .history {
+                    Image(systemName: "wrench.adjustable")
+                        .font(.system(size: 11))
+                        .foregroundStyle(palette.mutedInk)
+                        .accessibilityLabel("Recorded during a maintenance window")
+                        .accessibilityIdentifier("glyph.item.maintenance.\(item.id)")
+                }
             }
 
             if style == .needsYou || style == .withHermes, let subtitle = item.subtitle {

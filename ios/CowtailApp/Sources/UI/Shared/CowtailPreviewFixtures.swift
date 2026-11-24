@@ -219,7 +219,9 @@ enum CowtailPreviewFixtures {
             resolvedAt: minutesAgo(317),
             subtitle: "monitoring / node-exporter",
             outcome: .noise,
-            resolvedAfter: 3 * 60
+            resolvedAfter: 3 * 60,
+            // Recorded during the cluster upgrade window, which held back its push.
+            maintenanceWindowID: maintenanceWindow.id
         ),
     ]
 
@@ -256,6 +258,19 @@ enum CowtailPreviewFixtures {
     ]
 
     static let items = [approval, question, crashLoop] + withHermes + upcoming + handled + older
+
+    /// A running window over all alerts, 42 minutes from its end.
+    static let maintenanceWindow = MaintenanceWindow(
+        id: "window-upgrade",
+        title: "Cluster upgrade",
+        startsAt: minutesAgo(18),
+        endsAt: Date.now.addingTimeInterval(42 * 60),
+        matchers: [],
+        sources: ["alertmanager"],
+        allAlerts: true,
+        heldSources: [],
+        active: true
+    )
 
     static func events(for item: Item) -> [ItemEvent] {
         func event(_ minutes: Double, _ type: ItemEventType, _ actor: String, _ payload: [String: String] = [:]) -> ItemEvent {

@@ -5,6 +5,7 @@ import { hermesLevelTone, pipelineTone, type Tone } from "../../lib/itemPresenta
 import { healthQuery, hermesStatusQuery } from "../../lib/queries";
 import { Badge, Icon, StatusDot } from "../ui";
 import type { IconName } from "../ui/Icon";
+import { MaintenanceButton } from "./Maintenance";
 
 const links: [string, string, IconName][] = [
   ["/", "Home", "inbox"],
@@ -63,6 +64,7 @@ export default function Layout() {
         <span className="ml-auto flex items-center gap-1.5">
           <ClusterChip />
           <HermesChip />
+          <MaintenanceButton />
         </span>
       </header>
       <main className="px-[22px] pb-[22px] max-[959px]:px-4">

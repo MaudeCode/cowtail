@@ -10,6 +10,8 @@ import {
   hermesStatus,
   inbox,
   item,
+  MAINTENANCE,
+  maintenanceWindow,
   NOW,
   preferences,
   SESSION,
@@ -518,6 +520,143 @@ describe("Upcoming on Home", () => {
     const upcoming = section(/Upcoming/);
     expect(await within(upcoming).findByRole("alert")).toHaveTextContent("Item is not snoozed");
     expect(within(upcoming).getByText("CephOSDNearFull")).toBeInTheDocument();
+  });
+});
+
+describe("maintenance windows", () => {
+  const running = maintenanceWindow();
+  const routes = (windows = [running]) =>
+    signedIn({
+      "GET /actions/api/items/inbox": inbox(),
+      [MAINTENANCE]: { ok: true, active: windows, recent: [], sourceChoices: ["cron", "hermes"] },
+    });
+  const banner = async () =>
+    (await screen.findByText("Cluster upgrade")).closest("div.rounded-lg") as HTMLElement;
+
+  test("a running window's banner sits above Needs you with what it silences and the time left", async () => {
+    stubApi(routes());
+    renderApp("/");
+
+    const shown = await banner();
+    expect(shown).toHaveTextContent("All alerts silenced · 42m left");
+    expect(
+      shown.compareDocumentPosition(screen.getByRole("heading", { name: /Needs you/ })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test("a window Alertmanager did not silence says so in its banner", async () => {
+    stubApi(routes([{ ...running, silenceIds: [], silenceError: "Alertmanager answered 503" }]));
+    renderApp("/");
+
+    expect(within(await banner()).getByRole("alert")).toHaveTextContent(
+      "Alertmanager did not silence these alerts: Alertmanager answered 503",
+    );
+  });
+
+  test("End window hides the banner before the server answers", async () => {
+    const { calls } = stubApi({
+      ...routes(),
+      "POST /actions/api/me/maintenance-windows/window-1/end": new Promise(() => {}),
+    });
+    renderApp("/");
+
+    await userEvent.click(within(await banner()).getByRole("button", { name: "End window" }));
+
+    expect(screen.queryByText("Cluster upgrade")).not.toBeInTheDocument();
+    expect(calls.filter((call) => call.method === "POST").map((call) => call.path)).toEqual([
+      "/actions/api/me/maintenance-windows/window-1/end",
+    ]);
+  });
+
+  test("a refused End window brings the banner back and says why", async () => {
+    stubApi({
+      ...routes(),
+      "POST /actions/api/me/maintenance-windows/window-1/end": {
+        status: 404,
+        body: { ok: false, error: "Maintenance window not found" },
+      },
+    });
+    renderApp("/");
+
+    await userEvent.click(within(await banner()).getByRole("button", { name: "End window" }));
+
+    expect(await screen.findByText("Maintenance window not found")).toBeInTheDocument();
+    expect(screen.getByText("Cluster upgrade")).toBeInTheDocument();
+  });
+
+  test("the wrench's dialog starts a window named by its length with the chosen scope", async () => {
+    const started = maintenanceWindow({
+      id: "window-2",
+      title: "Disk swap",
+      matchers: [{ label: "namespace", value: "media" }],
+      sources: ["hermes"],
+      allAlerts: false,
+      heldSources: ["hermes"],
+      endsAt: NOW + 120 * 60_000,
+    });
+    // The list serves the started window once the POST has made it.
+    let active: (typeof started)[] = [];
+    const { calls } = stubApi({
+      ...routes([]),
+      get [MAINTENANCE]() {
+        return { ok: true, active, recent: [], sourceChoices: ["cron", "hermes"] };
+      },
+      get "POST /actions/api/me/maintenance-windows"() {
+        active = [started];
+        return { ok: true, window: started };
+      },
+    });
+    renderApp("/");
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Start a maintenance window" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Maintenance window" });
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Title" }), "Disk swap");
+    await userEvent.click(within(dialog).getByRole("radio", { name: "2h" }));
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: "A namespace" }));
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Namespace" }), "media");
+    await userEvent.click(await within(dialog).findByRole("button", { name: "hermes" }));
+    expect(within(dialog).getByText("Cowtail's own watchdog items still push.")).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Start 2h window" }));
+
+    expect(await screen.findByText("Disk swap")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Maintenance window" })).not.toBeInTheDocument();
+    expect(calls.filter((call) => call.method === "POST").map((call) => call.body)).toEqual([
+      {
+        title: "Disk swap",
+        durationMs: 2 * 60 * 60_000,
+        matchers: [{ label: "namespace", value: "media" }],
+        sources: ["hermes"],
+        requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      },
+    ]);
+  });
+
+  test("a History row recorded during a window carries a wrench", async () => {
+    const held = item({ id: "held-1", title: "Held alert", maintenanceWindowId: "window-1" });
+    const plain = item({ id: "plain-1", title: "Plain alert" });
+    stubApi(
+      signedIn({
+        "GET /actions/api/items/stats": stats,
+        "GET /actions/api/items?limit=100": {
+          ok: true,
+          count: 2,
+          items: [held, plain],
+          days: [],
+        },
+      }),
+    );
+    renderApp("/history");
+
+    const row = (title: string) => screen.getByText(title).closest("tr")!;
+    await screen.findByText("Held alert");
+    expect(
+      [row("Held alert"), row("Plain alert")].map(
+        (tr) => within(tr).queryAllByText("Recorded during a maintenance window").length,
+      ),
+    ).toEqual([1, 0]);
   });
 });
 

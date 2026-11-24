@@ -423,7 +423,7 @@ export async function ownerBadgeCount(ctx: QueryCtx) {
 }
 
 async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
-  const { _id, _creationTime, alertId, investigationJobId, ...fields } = item;
+  const { _id, _creationTime, alertId, investigationJobId, maintenanceWindowId, ...fields } = item;
   const { alert, jobs, workflow } = await alertContext(ctx, item);
   const resolvedAt = item.state === "resolved" ? item.resolvedAt : undefined;
   return {
@@ -432,6 +432,7 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     sourceInfo: await sourceInfo(ctx, item.source),
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
+    maintenanceWindowId: maintenanceWindowId ? String(maintenanceWindowId) : undefined,
     needsOwner: itemNeedsOwner(item, workflow),
     needsOwnerWhenOpen:
       item.state === "snoozed" ? itemNeedsOwner({ ...item, state: "open" }, workflow) : undefined,
@@ -806,21 +807,23 @@ export const list = internalQuery({
 });
 
 // One indexed read per source: each read jumps past every item of the source before it.
+export async function itemSourceNames(ctx: QueryCtx) {
+  const names: string[] = [];
+  let next = await ctx.db.query("items").withIndex("by_source_createdAt").first();
+  while (next) {
+    const last = next.source;
+    names.push(last);
+    next = await ctx.db
+      .query("items")
+      .withIndex("by_source_createdAt", (q) => q.gt("source", last))
+      .first();
+  }
+  return names;
+}
+
 export const sources = internalQuery({
   args: {},
-  handler: async (ctx) => {
-    const names: string[] = [];
-    let next = await ctx.db.query("items").withIndex("by_source_createdAt").first();
-    while (next) {
-      const last = next.source;
-      names.push(last);
-      next = await ctx.db
-        .query("items")
-        .withIndex("by_source_createdAt", (q) => q.gt("source", last))
-        .first();
-    }
-    return names;
-  },
+  handler: async (ctx) => await itemSourceNames(ctx),
 });
 
 // Each state the inbox reads stops at this many items, so a producer that floods items

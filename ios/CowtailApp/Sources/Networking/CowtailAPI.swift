@@ -32,6 +32,10 @@ protocol CowtailAPIClient: Sendable {
     func fetchDevices(sessionToken: String) async throws -> [UserDevice]
     /// The snooze picker's presets, in picker order, for an IANA time zone.
     func fetchSnoozeOptions(timeZone: String, sessionToken: String) async throws -> [SnoozeOption]
+    /// The running maintenance windows, the soonest end first, and the sources a new one can hold.
+    func fetchMaintenanceWindows(sessionToken: String) async throws -> MaintenanceWindows
+    func startMaintenanceWindow(_ request: MaintenanceWindowRequest, sessionToken: String) async throws -> MaintenanceWindow
+    func endMaintenanceWindow(id: String, sessionToken: String) async throws -> MaintenanceWindow
 }
 
 /// Sign-in and sign-out, for Apple and the server's OIDC provider alike.
@@ -459,6 +463,63 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.requestFailed(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Snooze options request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchMaintenanceWindows(sessionToken: String) async throws -> MaintenanceWindows {
+        switch try await sessionClient(sessionToken: sessionToken).listMaintenanceWindows() {
+        case .ok(let response):
+            let list = try response.body.json
+            return MaintenanceWindows(
+                active: list.active.map(Self.makeMaintenanceWindow),
+                sourceChoices: list.sourceChoices
+            )
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Maintenance window request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func startMaintenanceWindow(
+        _ request: MaintenanceWindowRequest,
+        sessionToken: String
+    ) async throws -> MaintenanceWindow {
+        let body = Components.Schemas.MaintenanceWindowStartRequest(
+            title: request.title,
+            durationMs: Int((request.duration * 1000).rounded()),
+            matchers: request.matchers.map { .init(label: $0.label, value: $0.value) },
+            sources: request.sources,
+            requestId: request.requestID.uuidString.lowercased()
+        )
+        switch try await sessionClient(sessionToken: sessionToken).startMaintenanceWindow(body: .json(body)) {
+        case .ok(let response):
+            return Self.makeMaintenanceWindow(try response.body.json.window)
+        case .badRequest(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Starting the window failed with HTTP \(statusCode).")
+        }
+    }
+
+    func endMaintenanceWindow(id: String, sessionToken: String) async throws -> MaintenanceWindow {
+        switch try await sessionClient(sessionToken: sessionToken).endMaintenanceWindow(path: .init(id: id)) {
+        case .ok(let response):
+            return Self.makeMaintenanceWindow(try response.body.json.window)
+        case .unauthorized(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .notFound(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Ending the window failed with HTTP \(statusCode).")
         }
     }
 

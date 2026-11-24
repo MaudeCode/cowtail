@@ -4,6 +4,7 @@ import { CliError } from "../src/lib/errors.ts";
 import {
   optionalTrimmedString,
   parseCommaSeparatedStrings,
+  parseDuration,
   parseFutureTime,
   parseJsonObject,
   parseTimestamp,
@@ -44,6 +45,17 @@ describe("parse helpers", () => {
       ),
     ).toEqual([now + 30 * 60_000, now + 3 * 3_600_000, now + 2 * 86_400_000, 1713085200000]);
     expect(() => parseFutureTime("2x", "remind-at", now)).toThrow(CliError);
+  });
+
+  test("parseDuration reads 30m, 2h and 1d as milliseconds and refuses anything else", () => {
+    expect(["30m", "2h", "1d"].map((value) => parseDuration(value, "for"))).toEqual([
+      30 * 60_000,
+      2 * 3_600_000,
+      86_400_000,
+    ]);
+    for (const value of ["1", "1w", "1.5h", "soon"]) {
+      expect(() => parseDuration(value, "for")).toThrow(CliError);
+    }
   });
 
   test("parseJsonObject parses object values", () => {

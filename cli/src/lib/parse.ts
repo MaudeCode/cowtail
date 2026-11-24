@@ -51,19 +51,28 @@ export function parseTimestamp(value: string | undefined, label: string): number
 
 const RELATIVE_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
 
+// A length of time like 30m, 3h or 2d, in milliseconds; undefined for anything else.
+function relativeMs(value: string | undefined): number | undefined {
+  const relative = value?.trim().match(/^(\d+)([mhd])$/);
+  return relative
+    ? Number(relative[1]) * RELATIVE_UNIT_MS[relative[2] as keyof typeof RELATIVE_UNIT_MS]
+    : undefined;
+}
+
+export function parseDuration(value: string | undefined, label: string): number {
+  const ms = relativeMs(value);
+  if (ms === undefined) throw validationError(`${label} must look like 30m, 2h or 1d`);
+  return ms;
+}
+
 // A time from now like 30m, 3h or 2d, or a millisecond timestamp or ISO date.
 export function parseFutureTime(
   value: string | undefined,
   label: string,
   now = Date.now(),
 ): number | undefined {
-  const relative = value?.trim().match(/^(\d+)([mhd])$/);
-  if (relative) {
-    return (
-      now + Number(relative[1]) * RELATIVE_UNIT_MS[relative[2] as keyof typeof RELATIVE_UNIT_MS]
-    );
-  }
-  return parseTimestamp(value, label);
+  const relative = relativeMs(value);
+  return relative === undefined ? parseTimestamp(value, label) : now + relative;
 }
 
 export function parseDateOnly(value: string | undefined, label: string): string | undefined {

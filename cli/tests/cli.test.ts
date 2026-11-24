@@ -1027,6 +1027,125 @@ describe("built binary source commands", () => {
   });
 });
 
+describe("built binary maintenance commands", () => {
+  // A stand-in for the maintenance window API that records each request and its body.
+  const requests: { line: string; body: unknown }[] = [];
+  const window = {
+    id: "mw1",
+    title: "Cluster upgrade",
+    startsAt: 1_000,
+    endsAt: 3_601_000,
+    createdBy: "service",
+    matchers: [{ label: "namespace", value: "media" }],
+    sources: ["hermes"],
+    allAlerts: false,
+    heldSources: ["hermes"],
+    active: true,
+    silenceIds: ["silence-1"],
+  };
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const line = `${request.method} ${request.url}`;
+      const text = Buffer.concat(chunks).toString();
+      requests.push({ line, body: text ? JSON.parse(text) : undefined });
+      const reply = (body: object) => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true, ...body }));
+      };
+      if (request.headers.authorization !== "Bearer secret-token") {
+        response.writeHead(401).end();
+      } else if (line === "POST /actions/api/me/maintenance-windows") {
+        reply({ window });
+      } else if (line === "POST /actions/api/me/maintenance-windows/mw1/end") {
+        reply({ window: { ...window, active: false, endedAt: 2_000 } });
+      } else if (line === "GET /actions/api/me/maintenance-windows") {
+        reply({
+          active: [window],
+          recent: [{ ...window, id: "mw0", title: "Disk swap", active: false, allAlerts: true }],
+          sourceChoices: ["hermes"],
+        });
+      } else {
+        response.writeHead(404).end();
+      }
+    });
+  });
+  let configPath = "";
+  const run = (...args: string[]) =>
+    runCliBinaryAsync(binaryPath, args, { env: { COWTAIL_CONFIG_PATH: configPath } });
+
+  beforeAll(async () => {
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    configPath = writeTempConfig(tempDir, {
+      baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/actions`,
+      pushBearerToken: "secret-token",
+      timeoutMs: 5000,
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  });
+
+  beforeEach(() => {
+    requests.length = 0;
+  });
+
+  test("maintenance start sends the window's length in milliseconds and its scope", async () => {
+    const result = await run(
+      "maintenance",
+      "start",
+      "--title",
+      "Cluster upgrade",
+      "--for",
+      "1h",
+      "--match",
+      "namespace=media",
+      "--source",
+      "hermes",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(
+      "Started mw1  Cluster upgrade  until 1970-01-01T01:00:01.000Z  namespace=media, hermes\n",
+    );
+    expect(requests).toEqual([
+      {
+        line: "POST /actions/api/me/maintenance-windows",
+        body: {
+          title: "Cluster upgrade",
+          durationMs: 3_600_000,
+          matchers: [{ label: "namespace", value: "media" }],
+          sources: ["hermes"],
+        },
+      },
+    ]);
+  });
+
+  test("maintenance end ends the window by id", async () => {
+    const result = await run("maintenance", "end", "mw1");
+
+    expect(result.stdout).toBe("Ended mw1  Cluster upgrade  over  namespace=media, hermes\n");
+    expect(requests.map((entry) => entry.line)).toEqual([
+      "POST /actions/api/me/maintenance-windows/mw1/end",
+    ]);
+  });
+
+  test("maintenance list shows running windows, then recent ones", async () => {
+    const result = await run("maintenance", "list");
+
+    expect(result.stdout.trim().split("\n")).toEqual([
+      "mw1  Cluster upgrade  until 1970-01-01T01:00:01.000Z  namespace=media, hermes",
+      "mw0  Disk swap  over  all alerts, namespace=media, hermes",
+    ]);
+  });
+});
+
 describe("built binary validation and updater behavior", () => {
   test("missing required args produce JSON errors on stderr", () => {
     const result = runCliBinary(binaryPath, ["alert", "show", "--json"]);
