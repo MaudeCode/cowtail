@@ -30,6 +30,7 @@ import {
   itemUrgencyValidator,
 } from "./itemValidators";
 import { preferencesRow } from "./notificationPreferences";
+import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
 import { sourceInfo } from "./sources";
 
@@ -608,14 +609,45 @@ export const list = internalQuery({
     to: v.optional(v.number()),
     limit: v.number(),
     cursor: v.optional(v.string()),
+    timeZone: v.string(),
   },
   handler: async (ctx, args) => {
-    const { source, kind, outcome, q, from, to } = args;
-    const keep = (record: ItemRecord) =>
-      (args.needsOwner === undefined || record.needsOwner === args.needsOwner) &&
-      (kind === undefined || record.kind === kind) &&
-      (outcome === undefined || record.outcome === outcome) &&
-      (q === undefined || matchesSearch(record, q));
+    const { source, kind, outcome, q, from, to, timeZone } = args;
+    // Only an open item can need the owner, so that filter reads open items alone.
+    const state = args.needsOwner ? (args.state ?? "open") : args.state;
+    const matches = async (item: Doc<"items">) => {
+      if (state !== undefined && item.state !== state) return null;
+      if (source !== undefined && item.source !== source) return null;
+      if (from !== undefined && item.createdAt < from) return null;
+      if (to !== undefined && item.createdAt > to) return null;
+      const record = await itemRecord(ctx, item);
+      const kept =
+        (args.needsOwner === undefined || record.needsOwner === args.needsOwner) &&
+        (kind === undefined || record.kind === kind) &&
+        (outcome === undefined || record.outcome === outcome) &&
+        (q === undefined || matchesSearch(record, q));
+      return kept
+        ? { ...record, createdDate: dateOnlyForInstant(new Date(item.createdAt), timeZone) }
+        : null;
+    };
+    // ponytail: counts every item created on each listed day; keep a per-day counter if a
+    // day ever holds thousands of items.
+    const dayCounts = async (records: { createdDate: string }[]) => {
+      const days: { date: string; count: number }[] = [];
+      for (const date of new Set(records.map((record) => record.createdDate))) {
+        const window = resolveRoundupWindow(date, date, timeZone);
+        const created = await ctx.db
+          .query("items")
+          .withIndex("by_createdAt", (q) =>
+            q.gte("createdAt", window.fromTimestamp).lte("createdAt", window.toTimestamp),
+          )
+          .collect();
+        let count = 0;
+        for (const item of created) if (await matches(item)) count += 1;
+        days.push({ date, count });
+      }
+      return days;
+    };
 
     // An alert has one item, so this filter reads it alone.
     if (args.alertId !== undefined) {
@@ -626,13 +658,12 @@ export const list = internalQuery({
             .withIndex("by_alertId", (q) => q.eq("alertId", alertId))
             .first()
         : null;
-      const record = item ? await itemRecord(ctx, item) : null;
-      return { items: record && keep(record) ? [record] : [], nextCursor: undefined };
+      const record = item ? await matches(item) : null;
+      const items = record ? [record] : [];
+      return { items, days: await dayCounts(items), nextCursor: undefined };
     }
 
-    // Only an open item can need the owner, so that filter reads open items alone.
-    const state = args.needsOwner ? (args.state ?? "open") : args.state;
-    if (args.needsOwner && state !== "open") return { items: [], nextCursor: undefined };
+    if (args.needsOwner && state !== "open") return { items: [], days: [], nextCursor: undefined };
 
     // ponytail: the range builder's types change after each bound; `any` keeps one helper.
     const createdAtRange = (q: any) => {
@@ -654,13 +685,14 @@ export const list = internalQuery({
       .paginate({ cursor: args.cursor ?? null, numItems: args.limit });
     const records = [];
     for (const item of page.page) {
-      if (source !== undefined && item.source !== source) continue;
-      if (from !== undefined && item.createdAt < from) continue;
-      if (to !== undefined && item.createdAt > to) continue;
-      const record = await itemRecord(ctx, item);
-      if (keep(record)) records.push(record);
+      const record = await matches(item);
+      if (record) records.push(record);
     }
-    return { items: records, nextCursor: page.isDone ? undefined : page.continueCursor };
+    return {
+      items: records,
+      days: await dayCounts(records),
+      nextCursor: page.isDone ? undefined : page.continueCursor,
+    };
   },
 });
 

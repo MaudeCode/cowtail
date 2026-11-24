@@ -95,6 +95,8 @@ export const itemRecordSchema = z.object({
   // Resolved items only: how it ended, and how long after creation.
   outcome: itemOutcomeSchema.optional(),
   resolvedAfterMs: z.number().int().nonnegative().optional(),
+  // List results only: the day the item was created, in the server's time zone.
+  createdDate: dateOnlyStringSchema.optional(),
 });
 
 export const itemEventRecordSchema = z.object({
@@ -166,6 +168,12 @@ export const itemListResponseSchema = z.object({
   count: z.number().int().nonnegative(),
   items: z.array(itemRecordSchema),
   nextCursor: nonEmptyStringSchema.optional(),
+  // Each `createdDate` on this page, in page order, with how many items created that day
+  // match the filters across the whole list, not only this page. Optional so a client still
+  // decodes a server from before it.
+  days: z
+    .array(z.object({ date: dateOnlyStringSchema, count: z.number().int().nonnegative() }))
+    .optional(),
 });
 
 // The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked

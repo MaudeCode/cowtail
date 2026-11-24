@@ -305,7 +305,11 @@ actor CowtailAPI: CowtailAPIClient {
         switch try await sessionClient(sessionToken: sessionToken).listItems(query: input) {
         case .ok(let response):
             let page = try response.body.json
-            return ItemPage(items: page.items.map(Self.makeItem), nextCursor: page.nextCursor)
+            return ItemPage(
+                items: page.items.map(Self.makeItem),
+                nextCursor: page.nextCursor,
+                days: (page.days ?? []).map { ItemPage.Day(date: $0.date, count: $0.count) }
+            )
         case .badRequest(let response):
             throw CowtailAPIError.requestFailed(try response.body.json.error)
         case .unauthorized(let response):

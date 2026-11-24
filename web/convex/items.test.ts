@@ -327,6 +327,16 @@ describe("item list", () => {
     expect(ids(await listItems(t, "?kind=approval"))).toEqual([approval.id]);
     expect(ids(await listItems(t, "?q=INGRESS"))).toEqual([approval.id]);
     expect(ids(await listItems(t, "?outcome=other"))).toEqual([]);
+    // A page names each item's day and counts that day across the whole filtered list.
+    const firstPage = await request(t, "/api/items?limit=1", { bearer: SERVICE });
+    expect(itemListResponseSchema.parse(firstPage.json)).toMatchObject({
+      items: [{ id: fyi.id, createdDate: "2026-11-24" }],
+      days: [{ date: "2026-11-24", count: 2 }],
+    });
+    const approvals = await request(t, "/api/items?kind=approval", { bearer: SERVICE });
+    expect(itemListResponseSchema.parse(approvals.json).days).toEqual([
+      { date: "2026-11-24", count: 1 },
+    ]);
     expect(ids(await listItems(t, "?needsOwner=true"))).toEqual([approval.id]);
     expect(ids(await listItems(t, "?needsOwner=false"))).toEqual([fyi.id]);
     expect(ids(await listItems(t, "?source=cron"))).toEqual([fyi.id]);

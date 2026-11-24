@@ -1592,6 +1592,7 @@ app.get("/api/items", async (c) => {
     page = await c.env.runQuery((internal as any).items.list, {
       ...parsedQuery.data,
       limit: parsedQuery.data.limit ?? ITEM_LIST_DEFAULT_LIMIT,
+      timeZone: resolveRoundupTimeZone(),
     });
   } catch (error) {
     // A cursor from another query, or a corrupted one, cannot continue this list.

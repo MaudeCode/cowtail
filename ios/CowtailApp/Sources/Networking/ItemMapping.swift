@@ -36,7 +36,8 @@ extension CowtailAPI {
             latestUpdate: record.latestUpdate.map { ItemUpdate(text: $0.text, at: date($0.at)) },
             investigationStep: record.investigationStep.flatMap { .init(rawValue: $0.rawValue) },
             outcome: record.outcome.flatMap { .init(rawValue: $0.rawValue) },
-            resolvedAfter: record.resolvedAfterMs.map { TimeInterval($0) / 1000 }
+            resolvedAfter: record.resolvedAfterMs.map { TimeInterval($0) / 1000 },
+            createdDate: record.createdDate
         )
     }
 

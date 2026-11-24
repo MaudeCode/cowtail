@@ -79,10 +79,13 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var detailErrors: [String: String] = [:]
     @Published private(set) var itemIDsByAlertID: [String: String] = [:]
     @Published private(set) var actionErrors: [String: String] = [:]
+    /// Writes whose outcome the server has not confirmed yet; their items take no new action.
+    @Published private(set) var unconfirmedItemIDs: Set<String> = []
     @Published private(set) var alertActionsInFlight: Set<String> = []
 
     @Published private(set) var historyFilter = HistoryFilter()
     @Published private(set) var historyItems: [Item] = []
+    @Published private(set) var historyDayCounts: [String: Int] = [:]
     @Published private(set) var historyStats: ItemStats?
     @Published private(set) var historyError: String?
     @Published private(set) var isLoadingHistory = false
@@ -100,6 +103,7 @@ final class CowtailStore: ObservableObject {
     )
 
     static let signInMessage = "Sign in with Apple in Settings to load your items."
+    static let unconfirmedMessage = "Cowtail has not confirmed your last answer yet. Pull to refresh."
 
     init(
         api: any CowtailAPIClient = CowtailAPI(),
@@ -163,6 +167,7 @@ final class CowtailStore: ObservableObject {
     private func reloadInbox(sessionToken token: String) async -> Bool {
         do {
             inbox = try await api.fetchInbox(sessionToken: token)
+            unconfirmedItemIDs.removeAll()
             return true
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return false }
@@ -216,6 +221,10 @@ final class CowtailStore: ObservableObject {
 
     /// Shows the action's result at once, then keeps it or rolls it back on the server's word.
     func perform(_ request: ItemActionRequest, on item: Item) async {
+        guard !unconfirmedItemIDs.contains(item.id) else {
+            actionErrors[item.id] = Self.unconfirmedMessage
+            return
+        }
         actionErrors[item.id] = nil
         if request.isApproval, requiresApprovalAuthentication() {
             guard await authenticator.authenticate(reason: "Confirm your answer to “\(item.title)”.") else {
@@ -244,10 +253,14 @@ final class CowtailStore: ObservableObject {
             details[item.id] = detailBefore
             actionErrors[item.id] = message
         } catch {
-            // The write may or may not have landed: ask the server before keeping either.
+            // The write may or may not have landed. Keep showing it, and take no new action on
+            // the item, until a read from the server says which.
+            unconfirmedItemIDs.insert(item.id)
             actionErrors[item.id] = error.localizedDescription
-            if !(await reloadInbox(sessionToken: token)) {
-                inbox = inboxBefore
+            if await reloadInbox(sessionToken: token) {
+                actionErrors[item.id] = nil
+            } else {
+                actionErrors[item.id] = Self.unconfirmedMessage
             }
             if detailBefore != nil {
                 await loadDetail(itemID: item.id)
@@ -313,11 +326,12 @@ final class CowtailStore: ObservableObject {
 
         let query = filter.query(now: .now)
         do {
-            async let page = api.fetchItems(query, sessionToken: token)
+            async let page = fetchHistoryPage(query, sessionToken: token)
             async let stats = api.fetchItemStats(from: query.from, to: nil, sessionToken: token)
             let (loadedPage, loadedStats) = try await (page, stats)
             guard filter == historyFilter else { return }
             historyItems = loadedPage.items
+            historyDayCounts = Self.dayCounts(loadedPage.days)
             historyCursor = loadedPage.nextCursor
             historyStats = loadedStats
             historyError = nil
@@ -337,14 +351,34 @@ final class CowtailStore: ObservableObject {
         isLoadingHistory = true
         defer { isLoadingHistory = false }
         do {
-            let page = try await api.fetchItems(query, sessionToken: token)
+            let page = try await fetchHistoryPage(query, sessionToken: token)
             guard filter == historyFilter else { return }
             historyItems += page.items
+            historyDayCounts.merge(Self.dayCounts(page.days)) { _, newer in newer }
             historyCursor = page.nextCursor
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             historyError = error.localizedDescription
         }
+    }
+
+    /// The server filters after it pages, so a page can hold no match yet still continue:
+    /// read on until one matches or the list ends.
+    /// ponytail: at most 10 pages per call; the Load older button continues past that.
+    private func fetchHistoryPage(_ query: ItemListQuery, sessionToken token: String) async throws -> ItemPage {
+        var query = query
+        var page = try await api.fetchItems(query, sessionToken: token)
+        var pages = 1
+        while page.items.isEmpty, let cursor = page.nextCursor, pages < 10 {
+            query.cursor = cursor
+            page = try await api.fetchItems(query, sessionToken: token)
+            pages += 1
+        }
+        return page
+    }
+
+    private static func dayCounts(_ days: [ItemPage.Day]) -> [String: Int] {
+        Dictionary(days.map { ($0.date, $0.count) }, uniquingKeysWith: { _, newer in newer })
     }
 
     // MARK: Devices

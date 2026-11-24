@@ -54,7 +54,24 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
                     && (query.search == nil || item.title.localizedCaseInsensitiveContains(query.search!))
             }
             .sorted { $0.createdAt > $1.createdAt }
-        return ItemPage(items: items, nextCursor: nil)
+            .map { item in
+                var listed = item
+                listed.createdDate = Self.day(item.createdAt)
+                return listed
+            }
+        var days: [ItemPage.Day] = []
+        for item in items where days.last?.date != item.createdDate {
+            let date = item.createdDate ?? ""
+            days.append(ItemPage.Day(date: date, count: items.count { $0.createdDate == date }))
+        }
+        return ItemPage(items: items, nextCursor: nil, days: days)
+    }
+
+    private static func day(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     func fetchItem(id: String, sessionToken _: String) async throws -> ItemDetail? {

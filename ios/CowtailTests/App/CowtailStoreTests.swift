@@ -74,6 +74,47 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
     }
 
+    func testAnUnconfirmedWriteStaysShownAndTakesNoSecondAnswerUntilTheServerAnswers() async {
+        let api = FakeItemAPI(
+            inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []),
+            actionError: URLError(.timedOut)
+        )
+        let store = store(api: api)
+        await store.refresh()
+        await api.failInbox(with: URLError(.notConnectedToInternet))
+
+        await store.perform(.approve, on: approval)
+        await store.perform(.approve, on: approval)
+
+        let attempts = await api.actionAttempts
+        XCTAssertEqual(store.inbox?.needsYou.map(\.id), [])
+        XCTAssertEqual(attempts, 1)
+    }
+
+    func testHistoryReadsPastPagesTheFiltersEmptied() async {
+        let older = Item(
+            id: "older",
+            source: "cron",
+            kind: .approval,
+            urgency: .today,
+            title: "Older match",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            createdDate: "2023-11-14"
+        )
+        let api = FakeItemAPI(
+            inbox: .empty,
+            pagesByCursor: [
+                "": ItemPage(items: [], nextCursor: "page-2"),
+                "page-2": ItemPage(items: [older], nextCursor: nil, days: [.init(date: "2023-11-14", count: 1)]),
+            ]
+        )
+        let store = store(api: api)
+
+        await store.loadHistory(HistoryFilter(kind: .approval))
+
+        XCTAssertEqual(store.historyItems.map(\.id), ["older"])
+    }
+
     func testRefreshRetriesHealthAfterTransientFailure() async {
         let api = FakeItemAPI(inbox: .empty, failingHealthRequests: 1)
         let store = store(api: api)
@@ -101,18 +142,33 @@ private actor FakeAuthenticator: ApprovalAuthenticating {
     }
 }
 
-/// Answers like the server: the inbox it holds, and the owner's actions applied to it.
+/// Answers like the server: the inbox it holds, the owner's actions applied to it, and list
+/// pages keyed by the cursor that asks for them.
 private actor FakeItemAPI: CowtailAPIClient {
     private var inbox: ItemInbox
+    private var inboxError: Error?
     private let actionError: Error?
     private var failingHealthRequests: Int
+    private let pagesByCursor: [String: ItemPage]
     private(set) var sentActions: [(itemID: String, request: ItemActionRequest)] = []
+    private(set) var actionAttempts = 0
     private(set) var healthRequests = 0
 
-    init(inbox: ItemInbox, actionError: Error? = nil, failingHealthRequests: Int = 0) {
+    /// `pagesByCursor[""]` is the first page.
+    init(
+        inbox: ItemInbox,
+        actionError: Error? = nil,
+        failingHealthRequests: Int = 0,
+        pagesByCursor: [String: ItemPage] = [:]
+    ) {
         self.inbox = inbox
         self.actionError = actionError
         self.failingHealthRequests = failingHealthRequests
+        self.pagesByCursor = pagesByCursor
+    }
+
+    func failInbox(with error: Error) {
+        inboxError = error
     }
 
     func fetchHealthSummary() async throws -> HealthSummary {
@@ -125,11 +181,17 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func fetchInbox(sessionToken _: String) async throws -> ItemInbox {
-        inbox
+        if let inboxError {
+            throw inboxError
+        }
+        return inbox
     }
 
-    func fetchItems(_: ItemListQuery, sessionToken _: String) async throws -> ItemPage {
-        ItemPage(items: [], nextCursor: nil)
+    func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {
+        guard let page = pagesByCursor[query.cursor ?? ""] else {
+            throw CowtailAPIError.refused("Invalid cursor")
+        }
+        return page
     }
 
     func fetchItem(id _: String, sessionToken _: String) async throws -> ItemDetail? {
@@ -141,6 +203,7 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func performItemAction(itemID: String, request: ItemActionRequest, sessionToken _: String) async throws -> Item {
+        actionAttempts += 1
         if let actionError {
             throw actionError
         }

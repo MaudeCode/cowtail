@@ -2270,6 +2270,8 @@ extension Components {
             internal var outcome: Components.Schemas.ItemRecord.OutcomePayload?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/resolvedAfterMs`.
             internal var resolvedAfterMs: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/createdDate`.
+            internal var createdDate: Swift.String?
             /// Creates a new `ItemRecord`.
             ///
             /// - Parameters:
@@ -2300,6 +2302,7 @@ extension Components {
             ///   - investigationStep:
             ///   - outcome:
             ///   - resolvedAfterMs:
+            ///   - createdDate:
             internal init(
                 id: Swift.String,
                 source: Swift.String,
@@ -2327,7 +2330,8 @@ extension Components {
                 latestUpdate: Components.Schemas.ItemRecord.LatestUpdatePayload? = nil,
                 investigationStep: Components.Schemas.ItemRecord.InvestigationStepPayload? = nil,
                 outcome: Components.Schemas.ItemRecord.OutcomePayload? = nil,
-                resolvedAfterMs: Swift.Int? = nil
+                resolvedAfterMs: Swift.Int? = nil,
+                createdDate: Swift.String? = nil
             ) {
                 self.id = id
                 self.source = source
@@ -2356,6 +2360,7 @@ extension Components {
                 self.investigationStep = investigationStep
                 self.outcome = outcome
                 self.resolvedAfterMs = resolvedAfterMs
+                self.createdDate = createdDate
             }
             internal enum CodingKeys: String, CodingKey {
                 case id
@@ -2385,6 +2390,7 @@ extension Components {
                 case investigationStep
                 case outcome
                 case resolvedAfterMs
+                case createdDate
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemActionRequest`.
@@ -2610,6 +2616,33 @@ extension Components {
             internal var items: [Components.Schemas.ItemRecord]
             /// - Remark: Generated from `#/components/schemas/ItemListResponse/nextCursor`.
             internal var nextCursor: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemListResponse/DaysPayload`.
+            internal struct DaysPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemListResponse/DaysPayload/date`.
+                internal var date: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemListResponse/DaysPayload/count`.
+                internal var count: Swift.Int
+                /// Creates a new `DaysPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - date:
+                ///   - count:
+                internal init(
+                    date: Swift.String,
+                    count: Swift.Int
+                ) {
+                    self.date = date
+                    self.count = count
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case date
+                    case count
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemListResponse/days`.
+            internal typealias DaysPayload = [Components.Schemas.ItemListResponse.DaysPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/ItemListResponse/days`.
+            internal var days: Components.Schemas.ItemListResponse.DaysPayload?
             /// Creates a new `ItemListResponse`.
             ///
             /// - Parameters:
@@ -2617,22 +2650,26 @@ extension Components {
             ///   - count:
             ///   - items:
             ///   - nextCursor:
+            ///   - days:
             internal init(
                 ok: Swift.Bool,
                 count: Swift.Int,
                 items: [Components.Schemas.ItemRecord],
-                nextCursor: Swift.String? = nil
+                nextCursor: Swift.String? = nil,
+                days: Components.Schemas.ItemListResponse.DaysPayload? = nil
             ) {
                 self.ok = ok
                 self.count = count
                 self.items = items
                 self.nextCursor = nextCursor
+                self.days = days
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case count
                 case items
                 case nextCursor
+                case days
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemInboxResponse`.

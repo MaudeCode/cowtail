@@ -76,6 +76,8 @@ struct Item: Identifiable, Hashable, Sendable {
     let investigationStep: ItemInvestigationStep?
     let outcome: ItemOutcome?
     let resolvedAfter: TimeInterval?
+    /// List results only: the server's day for the item, `yyyy-MM-dd`.
+    var createdDate: String?
 
     init(
         id: String,
@@ -99,7 +101,8 @@ struct Item: Identifiable, Hashable, Sendable {
         latestUpdate: ItemUpdate? = nil,
         investigationStep: ItemInvestigationStep? = nil,
         outcome: ItemOutcome? = nil,
-        resolvedAfter: TimeInterval? = nil
+        resolvedAfter: TimeInterval? = nil,
+        createdDate: String? = nil
     ) {
         self.id = id
         self.source = source
@@ -123,6 +126,7 @@ struct Item: Identifiable, Hashable, Sendable {
         self.investigationStep = investigationStep
         self.outcome = outcome
         self.resolvedAfter = resolvedAfter
+        self.createdDate = createdDate
     }
 }
 
@@ -193,8 +197,15 @@ struct ItemListQuery: Hashable, Sendable {
 }
 
 struct ItemPage: Equatable, Sendable {
+    struct Day: Equatable, Sendable {
+        let date: String
+        let count: Int
+    }
+
     let items: [Item]
     let nextCursor: String?
+    /// The page's days, in page order, each counted across the whole filtered list.
+    var days: [Day] = []
 }
 
 struct ItemStats: Equatable, Sendable {

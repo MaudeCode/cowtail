@@ -192,17 +192,28 @@ struct HistoryView: View {
         .padding(.top, 10)
     }
 
+    /// The server's days, in the server's order.
+    private var dayGroups: [(date: String, items: [Item])] {
+        var groups: [(date: String, items: [Item])] = []
+        for item in store.historyItems {
+            let date = item.createdDate ?? ""
+            if groups.last?.date == date {
+                groups[groups.count - 1].items.append(item)
+            } else {
+                groups.append((date, [item]))
+            }
+        }
+        return groups
+    }
+
     @ViewBuilder
     private var days: some View {
-        let calendar = Calendar.current
-        let groups = Dictionary(grouping: store.historyItems) { calendar.startOfDay(for: $0.createdAt) }
-        ForEach(groups.keys.sorted(by: >), id: \.self) { day in
-            let items = groups[day] ?? []
+        ForEach(dayGroups, id: \.date) { group in
             CowtailSectionHeader(
-                title: day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)),
-                detail: "\(items.count)"
+                title: Self.dayLabel(group.date),
+                detail: store.historyDayCounts[group.date].map(String.init)
             )
-            ForEach(items) { item in
+            ForEach(group.items) { item in
                 ItemRow(item: item, style: .history)
                     .onAppear {
                         if item.id == store.historyItems.last?.id, store.hasMoreHistory {
@@ -211,6 +222,22 @@ struct HistoryView: View {
                     }
             }
         }
+        if store.hasMoreHistory {
+            CowtailIconButton(title: "Load older items", systemImage: "arrow.down") {
+                Task { await store.loadMoreHistory() }
+            }
+            .padding(.top, 12)
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("button.history.load-more")
+        }
+    }
+
+    private static func dayLabel(_ date: String) -> String {
+        let parser = DateFormatter()
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let day = parser.date(from: date) else { return date }
+        return day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 
     private func keyValue(_ key: String, _ value: String) -> some View {
