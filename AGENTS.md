@@ -14,6 +14,7 @@ Keep this document scrubbed:
 - Use `bun`, not `npm`.
 - Treat Kubernetes and runtime infrastructure as GitOps-managed.
 - Do not patch running cluster resources directly when the source of truth lives in a separate infrastructure repo.
+- A checkout's `web/.env` can hold the live Convex deployment's address and admin key, and worktrees get a copy of it. Never run `convex dev`, `convex deploy`, `convex run` or `convex import` from a checkout. Test Convex code in memory, and let the release workflow deploy it.
 - Keep deployment documentation generic and non-identifying.
 
 ## Protocol Boundary
