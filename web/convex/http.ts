@@ -77,7 +77,7 @@ import type {
 } from "@maudecode/cowtail-protocol";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { configuredApnsEnvironment } from "./apns";
 import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
 import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
@@ -774,6 +774,9 @@ app.post("/api/alerts", async (c) => {
 
 // GET /api/alerts — list alerts with optional filters
 app.get("/api/alerts", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
   const rawQuery = {
     from: parseOptionalQueryTimestamp(c.req.query("from")),
     to: parseOptionalQueryTimestamp(c.req.query("to")),
@@ -789,7 +792,7 @@ app.get("/api/alerts", async (c) => {
     return jsonError(formatIssues(parsedQuery.error.issues));
   }
 
-  const alerts = await c.env.runQuery(api.alerts.getAll, {});
+  const alerts = await c.env.runQuery(internal.alerts.getAll, {});
   const filtered = alerts
     .filter(
       (alert: any) =>
@@ -831,7 +834,10 @@ app.get("/api/alerts", async (c) => {
 
 // GET /api/alerts/:id — fetch a single alert
 app.get("/api/alerts/:id", async (c) => {
-  const alert = await c.env.runQuery(api.alerts.getById, {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const alert = await c.env.runQuery(internal.alerts.getById, {
     id: c.req.param("id") as any,
   });
 
@@ -892,6 +898,9 @@ app.post("/api/fixes", async (c) => {
 
 // GET /api/fixes — list fixes with optional filters
 app.get("/api/fixes", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
   const rawQuery = {
     from: parseOptionalQueryTimestamp(c.req.query("from")),
     to: parseOptionalQueryTimestamp(c.req.query("to")),
@@ -904,7 +913,7 @@ app.get("/api/fixes", async (c) => {
     return jsonError(formatIssues(parsedQuery.error.issues));
   }
 
-  const fixes = await c.env.runQuery(api.fixes.getAll, {});
+  const fixes = await c.env.runQuery(internal.fixes.getAll, {});
   const filtered = fixes
     .filter(
       (fix: any) => parsedQuery.data.from === undefined || fix.timestamp >= parsedQuery.data.from,
@@ -931,7 +940,10 @@ app.get("/api/fixes", async (c) => {
 
 // GET /api/fixes/:id — fetch a single fix
 app.get("/api/fixes/:id", async (c) => {
-  const fix = await c.env.runQuery(api.fixes.getById, {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const fix = await c.env.runQuery(internal.fixes.getById, {
     id: c.req.param("id") as any,
   });
 
@@ -1104,10 +1116,10 @@ app.post("/api/alerts/webhook", async (c) => {
 
 async function loadInvestigationJobContext(c: RouteContext, job: any) {
   const alert = job?.alertId
-    ? await c.env.runQuery((api as any).alerts.getById, { id: job.alertId })
+    ? await c.env.runQuery((internal as any).alerts.getById, { id: job.alertId })
     : null;
   const sourceEvent = job?.sourceEventId
-    ? await c.env.runQuery((api as any).alertmanagerEvents.getById, { id: job.sourceEventId })
+    ? await c.env.runQuery((internal as any).alertmanagerEvents.getById, { id: job.sourceEventId })
     : null;
   const relatedAlerts = sourceEvent?.investigationAlertIds
     ? await c.env.runQuery((internal as any).alerts.getByIds, {
@@ -1174,7 +1186,7 @@ app.get("/api/investigation-jobs/deadletters", async (c) => {
   if (authError) return authError;
 
   const limit = parseOptionalQueryTimestamp(c.req.query("limit")) ?? 50;
-  const jobs = await c.env.runQuery((api as any).investigationJobs.deadletters, { limit });
+  const jobs = await c.env.runQuery((internal as any).investigationJobs.deadletters, { limit });
   return c.json({ ok: true, count: jobs.length, jobs });
 });
 
@@ -1190,7 +1202,7 @@ app.get("/api/investigation-jobs/:id", async (c) => {
   const authError = requireWorkerAuth(c);
   if (authError) return authError;
 
-  const job = await c.env.runQuery((api as any).investigationJobs.getById, {
+  const job = await c.env.runQuery((internal as any).investigationJobs.getById, {
     id: c.req.param("id") as any,
   });
   if (!job) {
@@ -1232,7 +1244,7 @@ app.post("/api/investigation-jobs/:id/complete", async (c) => {
     return jsonError("claimToken is required");
   }
 
-  const job = await c.env.runQuery((api as any).investigationJobs.getById, {
+  const job = await c.env.runQuery((internal as any).investigationJobs.getById, {
     id: c.req.param("id") as any,
   });
   if (!job) {
@@ -1344,7 +1356,7 @@ app.post("/api/investigation-jobs/:id/requeue", async (c) => {
   if (authError) return authError;
 
   const id = c.req.param("id") as any;
-  const job = await c.env.runQuery((api as any).investigationJobs.getById, { id });
+  const job = await c.env.runQuery((internal as any).investigationJobs.getById, { id });
   if (!job) {
     return jsonError("Investigation job not found", 404);
   }
@@ -1382,7 +1394,7 @@ app.post("/api/me/alerts/:id/actions", async (c) => {
   }
 
   const id = c.req.param("id") as Id<"alerts">;
-  const alert = await c.env.runQuery((api as any).alerts.getById, { id });
+  const alert = await c.env.runQuery((internal as any).alerts.getById, { id });
   if (!alert) return jsonError("Alert not found", 404);
 
   const now = Date.now();
@@ -1437,7 +1449,8 @@ function codedErrorResponse(error: unknown) {
   return jsonError(known[1], known[0], { code });
 }
 
-// Readers are trusted services (the CLI, Hermes) or the owner's app session.
+// Readers of items, alerts and fixes are trusted services (the CLI, Hermes) or the owner's
+// app session.
 async function requireItemReader(c: RouteContext) {
   const serviceTokens = [process.env.PUSH_API_BEARER_TOKEN, process.env.COWTAIL_WORKER_TOKEN];
   if (isBearerTokenAuthorized(c.req.header("authorization"), serviceTokens)) return null;
@@ -2551,8 +2564,8 @@ async function handleRoundupHtml(c: RouteContext) {
   const from = new Date(fromParam).getTime();
   const to = new Date(toParam + "T23:59:59Z").getTime();
 
-  const alerts = await ctx.runQuery(api.alerts.getByTimeRange, { from, to });
-  const fixes = await ctx.runQuery(api.fixes.getByTimeRange, { from, to });
+  const alerts = await ctx.runQuery(internal.alerts.getByTimeRange, { from, to });
+  const fixes = await ctx.runQuery(internal.fixes.getByTimeRange, { from, to });
 
   // Format date range — parse as noon UTC to avoid timezone date shifts
   const fmtDate = (d: string) => {

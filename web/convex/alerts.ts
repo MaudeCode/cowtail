@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { WithoutSystemFields } from "convex/server";
 
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
   alertLifecycleDedupeKey,
@@ -557,7 +557,7 @@ export const applyOwnerAction = internalMutation({
   },
 });
 
-export const getByTimeRange = query({
+export const getByTimeRange = internalQuery({
   args: { from: v.number(), to: v.number() },
   handler: async (ctx, args) => {
     const alerts = await ctx.db
@@ -570,7 +570,7 @@ export const getByTimeRange = query({
   },
 });
 
-export const getById = query({
+export const getById = internalQuery({
   args: { id: v.id("alerts") },
   handler: async (ctx, args) => {
     const alert = await ctx.db.get(args.id);
@@ -586,7 +586,7 @@ export const getByIdForOwner = internalQuery({
   },
 });
 
-export const getAll = query({
+export const getAll = internalQuery({
   args: {},
   handler: async (ctx) => {
     const alerts = await ctx.db.query("alerts").withIndex("by_timestamp").order("desc").collect();

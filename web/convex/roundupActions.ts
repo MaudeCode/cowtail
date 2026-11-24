@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import {
   buildDailyRoundupBody,
@@ -77,19 +77,19 @@ async function buildRoundupNotification(
     Array<{ ingestStatus?: string }>,
     Array<unknown>,
   ] = await Promise.all([
-    ctx.runQuery(api.alerts.getByTimeRange, {
+    ctx.runQuery(internal.alerts.getByTimeRange, {
       from: window.fromTimestamp,
       to: window.toTimestamp,
     }),
-    ctx.runQuery(api.fixes.getByTimeRange, {
+    ctx.runQuery(internal.fixes.getByTimeRange, {
       from: window.fromTimestamp,
       to: window.toTimestamp,
     }),
-    ctx.runQuery((api as any).alertmanagerEvents.getByTimeRange, {
+    ctx.runQuery((internal as any).alertmanagerEvents.getByTimeRange, {
       from: window.fromTimestamp,
       to: window.toTimestamp,
     }),
-    ctx.runQuery((api as any).investigationJobs.deadlettersByTimeRange, {
+    ctx.runQuery((internal as any).investigationJobs.deadlettersByTimeRange, {
       from: window.fromTimestamp,
       to: window.toTimestamp,
     }),

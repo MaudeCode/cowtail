@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, type ActionCtx } from "./_generated/server";
 
@@ -101,7 +101,7 @@ async function attemptHermesJobDelivery(
   ctx: ActionCtx,
   deliveryId: Id<"jobDeliveries">,
 ): Promise<DeliveryResult> {
-  const delivery = await ctx.runQuery((api as any).jobDeliveries.getById, { id: deliveryId });
+  const delivery = await ctx.runQuery((internal as any).jobDeliveries.getById, { id: deliveryId });
   if (!delivery || delivery.status !== "pending") {
     return { delivered: false, skipped: true, error: "Delivery is not pending" };
   }
@@ -109,7 +109,7 @@ async function attemptHermesJobDelivery(
     return { delivered: false, skipped: true, error: "Delivery is not due" };
   }
 
-  const job = await ctx.runQuery((api as any).investigationJobs.getById, {
+  const job = await ctx.runQuery((internal as any).investigationJobs.getById, {
     id: delivery.jobId,
   });
   if (!job) {
@@ -128,7 +128,7 @@ async function attemptHermesJobDelivery(
     return { delivered: false, skipped: true, error: "Investigation job is not due" };
   }
 
-  const alert = await ctx.runQuery((api as any).alerts.getById, { id: job.alertId });
+  const alert = await ctx.runQuery((internal as any).alerts.getById, { id: job.alertId });
   if (!alert) {
     return await recordAttempt(ctx, delivery._id, false, "Alert for investigation job not found");
   }
@@ -200,7 +200,7 @@ export const retryDue = internalAction({
       limit: DELIVERY_BATCH_SIZE,
     });
     const deliveries: PendingDelivery[] = await ctx.runQuery(
-      (api as any).jobDeliveries.getPending,
+      (internal as any).jobDeliveries.getPending,
       {
         now: Date.now(),
         limit: DELIVERY_BATCH_SIZE,

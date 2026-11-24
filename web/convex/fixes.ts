@@ -1,4 +1,5 @@
-import { internalMutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 
 export const insert = internalMutation({
@@ -15,7 +16,7 @@ export const insert = internalMutation({
   },
 });
 
-export const getByTimeRange = query({
+export const getByTimeRange = internalQuery({
   args: {
     from: v.number(),
     to: v.number(),
@@ -28,17 +29,20 @@ export const getByTimeRange = query({
   },
 });
 
-export const getByAlertIds = query({
-  args: {
-    alertIds: v.array(v.id("alerts")),
-  },
-  handler: async (ctx, args) => {
-    const all = await ctx.db.query("fixes").collect();
-    return all.filter((fix) => fix.alertIds.some((id) => args.alertIds.includes(id)));
-  },
-});
+// The fixes recorded against an alert, newest first, in the shape item responses ship.
+// ponytail: scans every fix per alert item; add an alertId index if fixes number thousands.
+export async function fixesForAlert(ctx: QueryCtx, alertId: Id<"alerts">) {
+  const fixes = await ctx.db.query("fixes").withIndex("by_timestamp").order("desc").collect();
+  return fixes
+    .filter((fix) => fix.alertIds.includes(alertId))
+    .map(({ _id, _creationTime, alertIds, ...fields }) => ({
+      ...fields,
+      id: String(_id),
+      alertIds: alertIds.map(String),
+    }));
+}
 
-export const getById = query({
+export const getById = internalQuery({
   args: {
     id: v.id("fixes"),
   },
@@ -47,7 +51,7 @@ export const getById = query({
   },
 });
 
-export const getAll = query({
+export const getAll = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await ctx.db.query("fixes").withIndex("by_timestamp").order("desc").collect();
