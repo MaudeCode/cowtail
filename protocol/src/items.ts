@@ -158,18 +158,25 @@ export const itemGetResponseSchema = z.object({
   events: z.array(itemEventRecordSchema),
 });
 
-// The owner's answers to an item; a producer that set `replyTo` receives them.
-export const itemAnswerSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("ack") }),
+const ackActionSchema = z.object({ type: z.literal("ack") });
+const answerActionSchemas = [
   z.object({ type: z.literal("approve") }),
   z.object({ type: z.literal("deny") }),
   z.object({ type: z.literal("choose"), option: nonEmptyStringSchema }),
   z.object({ type: z.literal("reply"), text: nonEmptyStringSchema.max(20_000) }),
+] as const;
+
+// The owner's answers to an item; a producer that set `replyTo` receives them.
+export const itemAnswerSchema = z.discriminatedUnion("type", [
+  ackActionSchema,
+  ...answerActionSchemas,
 ]);
 
+// The generated iOS client names these variants by position: keep their order.
 export const itemActionRequestSchema = z.discriminatedUnion("type", [
-  ...itemAnswerSchema.options,
+  ackActionSchema,
   z.object({ type: z.literal("snooze"), until: timestampSchema }),
+  ...answerActionSchemas,
 ]);
 
 export const itemResponseSchema = z.object({
