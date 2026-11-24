@@ -90,6 +90,7 @@ The Hermes plugin needs only Python 3.11 or later. Test it with `python -m unitt
    - `APNS_TOPIC` — the native app bundle identifier used for APNs
    - `APPLE_AUTH_AUDIENCE` — optional explicit Sign in with Apple audience override; defaults to `APNS_TOPIC`
    - `COWTAIL_WATCHDOG_MAX_SILENCE_MINUTES` — optional; how long the Alertmanager Watchdog may stay silent before Cowtail raises "Alert pipeline silent" (default `15`)
+   - `COWTAIL_HERMES_HOOK_SECRET` — the shared secret Hermes signs its outbound webhooks with
 
 4. **Optional: sign in with Pocket ID (OIDC).** Cowtail is single-owner, and Pocket ID signs in as the same owner as Sign in with Apple.
    - In Pocket ID, add an OIDC client that is confidential (not public), with PKCE enabled and the callback URL `<COWTAIL_WEB_ORIGIN>/actions/api/auth/oidc/callback`.
@@ -140,6 +141,27 @@ route:
 ```
 
 Cowtail stores no alert for it. Each Watchdog records the pipeline's heartbeat, and `GET /api/health` reports it as `alertPipeline: { state, lastWatchdogAt }`, where `state` is `not_configured` before the first Watchdog, `ok` while they arrive, and `silent` once none has arrived for `COWTAIL_WATCHDOG_MAX_SILENCE_MINUTES`. While silent, Cowtail keeps one urgent `Alert pipeline silent` item open, and the next Watchdog resolves it. Keep `repeat_interval` well under the threshold.
+
+### Hermes hook events
+
+Hermes's outbound webhooks bring blocked kanban tasks, rate-limited kanban workers and model provider errors into Cowtail as items. Add this block to the Hermes host's `config.yaml`, and set `COWTAIL_HERMES_HOOK_SECRET` to the same value on the Hermes host and in the Convex environment:
+
+```yaml
+hooks:
+  outbound:
+    - name: cowtail
+      url: https://your-cowtail-instance/actions/api/hermes/hooks
+      events: [kanban_task_blocked, on_kanban_worker_exited, api_request_error]
+      secret_env: COWTAIL_HERMES_HOOK_SECRET
+```
+
+| Event | Item |
+|---|---|
+| `kanban_task_blocked` | a question for today, one per task |
+| `on_kanban_worker_exited` with `exit_kind: rate_limited` | a failure for today, one per provider or profile |
+| `api_request_error` | a failure for whenever, one per provider and status; the tenth in an hour raises it to today |
+
+Cowtail refuses a delivery whose `X-Hermes-Signature-256` does not match with 401, stores each `delivery_id` once, and answers every other event with 200.
 
 ## Design
 

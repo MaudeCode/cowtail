@@ -341,7 +341,8 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
 
 // --- Functions ----------------------------------------------------------------------
 
-const createItemRequest = v.object({
+// The fields a producer sends to create an item; `create` and the Hermes hook ingest take them.
+export const createItemRequest = v.object({
   source: v.string(),
   kind: itemKindValidator,
   urgency: itemUrgencyValidator,
