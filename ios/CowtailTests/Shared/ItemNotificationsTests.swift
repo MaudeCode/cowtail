@@ -122,6 +122,7 @@ private final class RecordingTransport: ClientTransport, @unchecked Sendable {
         "sourceInfo":{"slug":"hermes","displayName":"Hermes"},"kind":"approval","urgency":"now",\
         "state":"open","needsOwner":true,"title":"Restart ingress in edge?","body":"","links":[],\
         "context":{},"occurrenceCount":1,"actions":[{"type":"approve"},{"type":"deny"}],\
+        "availableActions":[{"type":"approve"},{"type":"deny"}],\
         "createdAt":1,"updatedAt":2}}
         """
         var headers = HTTPFields()

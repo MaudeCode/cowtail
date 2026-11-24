@@ -87,7 +87,7 @@ enum ItemButton: Hashable, Identifiable {
 
     /// The buttons for an item's `actions`; `choose` shows its options as text instead.
     static func buttons(for item: Item) -> [ItemButton] {
-        item.actions.compactMap { action in
+        item.availableActions.compactMap { action in
             switch action {
             case .approve: .approve
             case .deny: .deny

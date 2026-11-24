@@ -38,6 +38,7 @@ import {
   itemEventAppendRequestSchema,
   itemGetResponseSchema,
   itemInboxResponseSchema,
+  itemSourcesResponseSchema,
   itemListQuerySchema,
   itemListResponseSchema,
   itemResponseSchema,
@@ -1630,6 +1631,15 @@ app.get("/api/items/inbox", async (c) => {
 
   const inbox = await c.env.runQuery((internal as any).items.inbox, { now: Date.now() });
   return c.json(itemInboxResponseSchema.parse({ ok: true, ...inbox }));
+});
+
+// GET /api/items/sources — every source with an item, for the history filter
+app.get("/api/items/sources", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const sources = await c.env.runQuery((internal as any).items.sources, {});
+  return c.json(itemSourcesResponseSchema.parse({ ok: true, sources }));
 });
 
 // GET /api/items/:id — the item and its timeline

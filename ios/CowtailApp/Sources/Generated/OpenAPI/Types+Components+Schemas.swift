@@ -1949,244 +1949,8 @@ extension Components {
             internal var dedupeKey: Swift.String?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/occurrenceCount`.
             internal var occurrenceCount: Swift.Int
-            /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload`.
-            internal enum ActionsPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case1`.
-                internal struct Case1Payload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case1/type`.
-                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case approve = "approve"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case1/type`.
-                    internal var _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case1Payload._TypePayload
-                    /// Creates a new `Case1Payload`.
-                    ///
-                    /// - Parameters:
-                    ///   - _type:
-                    internal init(_type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case1Payload._TypePayload) {
-                        self._type = _type
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case _type = "type"
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case1`.
-                case case1(Components.Schemas.ItemRecord.ActionsPayloadPayload.Case1Payload)
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case2`.
-                internal struct Case2Payload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case2/type`.
-                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case deny = "deny"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case2/type`.
-                    internal var _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case2Payload._TypePayload
-                    /// Creates a new `Case2Payload`.
-                    ///
-                    /// - Parameters:
-                    ///   - _type:
-                    internal init(_type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case2Payload._TypePayload) {
-                        self._type = _type
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case _type = "type"
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case2`.
-                case case2(Components.Schemas.ItemRecord.ActionsPayloadPayload.Case2Payload)
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case3`.
-                internal struct Case3Payload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case3/type`.
-                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case choose = "choose"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case3/type`.
-                    internal var _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case3Payload._TypePayload
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case3/options`.
-                    internal var options: [Swift.String]
-                    /// Creates a new `Case3Payload`.
-                    ///
-                    /// - Parameters:
-                    ///   - _type:
-                    ///   - options:
-                    internal init(
-                        _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case3Payload._TypePayload,
-                        options: [Swift.String]
-                    ) {
-                        self._type = _type
-                        self.options = options
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case _type = "type"
-                        case options
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case3`.
-                case case3(Components.Schemas.ItemRecord.ActionsPayloadPayload.Case3Payload)
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case4`.
-                internal struct Case4Payload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case4/type`.
-                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case reply = "reply"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case4/type`.
-                    internal var _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case4Payload._TypePayload
-                    /// Creates a new `Case4Payload`.
-                    ///
-                    /// - Parameters:
-                    ///   - _type:
-                    internal init(_type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case4Payload._TypePayload) {
-                        self._type = _type
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case _type = "type"
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case4`.
-                case case4(Components.Schemas.ItemRecord.ActionsPayloadPayload.Case4Payload)
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case5`.
-                internal struct Case5Payload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case5/type`.
-                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case snooze = "snooze"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case5/type`.
-                    internal var _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case5Payload._TypePayload
-                    /// Creates a new `Case5Payload`.
-                    ///
-                    /// - Parameters:
-                    ///   - _type:
-                    internal init(_type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case5Payload._TypePayload) {
-                        self._type = _type
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case _type = "type"
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case5`.
-                case case5(Components.Schemas.ItemRecord.ActionsPayloadPayload.Case5Payload)
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case6`.
-                internal struct Case6Payload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case6/type`.
-                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case ack = "ack"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case6/type`.
-                    internal var _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case6Payload._TypePayload
-                    /// Creates a new `Case6Payload`.
-                    ///
-                    /// - Parameters:
-                    ///   - _type:
-                    internal init(_type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case6Payload._TypePayload) {
-                        self._type = _type
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case _type = "type"
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case6`.
-                case case6(Components.Schemas.ItemRecord.ActionsPayloadPayload.Case6Payload)
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case7`.
-                internal struct Case7Payload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case7/type`.
-                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case open = "open"
-                    }
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case7/type`.
-                    internal var _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case7Payload._TypePayload
-                    /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case7/url`.
-                    internal var url: Swift.String
-                    /// Creates a new `Case7Payload`.
-                    ///
-                    /// - Parameters:
-                    ///   - _type:
-                    ///   - url:
-                    internal init(
-                        _type: Components.Schemas.ItemRecord.ActionsPayloadPayload.Case7Payload._TypePayload,
-                        url: Swift.String
-                    ) {
-                        self._type = _type
-                        self.url = url
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case _type = "type"
-                        case url
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/ItemRecord/ActionsPayload/case7`.
-                case case7(Components.Schemas.ItemRecord.ActionsPayloadPayload.Case7Payload)
-                internal init(from decoder: any Swift.Decoder) throws {
-                    var errors: [any Swift.Error] = []
-                    do {
-                        self = .case1(try .init(from: decoder))
-                        return
-                    } catch {
-                        errors.append(error)
-                    }
-                    do {
-                        self = .case2(try .init(from: decoder))
-                        return
-                    } catch {
-                        errors.append(error)
-                    }
-                    do {
-                        self = .case3(try .init(from: decoder))
-                        return
-                    } catch {
-                        errors.append(error)
-                    }
-                    do {
-                        self = .case4(try .init(from: decoder))
-                        return
-                    } catch {
-                        errors.append(error)
-                    }
-                    do {
-                        self = .case5(try .init(from: decoder))
-                        return
-                    } catch {
-                        errors.append(error)
-                    }
-                    do {
-                        self = .case6(try .init(from: decoder))
-                        return
-                    } catch {
-                        errors.append(error)
-                    }
-                    do {
-                        self = .case7(try .init(from: decoder))
-                        return
-                    } catch {
-                        errors.append(error)
-                    }
-                    throw Swift.DecodingError.failedToDecodeOneOfSchema(
-                        type: Self.self,
-                        codingPath: decoder.codingPath,
-                        errors: errors
-                    )
-                }
-                internal func encode(to encoder: any Swift.Encoder) throws {
-                    switch self {
-                    case let .case1(value):
-                        try value.encode(to: encoder)
-                    case let .case2(value):
-                        try value.encode(to: encoder)
-                    case let .case3(value):
-                        try value.encode(to: encoder)
-                    case let .case4(value):
-                        try value.encode(to: encoder)
-                    case let .case5(value):
-                        try value.encode(to: encoder)
-                    case let .case6(value):
-                        try value.encode(to: encoder)
-                    case let .case7(value):
-                        try value.encode(to: encoder)
-                    }
-                }
-            }
             /// - Remark: Generated from `#/components/schemas/ItemRecord/actions`.
-            internal typealias ActionsPayload = [Components.Schemas.ItemRecord.ActionsPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/ItemRecord/actions`.
-            internal var actions: Components.Schemas.ItemRecord.ActionsPayload
+            internal var actions: [Components.Schemas.ItemAction]
             /// - Remark: Generated from `#/components/schemas/ItemRecord/replyTo`.
             internal struct ReplyToPayload: Codable, Hashable, Sendable {
                 /// A container of undocumented properties.
@@ -2225,6 +1989,8 @@ extension Components {
             internal var subtitle: Swift.String?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/answeredAt`.
             internal var answeredAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/availableActions`.
+            internal var availableActions: [Components.Schemas.ItemAction]?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/latestUpdate`.
             internal struct LatestUpdatePayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/ItemRecord/latestUpdate/text`.
@@ -2298,6 +2064,7 @@ extension Components {
             ///   - resolvedAt:
             ///   - subtitle:
             ///   - answeredAt:
+            ///   - availableActions:
             ///   - latestUpdate:
             ///   - investigationStep:
             ///   - outcome:
@@ -2316,7 +2083,7 @@ extension Components {
                 context: Components.Schemas.ItemRecord.ContextPayload,
                 dedupeKey: Swift.String? = nil,
                 occurrenceCount: Swift.Int,
-                actions: Components.Schemas.ItemRecord.ActionsPayload,
+                actions: [Components.Schemas.ItemAction],
                 replyTo: Components.Schemas.ItemRecord.ReplyToPayload? = nil,
                 alertId: Swift.String? = nil,
                 investigationJobId: Swift.String? = nil,
@@ -2327,6 +2094,7 @@ extension Components {
                 resolvedAt: Swift.Int? = nil,
                 subtitle: Swift.String? = nil,
                 answeredAt: Swift.Int? = nil,
+                availableActions: [Components.Schemas.ItemAction]? = nil,
                 latestUpdate: Components.Schemas.ItemRecord.LatestUpdatePayload? = nil,
                 investigationStep: Components.Schemas.ItemRecord.InvestigationStepPayload? = nil,
                 outcome: Components.Schemas.ItemRecord.OutcomePayload? = nil,
@@ -2356,6 +2124,7 @@ extension Components {
                 self.resolvedAt = resolvedAt
                 self.subtitle = subtitle
                 self.answeredAt = answeredAt
+                self.availableActions = availableActions
                 self.latestUpdate = latestUpdate
                 self.investigationStep = investigationStep
                 self.outcome = outcome
@@ -2386,11 +2155,246 @@ extension Components {
                 case resolvedAt
                 case subtitle
                 case answeredAt
+                case availableActions
                 case latestUpdate
                 case investigationStep
                 case outcome
                 case resolvedAfterMs
                 case createdDate
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ItemAction`.
+        internal enum ItemAction: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case1`.
+            internal struct Case1Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case1/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case approve = "approve"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case1/type`.
+                internal var _type: Components.Schemas.ItemAction.Case1Payload._TypePayload
+                /// Creates a new `Case1Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                internal init(_type: Components.Schemas.ItemAction.Case1Payload._TypePayload) {
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case1`.
+            case case1(Components.Schemas.ItemAction.Case1Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case2`.
+            internal struct Case2Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case2/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case deny = "deny"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case2/type`.
+                internal var _type: Components.Schemas.ItemAction.Case2Payload._TypePayload
+                /// Creates a new `Case2Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                internal init(_type: Components.Schemas.ItemAction.Case2Payload._TypePayload) {
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case2`.
+            case case2(Components.Schemas.ItemAction.Case2Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case3`.
+            internal struct Case3Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case3/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case choose = "choose"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case3/type`.
+                internal var _type: Components.Schemas.ItemAction.Case3Payload._TypePayload
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case3/options`.
+                internal var options: [Swift.String]
+                /// Creates a new `Case3Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                ///   - options:
+                internal init(
+                    _type: Components.Schemas.ItemAction.Case3Payload._TypePayload,
+                    options: [Swift.String]
+                ) {
+                    self._type = _type
+                    self.options = options
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                    case options
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case3`.
+            case case3(Components.Schemas.ItemAction.Case3Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case4`.
+            internal struct Case4Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case4/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case reply = "reply"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case4/type`.
+                internal var _type: Components.Schemas.ItemAction.Case4Payload._TypePayload
+                /// Creates a new `Case4Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                internal init(_type: Components.Schemas.ItemAction.Case4Payload._TypePayload) {
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case4`.
+            case case4(Components.Schemas.ItemAction.Case4Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case5`.
+            internal struct Case5Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case5/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case snooze = "snooze"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case5/type`.
+                internal var _type: Components.Schemas.ItemAction.Case5Payload._TypePayload
+                /// Creates a new `Case5Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                internal init(_type: Components.Schemas.ItemAction.Case5Payload._TypePayload) {
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case5`.
+            case case5(Components.Schemas.ItemAction.Case5Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case6`.
+            internal struct Case6Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case6/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case ack = "ack"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case6/type`.
+                internal var _type: Components.Schemas.ItemAction.Case6Payload._TypePayload
+                /// Creates a new `Case6Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                internal init(_type: Components.Schemas.ItemAction.Case6Payload._TypePayload) {
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case6`.
+            case case6(Components.Schemas.ItemAction.Case6Payload)
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case7`.
+            internal struct Case7Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case7/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case open = "open"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case7/type`.
+                internal var _type: Components.Schemas.ItemAction.Case7Payload._TypePayload
+                /// - Remark: Generated from `#/components/schemas/ItemAction/case7/url`.
+                internal var url: Swift.String
+                /// Creates a new `Case7Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                ///   - url:
+                internal init(
+                    _type: Components.Schemas.ItemAction.Case7Payload._TypePayload,
+                    url: Swift.String
+                ) {
+                    self._type = _type
+                    self.url = url
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAction/case7`.
+            case case7(Components.Schemas.ItemAction.Case7Payload)
+            internal init(from decoder: any Swift.Decoder) throws {
+                var errors: [any Swift.Error] = []
+                do {
+                    self = .case1(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case2(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case3(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case4(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case5(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case6(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case7(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                throw Swift.DecodingError.failedToDecodeOneOfSchema(
+                    type: Self.self,
+                    codingPath: decoder.codingPath,
+                    errors: errors
+                )
+            }
+            internal func encode(to encoder: any Swift.Encoder) throws {
+                switch self {
+                case let .case1(value):
+                    try value.encode(to: encoder)
+                case let .case2(value):
+                    try value.encode(to: encoder)
+                case let .case3(value):
+                    try value.encode(to: encoder)
+                case let .case4(value):
+                    try value.encode(to: encoder)
+                case let .case5(value):
+                    try value.encode(to: encoder)
+                case let .case6(value):
+                    try value.encode(to: encoder)
+                case let .case7(value):
+                    try value.encode(to: encoder)
+                }
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemActionRequest`.
@@ -2705,6 +2709,29 @@ extension Components {
                 case needsYou
                 case withHermes
                 case handled
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ItemSourcesResponse`.
+        internal struct ItemSourcesResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ItemSourcesResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/ItemSourcesResponse/sources`.
+            internal var sources: [Swift.String]
+            /// Creates a new `ItemSourcesResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - sources:
+            internal init(
+                ok: Swift.Bool,
+                sources: [Swift.String]
+            ) {
+                self.ok = ok
+                self.sources = sources
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case sources
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemStatsResponse`.

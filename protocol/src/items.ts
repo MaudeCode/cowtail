@@ -89,6 +89,10 @@ export const itemRecordSchema = z.object({
   // When the owner answered (approve, deny, choose or reply); an answered item no longer
   // needs them while its producer applies the answer.
   answeredAt: timestampSchema.optional(),
+  // The `actions` the owner can still take: none once the item is closed but its links, and
+  // no further answer once the owner answered. Always sent; optional so a client still decodes
+  // a server from before it, and offers nothing then.
+  availableActions: z.array(itemActionSchema).optional(),
   // The newest `hermes_update` on the timeline.
   latestUpdate: z.object({ text: z.string(), at: timestampSchema }).optional(),
   investigationStep: itemInvestigationStepSchema.optional(),
@@ -179,6 +183,12 @@ export const itemListResponseSchema = z.object({
 // The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked
 // items that do not. Handled: items resolved in the last 24 hours. Each list is the most
 // recently updated first.
+// Every source with an item, in name order.
+export const itemSourcesResponseSchema = z.object({
+  ok: z.literal(true),
+  sources: z.array(nonEmptyStringSchema),
+});
+
 export const itemInboxHandledWindowMs = 24 * 60 * 60 * 1000;
 export const itemInboxResponseSchema = z.object({
   ok: z.literal(true),
@@ -308,6 +318,7 @@ export type ItemListResponse = z.infer<typeof itemListResponseSchema>;
 export type ItemGetResponse = z.infer<typeof itemGetResponseSchema>;
 export type ItemAnswer = z.infer<typeof itemAnswerSchema>;
 export type ItemInboxResponse = z.infer<typeof itemInboxResponseSchema>;
+export type ItemSourcesResponse = z.infer<typeof itemSourcesResponseSchema>;
 export type ItemInvestigationStep = z.infer<typeof itemInvestigationStepSchema>;
 export type ItemActionRequest = z.infer<typeof itemActionRequestSchema>;
 export type ItemResponse = z.infer<typeof itemResponseSchema>;

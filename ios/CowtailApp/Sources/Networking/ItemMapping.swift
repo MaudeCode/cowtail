@@ -27,6 +27,7 @@ extension CowtailAPI {
             context: record.context.additionalProperties,
             occurrenceCount: record.occurrenceCount,
             actions: record.actions.compactMap(makeAction),
+            availableActions: (record.availableActions ?? []).compactMap(makeAction),
             alertID: record.alertId,
             expiresAt: record.expiresAt.map(date),
             createdAt: date(record.createdAt),
@@ -41,7 +42,7 @@ extension CowtailAPI {
         )
     }
 
-    private static func makeAction(_ action: Components.Schemas.ItemRecord.ActionsPayloadPayload) -> ItemAction? {
+    private static func makeAction(_ action: Components.Schemas.ItemAction) -> ItemAction? {
         switch action {
         case .case1: .approve
         case .case2: .deny

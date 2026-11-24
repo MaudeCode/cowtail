@@ -87,6 +87,7 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var historyItems: [Item] = []
     @Published private(set) var historyDayCounts: [String: Int] = [:]
     @Published private(set) var historyStats: ItemStats?
+    @Published private(set) var historySources: [String] = []
     @Published private(set) var historyError: String?
     @Published private(set) var isLoadingHistory = false
     private var historyCursor: String?
@@ -112,7 +113,7 @@ final class CowtailStore: ObservableObject {
         },
         authenticator: any ApprovalAuthenticating = DeviceOwnerAuthenticator(),
         requiresApprovalAuthentication: @escaping @MainActor () -> Bool = {
-            NotificationManager.shared.preferences.requireAuthForApprovals
+            NotificationManager.shared.requiresApprovalAuthentication
         }
     ) {
         self.api = api
@@ -249,7 +250,7 @@ final class CowtailStore: ObservableObject {
             }
             await reloadInbox(sessionToken: token)
         } catch CowtailAPIError.refused(let message) {
-            inbox = inboxBefore
+            restore(item.id, from: inboxBefore)
             details[item.id] = detailBefore
             actionErrors[item.id] = message
         } catch {
@@ -268,9 +269,28 @@ final class CowtailStore: ObservableObject {
         }
     }
 
+    /// Puts one refused item back where it was, leaving every other item as it is now.
+    private func restore(_ itemID: String, from before: ItemInbox?) {
+        guard var current = inbox, let before else { return }
+        current.needsYou.removeAll { $0.id == itemID }
+        current.withHermes.removeAll { $0.id == itemID }
+        current.handled.removeAll { $0.id == itemID }
+        func putBack(_ section: WritableKeyPath<ItemInbox, [Item]>) {
+            guard let index = before[keyPath: section].firstIndex(where: { $0.id == itemID }) else { return }
+            current[keyPath: section].insert(before[keyPath: section][index], at: min(index, current[keyPath: section].count))
+        }
+        putBack(\.needsYou)
+        putBack(\.withHermes)
+        putBack(\.handled)
+        inbox = current
+    }
+
     private func showOptimistically(_ request: ItemActionRequest, on item: Item) {
         var moved = item
         moved.needsOwner = false
+        if request.isAnswer {
+            moved.availableActions.removeAll(where: \.isAnswer)
+        }
         switch request {
         case .ack: moved.state = .acked
         case .snooze: moved.state = .snoozed
@@ -328,8 +348,10 @@ final class CowtailStore: ObservableObject {
         do {
             async let page = fetchHistoryPage(query, sessionToken: token)
             async let stats = api.fetchItemStats(from: query.from, to: nil, sessionToken: token)
-            let (loadedPage, loadedStats) = try await (page, stats)
+            async let sources = api.fetchItemSources(sessionToken: token)
+            let (loadedPage, loadedStats, loadedSources) = try await (page, stats, sources)
             guard filter == historyFilter else { return }
+            historySources = loadedSources
             historyItems = loadedPage.items
             historyDayCounts = Self.dayCounts(loadedPage.days)
             historyCursor = loadedPage.nextCursor

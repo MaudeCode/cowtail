@@ -207,7 +207,8 @@ describe("owner answers for Hermes", () => {
     expect((await answer(t, routed, { type: "deny" })).status).toBe(200);
     const second = await answer(t, routed, { type: "approve" });
 
-    expect(second).toMatchObject({ status: 409, json: { code: "ANSWER_PENDING" } });
+    // Answered, the item offers no second answer.
+    expect(second).toMatchObject({ status: 409, json: { code: "ACTION_NOT_OFFERED" } });
     expect(await claim(t)).toMatchObject({ itemId: routed, answer: { type: "deny" } });
   });
 });

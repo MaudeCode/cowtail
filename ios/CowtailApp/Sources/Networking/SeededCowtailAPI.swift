@@ -91,6 +91,9 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
         }
         var item = seed.items[index]
         item.needsOwner = false
+        if request.isAnswer {
+            item.availableActions.removeAll(where: \.isAnswer)
+        }
         let payload: [String: String]
         switch request {
         case .ack:
@@ -112,6 +115,11 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
     }
 
     func performAlertAction(alertID _: String, action _: AlertHumanAction, sessionToken _: String) async throws {}
+
+    func fetchItemSources(sessionToken _: String) async throws -> [String] {
+        try requireItems()
+        return Set(seed.items.map(\.source)).sorted()
+    }
 
     func fetchDevices(sessionToken _: String) async throws -> [UserDevice] {
         seed.devices

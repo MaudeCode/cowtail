@@ -28,7 +28,7 @@ struct HistoryView: View {
             days
         }
         .sheet(isPresented: $isFiltering) {
-            HistoryFilterSheet(filter: $filter, sources: sources)
+            HistoryFilterSheet(filter: $filter, sources: store.historySources)
                 .presentationDetents([.medium, .large])
         }
         .task(id: filter) {
@@ -118,12 +118,6 @@ struct HistoryView: View {
             chips.append(FilterChip(key: "range", title: range.label) { $0.range = nil })
         }
         return chips
-    }
-
-    /// The sources the server counted in the stats range, and the one already picked.
-    private var sources: [String] {
-        let counted = store.historyStats?.dailyVolume.flatMap(\.bySource.keys) ?? []
-        return Array(Set(counted + [filter.source].compactMap { $0 })).sorted()
     }
 
     @ViewBuilder

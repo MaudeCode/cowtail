@@ -21,6 +21,7 @@ import {
   authSessionCreateResponseSchema,
   healthResponseSchema,
   itemActionRequestSchema,
+  itemActionSchema,
   itemEventRecordSchema,
   itemGetResponseSchema,
   itemInboxResponseSchema,
@@ -28,6 +29,7 @@ import {
   itemListResponseSchema,
   itemRecordSchema,
   itemResponseSchema,
+  itemSourcesResponseSchema,
   itemStatsQuerySchema,
   itemStatsResponseSchema,
   notificationPreferencesResponseSchema,
@@ -42,6 +44,7 @@ import {
 const registry = new OpenAPIRegistry();
 // Registered by identity, so every response that holds an item or event refers to one type.
 zodToOpenAPIRegistry.add(itemRecordSchema, { _internal: { refId: "ItemRecord" } });
+zodToOpenAPIRegistry.add(itemActionSchema, { _internal: { refId: "ItemAction" } });
 zodToOpenAPIRegistry.add(itemEventRecordSchema, { _internal: { refId: "ItemEventRecord" } });
 
 const nonEmptyStringSchema = z.string().trim().min(1);
@@ -197,6 +200,7 @@ const ItemListResponse = itemListResponseSchema.meta({ id: "ItemListResponse" })
 const ItemInboxResponse = itemInboxResponseSchema.meta({ id: "ItemInboxResponse" });
 const ItemGetResponse = itemGetResponseSchema.meta({ id: "ItemGetResponse" });
 const ItemStatsResponse = itemStatsResponseSchema.meta({ id: "ItemStatsResponse" });
+const ItemSourcesResponse = itemSourcesResponseSchema.meta({ id: "ItemSourcesResponse" });
 const UserDevicesResponse = userDevicesResponseSchema.meta({ id: "UserDevicesResponse" });
 const ErrorResponse = z
   .object({
@@ -452,6 +456,20 @@ registry.registerPath({
   security: [{ appSession: [] }],
   responses: {
     200: jsonResponse("The inbox sections.", ItemInboxResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/items/sources",
+  operationId: "listItemSources",
+  tags: ["items"],
+  summary: "Every source with an item, in name order",
+  security: [{ appSession: [] }],
+  responses: {
+    200: jsonResponse("The sources.", ItemSourcesResponse),
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
   },

@@ -73,6 +73,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.
     func getItemInbox(_ input: Operations.GetItemInbox.Input) async throws -> Operations.GetItemInbox.Output
+    /// Every source with an item, in name order
+    ///
+    /// - Remark: HTTP `GET /items/sources`.
+    /// - Remark: Generated from `#/paths//items/sources/get(listItemSources)`.
+    func listItemSources(_ input: Operations.ListItemSources.Input) async throws -> Operations.ListItemSources.Output
     /// Outcome mix, time to resolve, noise, repeats, daily volume and firing alerts
     ///
     /// - Remark: HTTP `GET /items/stats`.
@@ -247,6 +252,13 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.
     internal func getItemInbox(headers: Operations.GetItemInbox.Input.Headers = .init()) async throws -> Operations.GetItemInbox.Output {
         try await getItemInbox(Operations.GetItemInbox.Input(headers: headers))
+    }
+    /// Every source with an item, in name order
+    ///
+    /// - Remark: HTTP `GET /items/sources`.
+    /// - Remark: Generated from `#/paths//items/sources/get(listItemSources)`.
+    internal func listItemSources(headers: Operations.ListItemSources.Input.Headers = .init()) async throws -> Operations.ListItemSources.Output {
+        try await listItemSources(Operations.ListItemSources.Input(headers: headers))
     }
     /// Outcome mix, time to resolve, noise, repeats, daily volume and firing alerts
     ///

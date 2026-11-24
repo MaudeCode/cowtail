@@ -75,6 +75,8 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published private(set) var serverRegistrationMessage: String?
     @Published private(set) var lastNotificationResponse: String?
     @Published private(set) var preferences = AppNotificationPreferences()
+    /// The settings before a change whose outcome the server has not confirmed yet.
+    private var unconfirmedPreviousPreferences: AppNotificationPreferences?
     @Published private(set) var isLoadingDailyRoundupPreference = false
     @Published private(set) var isSavingDailyRoundupPreference = false
     @Published private(set) var dailyRoundupPreferenceError: String?
@@ -123,8 +125,15 @@ final class NotificationManager: NSObject, ObservableObject {
         preferences.dailyRoundupEnabled
     }
 
+    /// While a change to the setting is unconfirmed, either value that asks for Face ID wins.
+    var requiresApprovalAuthentication: Bool {
+        preferences.requireAuthForApprovals
+            || unconfirmedPreviousPreferences?.requireAuthForApprovals == true
+    }
+
     private func applyServerPreferences(_ preferences: AppNotificationPreferences) {
         self.preferences = preferences
+        unconfirmedPreviousPreferences = nil
         dailyRoundupPreferenceRequiresSignIn = false
         if preferences.requireAuthForApprovals != defaults.bool(forKey: requireAuthForApprovalsKey) {
             registerItemCategories(requireAuthForApprovals: preferences.requireAuthForApprovals)
@@ -630,9 +639,18 @@ final class NotificationManager: NSObject, ObservableObject {
             applyServerPreferences(
                 try await api.updateNotificationPreferences(sessionToken: sessionToken, change: change)
             )
+        } catch CowtailAPIError.refused(let message) {
+            logger.error("updatePreferences refused")
+            handleDailyRoundupPreferenceError(CowtailAPIError.refused(message), restoring: previous)
         } catch {
-            logger.error("updatePreferences failed")
-            handleDailyRoundupPreferenceError(error, restoring: previous)
+            // The change may have landed: read the server before keeping or restoring it.
+            logger.error("updatePreferences outcome unknown")
+            if let confirmed = try? await api.fetchNotificationPreferences(sessionToken: sessionToken) {
+                applyServerPreferences(confirmed)
+            } else {
+                unconfirmedPreviousPreferences = unconfirmedPreviousPreferences ?? previous
+                dailyRoundupPreferenceError = "Cowtail has not confirmed this change yet."
+            }
         }
     }
 

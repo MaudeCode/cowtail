@@ -41,6 +41,13 @@ enum ItemAction: Hashable, Sendable {
     case snooze
     case ack
     case open(URL)
+
+    var isAnswer: Bool {
+        switch self {
+        case .approve, .deny, .choose, .reply: true
+        case .snooze, .ack, .open: false
+        }
+    }
 }
 
 struct ItemLink: Hashable, Sendable {
@@ -66,6 +73,8 @@ struct Item: Identifiable, Hashable, Sendable {
     let context: [String: String]
     let occurrenceCount: Int
     let actions: [ItemAction]
+    /// What the server still lets the owner do: no answer once answered, only links once closed.
+    var availableActions: [ItemAction]
     let alertID: String?
     let expiresAt: Date?
     let createdAt: Date
@@ -92,6 +101,7 @@ struct Item: Identifiable, Hashable, Sendable {
         context: [String: String] = [:],
         occurrenceCount: Int = 1,
         actions: [ItemAction] = [],
+        availableActions: [ItemAction]? = nil,
         alertID: String? = nil,
         expiresAt: Date? = nil,
         createdAt: Date,
@@ -116,6 +126,7 @@ struct Item: Identifiable, Hashable, Sendable {
         self.context = context
         self.occurrenceCount = occurrenceCount
         self.actions = actions
+        self.availableActions = availableActions ?? actions
         self.alertID = alertID
         self.expiresAt = expiresAt
         self.createdAt = createdAt
@@ -180,6 +191,13 @@ enum ItemActionRequest: Hashable, Sendable {
         switch self {
         case .approve, .deny: true
         default: false
+        }
+    }
+
+    var isAnswer: Bool {
+        switch self {
+        case .ack, .snooze: false
+        case .approve, .deny, .choose, .reply: true
         }
     }
 }

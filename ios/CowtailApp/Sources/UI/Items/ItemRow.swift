@@ -160,20 +160,7 @@ struct ItemActionButtons: View {
         }
     }
 
-    private var isOpen: Bool {
-        item.state == .open || item.state == .acked || item.state == .snoozed
-    }
-
     private var buttons: [ItemButton] {
-        guard isOpen else {
-            return ItemButton.buttons(for: item).filter {
-                if case .open = $0 {
-                    true
-                } else {
-                    false
-                }
-            }
-        }
         var buttons = ItemButton.buttons(for: item)
         if includesAlertActions, item.alertID != nil {
             if item.investigationStep == .failed {
@@ -242,8 +229,7 @@ struct ItemChoiceButtons: View {
     }
 
     private var options: [String]? {
-        guard item.state == .open else { return nil }
-        for case .choose(let options) in item.actions {
+        for case .choose(let options) in item.availableActions {
             return options
         }
         return nil

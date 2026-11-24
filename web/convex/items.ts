@@ -16,6 +16,7 @@ import {
   alertItemState,
   alertItemUrgency,
   alertWorkflowState,
+  itemAvailableActions,
   itemInvestigationStep,
   itemNeedsOwner,
   itemOutcome,
@@ -388,6 +389,7 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
     needsOwner: itemNeedsOwner(item, workflow),
+    availableActions: itemAvailableActions(item),
     subtitle: itemSubtitle(item),
     latestUpdate: await latestHermesUpdate(ctx, _id),
     investigationStep: terminalItemStates.has(item.state)
@@ -538,7 +540,7 @@ export const applyAction = internalMutation({
     if (action.type === "snooze" && action.until <= now) {
       throw new ConvexError({ code: "INVALID_SNOOZE" });
     }
-    const offered = item.actions.find((candidate) => candidate.type === action.type);
+    const offered = itemAvailableActions(item).find((candidate) => candidate.type === action.type);
     if (action.type !== "ack" && action.type !== "snooze") {
       const chosenOptionOffered =
         action.type !== "choose" ||
@@ -693,6 +695,24 @@ export const list = internalQuery({
       days: await dayCounts(records),
       nextCursor: page.isDone ? undefined : page.continueCursor,
     };
+  },
+});
+
+// One indexed read per source: each read jumps past every item of the source before it.
+export const sources = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const names: string[] = [];
+    let next = await ctx.db.query("items").withIndex("by_source_createdAt").first();
+    while (next) {
+      const last = next.source;
+      names.push(last);
+      next = await ctx.db
+        .query("items")
+        .withIndex("by_source_createdAt", (q) => q.gt("source", last))
+        .first();
+    }
+    return names;
   },
 });
 

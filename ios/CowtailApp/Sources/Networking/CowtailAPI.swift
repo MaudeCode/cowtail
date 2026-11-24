@@ -11,6 +11,7 @@ protocol CowtailAPIClient: Sendable {
     /// Nil when the server has no such item.
     func fetchItem(id: String, sessionToken: String) async throws -> ItemDetail?
     func fetchItemStats(from: Date?, to: Date?, sessionToken: String) async throws -> ItemStats
+    func fetchItemSources(sessionToken: String) async throws -> [String]
     func performItemAction(itemID: String, request: ItemActionRequest, sessionToken: String) async throws -> Item
     func performAlertAction(alertID: String, action: AlertHumanAction, sessionToken: String) async throws
     func fetchDevices(sessionToken: String) async throws -> [UserDevice]
@@ -356,6 +357,19 @@ actor CowtailAPI: CowtailAPIClient {
         }
     }
 
+    func fetchItemSources(sessionToken: String) async throws -> [String] {
+        switch try await sessionClient(sessionToken: sessionToken).listItemSources() {
+        case .ok(let response):
+            return try response.body.json.sources
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Source list request failed with HTTP \(statusCode).")
+        }
+    }
+
     func fetchDevices(sessionToken: String) async throws -> [UserDevice] {
         switch try await sessionClient(sessionToken: sessionToken).listMyDevices() {
         case .ok(let response):
@@ -584,13 +598,13 @@ actor CowtailAPI: CowtailAPIClient {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             let body = String(decoding: data, as: UTF8.self)
-            if let payload = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data) {
-                throw CowtailAPIError.requestFailed("Request failed with status \(httpResponse.statusCode): \(payload.error)")
-            }
-
-            throw CowtailAPIError.requestFailed(
-                "Request failed with status \(httpResponse.statusCode): \(body.isEmpty ? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode) : body)"
-            )
+            let detail = (try? JSONDecoder().decode(APIErrorEnvelope.self, from: data))?.error
+                ?? (body.isEmpty ? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode) : body)
+            let message = "Request failed with status \(httpResponse.statusCode): \(detail)"
+            // A 4xx means the server turned the request down; a 5xx leaves the outcome unknown.
+            throw (400..<500).contains(httpResponse.statusCode)
+                ? CowtailAPIError.refused(message)
+                : CowtailAPIError.requestFailed(message)
         }
 
         do {

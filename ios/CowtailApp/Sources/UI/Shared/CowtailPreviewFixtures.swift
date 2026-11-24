@@ -114,6 +114,7 @@ enum CowtailPreviewFixtures {
         context: ["namespace": "apps"],
         occurrenceCount: 2,
         actions: [.ack, .snooze],
+        availableActions: [],
         alertID: "alert-3",
         createdAt: minutesAgo(150),
         resolvedAt: minutesAgo(122),

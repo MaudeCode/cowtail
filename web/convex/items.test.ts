@@ -4,6 +4,7 @@ import {
   itemInboxResponseSchema,
   itemListResponseSchema,
   itemResponseSchema,
+  itemSourcesResponseSchema,
   type ItemGetResponse,
 } from "@maudecode/cowtail-protocol";
 import { makeFunctionReference } from "convex/server";
@@ -268,11 +269,12 @@ describe("owner actions", () => {
     const unknownOption = await act(id, { type: "choose", option: "Panic" });
     const notOffered = await act(id, { type: "approve" });
 
-    // Answered, the item waits on its producer, not the owner.
+    // Answered, the item waits on its producer, not the owner, and takes no second answer.
     expect(itemResponseSchema.parse(chosen.json).item).toMatchObject({
       state: "open",
       needsOwner: false,
       answeredAt: NOW,
+      availableActions: [],
     });
     expect([unknownOption.status, notOffered.status]).toEqual([409, 409]);
     const { events } = await getItem(t, id);
@@ -324,6 +326,8 @@ describe("item list", () => {
 
     const ids = (items: { id: string }[]) => items.map((item) => item.id);
     expect(ids(await listItems(t))).toEqual([fyi.id, approval.id]);
+    const sources = await request(t, "/api/items/sources", { bearer: SERVICE });
+    expect(itemSourcesResponseSchema.parse(sources.json).sources).toEqual(["cron", "hermes"]);
     expect(ids(await listItems(t, "?kind=approval"))).toEqual([approval.id]);
     expect(ids(await listItems(t, "?q=INGRESS"))).toEqual([approval.id]);
     expect(ids(await listItems(t, "?outcome=other"))).toEqual([]);
@@ -471,6 +475,9 @@ describe("alert items", () => {
       alertId: alert._id,
       subtitle: "media",
       outcome: "self-resolved",
+      // Resolved, it keeps its ack and snooze but offers neither.
+      actions: [{ type: "ack" }, { type: "snooze" }],
+      availableActions: [],
       source: "alertmanager",
       kind: "alert",
       urgency: "now",

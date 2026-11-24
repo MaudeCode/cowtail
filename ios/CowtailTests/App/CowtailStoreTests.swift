@@ -74,6 +74,33 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
     }
 
+    func testALateRefusalPutsBackOnlyItsOwnItem() async {
+        let question = Item(
+            id: "question-1",
+            source: "hermes",
+            kind: .question,
+            urgency: .now,
+            needsOwner: true,
+            title: "Rebalance now?",
+            actions: [.reply],
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval, question], withHermes: [], handled: []))
+        let store = store(api: api)
+        await store.refresh()
+        await api.hold(itemID: approval.id)
+
+        let denial = Task { await store.perform(.deny, on: approval) }
+        await api.waitUntilHeld()
+        await store.perform(.reply("Wait"), on: question)
+        await api.releaseHeld(with: CowtailAPIError.refused("The item is closed"))
+        await denial.value
+
+        XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
+        XCTAssertEqual(store.inbox?.withHermes.map(\.id), [question.id])
+        XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
+    }
+
     func testAnUnconfirmedWriteStaysShownAndTakesNoSecondAnswerUntilTheServerAnswers() async {
         let api = FakeItemAPI(
             inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []),
@@ -171,6 +198,27 @@ private actor FakeItemAPI: CowtailAPIClient {
         inboxError = error
     }
 
+    private var heldItemID: String?
+    private var heldRequest: CheckedContinuation<Error, Never>?
+    private var heldWaiters: [CheckedContinuation<Void, Never>] = []
+
+    /// The next action on this item waits at the server until `releaseHeld`.
+    func hold(itemID: String) {
+        heldItemID = itemID
+    }
+
+    func waitUntilHeld() async {
+        if heldRequest != nil {
+            return
+        }
+        await withCheckedContinuation { heldWaiters.append($0) }
+    }
+
+    func releaseHeld(with error: Error) {
+        heldRequest?.resume(returning: error)
+        heldRequest = nil
+    }
+
     func fetchHealthSummary() async throws -> HealthSummary {
         healthRequests += 1
         if failingHealthRequests > 0 {
@@ -204,6 +252,15 @@ private actor FakeItemAPI: CowtailAPIClient {
 
     func performItemAction(itemID: String, request: ItemActionRequest, sessionToken _: String) async throws -> Item {
         actionAttempts += 1
+        if itemID == heldItemID {
+            heldItemID = nil
+            let error = await withCheckedContinuation { continuation in
+                heldRequest = continuation
+                heldWaiters.forEach { $0.resume() }
+                heldWaiters.removeAll()
+            }
+            throw error
+        }
         if let actionError {
             throw actionError
         }
@@ -216,6 +273,10 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func performAlertAction(alertID _: String, action _: AlertHumanAction, sessionToken _: String) async throws {}
+
+    func fetchItemSources(sessionToken _: String) async throws -> [String] {
+        []
+    }
 
     func fetchDevices(sessionToken _: String) async throws -> [UserDevice] {
         []

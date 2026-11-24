@@ -71,6 +71,24 @@ export function alertItemUrgency(severity: string): ItemUrgency {
 
 export const terminalItemStates = new Set<ItemState>(["resolved", "expired"]);
 
+const answerTypes = new Set(["approve", "deny", "choose", "reply"]);
+
+// What the owner can still do with an item: a closed item keeps only its links, and an
+// answered item takes no second answer.
+export function itemAvailableActions<Action extends { type: string }>(item: {
+  state: ItemState;
+  actions: Action[];
+  answeredAt?: number;
+}): Action[] {
+  if (terminalItemStates.has(item.state)) {
+    return item.actions.filter((action) => action.type === "open");
+  }
+  if (item.answeredAt !== undefined) {
+    return item.actions.filter((action) => !answerTypes.has(action.type));
+  }
+  return item.actions;
+}
+
 // An item linked to an alert follows the alert's workflow; every other item follows its
 // kind and urgency until the owner answers it.
 export function itemNeedsOwner(
