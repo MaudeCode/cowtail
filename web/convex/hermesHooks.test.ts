@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 
-import { itemListResponseSchema } from "@maudecode/cowtail-protocol";
+import { itemGetResponseSchema, itemListResponseSchema } from "@maudecode/cowtail-protocol";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { type Backend, advance, newBackend, request, rows, stubEnv } from "../test/convexHarness";
@@ -227,6 +227,16 @@ describe("Hermes hook events", () => {
     expect(urgencyAfterEachError).toEqual([
       ...Array(9 + 9).fill("whenever"),
       ...Array(2).fill("today"),
+    ]);
+    // The raise goes through the shared repeat path, which records it on one repeat.
+    const [item] = await listItems(t);
+    const response = await request(t, `/api/items/${item.id}`, { bearer: SERVICE });
+    const { events } = itemGetResponseSchema.parse(response.json);
+    expect(events.filter((event) => event.payload.urgency !== undefined)).toEqual([
+      expect.objectContaining({
+        type: "repeated",
+        payload: expect.objectContaining({ occurrenceCount: 19, urgency: "today" }),
+      }),
     ]);
   });
 });

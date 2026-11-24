@@ -2,10 +2,9 @@ import type { HermesHookPayload } from "@maudecode/cowtail-protocol";
 import { makeFunctionReference } from "convex/server";
 import { v, type Infer } from "convex/values";
 
-import type { Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { createItem, itemCreateValidator } from "./items";
+import { createItem, createItemRequest, openItemByDedupeKey } from "./items";
 
 const HOUR_MS = 60 * 60 * 1000;
 // A provider error that repeats this often within an hour is a storm the owner sees today.
@@ -14,7 +13,7 @@ const ERROR_STORM_COUNT = 10;
 const DELIVERY_RETENTION_MS = 24 * HOUR_MS;
 const PRUNE_BATCH = 500;
 
-type ItemRequest = Infer<typeof itemCreateValidator>;
+type ItemRequest = Infer<typeof createItemRequest>;
 
 // Identifiers are cut to 200 characters, so titles, dedupe keys and context values built
 // from them stay inside the item limits in protocol/src/items.ts.
@@ -112,23 +111,22 @@ export function hermesHookItem({
   }
 }
 
-// Raises a provider error to `today` once it has repeated ERROR_STORM_COUNT times within an hour.
-async function raiseErrorStorm(ctx: MutationCtx, id: Id<"items">, now: number) {
-  const item = await ctx.db.get(id);
-  if (!item || item.urgency !== "whenever") return;
-  const recent = await ctx.db
+// True when this provider error is the ERROR_STORM_COUNT-th for its open item within an hour.
+async function isErrorStorm(ctx: MutationCtx, dedupeKey: string, now: number) {
+  const open = await openItemByDedupeKey(ctx, dedupeKey);
+  if (!open) return false;
+  const earlier = await ctx.db
     .query("itemEvents")
-    .withIndex("by_item_at", (q) => q.eq("itemId", id).gt("at", now - HOUR_MS))
+    .withIndex("by_item_at", (q) => q.eq("itemId", open._id).gt("at", now - HOUR_MS))
     .filter((q) => q.or(q.eq(q.field("type"), "created"), q.eq(q.field("type"), "repeated")))
-    .take(ERROR_STORM_COUNT);
-  if (recent.length < ERROR_STORM_COUNT) return;
-  await ctx.db.patch(id, { urgency: "today", updatedAt: now });
+    .take(ERROR_STORM_COUNT - 1);
+  return earlier.length === ERROR_STORM_COUNT - 1;
 }
 
 export const ingest = internalMutation({
   args: {
     deliveryId: v.string(),
-    item: itemCreateValidator,
+    item: createItemRequest,
     errorStorm: v.boolean(),
     now: v.number(),
   },
@@ -140,8 +138,9 @@ export const ingest = internalMutation({
     if (seen) return { duplicate: true };
     await ctx.db.insert("hermesHookDeliveries", { deliveryId, receivedAt: now });
 
-    const result = await createItem(ctx, item, now);
-    if (errorStorm && !result.created) await raiseErrorStorm(ctx, result.id, now);
+    // A storm repeats at `today`, and the shared repeat path raises the open item once.
+    const storm = errorStorm && item.dedupeKey && (await isErrorStorm(ctx, item.dedupeKey, now));
+    await createItem(ctx, storm ? { ...item, urgency: "today" } : item, now);
     return { duplicate: false };
   },
 });
