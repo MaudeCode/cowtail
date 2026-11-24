@@ -196,7 +196,8 @@ function sectionsWithout(inbox: ItemInboxResponse, itemId: string): Sections {
 
 // The owner's snooze or unsnooze, shown at once: the item moves into Upcoming at its return
 // time, or back to the section the server said it returns to. Undefined when the inbox does
-// not list the item.
+// not list the item, or already shows the write's result: a poll can read the server's result
+// before the reply, and that result keeps the server's own fields.
 export function showSnoozeInInbox(
   inbox: ItemInboxResponse,
   itemId: string,
@@ -206,6 +207,11 @@ export function showSnoozeInInbox(
     .flatMap((section) => inbox[section] ?? [])
     .find((entry) => entry.id === itemId);
   if (!item) return undefined;
+  const applied =
+    action.type === "snooze"
+      ? item.state === "snoozed" && item.snoozedUntil === action.until
+      : item.state !== "snoozed";
+  if (applied) return undefined;
   const sections = sectionsWithout(inbox, itemId);
   if (action.type === "snooze") {
     const { upcoming } = sections;
@@ -214,7 +220,8 @@ export function showSnoozeInInbox(
       ...item,
       state: "snoozed",
       needsOwner: false,
-      needsOwnerWhenOpen: item.needsOwner,
+      // Snoozed already, the server's answer stands.
+      needsOwnerWhenOpen: item.state === "snoozed" ? item.needsOwnerWhenOpen : item.needsOwner,
       snoozedUntil: action.until,
     });
   } else {
