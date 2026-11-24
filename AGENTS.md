@@ -102,7 +102,7 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 
 ## Phone Validation
 
-The owner declined the physical-phone validation gate, in advance, for every ticket of the item rewrite epic (decision of 2026-11-23). For those tickets, record the device result as `declined`, offer no phone build, and merge on the simulator unit and UI tests in CI. The owner tries the finished app on a phone once, after the epic. A ticket outside that epic follows the usual gate.
+The owner declined the physical-phone validation gate, in advance, for every ticket of the item rewrite epic (decision of 2026-11-23). For those tickets, record the device result as `declined`, offer no phone build, and merge on the simulator unit tests in CI. The owner tries the finished app on a phone once, after the epic. A ticket outside that epic follows the usual gate.
 
 ## CI
 
@@ -115,7 +115,7 @@ CI follows `CI.md` in the organization's public `.github` repository: a change r
 - The shared actions and the `@maudecode/ci` dev dependency pin the same commit of the `.github` repository; bump them together.
 - `CI Gate` and `release-freeze` are `main`'s required status checks.
 - Every job runs on a GitHub-hosted runner, `ubuntu-latest` or `ubuntu-24.04`, `ubuntu-24.04-arm` for the arm64 image, and the hosted `xcode-27` image for iOS. A runner is a new machine for each job: no job prepares or cleans up state for a later one, and every job sets `timeout-minutes`.
-- The iOS job sets up Xcode and installs XcodeGen, SwiftLint and SwiftFormat through [`.github/actions/setup-ios`](./.github/actions/setup-ios/action.yml), where the pinned Xcode version lives. It runs `ios/scripts/test.sh CowtailTests CowtailUITests` once, on the `iPhone 17` simulator the hosted image provides, and caches SwiftPM's packages.
+- The iOS job sets up Xcode and installs XcodeGen, SwiftLint and SwiftFormat through [`.github/actions/setup-ios`](./.github/actions/setup-ios/action.yml), where the pinned Xcode version lives. It runs `ios/scripts/test.sh CowtailTests` once, on the `iPhone 17` simulator the hosted image provides, and caches SwiftPM's packages. No UI test runs in hosted CI: each one launches the app, which alone takes 15 to 27 s there. Run them locally with `pnpm run test:ios:ui`.
 - Only the Convex deploy stays on a self-hosted runner, because its deployment URL is reachable only from inside the cluster.
 
 ## Convex Deploy Path

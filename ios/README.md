@@ -47,7 +47,8 @@ scripts/test.sh CowtailTests CowtailUITests
 `COWTAIL_IOS_TEST_DESTINATION` to an `xcodebuild -destination` value to test on another simulator.
 
 The UI test suite launches the app in deterministic test mode using seeded scenarios.
-It should pass on repeated runs without manually resetting the simulator.
+It should pass on repeated runs without manually resetting the simulator. CI runs the unit tests
+only; run the UI tests locally before publishing a change to a flow they cover.
 
 See:
 - `docs/apple-setup.md`

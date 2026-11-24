@@ -55,10 +55,11 @@ jobs:
         working-directory: ios
         run: scripts/test-check-ios26-imports.sh
 
-      # One project generation and one build for both targets.
-      - name: Run iOS Unit and UI Tests
+      # Unit tests only: a UI test launches the app, 15 to 27 s each on a hosted runner. UI tests
+      # run locally with `pnpm run test:ios:ui`.
+      - name: Run iOS Unit Tests
         working-directory: ios
-        run: scripts/test.sh CowtailTests CowtailUITests
+        run: scripts/test.sh CowtailTests
 
       - name: Check iOS test run times
         run: |
