@@ -1,14 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 
 import ClusterHealth from "../components/dashboard/ClusterHealth";
+import HermesSummary from "../components/dashboard/HermesSummary";
 import ItemRow from "../components/items/ItemRow";
 import ItemTable from "../components/items/ItemTable";
 import { Empty, QueryError, Section } from "../components/ui";
-import { healthQuery, inboxQuery } from "../lib/queries";
+import { healthQuery, hermesStatusQuery, inboxQuery } from "../lib/queries";
+import { useNow } from "../lib/useNow";
 
 export default function Home() {
   const inbox = useQuery(inboxQuery);
   const health = useQuery(healthQuery);
+  const hermes = useQuery(hermesStatusQuery);
+  const now = useNow();
   const data = inbox.data;
 
   return (
@@ -34,6 +38,11 @@ export default function Home() {
             <ClusterHealth health={health.data} layout="home" />
           ) : (
             <Section label="Cluster">{health.error && <QueryError error={health.error} />}</Section>
+          )}
+          {hermes.data ? (
+            <HermesSummary reply={hermes.data} now={now} />
+          ) : (
+            <Section label="Hermes">{hermes.error && <QueryError error={hermes.error} />}</Section>
           )}
         </div>
       </div>

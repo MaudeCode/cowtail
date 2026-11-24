@@ -260,7 +260,7 @@ describe("Hermes heartbeat", () => {
     vi.advanceTimersByTime(MINUTE);
     await heartbeat(t, { ...snapshot, kanban: { blocked: 0, running: 3 } });
 
-    expect(await status(t)).toEqual({
+    expect(await status(t)).toMatchObject({
       receivedAt: NOW + MINUTE,
       heartbeatMissing: false,
       snapshot: { ...snapshot, kanban: { blocked: 0, running: 3 } },
@@ -298,5 +298,148 @@ describe("Hermes heartbeat", () => {
 
     expect(await heartbeatItems(t)).toEqual([]);
     expect(await status(t)).toBeNull();
+  });
+});
+
+describe("Hermes status level", () => {
+  test.each([
+    [0, "green"],
+    [2 * MINUTE - 1, "green"],
+    [2 * MINUTE, "amber"],
+    [5 * MINUTE - 1, "amber"],
+    [5 * MINUTE, "red"],
+  ])("a heartbeat %i ms old is %s", async (age, level) => {
+    const t = await newBackendWithSources();
+    await heartbeat(t);
+    vi.advanceTimersByTime(age);
+
+    expect((await status(t))?.statusLevel).toBe(level);
+  });
+
+  test("an open heartbeat-missing item is red whatever the heartbeat's age", async () => {
+    const t = await newBackendWithSources();
+    await heartbeat(t);
+    await advance(t, 6 * MINUTE);
+    expect(await heartbeatItems(t)).toHaveLength(1);
+    // A heartbeat stored without passing through the heartbeat route leaves the item open.
+    await t.run(async (ctx) => {
+      const stored = (await ctx.db.query("hermesStatus").first())!;
+      await ctx.db.patch(stored._id, { receivedAt: Date.now() });
+    });
+
+    expect(await status(t)).toMatchObject({ heartbeatMissing: false, statusLevel: "red" });
+  });
+});
+
+describe("Hermes status for the owner", () => {
+  const failing = {
+    id: "job-2",
+    name: "Repo sweep",
+    schedule: "*/30 * * * *",
+    lastStatus: "error",
+  };
+  const incidentOnly = { id: "job-3", name: "Inbox triage", schedule: "15 * * * *" };
+  const withCron: HermesSnapshot = {
+    ...snapshot,
+    cronJobs: [snapshot.cronJobs[0], failing, incidentOnly],
+    openIncidents: [
+      { id: "inc-1", jobId: "job-3", state: "open", firstSeenAt: NOW - 3_600_000 },
+      { id: "inc-2", jobId: "job-gone", state: "open" },
+    ],
+  };
+
+  test("cron jobs that failed or have an open incident come first and are counted", async () => {
+    const t = await newBackendWithSources();
+    await heartbeat(t, withCron);
+
+    const current = await status(t);
+    expect(current?.cronJobs?.map((job) => [job.id, job.failing])).toEqual([
+      ["job-2", true],
+      ["job-3", true],
+      ["job-1", false],
+    ]);
+    expect(current).toMatchObject({ cronJobCount: 3, failingCronCount: 2, incidentCount: 2 });
+  });
+
+  test("blocked kanban work is flagged, and none is not", async () => {
+    const t = await newBackendWithSources();
+    await heartbeat(t, { ...snapshot, kanban: { blocked: 1, running: 0 } });
+    expect((await status(t))?.kanbanBlocked).toBe(true);
+
+    await heartbeat(t, { ...snapshot, kanban: { blocked: 0, running: 4 } });
+    expect((await status(t))?.kanbanBlocked).toBe(false);
+  });
+
+  test("budget and rate-limit keys come in name order", async () => {
+    const t = await newBackendWithSources();
+    await heartbeat(t, {
+      ...snapshot,
+      budget: { weekly: "40%", daily: "62%" },
+      rateLimits: { openai: "ok", anthropic: "limited" },
+    });
+
+    expect(await status(t)).toMatchObject({
+      budgetOrder: ["daily", "weekly"],
+      rateLimitOrder: ["anthropic", "openai"],
+    });
+  });
+
+  test("an incident names its job and links the item whose dedupeKey is cron-incident:<id>", async () => {
+    const t = await newBackendWithSources();
+    const itemId = await createItem(t, {
+      source: "hermes",
+      kind: "failure",
+      urgency: "now",
+      title: "Inbox triage failed",
+      dedupeKey: "cron-incident:inc-1",
+    });
+    await heartbeat(t, withCron);
+
+    expect((await status(t))?.incidents).toEqual([
+      {
+        ...withCron.openIncidents[0],
+        jobName: "Inbox triage",
+        itemId,
+        itemTitle: "Inbox triage failed",
+      },
+      { ...withCron.openIncidents[1] },
+    ]);
+  });
+
+  test("recent answers list the owner's answers to approvals and questions from the last 7 days, newest first", async () => {
+    const t = await newBackendWithSources();
+    const old = await createItem(t, approval);
+    expect((await answer(t, old, { type: "deny" })).status).toBe(200);
+    vi.advanceTimersByTime(8 * 24 * 3_600_000);
+
+    const approved = await createItem(t, { ...approval, title: "Restart ingress in edge?" });
+    expect((await answer(t, approved, { type: "approve" })).status).toBe(200);
+    vi.advanceTimersByTime(MINUTE);
+    const question = await createItem(t, {
+      source: "hermes",
+      kind: "question",
+      urgency: "now",
+      title: "Rebalance now or wait?",
+      actions: [{ type: "choose", options: ["Rebalance now", "Wait"] }],
+    });
+    expect((await answer(t, question, { type: "choose", option: "Wait" })).status).toBe(200);
+    await createItem(t, { ...approval, title: "Not answered yet" });
+
+    const response = await request(t, "/api/hermes/status", { bearer: await ownerSession(t) });
+    const now = Date.now();
+    expect(hermesStatusResponseSchema.parse(response.json).recentAnswers).toEqual([
+      {
+        itemId: question,
+        title: "Rebalance now or wait?",
+        answer: { type: "choose", option: "Wait" },
+        answeredAt: now,
+      },
+      {
+        itemId: approved,
+        title: "Restart ingress in edge?",
+        answer: { type: "approve" },
+        answeredAt: now - MINUTE,
+      },
+    ]);
   });
 });

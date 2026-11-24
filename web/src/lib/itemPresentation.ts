@@ -1,5 +1,7 @@
 import type {
   AlertPipelineState,
+  HermesRecentAnswer,
+  HermesStatusLevel,
   ItemEventRecord,
   ItemInvestigationStep,
   ItemOutcome,
@@ -78,6 +80,28 @@ export const pipelineTone: Record<AlertPipelineState, Tone> = {
   silent: "now",
   not_configured: "muted",
 };
+
+export const hermesLevelTone: Record<HermesStatusLevel, Tone> = {
+  green: "ok",
+  amber: "today",
+  red: "now",
+};
+
+// The owner's answer, in a word or the words they chose.
+export function answerResult(answer: HermesRecentAnswer["answer"]): { label: string; tone: Tone } {
+  switch (answer.type) {
+    case "approve":
+      return { label: "approved", tone: "ok" };
+    case "deny":
+      return { label: "denied", tone: "now" };
+    case "ack":
+      return { label: "acknowledged", tone: "muted" };
+    case "choose":
+      return { label: answer.option, tone: "muted" };
+    case "reply":
+      return { label: answer.text, tone: "muted" };
+  }
+}
 
 // How a closed item ended: its outcome, or its state when it has none.
 export function itemResult(item: ItemRecord): { label: string; tone: Tone } {

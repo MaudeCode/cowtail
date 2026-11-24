@@ -71,6 +71,8 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var health: HealthSummary?
     @Published private(set) var healthErrorMessage: String?
     @Published private(set) var clusterStats: ItemStats?
+    @Published private(set) var hermes: HermesStatus?
+    @Published private(set) var hermesErrorMessage: String?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
@@ -136,10 +138,12 @@ final class CowtailStore: ObservableObject {
         let token = await sessionToken()
         if let token {
             async let stats: Void = refreshClusterStats(sessionToken: token)
+            async let hermes: Void = refreshHermes(sessionToken: token)
             if await reloadInbox(sessionToken: token) {
                 errorMessage = nil
             }
             await stats
+            await hermes
         } else {
             errorMessage = Self.signInMessage
         }
@@ -164,6 +168,17 @@ final class CowtailStore: ObservableObject {
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             logger.error("refresh stats failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func refreshHermes(sessionToken token: String) async {
+        do {
+            hermes = try await api.fetchHermesStatus(sessionToken: token)
+            hermesErrorMessage = nil
+        } catch {
+            guard !NetworkErrorClassifier.isCancellation(error) else { return }
+            logger.error("refresh Hermes failed: \(String(describing: error), privacy: .public)")
+            hermesErrorMessage = error.localizedDescription
         }
     }
 

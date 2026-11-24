@@ -1,32 +1,40 @@
 import { useQuery } from "@tanstack/react-query";
 import { NavLink, Outlet } from "react-router-dom";
 
-import { pipelineTone, toneFill } from "../../lib/itemPresentation";
-import { healthQuery } from "../../lib/queries";
-import { Badge, Icon } from "../ui";
+import { hermesLevelTone, pipelineTone, type Tone } from "../../lib/itemPresentation";
+import { healthQuery, hermesStatusQuery } from "../../lib/queries";
+import { Badge, Icon, StatusDot } from "../ui";
 import type { IconName } from "../ui/Icon";
 
 const links: [string, string, IconName][] = [
   ["/", "Home", "inbox"],
   ["/cluster", "Cluster", "server"],
   ["/history", "History", "history"],
+  ["/hermes", "Hermes", "spark"],
   ["/settings", "Settings", "gear"],
 ];
 
-function ClusterChip() {
-  const { data } = useQuery(healthQuery);
-  const state = data?.alertPipeline?.state;
+function StatusChip({ label, tone }: { label: string; tone: Tone }) {
   return (
-    <Badge>
-      <i
-        className={`inline-block size-[7px] rounded-full ${toneFill[state ? pipelineTone[state] : "muted"]}`}
-      />
-      cluster
+    <Badge className="max-[599px]:border-transparent max-[599px]:px-0.5">
+      <StatusDot tone={tone} />
+      {/* Below 600 px the chips keep their dots; the labels stay for screen readers. */}
+      <span className="max-[599px]:sr-only">{label}</span>
     </Badge>
   );
 }
 
-// Every signed-in page: the brand, the areas and the cluster's state.
+function ClusterChip() {
+  const state = useQuery(healthQuery).data?.alertPipeline?.state;
+  return <StatusChip label="cluster" tone={state ? pipelineTone[state] : "muted"} />;
+}
+
+function HermesChip() {
+  const level = useQuery(hermesStatusQuery).data?.status?.statusLevel;
+  return <StatusChip label="hermes" tone={level ? hermesLevelTone[level] : "muted"} />;
+}
+
+// Every signed-in page: the brand, the areas, and the cluster's and Hermes's state.
 export default function Layout() {
   return (
     <div className="min-h-screen bg-bg text-[0.8125rem] text-txt">
@@ -52,8 +60,9 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-1.5">
           <ClusterChip />
+          <HermesChip />
         </span>
       </header>
       <main className="px-[22px] pb-[22px] max-[959px]:px-4">

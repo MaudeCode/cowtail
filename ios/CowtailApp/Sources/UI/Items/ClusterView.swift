@@ -76,7 +76,7 @@ struct ClusterView: View {
     private func firing(_ stats: ItemStats) -> some View {
         CowtailSectionHeader(title: "Firing by namespace", detail: "\(stats.firingCount)")
         ForEach(stats.firingByNamespace, id: \.namespace) { row in
-            keyValue(row.namespace.isEmpty ? "—" : row.namespace, "\(row.count)")
+            CowtailKeyValueRow(key: row.namespace.isEmpty ? "—" : row.namespace, value: "\(row.count)")
         }
     }
 
@@ -118,19 +118,11 @@ struct ClusterView: View {
     private func noisiest(_ stats: ItemStats) -> some View {
         CowtailSectionHeader(title: "Noisiest")
         ForEach(stats.repeatOffenders, id: \.dedupeKey) { offender in
-            keyValue(offender.title, "×\(offender.occurrenceCount) · \(ItemFormat.percent(offender.noiseShare)) noise")
+            CowtailKeyValueRow(
+                key: offender.title,
+                value: "×\(offender.occurrenceCount) · \(ItemFormat.percent(offender.noiseShare)) noise"
+            )
         }
-    }
-
-    private func keyValue(_ key: String, _ value: String) -> some View {
-        HStack {
-            Text(key).font(.cowtailSans(14, relativeTo: .body)).lineLimit(1)
-            Spacer()
-            Text(value)
-                .font(.cowtailMono(12, relativeTo: .caption))
-                .foregroundStyle(palette.mutedInk)
-        }
-        .cowtailRow()
     }
 
     private func dayLabel(_ date: String) -> String {

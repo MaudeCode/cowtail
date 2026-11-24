@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { toneText, type Tone } from "../../lib/itemPresentation";
+import { toneFill, toneText, type Tone } from "../../lib/itemPresentation";
 
 const toneBorder: Record<Tone, string> = {
   now: "border-[#b8242c99]",
@@ -27,4 +27,9 @@ export default function Badge({
       {children}
     </span>
   );
+}
+
+// A small round light in the tone's colour: the cluster's or Hermes's state.
+export function StatusDot({ tone }: { tone: Tone }) {
+  return <i className={`inline-block size-[7px] shrink-0 rounded-full ${toneFill[tone]}`} />;
 }

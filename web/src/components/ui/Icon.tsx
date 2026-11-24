@@ -81,6 +81,13 @@ const paths = {
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
     </>
   ),
+  spark: (
+    <>
+      <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+      <path d="M19 16v4M17 18h4" />
+    </>
+  ),
+  chev: <path d="m9 18 6-6-6-6" />,
   down: <path d="m6 9 6 6 6-6" />,
   plus: <path d="M12 5v14M5 12h14" />,
 } as const;

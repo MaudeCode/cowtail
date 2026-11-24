@@ -2663,6 +2663,823 @@ extension Components {
                 case payload
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse`.
+        internal struct HermesStatusResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/ok`.
+            internal var ok: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status`.
+            internal struct StatusPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/receivedAt`.
+                internal var receivedAt: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/heartbeatMissing`.
+                internal var heartbeatMissing: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot`.
+                internal struct SnapshotPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/platforms`.
+                    internal var platforms: [Swift.String]
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/model`.
+                    internal var model: Swift.String?
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/provider`.
+                    internal var provider: Swift.String?
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/CronJobsPayload`.
+                    internal struct CronJobsPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/CronJobsPayload/id`.
+                        internal var id: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/CronJobsPayload/name`.
+                        internal var name: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/CronJobsPayload/schedule`.
+                        internal var schedule: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/CronJobsPayload/lastRunAt`.
+                        internal var lastRunAt: Swift.Int?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/CronJobsPayload/lastStatus`.
+                        internal var lastStatus: Swift.String?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/CronJobsPayload/nextRunAt`.
+                        internal var nextRunAt: Swift.Int?
+                        /// Creates a new `CronJobsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id:
+                        ///   - name:
+                        ///   - schedule:
+                        ///   - lastRunAt:
+                        ///   - lastStatus:
+                        ///   - nextRunAt:
+                        internal init(
+                            id: Swift.String,
+                            name: Swift.String,
+                            schedule: Swift.String,
+                            lastRunAt: Swift.Int? = nil,
+                            lastStatus: Swift.String? = nil,
+                            nextRunAt: Swift.Int? = nil
+                        ) {
+                            self.id = id
+                            self.name = name
+                            self.schedule = schedule
+                            self.lastRunAt = lastRunAt
+                            self.lastStatus = lastStatus
+                            self.nextRunAt = nextRunAt
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case id
+                            case name
+                            case schedule
+                            case lastRunAt
+                            case lastStatus
+                            case nextRunAt
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/cronJobs`.
+                    internal typealias CronJobsPayload = [Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.CronJobsPayloadPayload]
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/cronJobs`.
+                    internal var cronJobs: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.CronJobsPayload
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload`.
+                    internal struct OpenIncidentsPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload/id`.
+                        internal var id: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload/jobId`.
+                        internal var jobId: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload/state`.
+                        internal var state: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload/failureType`.
+                        internal var failureType: Swift.String?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload/firstSeenAt`.
+                        internal var firstSeenAt: Swift.Int?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload/lastSeenAt`.
+                        internal var lastSeenAt: Swift.Int?
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/OpenIncidentsPayload/error`.
+                        internal var error: Swift.String?
+                        /// Creates a new `OpenIncidentsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id:
+                        ///   - jobId:
+                        ///   - state:
+                        ///   - failureType:
+                        ///   - firstSeenAt:
+                        ///   - lastSeenAt:
+                        ///   - error:
+                        internal init(
+                            id: Swift.String,
+                            jobId: Swift.String,
+                            state: Swift.String,
+                            failureType: Swift.String? = nil,
+                            firstSeenAt: Swift.Int? = nil,
+                            lastSeenAt: Swift.Int? = nil,
+                            error: Swift.String? = nil
+                        ) {
+                            self.id = id
+                            self.jobId = jobId
+                            self.state = state
+                            self.failureType = failureType
+                            self.firstSeenAt = firstSeenAt
+                            self.lastSeenAt = lastSeenAt
+                            self.error = error
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case id
+                            case jobId
+                            case state
+                            case failureType
+                            case firstSeenAt
+                            case lastSeenAt
+                            case error
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/openIncidents`.
+                    internal typealias OpenIncidentsPayload = [Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.OpenIncidentsPayloadPayload]
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/openIncidents`.
+                    internal var openIncidents: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.OpenIncidentsPayload
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/kanban`.
+                    internal struct KanbanPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/kanban/blocked`.
+                        internal var blocked: Swift.Int
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/kanban/running`.
+                        internal var running: Swift.Int
+                        /// Creates a new `KanbanPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - blocked:
+                        ///   - running:
+                        internal init(
+                            blocked: Swift.Int,
+                            running: Swift.Int
+                        ) {
+                            self.blocked = blocked
+                            self.running = running
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case blocked
+                            case running
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/kanban`.
+                    internal var kanban: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.KanbanPayload?
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/budget`.
+                    internal struct BudgetPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/budget/additionalProperties`.
+                        internal struct AdditionalPropertiesPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/budget/additionalProperties/value1`.
+                            internal var value1: Swift.String?
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/budget/additionalProperties/value2`.
+                            internal var value2: Swift.Double?
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/budget/additionalProperties/value3`.
+                            internal var value3: Swift.Bool?
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/budget/additionalProperties/value4`.
+                            internal var value4: OpenAPIRuntime.OpenAPIValueContainer?
+                            /// Creates a new `AdditionalPropertiesPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - value1:
+                            ///   - value2:
+                            ///   - value3:
+                            ///   - value4:
+                            internal init(
+                                value1: Swift.String? = nil,
+                                value2: Swift.Double? = nil,
+                                value3: Swift.Bool? = nil,
+                                value4: OpenAPIRuntime.OpenAPIValueContainer? = nil
+                            ) {
+                                self.value1 = value1
+                                self.value2 = value2
+                                self.value3 = value3
+                                self.value4 = value4
+                            }
+                            internal init(from decoder: any Swift.Decoder) throws {
+                                var errors: [any Swift.Error] = []
+                                do {
+                                    self.value1 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                do {
+                                    self.value2 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                do {
+                                    self.value3 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                do {
+                                    self.value4 = try .init(from: decoder)
+                                } catch {
+                                    errors.append(error)
+                                }
+                                try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                                    [
+                                        self.value1,
+                                        self.value2,
+                                        self.value3,
+                                        self.value4
+                                    ],
+                                    type: Self.self,
+                                    codingPath: decoder.codingPath,
+                                    errors: errors
+                                )
+                            }
+                            internal func encode(to encoder: any Swift.Encoder) throws {
+                                try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                                    self.value1,
+                                    self.value2,
+                                    self.value3
+                                ])
+                                try self.value4?.encode(to: encoder)
+                            }
+                        }
+                        /// A container of undocumented properties.
+                        internal var additionalProperties: [String: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.BudgetPayload.AdditionalPropertiesPayload?]
+                        /// Creates a new `BudgetPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        internal init(additionalProperties: [String: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.BudgetPayload.AdditionalPropertiesPayload?] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        internal init(from decoder: any Swift.Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        internal func encode(to encoder: any Swift.Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/budget`.
+                    internal var budget: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.BudgetPayload?
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits`.
+                    internal struct RateLimitsPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits/additionalProperties`.
+                        internal struct AdditionalPropertiesPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits/additionalProperties/value1`.
+                            internal var value1: Swift.String?
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits/additionalProperties/value2`.
+                            internal var value2: Swift.Double?
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits/additionalProperties/value3`.
+                            internal var value3: Swift.Bool?
+                            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits/additionalProperties/value4`.
+                            internal var value4: OpenAPIRuntime.OpenAPIValueContainer?
+                            /// Creates a new `AdditionalPropertiesPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - value1:
+                            ///   - value2:
+                            ///   - value3:
+                            ///   - value4:
+                            internal init(
+                                value1: Swift.String? = nil,
+                                value2: Swift.Double? = nil,
+                                value3: Swift.Bool? = nil,
+                                value4: OpenAPIRuntime.OpenAPIValueContainer? = nil
+                            ) {
+                                self.value1 = value1
+                                self.value2 = value2
+                                self.value3 = value3
+                                self.value4 = value4
+                            }
+                            internal init(from decoder: any Swift.Decoder) throws {
+                                var errors: [any Swift.Error] = []
+                                do {
+                                    self.value1 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                do {
+                                    self.value2 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                do {
+                                    self.value3 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                do {
+                                    self.value4 = try .init(from: decoder)
+                                } catch {
+                                    errors.append(error)
+                                }
+                                try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                                    [
+                                        self.value1,
+                                        self.value2,
+                                        self.value3,
+                                        self.value4
+                                    ],
+                                    type: Self.self,
+                                    codingPath: decoder.codingPath,
+                                    errors: errors
+                                )
+                            }
+                            internal func encode(to encoder: any Swift.Encoder) throws {
+                                try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                                    self.value1,
+                                    self.value2,
+                                    self.value3
+                                ])
+                                try self.value4?.encode(to: encoder)
+                            }
+                        }
+                        /// A container of undocumented properties.
+                        internal var additionalProperties: [String: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RateLimitsPayload.AdditionalPropertiesPayload?]
+                        /// Creates a new `RateLimitsPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        internal init(additionalProperties: [String: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RateLimitsPayload.AdditionalPropertiesPayload?] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        internal init(from decoder: any Swift.Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        internal func encode(to encoder: any Swift.Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot/rateLimits`.
+                    internal var rateLimits: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RateLimitsPayload?
+                    /// Creates a new `SnapshotPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - platforms:
+                    ///   - model:
+                    ///   - provider:
+                    ///   - cronJobs:
+                    ///   - openIncidents:
+                    ///   - kanban:
+                    ///   - budget:
+                    ///   - rateLimits:
+                    internal init(
+                        platforms: [Swift.String],
+                        model: Swift.String? = nil,
+                        provider: Swift.String? = nil,
+                        cronJobs: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.CronJobsPayload,
+                        openIncidents: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.OpenIncidentsPayload,
+                        kanban: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.KanbanPayload? = nil,
+                        budget: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.BudgetPayload? = nil,
+                        rateLimits: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload.RateLimitsPayload? = nil
+                    ) {
+                        self.platforms = platforms
+                        self.model = model
+                        self.provider = provider
+                        self.cronJobs = cronJobs
+                        self.openIncidents = openIncidents
+                        self.kanban = kanban
+                        self.budget = budget
+                        self.rateLimits = rateLimits
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case platforms
+                        case model
+                        case provider
+                        case cronJobs
+                        case openIncidents
+                        case kanban
+                        case budget
+                        case rateLimits
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/snapshot`.
+                internal var snapshot: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/statusLevel`.
+                internal enum StatusLevelPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case green = "green"
+                    case amber = "amber"
+                    case red = "red"
+                }
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/statusLevel`.
+                internal var statusLevel: Components.Schemas.HermesStatusResponse.StatusPayload.StatusLevelPayload?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/cronJobs`.
+                internal var cronJobs: [Components.Schemas.HermesCronJob]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/cronJobCount`.
+                internal var cronJobCount: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/failingCronCount`.
+                internal var failingCronCount: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/incidents`.
+                internal var incidents: [Components.Schemas.HermesIncident]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/incidentCount`.
+                internal var incidentCount: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/kanbanBlocked`.
+                internal var kanbanBlocked: Swift.Bool?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/budgetOrder`.
+                internal var budgetOrder: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/rateLimitOrder`.
+                internal var rateLimitOrder: [Swift.String]?
+                /// Creates a new `StatusPayload`.
+                ///
+                /// - Parameters:
+                ///   - receivedAt:
+                ///   - heartbeatMissing:
+                ///   - snapshot:
+                ///   - statusLevel:
+                ///   - cronJobs:
+                ///   - cronJobCount:
+                ///   - failingCronCount:
+                ///   - incidents:
+                ///   - incidentCount:
+                ///   - kanbanBlocked:
+                ///   - budgetOrder:
+                ///   - rateLimitOrder:
+                internal init(
+                    receivedAt: Swift.Int,
+                    heartbeatMissing: Swift.Bool,
+                    snapshot: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload,
+                    statusLevel: Components.Schemas.HermesStatusResponse.StatusPayload.StatusLevelPayload? = nil,
+                    cronJobs: [Components.Schemas.HermesCronJob]? = nil,
+                    cronJobCount: Swift.Int? = nil,
+                    failingCronCount: Swift.Int? = nil,
+                    incidents: [Components.Schemas.HermesIncident]? = nil,
+                    incidentCount: Swift.Int? = nil,
+                    kanbanBlocked: Swift.Bool? = nil,
+                    budgetOrder: [Swift.String]? = nil,
+                    rateLimitOrder: [Swift.String]? = nil
+                ) {
+                    self.receivedAt = receivedAt
+                    self.heartbeatMissing = heartbeatMissing
+                    self.snapshot = snapshot
+                    self.statusLevel = statusLevel
+                    self.cronJobs = cronJobs
+                    self.cronJobCount = cronJobCount
+                    self.failingCronCount = failingCronCount
+                    self.incidents = incidents
+                    self.incidentCount = incidentCount
+                    self.kanbanBlocked = kanbanBlocked
+                    self.budgetOrder = budgetOrder
+                    self.rateLimitOrder = rateLimitOrder
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case receivedAt
+                    case heartbeatMissing
+                    case snapshot
+                    case statusLevel
+                    case cronJobs
+                    case cronJobCount
+                    case failingCronCount
+                    case incidents
+                    case incidentCount
+                    case kanbanBlocked
+                    case budgetOrder
+                    case rateLimitOrder
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status`.
+            internal var status: Components.Schemas.HermesStatusResponse.StatusPayload?
+            /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/recentAnswers`.
+            internal var recentAnswers: [Components.Schemas.HermesRecentAnswer]?
+            /// Creates a new `HermesStatusResponse`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            ///   - status:
+            ///   - recentAnswers:
+            internal init(
+                ok: Swift.Bool,
+                status: Components.Schemas.HermesStatusResponse.StatusPayload? = nil,
+                recentAnswers: [Components.Schemas.HermesRecentAnswer]? = nil
+            ) {
+                self.ok = ok
+                self.status = status
+                self.recentAnswers = recentAnswers
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case ok
+                case status
+                case recentAnswers
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HermesCronJob`.
+        internal struct HermesCronJob: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HermesCronJob/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesCronJob/name`.
+            internal var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesCronJob/schedule`.
+            internal var schedule: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesCronJob/lastRunAt`.
+            internal var lastRunAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HermesCronJob/lastStatus`.
+            internal var lastStatus: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HermesCronJob/nextRunAt`.
+            internal var nextRunAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HermesCronJob/failing`.
+            internal var failing: Swift.Bool
+            /// Creates a new `HermesCronJob`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - schedule:
+            ///   - lastRunAt:
+            ///   - lastStatus:
+            ///   - nextRunAt:
+            ///   - failing:
+            internal init(
+                id: Swift.String,
+                name: Swift.String,
+                schedule: Swift.String,
+                lastRunAt: Swift.Int? = nil,
+                lastStatus: Swift.String? = nil,
+                nextRunAt: Swift.Int? = nil,
+                failing: Swift.Bool
+            ) {
+                self.id = id
+                self.name = name
+                self.schedule = schedule
+                self.lastRunAt = lastRunAt
+                self.lastStatus = lastStatus
+                self.nextRunAt = nextRunAt
+                self.failing = failing
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case schedule
+                case lastRunAt
+                case lastStatus
+                case nextRunAt
+                case failing
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HermesIncident`.
+        internal struct HermesIncident: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/jobId`.
+            internal var jobId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/state`.
+            internal var state: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/failureType`.
+            internal var failureType: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/firstSeenAt`.
+            internal var firstSeenAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/lastSeenAt`.
+            internal var lastSeenAt: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/error`.
+            internal var error: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/jobName`.
+            internal var jobName: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/itemId`.
+            internal var itemId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HermesIncident/itemTitle`.
+            internal var itemTitle: Swift.String?
+            /// Creates a new `HermesIncident`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - jobId:
+            ///   - state:
+            ///   - failureType:
+            ///   - firstSeenAt:
+            ///   - lastSeenAt:
+            ///   - error:
+            ///   - jobName:
+            ///   - itemId:
+            ///   - itemTitle:
+            internal init(
+                id: Swift.String,
+                jobId: Swift.String,
+                state: Swift.String,
+                failureType: Swift.String? = nil,
+                firstSeenAt: Swift.Int? = nil,
+                lastSeenAt: Swift.Int? = nil,
+                error: Swift.String? = nil,
+                jobName: Swift.String? = nil,
+                itemId: Swift.String? = nil,
+                itemTitle: Swift.String? = nil
+            ) {
+                self.id = id
+                self.jobId = jobId
+                self.state = state
+                self.failureType = failureType
+                self.firstSeenAt = firstSeenAt
+                self.lastSeenAt = lastSeenAt
+                self.error = error
+                self.jobName = jobName
+                self.itemId = itemId
+                self.itemTitle = itemTitle
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case jobId
+                case state
+                case failureType
+                case firstSeenAt
+                case lastSeenAt
+                case error
+                case jobName
+                case itemId
+                case itemTitle
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer`.
+        internal struct HermesRecentAnswer: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/itemId`.
+            internal var itemId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/title`.
+            internal var title: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer`.
+            internal enum AnswerPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case1`.
+                internal struct Case1Payload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case1/type`.
+                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case ack = "ack"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case1/type`.
+                    internal var _type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case1Payload._TypePayload
+                    /// Creates a new `Case1Payload`.
+                    ///
+                    /// - Parameters:
+                    ///   - _type:
+                    internal init(_type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case1Payload._TypePayload) {
+                        self._type = _type
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case _type = "type"
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case1`.
+                case case1(Components.Schemas.HermesRecentAnswer.AnswerPayload.Case1Payload)
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case2`.
+                internal struct Case2Payload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case2/type`.
+                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case approve = "approve"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case2/type`.
+                    internal var _type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case2Payload._TypePayload
+                    /// Creates a new `Case2Payload`.
+                    ///
+                    /// - Parameters:
+                    ///   - _type:
+                    internal init(_type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case2Payload._TypePayload) {
+                        self._type = _type
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case _type = "type"
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case2`.
+                case case2(Components.Schemas.HermesRecentAnswer.AnswerPayload.Case2Payload)
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case3`.
+                internal struct Case3Payload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case3/type`.
+                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case deny = "deny"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case3/type`.
+                    internal var _type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case3Payload._TypePayload
+                    /// Creates a new `Case3Payload`.
+                    ///
+                    /// - Parameters:
+                    ///   - _type:
+                    internal init(_type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case3Payload._TypePayload) {
+                        self._type = _type
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case _type = "type"
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case3`.
+                case case3(Components.Schemas.HermesRecentAnswer.AnswerPayload.Case3Payload)
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case4`.
+                internal struct Case4Payload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case4/type`.
+                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case choose = "choose"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case4/type`.
+                    internal var _type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case4Payload._TypePayload
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case4/option`.
+                    internal var option: Swift.String
+                    /// Creates a new `Case4Payload`.
+                    ///
+                    /// - Parameters:
+                    ///   - _type:
+                    ///   - option:
+                    internal init(
+                        _type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case4Payload._TypePayload,
+                        option: Swift.String
+                    ) {
+                        self._type = _type
+                        self.option = option
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case _type = "type"
+                        case option
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case4`.
+                case case4(Components.Schemas.HermesRecentAnswer.AnswerPayload.Case4Payload)
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case5`.
+                internal struct Case5Payload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case5/type`.
+                    internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case reply = "reply"
+                    }
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case5/type`.
+                    internal var _type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case5Payload._TypePayload
+                    /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case5/text`.
+                    internal var text: Swift.String
+                    /// Creates a new `Case5Payload`.
+                    ///
+                    /// - Parameters:
+                    ///   - _type:
+                    ///   - text:
+                    internal init(
+                        _type: Components.Schemas.HermesRecentAnswer.AnswerPayload.Case5Payload._TypePayload,
+                        text: Swift.String
+                    ) {
+                        self._type = _type
+                        self.text = text
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case _type = "type"
+                        case text
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer/case5`.
+                case case5(Components.Schemas.HermesRecentAnswer.AnswerPayload.Case5Payload)
+                internal init(from decoder: any Swift.Decoder) throws {
+                    var errors: [any Swift.Error] = []
+                    do {
+                        self = .case1(try .init(from: decoder))
+                        return
+                    } catch {
+                        errors.append(error)
+                    }
+                    do {
+                        self = .case2(try .init(from: decoder))
+                        return
+                    } catch {
+                        errors.append(error)
+                    }
+                    do {
+                        self = .case3(try .init(from: decoder))
+                        return
+                    } catch {
+                        errors.append(error)
+                    }
+                    do {
+                        self = .case4(try .init(from: decoder))
+                        return
+                    } catch {
+                        errors.append(error)
+                    }
+                    do {
+                        self = .case5(try .init(from: decoder))
+                        return
+                    } catch {
+                        errors.append(error)
+                    }
+                    throw Swift.DecodingError.failedToDecodeOneOfSchema(
+                        type: Self.self,
+                        codingPath: decoder.codingPath,
+                        errors: errors
+                    )
+                }
+                internal func encode(to encoder: any Swift.Encoder) throws {
+                    switch self {
+                    case let .case1(value):
+                        try value.encode(to: encoder)
+                    case let .case2(value):
+                        try value.encode(to: encoder)
+                    case let .case3(value):
+                        try value.encode(to: encoder)
+                    case let .case4(value):
+                        try value.encode(to: encoder)
+                    case let .case5(value):
+                        try value.encode(to: encoder)
+                    }
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answer`.
+            internal var answer: Components.Schemas.HermesRecentAnswer.AnswerPayload
+            /// - Remark: Generated from `#/components/schemas/HermesRecentAnswer/answeredAt`.
+            internal var answeredAt: Swift.Int
+            /// Creates a new `HermesRecentAnswer`.
+            ///
+            /// - Parameters:
+            ///   - itemId:
+            ///   - title:
+            ///   - answer:
+            ///   - answeredAt:
+            internal init(
+                itemId: Swift.String,
+                title: Swift.String,
+                answer: Components.Schemas.HermesRecentAnswer.AnswerPayload,
+                answeredAt: Swift.Int
+            ) {
+                self.itemId = itemId
+                self.title = title
+                self.answer = answer
+                self.answeredAt = answeredAt
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case itemId
+                case title
+                case answer
+                case answeredAt
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/UserDevicesResponse`.
         internal struct UserDevicesResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/UserDevicesResponse/ok`.

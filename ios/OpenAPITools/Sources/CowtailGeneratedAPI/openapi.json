@@ -1786,6 +1786,468 @@
           "payload"
         ]
       },
+      "HermesStatusResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "status": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "receivedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "heartbeatMissing": {
+                "type": "boolean"
+              },
+              "snapshot": {
+                "type": "object",
+                "properties": {
+                  "platforms": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "maxItems": 100
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "provider": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "cronJobs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "schedule": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "lastRunAt": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "lastStatus": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "nextRunAt": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "schedule"
+                      ]
+                    },
+                    "maxItems": 500
+                  },
+                  "openIncidents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "jobId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "state": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 50
+                        },
+                        "failureType": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "firstSeenAt": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "lastSeenAt": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "error": {
+                          "type": "string",
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "jobId",
+                        "state"
+                      ]
+                    },
+                    "maxItems": 500
+                  },
+                  "kanban": {
+                    "type": "object",
+                    "properties": {
+                      "blocked": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "running": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "blocked",
+                      "running"
+                    ]
+                  },
+                  "budget": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "nullable": true
+                        }
+                      ]
+                    }
+                  },
+                  "rateLimits": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "nullable": true
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "platforms",
+                  "cronJobs",
+                  "openIncidents"
+                ]
+              },
+              "statusLevel": {
+                "type": "string",
+                "enum": [
+                  "green",
+                  "amber",
+                  "red"
+                ]
+              },
+              "cronJobs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/HermesCronJob"
+                }
+              },
+              "cronJobCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failingCronCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "incidents": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/HermesIncident"
+                }
+              },
+              "incidentCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "kanbanBlocked": {
+                "type": "boolean"
+              },
+              "budgetOrder": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rateLimitOrder": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "receivedAt",
+              "heartbeatMissing",
+              "snapshot"
+            ]
+          },
+          "recentAnswers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HermesRecentAnswer"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "HermesCronJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "schedule": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "lastRunAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastStatus": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "nextRunAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failing": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "schedule",
+          "failing"
+        ]
+      },
+      "HermesIncident": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "jobId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "failureType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "firstSeenAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastSeenAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "jobName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemTitle": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "jobId",
+          "state"
+        ]
+      },
+      "HermesRecentAnswer": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "answer": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "ack"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "approve"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "deny"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "choose"
+                    ]
+                  },
+                  "option": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "type",
+                  "option"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "reply"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  }
+                },
+                "required": [
+                  "type",
+                  "text"
+                ]
+              }
+            ]
+          },
+          "answeredAt": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "itemId",
+          "title",
+          "answer",
+          "answeredAt"
+        ]
+      },
       "UserDevicesResponse": {
         "type": "object",
         "properties": {
@@ -3026,6 +3488,52 @@
           },
           "404": {
             "description": "Item not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hermes/status": {
+      "get": {
+        "operationId": "getHermesStatus",
+        "tags": [
+          "hermes"
+        ],
+        "summary": "Hermes's latest heartbeat, how alive it looks, and the owner's recent answers",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Hermes status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HermesStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
             "content": {
               "application/json": {
                 "schema": {

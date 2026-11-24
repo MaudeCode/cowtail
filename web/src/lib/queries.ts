@@ -2,6 +2,7 @@ import {
   authLogoutResponseSchema,
   authProvidersResponseSchema,
   healthResponseSchema,
+  hermesStatusResponseSchema,
   itemGetResponseSchema,
   itemInboxResponseSchema,
   itemListResponseSchema,
@@ -69,6 +70,12 @@ export const inboxQuery = queryOptions({
 export const healthQuery = queryOptions({
   queryKey: ["health"],
   queryFn: () => api("/api/health", healthResponseSchema),
+  refetchInterval: LIVE_REFRESH_MS,
+});
+
+export const hermesStatusQuery = queryOptions({
+  queryKey: ["hermes"],
+  queryFn: () => api("/api/hermes/status", hermesStatusResponseSchema),
   refetchInterval: LIVE_REFRESH_MS,
 });
 

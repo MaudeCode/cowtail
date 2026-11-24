@@ -371,6 +371,10 @@ private actor FakeItemAPI: CowtailAPIClient {
         CowtailPreviewFixtures.stats
     }
 
+    func fetchHermesStatus(sessionToken _: String) async throws -> HermesStatus {
+        CowtailPreviewFixtures.hermes
+    }
+
     func performItemAction(
         itemID: String,
         request: ItemActionRequest,

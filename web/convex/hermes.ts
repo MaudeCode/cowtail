@@ -1,13 +1,21 @@
+import type {
+  HermesCronIncident,
+  HermesCronJob,
+  HermesRecentAnswer,
+  HermesSnapshot,
+  HermesStatusLevel,
+} from "@maudecode/cowtail-protocol";
 import { ConvexError, v } from "convex/values";
 
 import type { Doc } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { terminalItemStates } from "./itemModel";
 import { appendItemEvent, createItem, openItemByDedupeKey, transitionItem } from "./items";
 
 const HERMES = "hermes";
 const COWTAIL = "cowtail";
+const HEARTBEAT_LATE_AFTER_MS = 2 * 60_000;
 const HEARTBEAT_MISSING_AFTER_MS = 5 * 60_000;
 const HEARTBEAT_MISSING_KEY = "hermes:heartbeat-missing";
 
@@ -125,15 +133,121 @@ export const recordHeartbeat = internalMutation({
   },
 });
 
+function statusLevel(age: number, missingItemOpen: boolean): HermesStatusLevel {
+  if (missingItemOpen || age >= HEARTBEAT_MISSING_AFTER_MS) return "red";
+  return age >= HEARTBEAT_LATE_AFTER_MS ? "amber" : "green";
+}
+
+// A cron status Hermes reports for a run that did not succeed.
+const FAILED_CRON_STATUSES = new Set(["error", "failed", "failure", "timeout"]);
+
+function cronJobs({ cronJobs, openIncidents }: HermesSnapshot) {
+  const withIncident = new Set(openIncidents.map((incident) => incident.jobId));
+  const jobs = cronJobs.map((job: HermesCronJob) => ({
+    ...job,
+    failing:
+      withIncident.has(job.id) || FAILED_CRON_STATUSES.has(job.lastStatus?.toLowerCase() ?? ""),
+  }));
+  // Array sort is stable: each group keeps Hermes's order.
+  return jobs.sort((a, b) => Number(b.failing) - Number(a.failing));
+}
+
+async function incidents(ctx: QueryCtx, { cronJobs, openIncidents }: HermesSnapshot) {
+  const jobNames = new Map(cronJobs.map((job) => [job.id, job.name]));
+  const linked = [];
+  for (const incident of openIncidents as HermesCronIncident[]) {
+    // The newest Hermes item for the incident, open or closed.
+    const item = await ctx.db
+      .query("items")
+      .withIndex("by_dedupeKey", (q) => q.eq("dedupeKey", `cron-incident:${incident.id}`))
+      .order("desc")
+      .filter((q) => q.eq(q.field("source"), HERMES))
+      .first();
+    linked.push({
+      ...incident,
+      jobName: jobNames.get(incident.jobId),
+      itemId: item ? String(item._id) : undefined,
+      itemTitle: item?.title,
+    });
+  }
+  return linked;
+}
+
+const RECENT_ANSWERS_WINDOW_MS = 7 * 24 * 60 * 60_000;
+const RECENT_ANSWERS_LIMIT = 20;
+const answerTypes = new Set(["approve", "deny", "choose", "reply"]);
+
+// The answer the owner gave, from the newest answer on the item's timeline.
+async function ownerAnswer(ctx: QueryCtx, itemId: Doc<"items">["_id"]) {
+  const events = await ctx.db
+    .query("itemEvents")
+    .withIndex("by_item_at", (q) => q.eq("itemId", itemId))
+    .order("desc")
+    .collect();
+  const event = events.find(
+    (candidate) =>
+      candidate.type === "action_taken" && answerTypes.has(String(candidate.payload.type)),
+  );
+  if (!event) return null;
+  const { type, option, text } = event.payload;
+  if (type === "choose") return { type, option: String(option) } as const;
+  if (type === "reply") return { type, text: String(text) } as const;
+  return { type } as HermesRecentAnswer["answer"];
+}
+
+async function recentAnswers(ctx: QueryCtx, now: number): Promise<HermesRecentAnswer[]> {
+  const since = now - RECENT_ANSWERS_WINDOW_MS;
+  // Items the owner never answered have no `answeredAt` and sort before every bound.
+  const answered = await ctx.db
+    .query("items")
+    .withIndex("by_answeredAt", (q) => q.gte("answeredAt", since))
+    .order("desc")
+    .filter((q) => q.or(q.eq(q.field("kind"), "approval"), q.eq(q.field("kind"), "question")))
+    .take(RECENT_ANSWERS_LIMIT);
+
+  const answers: HermesRecentAnswer[] = [];
+  for (const item of answered) {
+    const answer = await ownerAnswer(ctx, item._id);
+    if (answer) {
+      answers.push({
+        itemId: String(item._id),
+        title: item.title,
+        answer,
+        answeredAt: item.answeredAt!,
+      });
+    }
+  }
+  return answers;
+}
+
 export const getStatus = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
+    const answers = await recentAnswers(ctx, now);
     const status = await ctx.db.query("hermesStatus").first();
-    if (!status) return null;
+    if (!status) return { status: null, recentAnswers: answers };
+
+    const snapshot = status.snapshot as HermesSnapshot;
+    const age = now - status.receivedAt;
+    const missingItemOpen = Boolean(await openItemByDedupeKey(ctx, COWTAIL, HEARTBEAT_MISSING_KEY));
+    const jobs = cronJobs(snapshot);
+    const linkedIncidents = await incidents(ctx, snapshot);
     return {
-      receivedAt: status.receivedAt,
-      heartbeatMissing: now - status.receivedAt >= HEARTBEAT_MISSING_AFTER_MS,
-      snapshot: status.snapshot,
+      status: {
+        receivedAt: status.receivedAt,
+        heartbeatMissing: age >= HEARTBEAT_MISSING_AFTER_MS,
+        snapshot,
+        statusLevel: statusLevel(age, missingItemOpen),
+        cronJobs: jobs,
+        cronJobCount: jobs.length,
+        failingCronCount: jobs.filter((job) => job.failing).length,
+        incidents: linkedIncidents,
+        incidentCount: linkedIncidents.length,
+        kanbanBlocked: (snapshot.kanban?.blocked ?? 0) > 0,
+        budgetOrder: Object.keys(snapshot.budget ?? {}).sort(),
+        rateLimitOrder: Object.keys(snapshot.rateLimits ?? {}).sort(),
+      },
+      recentAnswers: answers,
     };
   },
 });

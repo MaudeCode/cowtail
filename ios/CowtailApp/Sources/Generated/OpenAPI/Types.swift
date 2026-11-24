@@ -93,6 +93,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /items/{id}`.
     /// - Remark: Generated from `#/paths//items/{id}/get(getItem)`.
     func getItem(_ input: Operations.GetItem.Input) async throws -> Operations.GetItem.Output
+    /// Hermes's latest heartbeat, how alive it looks, and the owner's recent answers
+    ///
+    /// - Remark: HTTP `GET /hermes/status`.
+    /// - Remark: Generated from `#/paths//hermes/status/get(getHermesStatus)`.
+    func getHermesStatus(_ input: Operations.GetHermesStatus.Input) async throws -> Operations.GetHermesStatus.Output
     /// The signed-in account's enabled push devices
     ///
     /// - Remark: HTTP `GET /me/devices`.
@@ -305,6 +310,13 @@ extension APIProtocol {
             path: path,
             headers: headers
         ))
+    }
+    /// Hermes's latest heartbeat, how alive it looks, and the owner's recent answers
+    ///
+    /// - Remark: HTTP `GET /hermes/status`.
+    /// - Remark: Generated from `#/paths//hermes/status/get(getHermesStatus)`.
+    internal func getHermesStatus(headers: Operations.GetHermesStatus.Input.Headers = .init()) async throws -> Operations.GetHermesStatus.Output {
+        try await getHermesStatus(Operations.GetHermesStatus.Input(headers: headers))
     }
     /// The signed-in account's enabled push devices
     ///

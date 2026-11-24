@@ -58,6 +58,26 @@ extension View {
     }
 }
 
+/// One label and its value on a row, the value muted and mono unless tinted.
+struct CowtailKeyValueRow: View {
+    @Environment(\.cowtailPalette) private var palette
+
+    let key: String
+    let value: String
+    var tint: Color?
+
+    var body: some View {
+        HStack {
+            Text(key).font(.cowtailSans(14, relativeTo: .body)).lineLimit(1)
+            Spacer()
+            Text(value)
+                .font(.cowtailMono(12, relativeTo: .caption))
+                .foregroundStyle(tint ?? palette.mutedInk)
+        }
+        .cowtailRow()
+    }
+}
+
 /// A text button, for the actions whose words carry what an icon cannot: sign-in, a question's answers.
 struct CowtailTextButtonStyle: ButtonStyle {
     /// A full-width button, as tall as Sign in with Apple beside it.

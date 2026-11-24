@@ -2,6 +2,8 @@
   "budgetSeconds": 30,
   "overBudget": {
     "ClusterFlowTests::testClusterShowsPipelineStateAndItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "HermesFlowTests::testACronIncidentOpensItsItem": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "HermesFlowTests::testHermesShowsItsHeaderThenItsSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "HistoryFlowTests::testAFilterShowsAsAChipAndRemovingTheChipClearsIt": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "HistoryFlowTests::testHistoryShowsItsStatsInTheFiguresOrderBehindANamedFilterButton": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "HistoryFlowTests::testTheRoundupRowOpensTheRoundup": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
@@ -13,6 +15,7 @@
     "InboxFlowTests::testEveryRowStartsWithItsSourcesName": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "InboxFlowTests::testInboxShowsItsThreeSectionsInTheFiguresOrder": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "InboxFlowTests::testItemDetailShowsATimelineOfEveryEventType": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
+    "InboxFlowTests::testTheHeaderShowsTheHermesDotBesideTheClusterDot": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "InboxFlowTests::testTheItemHeaderFallsBackToTheSourcesSymbol": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "InboxFlowTests::testTheItemHeaderShowsTheSourcesUploadedIcon": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",
     "RoundupFlowTests::testRoundupEmptyShowsQuietDay": "COW-44: each UI test launches the app, which alone takes 15 to 27 s on a hosted runner; its checks move to hosted in-process tests",

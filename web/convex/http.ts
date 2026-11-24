@@ -1913,13 +1913,13 @@ app.post("/api/hermes/heartbeat", async (c) => {
   return c.json(okResponseSchema.parse({ ok: true }));
 });
 
-// GET /api/hermes/status — the latest heartbeat and whether Hermes has gone quiet
+// GET /api/hermes/status — the latest heartbeat, how alive Hermes looks, and recent answers
 app.get("/api/hermes/status", async (c) => {
   const authError = await requireItemReader(c);
   if (authError) return authError;
 
-  const status = await c.env.runQuery((internal as any).hermes.getStatus, { now: Date.now() });
-  return c.json(hermesStatusResponseSchema.parse({ ok: true, status }));
+  const reply = await c.env.runQuery((internal as any).hermes.getStatus, { now: Date.now() });
+  return c.json(hermesStatusResponseSchema.parse({ ok: true, ...reply }));
 });
 
 // POST /api/auth/session — exchange a fresh Apple identity token for an app session

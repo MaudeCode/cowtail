@@ -9,6 +9,13 @@ struct InboxView: View {
             if let health = store.health {
                 CowtailStatusBadge(title: "cluster", tint: clusterTint(health), showsDot: true)
                     .accessibilityLabel("Cluster \(health.cephStatus)")
+                    .accessibilityIdentifier("chip.inbox.cluster")
+            }
+            if let hermes = store.hermes {
+                let level = hermes.heartbeat?.level
+                CowtailStatusBadge(title: "hermes", tint: level?.tint(palette), showsDot: true)
+                    .accessibilityLabel("Hermes \(level?.rawValue ?? "not reporting")")
+                    .accessibilityIdentifier("chip.inbox.hermes")
             }
         } content: {
             let inbox = store.inbox ?? .empty

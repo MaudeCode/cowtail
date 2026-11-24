@@ -60,7 +60,8 @@ export default defineSchema({
     .index("by_source_createdAt", ["source", "createdAt"])
     .index("by_alertId", ["alertId"])
     .index("by_createdAt", ["createdAt"])
-    .index("by_state_expiresAt", ["state", "expiresAt"]),
+    .index("by_state_expiresAt", ["state", "expiresAt"])
+    .index("by_answeredAt", ["answeredAt"]),
 
   // Registered producers of items. A producer with a token posts as itself; only the token's
   // SHA-256 digest is stored.

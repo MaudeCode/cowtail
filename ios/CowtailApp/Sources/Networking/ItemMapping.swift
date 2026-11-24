@@ -139,4 +139,83 @@ extension CowtailAPI {
             .case6(.init(_type: .reply, text: text))
         }
     }
+
+    static func makeHermesStatus(_ response: Components.Schemas.HermesStatusResponse) -> HermesStatus {
+        HermesStatus(
+            heartbeat: response.status.map { status in
+                let snapshot = status.snapshot
+                return HermesStatus.Heartbeat(
+                    receivedAt: date(status.receivedAt),
+                    level: status.statusLevel.flatMap { .init(rawValue: $0.rawValue) },
+                    platforms: snapshot.platforms,
+                    model: snapshot.model,
+                    provider: snapshot.provider,
+                    cronJobs: (status.cronJobs ?? []).map { job in
+                        HermesStatus.CronJob(
+                            id: job.id,
+                            name: job.name,
+                            schedule: job.schedule,
+                            lastRunAt: job.lastRunAt.map(date),
+                            lastStatus: job.lastStatus,
+                            nextRunAt: job.nextRunAt.map(date),
+                            failing: job.failing
+                        )
+                    },
+                    cronJobCount: status.cronJobCount ?? 0,
+                    failingCronCount: status.failingCronCount ?? 0,
+                    incidents: (status.incidents ?? []).map { incident in
+                        HermesStatus.Incident(
+                            id: incident.id,
+                            jobName: incident.jobName ?? incident.jobId,
+                            state: incident.state,
+                            failureType: incident.failureType,
+                            firstSeenAt: incident.firstSeenAt.map(date),
+                            error: incident.error,
+                            itemID: incident.itemId,
+                            itemTitle: incident.itemTitle
+                        )
+                    },
+                    incidentCount: status.incidentCount ?? 0,
+                    kanban: snapshot.kanban.map { HermesStatus.Kanban(blocked: $0.blocked, running: $0.running) },
+                    kanbanBlocked: status.kanbanBlocked ?? false,
+                    budget: limits(
+                        snapshot.budget?.additionalProperties.mapValues { limitText($0?.value1, $0?.value2, $0?.value3) },
+                        order: status.budgetOrder
+                    ),
+                    rateLimits: limits(
+                        snapshot.rateLimits?.additionalProperties.mapValues { limitText($0?.value1, $0?.value2, $0?.value3) },
+                        order: status.rateLimitOrder
+                    )
+                )
+            },
+            recentAnswers: (response.recentAnswers ?? []).map { answer in
+                HermesStatus.Answer(
+                    itemID: answer.itemId,
+                    title: answer.title,
+                    answer: makeAnswer(answer.answer),
+                    answeredAt: date(answer.answeredAt)
+                )
+            }
+        )
+    }
+
+    private static func makeAnswer(_ answer: Components.Schemas.HermesRecentAnswer.AnswerPayload) -> ItemActionRequest {
+        switch answer {
+        case .case1: .ack
+        case .case2: .approve
+        case .case3: .deny
+        case .case4(let choose): .choose(choose.option)
+        case .case5(let reply): .reply(reply.text)
+        }
+    }
+
+    /// A budget or rate-limit value: text, a number or a flag.
+    private static func limitText(_ text: String?, _ number: Double?, _ flag: Bool?) -> String {
+        text ?? number?.formatted() ?? flag.map { $0 ? "yes" : "no" } ?? "–"
+    }
+
+    /// The server's order of Hermes's keys.
+    private static func limits(_ values: [String: String]?, order: [String]?) -> [HermesStatus.Limit] {
+        (order ?? []).map { HermesStatus.Limit(key: $0, value: values?[$0] ?? "–") }
+    }
 }
