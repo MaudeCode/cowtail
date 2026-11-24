@@ -87,6 +87,18 @@ def _clarify_timeout() -> int:
     return get_clarify_timeout()
 
 
+def _approval_request_id(session_key: str, description: str) -> str | None:
+    """The id Hermes gave the approval being prompted, so the answer resolves that request and
+    never a later one queued in the same session. Hermes queues it before the prompt is sent."""
+    from tools.approval import list_gateway_approvals
+
+    pending = list_gateway_approvals(session_key)
+    matching = [entry for entry in pending if entry.get("description") == description] or pending
+    if not matching:
+        return None
+    return str(matching[-1].get("request_id") or "") or None
+
+
 def _open_incidents() -> list[dict[str, Any]]:
     """Open cron incidents, the most recently seen first."""
     from cron.incidents import list_incidents
@@ -186,7 +198,8 @@ def apply_answer(reply_to: dict[str, Any], answer: dict[str, Any]) -> str | None
         from tools.approval import resolve_gateway_approval
 
         choice = APPROVAL_CHOICES[action]
-        if resolve_gateway_approval(str(reply_to.get("sessionKey") or ""), choice) > 0:
+        session_key, request_id = str(reply_to.get("sessionKey") or ""), reply_to.get("requestId")
+        if resolve_gateway_approval(session_key, choice, request_id=request_id or None) > 0:
             return "Hermes approved the command once." if choice == "once" else "Hermes denied the command."
     elif kind == "clarify" and action in ("reply", "choose"):
         from tools.clarify_gateway import resolve_gateway_clarify
@@ -195,9 +208,11 @@ def apply_answer(reply_to: dict[str, Any], answer: dict[str, Any]) -> str | None
         if resolve_gateway_clarify(str(reply_to.get("clarifyId") or ""), str(text or "")):
             return "Hermes passed the answer to the waiting question."
     elif kind == "cron_incident" and action == "ack":
-        from cron.incidents import ack_incident
+        from cron.incidents import ack_incident, get_incident
 
-        if ack_incident(str(reply_to.get("incidentId") or "")):
+        incident_id = str(reply_to.get("incidentId") or "")
+        # An incident already closed is acknowledged, whichever ack closed it.
+        if ack_incident(incident_id) or (get_incident(incident_id) or {}).get("state") == "closed":
             return "Hermes acknowledged the cron incident; repeats of this failure stay quiet."
     return None
 
@@ -212,6 +227,11 @@ class CowtailAdapter(BasePlatformAdapter):
         super().__init__(config=config, platform=Platform(PLATFORM))
         self._client = CowtailClient()
         self._tasks: list[asyncio.Task] = []
+        # Answers Hermes applied whose confirmation Cowtail has not taken yet, by response id.
+        # A lease that lapses brings the answer back; it is confirmed again, never reapplied.
+        # ponytail: in memory; after a restart Hermes no longer holds the request either, so a
+        # replay finds nothing to resolve and reports the answer failed.
+        self._applied: dict[str, str] = {}
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
         if not cowtail_available():
@@ -248,16 +268,21 @@ class CowtailAdapter(BasePlatformAdapter):
             response = (await asyncio.to_thread(self._client.claim_response)).get("response")
             if not response:
                 return
-            outcome = await asyncio.to_thread(
-                apply_answer, response.get("replyTo") or {}, response.get("answer") or {}
-            )
-            if outcome:
-                await asyncio.to_thread(
-                    self._client.complete_response, response["id"], response["claimToken"], outcome
+            response_id = response["id"]
+            outcome = self._applied.get(response_id)
+            if outcome is None:
+                outcome = await asyncio.to_thread(
+                    apply_answer, response.get("replyTo") or {}, response.get("answer") or {}
                 )
+            if outcome:
+                self._applied[response_id] = outcome
+                await asyncio.to_thread(
+                    self._client.complete_response, response_id, response["claimToken"], outcome
+                )
+                del self._applied[response_id]
             else:
                 await asyncio.to_thread(
-                    self._client.fail_response, response["id"], response["claimToken"], GONE
+                    self._client.fail_response, response_id, response["claimToken"], GONE
                 )
 
     async def send_heartbeat(self) -> None:
@@ -295,13 +320,19 @@ class CowtailAdapter(BasePlatformAdapter):
 
     async def _send_exec_approval_prompt(self, prompt) -> SendResult:
         timeout = _safe(_approval_timeout, DEFAULT_APPROVAL_TIMEOUT)
+        reply_to = {"type": "approval", "sessionKey": prompt.session_key}
+        request_id = await asyncio.to_thread(
+            _safe, lambda: _approval_request_id(prompt.session_key, prompt.description), None
+        )
+        if request_id:
+            reply_to["requestId"] = request_id
         return await self._post_item(
             f"{prompt.description}\n\n{prompt.command}",
             f"Approve: {prompt.description}",
             kind="approval",
             urgency="now",
             actions=[{"type": "approve"}, {"type": "deny"}],
-            replyTo={"type": "approval", "sessionKey": prompt.session_key},
+            replyTo=reply_to,
             expiresAt=_now_ms() + int(timeout) * 1000,
         )
 

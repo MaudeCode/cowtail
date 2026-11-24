@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import test_handlers  # noqa: F401  (loads the plugin package as hermes_plugins.cowtail)
 
+CowtailError = importlib.import_module("hermes_plugins.cowtail.cowtail_client").CowtailError
 NOW_SECONDS = 1_790_000_000
 
 
@@ -24,7 +25,7 @@ class FakeHermes:
 
     def __init__(self):
         self.calls: list[tuple] = []
-        self.pending_sessions: set[str] = set()
+        self.approvals: dict[str, list[dict]] = {}
         self.pending_clarify: set[str] = set()
         self.incidents: list[dict] = []
         self.jobs: list[dict] = []
@@ -32,12 +33,17 @@ class FakeHermes:
         self.clarify_timeout = 3600
         self.kanban = {"blocked": 2, "running": 1, "done": 7}
 
-    def resolve_gateway_approval(self, session_key, choice):
-        self.calls.append(("resolve_gateway_approval", session_key, choice))
-        if session_key not in self.pending_sessions:
-            return 0
-        self.pending_sessions.discard(session_key)
-        return 1
+    def list_gateway_approvals(self, session_key):
+        return [dict(entry) for entry in self.approvals.get(session_key, [])]
+
+    def resolve_gateway_approval(self, session_key, choice, resolve_all=False, reason=None, request_id=None):
+        """Like Hermes: the entry with ``request_id``, else the oldest in the session."""
+        self.calls.append(("resolve_gateway_approval", session_key, choice, request_id))
+        queue = self.approvals.get(session_key, [])
+        targets = [e for e in queue if e["request_id"] == request_id] if request_id else queue[:1]
+        for entry in targets:
+            queue.remove(entry)
+        return len(targets)
 
     def resolve_gateway_clarify(self, clarify_id, response):
         self.calls.append(("resolve_gateway_clarify", clarify_id, response))
@@ -45,6 +51,9 @@ class FakeHermes:
             return False
         self.pending_clarify.discard(clarify_id)
         return True
+
+    def get_incident(self, incident_id):
+        return next((dict(i) for i in self.incidents if i["id"] == incident_id), None)
 
     def ack_incident(self, incident_id):
         self.calls.append(("ack_incident", incident_id))
@@ -95,7 +104,11 @@ class FakeHermes:
                 "gateway.platforms.base", BasePlatformAdapter=BasePlatformAdapter, SendResult=SendResult
             ),
             "tools": module("tools"),
-            "tools.approval": module("tools.approval", resolve_gateway_approval=self.resolve_gateway_approval),
+            "tools.approval": module(
+                "tools.approval",
+                resolve_gateway_approval=self.resolve_gateway_approval,
+                list_gateway_approvals=self.list_gateway_approvals,
+            ),
             "tools.approval_context": module(
                 "tools.approval_context", _get_approval_timeout=lambda: hermes.approval_timeout
             ),
@@ -106,7 +119,10 @@ class FakeHermes:
             ),
             "cron": module("cron"),
             "cron.incidents": module(
-                "cron.incidents", list_incidents=lambda: list(hermes.incidents), ack_incident=self.ack_incident
+                "cron.incidents",
+                list_incidents=lambda: list(hermes.incidents),
+                ack_incident=self.ack_incident,
+                get_incident=self.get_incident,
             ),
             "cron.jobs": module("cron.jobs", list_jobs=lambda: list(hermes.jobs)),
             "hermes_cli": module("hermes_cli"),
@@ -129,6 +145,7 @@ class FakeCowtail:
     def __init__(self):
         self.requests: list[tuple[str, str, dict | None]] = []
         self.waiting: list[dict] = []
+        self.refused_completions = 0
 
     def __call__(self, method, path, body=None, query=None):
         self.requests.append((method, path, body))
@@ -137,6 +154,9 @@ class FakeCowtail:
         if (method, path) == ("POST", "/api/hermes/responses/claim"):
             return {"ok": True, "response": self.waiting.pop(0)} if self.waiting else {"ok": True}
         if method == "POST" and path.startswith("/api/hermes/responses/") and path.endswith(("/complete", "/fail")):
+            if path.endswith("/complete") and self.refused_completions:
+                self.refused_completions -= 1
+                raise CowtailError("Cowtail HTTP 503: unavailable")
             return {"ok": True}
         if (method, path) == ("POST", "/api/hermes/heartbeat"):
             return {"ok": True}
@@ -201,6 +221,12 @@ class RegistrationTest(PlatformTest):
 
 class OutboundItemsTest(PlatformTest):
     def test_approval_prompt_creates_an_approval_item_that_expires_with_the_request(self):
+        self.hermes.approvals = {
+            "agent:main:cowtail:dm:owner": [
+                {"request_id": "req-older", "description": "network access"},
+                {"request_id": "req-1", "description": "recursive delete"},
+            ]
+        }
         prompt = SimpleNamespace(
             description="recursive delete", command="rm -rf /srv/scratch", session_key="agent:main:cowtail:dm:owner"
         )
@@ -217,7 +243,11 @@ class OutboundItemsTest(PlatformTest):
                 "kind": "approval",
                 "urgency": "now",
                 "actions": [{"type": "approve"}, {"type": "deny"}],
-                "replyTo": {"type": "approval", "sessionKey": "agent:main:cowtail:dm:owner"},
+                "replyTo": {
+                    "type": "approval",
+                    "sessionKey": "agent:main:cowtail:dm:owner",
+                    "requestId": "req-1",
+                },
                 "expiresAt": (NOW_SECONDS + 300) * 1000,
             },
         )
@@ -290,12 +320,15 @@ def waiting(response_id, reply_to, answer):
 
 class AnswersTest(PlatformTest):
     def test_claimed_answers_reach_the_waiting_hermes_requests_then_confirm(self):
-        self.hermes.pending_sessions = {"session-1", "session-2"}
+        self.hermes.approvals = {
+            "session-1": [{"request_id": "req-0"}, {"request_id": "req-1"}],
+            "session-2": [{"request_id": "req-2"}],
+        }
         self.hermes.pending_clarify = {"clarify-1"}
         self.hermes.incidents = [{"id": "incident-1", "job_id": "job-1", "state": "alerted"}]
         self.cowtail.waiting = [
-            waiting("r1", {"type": "approval", "sessionKey": "session-1"}, {"type": "approve"}),
-            waiting("r2", {"type": "approval", "sessionKey": "session-2"}, {"type": "deny"}),
+            waiting("r1", {"type": "approval", "sessionKey": "session-1", "requestId": "req-1"}, {"type": "approve"}),
+            waiting("r2", {"type": "approval", "sessionKey": "session-2", "requestId": "req-2"}, {"type": "deny"}),
             waiting("r3", {"type": "clarify", "clarifyId": "clarify-1"}, {"type": "choose", "option": "bulk"}),
             waiting("r4", {"type": "cron_incident", "incidentId": "incident-1"}, {"type": "ack"}),
         ]
@@ -305,8 +338,8 @@ class AnswersTest(PlatformTest):
         self.assertEqual(
             self.hermes.calls,
             [
-                ("resolve_gateway_approval", "session-1", "once"),
-                ("resolve_gateway_approval", "session-2", "deny"),
+                ("resolve_gateway_approval", "session-1", "once", "req-1"),
+                ("resolve_gateway_approval", "session-2", "deny", "req-2"),
                 ("resolve_gateway_clarify", "clarify-1", "bulk"),
                 ("ack_incident", "incident-1"),
             ],
@@ -320,6 +353,36 @@ class AnswersTest(PlatformTest):
                 ("/api/hermes/responses/r4/complete", "token-r4"),
             ],
         )
+
+    def test_an_applied_answer_whose_confirmation_failed_is_confirmed_again_not_reapplied(self):
+        self.hermes.approvals = {"session-1": [{"request_id": "req-1"}, {"request_id": "req-2"}]}
+        answer = {"type": "approval", "sessionKey": "session-1", "requestId": "req-1"}
+        self.cowtail.waiting = [waiting("r1", answer, {"type": "approve"})]
+        self.cowtail.refused_completions = 1
+
+        with self.assertRaises(CowtailError):
+            self.run_async(self.adapter.apply_responses())
+        # The lease lapses and Cowtail hands the same answer out again under a new token.
+        self.cowtail.waiting = [{**waiting("r1", answer, {"type": "approve"}), "claimToken": "token-r1-again"}]
+        self.run_async(self.adapter.apply_responses())
+
+        self.assertEqual(self.hermes.calls, [("resolve_gateway_approval", "session-1", "once", "req-1")])
+        self.assertEqual(self.hermes.approvals["session-1"], [{"request_id": "req-2"}])
+        self.assertEqual(
+            [(path, body["claimToken"]) for path, body in self.cowtail.finished()],
+            [
+                ("/api/hermes/responses/r1/complete", "token-r1"),
+                ("/api/hermes/responses/r1/complete", "token-r1-again"),
+            ],
+        )
+
+    def test_an_ack_for_an_incident_already_closed_is_confirmed(self):
+        self.hermes.incidents = [{"id": "incident-1", "job_id": "job-1", "state": "closed"}]
+        self.cowtail.waiting = [waiting("r1", {"type": "cron_incident", "incidentId": "incident-1"}, {"type": "ack"})]
+
+        self.run_async(self.adapter.apply_responses())
+
+        self.assertEqual([path for path, _ in self.cowtail.finished()], ["/api/hermes/responses/r1/complete"])
 
     def test_an_answer_hermes_no_longer_holds_is_reported_failed(self):
         self.cowtail.waiting = [
