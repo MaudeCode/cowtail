@@ -658,6 +658,8 @@ export const returnSnoozedItems = internalMutation({
       )
       .take(RETURN_BATCH_SIZE);
     for (const item of due) {
+      // Past its deadline it is expireDueItems' to close, whichever job runs first.
+      if (item.expiresAt !== undefined && item.expiresAt <= now) continue;
       await transitionItem(ctx, item, "open", {
         actor: "cowtail",
         at: now,

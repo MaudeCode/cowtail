@@ -3,6 +3,7 @@ import {
   itemGetResponseSchema,
   notificationPreferencesResponseSchema,
 } from "@maudecode/cowtail-protocol";
+import { makeFunctionReference } from "convex/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
@@ -297,6 +298,29 @@ describe("reminders", () => {
       ["created", "pushed"],
       ["reminder", "pushed"],
     ]);
+  });
+
+  test("a snoozed item whose deadline passed is left to expire, not returned", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, {
+      kind: "question",
+      urgency: "today",
+      title: "Rebalance now?",
+      expiresAt: NOW + 90_000,
+    });
+    await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 60_000 },
+    });
+    // Both came due since the last tick; the return job runs before the expiry job here.
+    vi.setSystemTime(NOW + 100_000);
+
+    await t.mutation(makeFunctionReference<"mutation">("items:returnSnoozedItems"), {});
+    await advance(t, 30 * MINUTE);
+
+    expect((await getItem(t, id)).item.state).toBe("expired");
+    expect(sendPushToUser).not.toHaveBeenCalled();
   });
 
   test("an item created with a future remindAt sends nothing until then, then returns the same way", async () => {
