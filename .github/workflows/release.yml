@@ -42,7 +42,7 @@ jobs:
       checks: ${{ steps.check.outputs.checks }}
     steps:
       - id: check
-        uses: MaudeCode/.github/actions/release-preflight@7142f8bc63e5e63cdc7d0c4605f3a283de59624c
+        uses: MaudeCode/.github/actions/release-preflight@418695a65b056488bad5f6a769e49c638832bca9
         with:
           tag: ${{ inputs.tag }}
           sha: ${{ inputs.sha }}
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions: { statuses: write, pull-requests: read, actions: read }
     steps:
-      - uses: MaudeCode/.github/actions/release-freeze@20b180ba0237e316fcc65d83ed4e8f19ac5e16a7
+      - uses: MaudeCode/.github/actions/release-freeze@418695a65b056488bad5f6a769e49c638832bca9
         with: { mode: start }
 
   global-verify:
@@ -138,25 +138,25 @@ jobs:
       - ios-build
     steps:
       - name: Download web Docker amd64
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: docker-amd64
           path: docker-amd64
 
       - name: Download web Docker arm64
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: docker-arm64
           path: docker-arm64
 
       - name: Download CLI npm package
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: cli-npm-package
           path: cli-npm-package
 
       - name: Download iOS IPA
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ios-ipa
           path: ios-ipa
@@ -169,7 +169,7 @@ jobs:
           echo "path=${ipa_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Download iOS symbols
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ios-dsyms
           path: ios-dsyms
@@ -200,7 +200,7 @@ jobs:
       contents: read
     steps:
       - name: Download iOS IPA
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ios-ipa
           path: ios-ipa
@@ -212,7 +212,7 @@ jobs:
           test -n "${ipa_path}"
           echo "path=${ipa_path}" >> "${GITHUB_OUTPUT}"
 
-      - uses: MaudeCode/.github/actions/ios-publish@8af350cd57de98d7f6b4ede375cf8f360fb121a3
+      - uses: MaudeCode/.github/actions/ios-publish@418695a65b056488bad5f6a769e49c638832bca9
         with:
           ipa: ${{ steps.ios-ipa.outputs.path }}
           bundle-id: ${{ secrets.COWTAIL_PRODUCT_BUNDLE_IDENTIFIER }}
@@ -233,12 +233,12 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.preflight.outputs.sha }}
           persist-credentials: false
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           registry-url: "https://registry.npmjs.org"
@@ -252,7 +252,7 @@ jobs:
 
       - name: Download CLI npm package
         if: steps.published.outputs.publish == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: cli-npm-package
           path: cli-npm-package
@@ -279,19 +279,19 @@ jobs:
           - arch: amd64
           - arch: arm64
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.preflight.outputs.sha }}
           sparse-checkout: script/release
           persist-credentials: false
 
       # Cone-mode sparse checkout keeps the root files, .node-version among them.
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
 
       - name: Log in to Container Registry
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -309,7 +309,7 @@ jobs:
 
       - name: Download image
         if: steps.published.outputs.publish == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: docker-${{ matrix.arch }}
           path: docker-${{ matrix.arch }}
@@ -334,10 +334,10 @@ jobs:
       packages: write
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to Container Registry
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -373,13 +373,13 @@ jobs:
       contents: write
     steps:
       - name: Download CLI npm package
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: cli-npm-package
           path: cli-npm-package
 
       - name: Create the version tag
-        uses: MaudeCode/.github/actions/release-tag@7142f8bc63e5e63cdc7d0c4605f3a283de59624c
+        uses: MaudeCode/.github/actions/release-tag@418695a65b056488bad5f6a769e49c638832bca9
         with:
           tag: ${{ needs.preflight.outputs.tag }}
           sha: ${{ needs.preflight.outputs.sha }}
@@ -408,5 +408,5 @@ jobs:
     runs-on: ubuntu-24.04
     permissions: { statuses: write, pull-requests: read, actions: read }
     steps:
-      - uses: MaudeCode/.github/actions/release-freeze@20b180ba0237e316fcc65d83ed4e8f19ac5e16a7
+      - uses: MaudeCode/.github/actions/release-freeze@418695a65b056488bad5f6a769e49c638832bca9
         with: { mode: end }
