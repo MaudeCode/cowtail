@@ -482,6 +482,20 @@ describe("postmortems", () => {
 });
 
 describe("lists", () => {
+  test("searching a list finds an incident by its own title", async () => {
+    const t = await newBackendWithSources("cron");
+    const first = await createItem(t, "Nightly backup verify failed");
+    const second = await createItem(t, "Restic prune failed");
+    await write(t, "/api/me/incidents", "POST", {
+      title: "Storage outage",
+      itemIds: [first, second],
+    });
+
+    const response = await request(t, "/api/items?q=storage%20outage", { bearer: SERVICE });
+    const { items } = itemListResponseSchema.parse(response.json);
+    expect(items.map((item) => item.incident?.title)).toEqual(["Storage outage"]);
+  });
+
   test("a filtered list shows an incident at its oldest member the filter keeps", async () => {
     const t = await newBackendWithSources("cron");
     await fire(t, ["CephOSDDown"]);

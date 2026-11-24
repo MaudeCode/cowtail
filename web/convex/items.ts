@@ -507,8 +507,9 @@ type ItemRecord = Awaited<ReturnType<typeof itemRecord>>;
 
 function matchesSearch(record: ItemRecord, q: string) {
   const needle = q.toLowerCase();
-  return [record.title, record.subtitle ?? "", record.body].some((text) =>
-    text.toLowerCase().includes(needle),
+  // A member of an incident also matches its incident's title, which its row shows.
+  return [record.title, record.subtitle ?? "", record.body, record.incident?.title ?? ""].some(
+    (text) => text.toLowerCase().includes(needle),
   );
 }
 
