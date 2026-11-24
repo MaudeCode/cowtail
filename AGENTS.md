@@ -52,6 +52,14 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 - Run iOS unit tests with `bun run test:ios:unit`.
 - Run iOS UI tests with `bun run test:ios:ui`.
 
+## UI Mockups
+
+[`docs/mockups/app-rewrite.html`](./docs/mockups/app-rewrite.html) is the visual spec for the item rewrite: the iOS tabs, the web pages and the notifications. Open it in a browser.
+
+- Build or change one of those screens from its figure (each has an `id`) and the page's Rules section. The figure decides layout, grouping, order and controls. The ticket decides behavior, data and API.
+- When a screen must differ from its figure, change the figure in the same pull request.
+- Review a UI pull request against its figures as well as its ticket.
+
 ## CI Runners
 
 - Workflows run on GitHub-hosted runners: `ubuntu-latest` or `ubuntu-24.04`, `ubuntu-24.04-arm` for the arm64 image, and the hosted `xcode-27` image for iOS.
