@@ -59,7 +59,7 @@ final class InboxFlowTests: XCTestCase {
         for type in types {
             XCTAssertTrue(app.element("event.\(type)").waitForExistence(timeout: 10), type)
         }
-        app.assertSections(["Timeline", "Details"])
+        app.assertSections(["Timeline", "Details", "Fix"])
     }
 
     func testAnAlertLinkOpensThatAlertsItem() {

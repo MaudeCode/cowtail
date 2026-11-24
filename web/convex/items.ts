@@ -31,7 +31,7 @@ import {
   itemStateValidator,
   itemUrgencyValidator,
 } from "./itemValidators";
-import { preferencesRow } from "./notificationPreferences";
+import { effectivePreferences, preferencesRow } from "./notificationPreferences";
 import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
 import { sourceInfo } from "./sources";
@@ -546,10 +546,23 @@ export const applyAction = internalMutation({
     ),
     actor: v.string(),
     now: v.number(),
+    fromUnprotectedNotification: v.optional(v.boolean()),
   },
-  handler: async (ctx, { id, action, actor, now }) => {
+  handler: async (ctx, { id, action, actor, now, fromUnprotectedNotification }) => {
     const item = await requireItem(ctx, id);
     requireOpenItem(item);
+
+    // A notification delivered before the owner required Face ID cannot answer from the lock
+    // screen once they do.
+    if (fromUnprotectedNotification && (action.type === "approve" || action.type === "deny")) {
+      const owner = cowtailOwnerUserId();
+      const preferences = owner
+        ? effectivePreferences(await preferencesRow(ctx, owner))
+        : undefined;
+      if (preferences?.requireAuthForApprovals) {
+        throw new ConvexError({ code: "APPROVAL_NEEDS_AUTH" });
+      }
+    }
 
     if (action.type === "snooze" && action.until <= now) {
       throw new ConvexError({ code: "INVALID_SNOOZE" });
@@ -776,6 +789,19 @@ export const get = internalQuery({
       .query("itemEvents")
       .withIndex("by_item_at", (q) => q.eq("itemId", item._id))
       .collect();
+    // ponytail: scans every fix, as fixes.getByAlertIds does; index fixes by alert if they
+    // number thousands.
+    const alertId = item.alertId;
+    const fixes = alertId
+      ? (await ctx.db.query("fixes").collect())
+          .filter((fix) => fix.alertIds.includes(alertId))
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .map(({ _id, _creationTime, alertIds, ...fix }) => ({
+            ...fix,
+            id: String(_id),
+            alertIds: alertIds.map(String),
+          }))
+      : [];
     return {
       item: await itemRecord(ctx, item),
       events: events.map(({ _id, _creationTime, itemId, ...event }) => ({
@@ -783,6 +809,7 @@ export const get = internalQuery({
         id: String(_id),
         itemId: String(itemId),
       })),
+      fixes,
     };
   },
 });

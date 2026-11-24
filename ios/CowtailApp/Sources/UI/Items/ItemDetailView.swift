@@ -85,6 +85,7 @@ struct ItemDetailView: View {
                     header
                     timeline
                     details
+                    fixes
                 }
                 .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
                 .padding(.bottom, 28)
@@ -198,6 +199,33 @@ struct ItemDetailView: View {
                 .foregroundStyle(palette.ink)
             }
             .cowtailRow()
+        }
+    }
+
+    /// The mockup's order: details, then the fixes recorded for the alert.
+    @ViewBuilder
+    private var fixes: some View {
+        if !detail.fixes.isEmpty {
+            CowtailSectionHeader(title: "Fix", detail: "\(detail.fixes.count)")
+            ForEach(detail.fixes) { fix in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        CowtailStatusBadge(title: fix.scope.rawValue, tint: fix.scope.tint)
+                        Spacer()
+                        Text(fix.timestamp.formatted(date: .abbreviated, time: .shortened))
+                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .foregroundStyle(palette.mutedInk)
+                    }
+                    Text(fix.description)
+                        .font(.cowtailSans(14, relativeTo: .body))
+                        .foregroundStyle(palette.ink)
+                    Text(fix.rootCause)
+                        .font(.cowtailSans(12, relativeTo: .caption))
+                        .foregroundStyle(palette.mutedInk)
+                }
+                .cowtailRow()
+                .accessibilityElement(children: .combine)
+            }
         }
     }
 

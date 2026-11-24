@@ -1785,6 +1785,24 @@ internal enum Operations {
                 }
             }
             internal var path: Operations.PerformItemAction.Input.Path
+            /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/query`.
+            internal struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/query/notification`.
+                internal enum NotificationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case protected = "protected"
+                    case unprotected = "unprotected"
+                }
+                /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/query/notification`.
+                internal var notification: Operations.PerformItemAction.Input.Query.NotificationPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - notification:
+                internal init(notification: Operations.PerformItemAction.Input.Query.NotificationPayload? = nil) {
+                    self.notification = notification
+                }
+            }
+            internal var query: Operations.PerformItemAction.Input.Query
             /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/header`.
             internal struct Headers: Sendable, Hashable {
                 internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.PerformItemAction.AcceptableContentType>]
@@ -1807,14 +1825,17 @@ internal enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
             ///   - body:
             internal init(
                 path: Operations.PerformItemAction.Input.Path,
+                query: Operations.PerformItemAction.Input.Query = .init(),
                 headers: Operations.PerformItemAction.Input.Headers = .init(),
                 body: Operations.PerformItemAction.Input.Body
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
                 self.body = body
             }

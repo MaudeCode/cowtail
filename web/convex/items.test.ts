@@ -284,6 +284,37 @@ describe("owner actions", () => {
     ]);
   });
 
+  test("an unprotected notification cannot approve while the owner requires Face ID", async () => {
+    const t = await newBackendWithSources("cron");
+    const bearer = await seedSession(t, OWNER);
+    await request(t, "/api/me/notification-preferences", {
+      method: "PUT",
+      bearer,
+      body: { requireAuthForApprovals: true },
+    });
+    const { id } = await createItem(t, {
+      source: "hermes",
+      kind: "approval",
+      urgency: "now",
+      title: "Restart ingress in edge?",
+      actions: [{ type: "approve" }, { type: "deny" }],
+    });
+    const approve = (notification: string) =>
+      request(t, `/api/me/items/${id}/actions?notification=${notification}`, {
+        method: "POST",
+        bearer,
+        body: { type: "approve" },
+      });
+
+    const unprotected = await approve("unprotected");
+    const protectedApproval = await approve("protected");
+
+    expect(unprotected).toMatchObject({ status: 403, json: { code: "APPROVAL_NEEDS_AUTH" } });
+    expect(protectedApproval.status).toBe(200);
+    const { events } = await getItem(t, id);
+    expect(events.filter((event) => event.type === "action_taken")).toHaveLength(1);
+  });
+
   test("a closed item takes no more actions", async () => {
     const t = await newBackendWithSources("cron");
     const act = await ownerActions(t);
@@ -656,6 +687,36 @@ describe("alert items", () => {
     await t.mutation(backfillAlertItems, {});
 
     expect((await listItems(t)).map((item) => item.links)).toEqual([[]]);
+  });
+
+  test("an alert's item carries the fixes recorded against the alert, newest first", async () => {
+    const t = await newBackendWithSources("cron");
+    const [alertId, otherId] = await t.run(async (ctx) => [
+      await ctx.db.insert("alerts", alertFields({})),
+      await ctx.db.insert("alerts", alertFields({ alertname: "Other" })),
+    ]);
+    await t.run(async (ctx) => {
+      const fix = (timestamp: number, alertIds: (typeof alertId)[], description: string) =>
+        ctx.db.insert("fixes", {
+          timestamp,
+          alertIds,
+          description,
+          rootCause: "OOM",
+          scope: "reactive",
+        });
+      await fix(10, [alertId], "Raised the memory limit");
+      await fix(20, [alertId, otherId], "Pinned the image");
+      await fix(30, [otherId], "Unrelated");
+    });
+    await t.mutation(backfillAlertItems, {});
+
+    const [item] = await listItems(t, `?alertId=${alertId}`);
+    const { fixes } = await getItem(t, item.id);
+
+    expect(fixes?.map((fix) => fix.description)).toEqual([
+      "Pinned the image",
+      "Raised the memory limit",
+    ]);
   });
 
   test("the backfill creates one item per alert and is safe to run again", async () => {

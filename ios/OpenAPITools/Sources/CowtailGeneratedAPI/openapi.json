@@ -2030,6 +2030,58 @@
             "items": {
               "$ref": "#/components/schemas/ItemEventRecord"
             }
+          },
+          "fixes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "alertIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "rootCause": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "reactive",
+                    "weekly",
+                    "monthly"
+                  ]
+                },
+                "commit": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "id",
+                "timestamp",
+                "alertIds",
+                "description",
+                "rootCause",
+                "scope"
+              ]
+            }
           }
         },
         "required": [
@@ -2599,6 +2651,18 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "protected",
+                "unprotected"
+              ]
+            },
+            "required": false,
+            "name": "notification",
+            "in": "query"
           }
         ],
         "requestBody": {

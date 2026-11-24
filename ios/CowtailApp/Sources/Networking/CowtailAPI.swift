@@ -337,7 +337,19 @@ actor CowtailAPI: CowtailAPIClient {
         switch try await sessionClient(sessionToken: sessionToken).getItem(path: .init(id: id)) {
         case .ok(let response):
             let detail = try response.body.json
-            return ItemDetail(item: Self.makeItem(detail.item), events: detail.events.map(Self.makeEvent))
+            return ItemDetail(
+                item: Self.makeItem(detail.item),
+                events: detail.events.map(Self.makeEvent),
+                fixes: (detail.fixes ?? []).map {
+                    AlertFix(
+                        id: $0.id,
+                        description: $0.description,
+                        rootCause: $0.rootCause,
+                        scope: FixScope(rawValue: $0.scope.rawValue) ?? .unknown,
+                        timestamp: Self.date($0.timestamp)
+                    )
+                }
+            )
         case .notFound:
             return nil
         case .unauthorized(let response):
@@ -401,14 +413,28 @@ actor CowtailAPI: CowtailAPIClient {
         }
     }
 
-    /// Acks, snoozes or answers an item, as the owner.
+    /// Acks, snoozes or answers an item, as the owner, from the app.
     func performItemAction(
         itemID: String,
         request: ItemActionRequest,
         sessionToken: String
     ) async throws -> Item {
+        try await performItemAction(itemID: itemID, request: request, from: nil, sessionToken: sessionToken)
+    }
+
+    /// The same from a held notification, naming whether its category asked for Face ID.
+    func performItemAction(
+        itemID: String,
+        request: ItemActionRequest,
+        from notification: ItemNotifications.Origin?,
+        sessionToken: String
+    ) async throws -> Item {
         let output = try await sessionClient(sessionToken: sessionToken).performItemAction(
-            .init(path: .init(id: itemID), body: .json(Self.makeActionRequest(request)))
+            .init(
+                path: .init(id: itemID),
+                query: .init(notification: notification.flatMap { .init(rawValue: $0.rawValue) }),
+                body: .json(Self.makeActionRequest(request))
+            )
         )
 
         switch output {

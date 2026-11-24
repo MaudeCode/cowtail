@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { dateOnlyStringSchema, nonEmptyStringSchema, timestampSchema } from "./shared.ts";
 import { alertHumanActionSchema } from "./alerts.ts";
+import { fixRecordSchema } from "./fixes.ts";
 import { sourceInfoSchema } from "./sources.ts";
 
 export const itemKinds = ["alert", "failure", "approval", "question", "fyi", "done"] as const;
@@ -215,6 +216,9 @@ export const itemGetResponseSchema = z.object({
   ok: z.literal(true),
   item: itemRecordSchema,
   events: z.array(itemEventRecordSchema),
+  // Alert items: the fixes recorded against the alert, newest first. Optional so a client
+  // still decodes a server from before it.
+  fixes: z.array(fixRecordSchema).optional(),
 });
 
 const ackActionSchema = z.object({ type: z.literal("ack") });
@@ -237,6 +241,13 @@ export const itemActionRequestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("snooze"), until: timestampSchema }),
   ...answerActionSchemas,
 ]);
+
+// Where an owner action came from. A held notification's Approve or Deny says whether its
+// category asked for Face ID; while the owner requires it, an unprotected one is refused, so
+// a notification delivered before the setting changed cannot answer from the lock screen.
+export const itemActionQuerySchema = z.object({
+  notification: z.enum(["protected", "unprotected"]).optional(),
+});
 
 export const itemResponseSchema = z.object({
   ok: z.literal(true),

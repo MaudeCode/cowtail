@@ -183,6 +183,8 @@ struct ItemEvent: Identifiable, Hashable, Sendable {
 struct ItemDetail: Hashable, Sendable {
     var item: Item
     let events: [ItemEvent]
+    /// The fixes recorded against the linked alert, newest first.
+    var fixes: [AlertFix] = []
 }
 
 struct ItemInbox: Equatable, Sendable {

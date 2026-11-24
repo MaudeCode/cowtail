@@ -234,7 +234,7 @@ struct AlertItem: Identifiable, Equatable {
     }
 }
 
-struct AlertFix: Identifiable, Equatable {
+struct AlertFix: Identifiable, Hashable, Sendable {
     let id: String
     let description: String
     let rootCause: String

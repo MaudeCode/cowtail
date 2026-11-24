@@ -135,14 +135,23 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     /// Sends a notification action to the item actions endpoint.
-    private func performItemAction(itemID: String, request: ItemActionRequest) async {
+    private func performItemAction(
+        itemID: String,
+        request: ItemActionRequest,
+        from origin: ItemNotifications.Origin?
+    ) async {
         guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
             lastNotificationResponse = "Sign in with Apple again to act on notifications."
             return
         }
 
         do {
-            _ = try await api.performItemAction(itemID: itemID, request: request, sessionToken: sessionToken)
+            _ = try await api.performItemAction(
+                itemID: itemID,
+                request: request,
+                from: origin,
+                sessionToken: sessionToken
+            )
         } catch {
             logger.error("performItemAction failed: \(error.localizedDescription, privacy: .public)")
             lastNotificationResponse = error.localizedDescription
@@ -616,8 +625,10 @@ final class NotificationManager: NSObject, ObservableObject {
     ) async {
         let previous = preferences
         apply(&preferences)
-        // Until the server answers, either value that asks for Face ID wins.
-        unconfirmedPreviousPreferences = unconfirmedPreviousPreferences ?? previous
+        // Until the server answers, either value that asks for Face ID wins. An earlier
+        // unconfirmed write stays unconfirmed until a read from the server settles it.
+        let earlierUnconfirmed = unconfirmedPreviousPreferences
+        unconfirmedPreviousPreferences = earlierUnconfirmed ?? previous
         rememberApprovalAuthentication()
         isSavingDailyRoundupPreference = true
         dailyRoundupPreferenceError = nil
@@ -634,7 +645,7 @@ final class NotificationManager: NSObject, ObservableObject {
         guard AppleAccountManager.shared.userID != nil,
               let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
             preferences = previous
-            unconfirmedPreviousPreferences = nil
+            unconfirmedPreviousPreferences = earlierUnconfirmed
             rememberApprovalAuthentication()
             dailyRoundupPreferenceRequiresSignIn = appSessionManager.sessionState != .refreshing
             logger.debug("updatePreferences has no session")
@@ -651,7 +662,7 @@ final class NotificationManager: NSObject, ObservableObject {
                 CowtailAPIError.refused(message),
                 restoring: Self.reverting(change, in: preferences, to: previous)
             )
-            unconfirmedPreviousPreferences = nil
+            unconfirmedPreviousPreferences = earlierUnconfirmed
             rememberApprovalAuthentication()
         } catch {
             // The change may have landed: read the server before keeping or restoring it.
@@ -862,7 +873,13 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         )
 
         if let request, let itemID = payload.userInfo["itemId"] {
-            await NotificationManager.shared.performItemAction(itemID: itemID, request: request)
+            await NotificationManager.shared.performItemAction(
+                itemID: itemID,
+                request: request,
+                from: ItemNotifications.origin(
+                    categoryIdentifier: response.notification.request.content.categoryIdentifier
+                )
+            )
             await MainActor.run {
                 NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)
             }

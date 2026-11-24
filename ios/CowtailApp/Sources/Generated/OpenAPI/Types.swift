@@ -224,11 +224,13 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
     internal func performItemAction(
         path: Operations.PerformItemAction.Input.Path,
+        query: Operations.PerformItemAction.Input.Query = .init(),
         headers: Operations.PerformItemAction.Input.Headers = .init(),
         body: Operations.PerformItemAction.Input.Body
     ) async throws -> Operations.PerformItemAction.Output {
         try await performItemAction(Operations.PerformItemAction.Input(
             path: path,
+            query: query,
             headers: headers,
             body: body
         ))

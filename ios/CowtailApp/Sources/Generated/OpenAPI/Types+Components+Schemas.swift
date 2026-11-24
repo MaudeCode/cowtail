@@ -3172,25 +3172,92 @@ extension Components {
             internal var item: Components.Schemas.ItemRecord
             /// - Remark: Generated from `#/components/schemas/ItemGetResponse/events`.
             internal var events: [Components.Schemas.ItemEventRecord]
+            /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload`.
+            internal struct FixesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/id`.
+                internal var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/timestamp`.
+                internal var timestamp: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/alertIds`.
+                internal var alertIds: [Swift.String]
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/description`.
+                internal var description: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/rootCause`.
+                internal var rootCause: Swift.String
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/scope`.
+                internal enum ScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case reactive = "reactive"
+                    case weekly = "weekly"
+                    case monthly = "monthly"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/scope`.
+                internal var scope: Components.Schemas.ItemGetResponse.FixesPayloadPayload.ScopePayload
+                /// - Remark: Generated from `#/components/schemas/ItemGetResponse/FixesPayload/commit`.
+                internal var commit: Swift.String?
+                /// Creates a new `FixesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                ///   - timestamp:
+                ///   - alertIds:
+                ///   - description:
+                ///   - rootCause:
+                ///   - scope:
+                ///   - commit:
+                internal init(
+                    id: Swift.String,
+                    timestamp: Swift.Int,
+                    alertIds: [Swift.String],
+                    description: Swift.String,
+                    rootCause: Swift.String,
+                    scope: Components.Schemas.ItemGetResponse.FixesPayloadPayload.ScopePayload,
+                    commit: Swift.String? = nil
+                ) {
+                    self.id = id
+                    self.timestamp = timestamp
+                    self.alertIds = alertIds
+                    self.description = description
+                    self.rootCause = rootCause
+                    self.scope = scope
+                    self.commit = commit
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case id
+                    case timestamp
+                    case alertIds
+                    case description
+                    case rootCause
+                    case scope
+                    case commit
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemGetResponse/fixes`.
+            internal typealias FixesPayload = [Components.Schemas.ItemGetResponse.FixesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/ItemGetResponse/fixes`.
+            internal var fixes: Components.Schemas.ItemGetResponse.FixesPayload?
             /// Creates a new `ItemGetResponse`.
             ///
             /// - Parameters:
             ///   - ok:
             ///   - item:
             ///   - events:
+            ///   - fixes:
             internal init(
                 ok: Swift.Bool,
                 item: Components.Schemas.ItemRecord,
-                events: [Components.Schemas.ItemEventRecord]
+                events: [Components.Schemas.ItemEventRecord],
+                fixes: Components.Schemas.ItemGetResponse.FixesPayload? = nil
             ) {
                 self.ok = ok
                 self.item = item
                 self.events = events
+                self.fixes = fixes
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case item
                 case events
+                case fixes
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemEventRecord`.

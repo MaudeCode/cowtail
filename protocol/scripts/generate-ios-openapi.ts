@@ -20,6 +20,7 @@ import {
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
   healthResponseSchema,
+  itemActionQuerySchema,
   itemActionRequestSchema,
   itemActionSchema,
   itemEventRecordSchema,
@@ -416,6 +417,7 @@ registry.registerPath({
   security: [{ appSession: [] }],
   request: {
     params: z.object({ id: nonEmptyStringSchema }),
+    query: itemActionQuerySchema,
     body: {
       required: true,
       content: jsonContent(ItemActionRequest),
