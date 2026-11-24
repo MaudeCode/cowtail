@@ -268,6 +268,18 @@ test("the iOS start route requires a hand-off challenge", async () => {
   expect(response.status).toBe(400);
 });
 
+test("the start route refuses new logins while 20 are pending, until they expire", async () => {
+  const t = newBackend();
+  for (let index = 0; index < 20; index += 1) await startLogin(t, "client=web");
+
+  const refused = await get(t, "/api/auth/oidc/start?client=web");
+  expect(refused.status).toBe(429);
+  expect(await t.run((ctx) => ctx.db.query("oidcLogins").collect())).toHaveLength(20);
+
+  await advance(t, 10 * 60_000);
+  await startLogin(t, "client=web");
+});
+
 test.each([
   { name: "a second time", redeemTwice: true, wrongVerifier: false, waitMs: 0 },
   { name: "with the wrong verifier", redeemTwice: false, wrongVerifier: true, waitMs: 0 },

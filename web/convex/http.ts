@@ -1599,19 +1599,22 @@ app.get("/api/auth/oidc/start", async (c) => {
     return textPage("client=ios requires a base64url S256 handoff_challenge", 400);
   }
 
+  const state = randomBase64Url();
+  const nonce = randomBase64Url();
+  const codeVerifier = randomBase64Url();
+  const login = await c.env.runMutation(internal.authSessions.createOidcLogin, {
+    stateHash: await sha256Hex(state),
+    codeVerifier,
+    nonce,
+    client,
+    handoffChallenge: client === "ios" ? handoffChallenge : undefined,
+  });
+  if (!login.admitted) {
+    return textPage("Too many sign-ins in progress. Try again in a few minutes.", 429);
+  }
+
   try {
     const discovery = await fetchOidcDiscovery(oidc.config);
-    const state = randomBase64Url();
-    const nonce = randomBase64Url();
-    const codeVerifier = randomBase64Url();
-    await c.env.runMutation(internal.authSessions.createOidcLogin, {
-      stateHash: await sha256Hex(state),
-      codeVerifier,
-      nonce,
-      client,
-      handoffChallenge: client === "ios" ? handoffChallenge : undefined,
-    });
-
     const authorize = new URL(discovery.authorizationEndpoint);
     authorize.search = new URLSearchParams({
       response_type: "code",

@@ -198,6 +198,11 @@ export const OIDC_HANDOFF_TTL_MS = 60 * 1000;
 
 const oidcClientValidator = v.union(v.literal("web"), v.literal("ios"));
 
+// Admission control for the unauthenticated start route. A single owner never has many
+// logins in flight, so at most 20 unexpired rows exist, about 120 an hour: within what the
+// hourly cleanup deletes.
+export const OIDC_PENDING_LOGIN_LIMIT = 20;
+
 export const createOidcLogin = internalMutation({
   args: {
     stateHash: v.string(),
@@ -207,7 +212,17 @@ export const createOidcLogin = internalMutation({
     handoffChallenge: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("oidcLogins", { ...args, expiresAt: Date.now() + OIDC_LOGIN_TTL_MS });
+    const now = Date.now();
+    const pending = await ctx.db
+      .query("oidcLogins")
+      .withIndex("by_expiresAt", (q) => q.gt("expiresAt", now))
+      .take(OIDC_PENDING_LOGIN_LIMIT);
+    if (pending.length >= OIDC_PENDING_LOGIN_LIMIT) {
+      return { admitted: false };
+    }
+
+    await ctx.db.insert("oidcLogins", { ...args, expiresAt: now + OIDC_LOGIN_TTL_MS });
+    return { admitted: true };
   },
 });
 
