@@ -1993,6 +1993,10 @@
                   "$ref": "#/components/schemas/HermesCronJob"
                 }
               },
+              "cronJobCount": {
+                "type": "integer",
+                "minimum": 0
+              },
               "failingCronCount": {
                 "type": "integer",
                 "minimum": 0
@@ -2002,6 +2006,10 @@
                 "items": {
                   "$ref": "#/components/schemas/HermesIncident"
                 }
+              },
+              "incidentCount": {
+                "type": "integer",
+                "minimum": 0
               },
               "budgetOrder": {
                 "type": "array",

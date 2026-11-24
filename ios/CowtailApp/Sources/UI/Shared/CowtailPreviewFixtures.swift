@@ -292,6 +292,7 @@ enum CowtailPreviewFixtures {
                     failing: false
                 ),
             ],
+            cronJobCount: 3,
             failingCronCount: 1,
             incidents: [
                 HermesStatus.Incident(
@@ -304,6 +305,7 @@ enum CowtailPreviewFixtures {
                     itemTitle: "Nightly backup verify failed"
                 ),
             ],
+            incidentCount: 1,
             kanban: HermesStatus.Kanban(blocked: 2, running: 1),
             budget: [HermesStatus.Limit(key: "today", value: "62%")],
             rateLimits: [HermesStatus.Limit(key: "anthropic", value: "ok")]

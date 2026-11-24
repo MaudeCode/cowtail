@@ -161,6 +161,7 @@ extension CowtailAPI {
                             failing: job.failing
                         )
                     },
+                    cronJobCount: status.cronJobCount ?? 0,
                     failingCronCount: status.failingCronCount ?? 0,
                     incidents: (status.incidents ?? []).map { incident in
                         HermesStatus.Incident(
@@ -174,6 +175,7 @@ extension CowtailAPI {
                             itemTitle: incident.itemTitle
                         )
                     },
+                    incidentCount: status.incidentCount ?? 0,
                     kanban: snapshot.kanban.map { HermesStatus.Kanban(blocked: $0.blocked, running: $0.running) },
                     budget: limits(
                         snapshot.budget?.additionalProperties.mapValues { limitText($0?.value1, $0?.value2, $0?.value3) },

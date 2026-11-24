@@ -160,12 +160,12 @@ export default function Hermes() {
       <div>
         <Section
           label="Cron"
-          detail={status ? `${(status.cronJobs ?? []).length} jobs` : undefined}
+          detail={status?.cronJobCount === undefined ? undefined : `${status.cronJobCount} jobs`}
         >
           {error && <QueryError error={error} />}
           {status && <Cron status={status} now={now} />}
         </Section>
-        <Section label="Cron incidents" detail={status?.incidents?.length}>
+        <Section label="Cron incidents" detail={status?.incidentCount}>
           {status && <Incidents status={status} />}
         </Section>
         <Section label="Recent approvals and answers">

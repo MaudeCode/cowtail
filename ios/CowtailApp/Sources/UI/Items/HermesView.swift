@@ -46,12 +46,12 @@ struct HermesView: View {
         }
         .padding(.vertical, 8)
 
-        CowtailSectionHeader(title: "Cron", detail: "\(heartbeat.cronJobs.count) jobs")
+        CowtailSectionHeader(title: "Cron", detail: "\(heartbeat.cronJobCount) jobs")
         ForEach(heartbeat.cronJobs) { job in
             cronRow(job)
         }
 
-        CowtailSectionHeader(title: "Cron incidents", detail: "\(heartbeat.incidents.count)")
+        CowtailSectionHeader(title: "Cron incidents", detail: "\(heartbeat.incidentCount)")
         if heartbeat.incidents.isEmpty {
             note("No open cron incidents.")
         }

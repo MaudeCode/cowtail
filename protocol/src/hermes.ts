@@ -115,9 +115,11 @@ export const hermesStatusResponseSchema = z.object({
       statusLevel: hermesStatusLevelSchema.optional(),
       // The snapshot's jobs, failing first, otherwise in Hermes's order.
       cronJobs: z.array(hermesStatusCronJobSchema).optional(),
+      cronJobCount: z.number().int().nonnegative().optional(),
       failingCronCount: z.number().int().nonnegative().optional(),
       // The snapshot's open incidents, in Hermes's order.
       incidents: z.array(hermesStatusIncidentSchema).optional(),
+      incidentCount: z.number().int().nonnegative().optional(),
       // The snapshot's budget and rate-limit keys in the order to show them.
       budgetOrder: z.array(z.string()).optional(),
       rateLimitOrder: z.array(z.string()).optional(),

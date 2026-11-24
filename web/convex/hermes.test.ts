@@ -358,7 +358,7 @@ describe("Hermes status for the owner", () => {
       ["job-3", true],
       ["job-1", false],
     ]);
-    expect(current?.failingCronCount).toBe(2);
+    expect(current).toMatchObject({ cronJobCount: 3, failingCronCount: 2, incidentCount: 2 });
   });
 
   test("budget and rate-limit keys come in name order", async () => {

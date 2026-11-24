@@ -46,7 +46,7 @@ export default function HermesSummary({
       </KeyValue>
       <KeyValue label="Cron">
         {failing > 0 && <span className="text-accent-text">{failing} failing ·</span>}
-        <span>{(status.cronJobs ?? []).length} jobs</span>
+        <span>{status.cronJobCount ?? 0} jobs</span>
       </KeyValue>
     </Section>
   );

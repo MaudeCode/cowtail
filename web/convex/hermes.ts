@@ -231,6 +231,7 @@ export const getStatus = internalQuery({
     const age = now - status.receivedAt;
     const missingItemOpen = Boolean(await openItemByDedupeKey(ctx, COWTAIL, HEARTBEAT_MISSING_KEY));
     const jobs = cronJobs(snapshot);
+    const linkedIncidents = await incidents(ctx, snapshot);
     return {
       status: {
         receivedAt: status.receivedAt,
@@ -238,8 +239,10 @@ export const getStatus = internalQuery({
         snapshot,
         statusLevel: statusLevel(age, missingItemOpen),
         cronJobs: jobs,
+        cronJobCount: jobs.length,
         failingCronCount: jobs.filter((job) => job.failing).length,
-        incidents: await incidents(ctx, snapshot),
+        incidents: linkedIncidents,
+        incidentCount: linkedIncidents.length,
         budgetOrder: Object.keys(snapshot.budget ?? {}).sort(),
         rateLimitOrder: Object.keys(snapshot.rateLimits ?? {}).sort(),
       },

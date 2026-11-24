@@ -48,8 +48,10 @@ struct HermesStatus: Equatable, Sendable {
         var model: String?
         var provider: String?
         var cronJobs: [CronJob] = []
+        var cronJobCount = 0
         var failingCronCount = 0
         var incidents: [Incident] = []
+        var incidentCount = 0
         var kanban: Kanban?
         var budget: [Limit] = []
         var rateLimits: [Limit] = []

@@ -3049,10 +3049,14 @@ extension Components {
                 internal var statusLevel: Components.Schemas.HermesStatusResponse.StatusPayload.StatusLevelPayload?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/cronJobs`.
                 internal var cronJobs: [Components.Schemas.HermesCronJob]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/cronJobCount`.
+                internal var cronJobCount: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/failingCronCount`.
                 internal var failingCronCount: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/incidents`.
                 internal var incidents: [Components.Schemas.HermesIncident]?
+                /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/incidentCount`.
+                internal var incidentCount: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/budgetOrder`.
                 internal var budgetOrder: [Swift.String]?
                 /// - Remark: Generated from `#/components/schemas/HermesStatusResponse/status/rateLimitOrder`.
@@ -3065,8 +3069,10 @@ extension Components {
                 ///   - snapshot:
                 ///   - statusLevel:
                 ///   - cronJobs:
+                ///   - cronJobCount:
                 ///   - failingCronCount:
                 ///   - incidents:
+                ///   - incidentCount:
                 ///   - budgetOrder:
                 ///   - rateLimitOrder:
                 internal init(
@@ -3075,8 +3081,10 @@ extension Components {
                     snapshot: Components.Schemas.HermesStatusResponse.StatusPayload.SnapshotPayload,
                     statusLevel: Components.Schemas.HermesStatusResponse.StatusPayload.StatusLevelPayload? = nil,
                     cronJobs: [Components.Schemas.HermesCronJob]? = nil,
+                    cronJobCount: Swift.Int? = nil,
                     failingCronCount: Swift.Int? = nil,
                     incidents: [Components.Schemas.HermesIncident]? = nil,
+                    incidentCount: Swift.Int? = nil,
                     budgetOrder: [Swift.String]? = nil,
                     rateLimitOrder: [Swift.String]? = nil
                 ) {
@@ -3085,8 +3093,10 @@ extension Components {
                     self.snapshot = snapshot
                     self.statusLevel = statusLevel
                     self.cronJobs = cronJobs
+                    self.cronJobCount = cronJobCount
                     self.failingCronCount = failingCronCount
                     self.incidents = incidents
+                    self.incidentCount = incidentCount
                     self.budgetOrder = budgetOrder
                     self.rateLimitOrder = rateLimitOrder
                 }
@@ -3096,8 +3106,10 @@ extension Components {
                     case snapshot
                     case statusLevel
                     case cronJobs
+                    case cronJobCount
                     case failingCronCount
                     case incidents
+                    case incidentCount
                     case budgetOrder
                     case rateLimitOrder
                 }

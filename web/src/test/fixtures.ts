@@ -118,7 +118,9 @@ export const hermesStatus: HermesStatusResponse = {
         failing: false,
       },
     ],
+    cronJobCount: 2,
     failingCronCount: 1,
+    incidentCount: 1,
     budgetOrder: ["today"],
     rateLimitOrder: ["anthropic"],
     incidents: [
