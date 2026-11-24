@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import { formatAge, formatDuration, formatReturnTime } from "../../lib/format";
 import { investigationLabel, toneText, urgencyTone } from "../../lib/itemPresentation";
-import { useItemAction } from "../../lib/queries";
+import { useItemAction, useItemActionError } from "../../lib/queries";
 import { useNow } from "../../lib/useNow";
 import { Badge, IconButton } from "../ui";
 import ItemActions, { ActionError } from "./ItemActions";
@@ -23,20 +23,18 @@ function NeedsYouStatus({ item, now }: { item: ItemRecord; now: number }) {
   return <span className={toneText[urgencyTone[item.urgency]]}>{status}</span>;
 }
 
-// A snoozed item comes back now. Where it lists then is the server's to decide, so the button
-// shows busy until the reply.
+// A snoozed item comes back now; the row moves at once to the section it returns to.
 function Unsnooze({ item }: { item: ItemRecord }) {
   const action = useItemAction(item.id);
+  const error = useItemActionError(item.id);
   return (
     <div className="ml-auto flex shrink-0 flex-col items-end gap-1.5">
       <IconButton
         icon="refresh"
         label="Unsnooze"
-        disabled={action.isPending}
-        aria-busy={action.isPending}
         onClick={() => action.mutate({ type: "unsnooze" })}
       />
-      <ActionError error={action.error} />
+      <ActionError error={error} />
     </div>
   );
 }

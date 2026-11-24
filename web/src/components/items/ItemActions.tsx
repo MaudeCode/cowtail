@@ -1,10 +1,11 @@
 import type { ItemActionRequest, ItemRecord } from "@maudecode/cowtail-protocol";
+import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { errorMessage } from "../../lib/api";
 import { formatReturnTime } from "../../lib/format";
-import { useItemAction } from "../../lib/queries";
-import { snoozePresets } from "../../lib/snooze";
+import { snoozePresetLabel } from "../../lib/itemPresentation";
+import { snoozeOptionsQuery, useItemAction, useItemActionError } from "../../lib/queries";
 import { Icon, IconButton } from "../ui";
 
 const optionButton =
@@ -14,6 +15,7 @@ const optionButton =
 // every other action is an icon button.
 export default function ItemActions({ item }: { item: ItemRecord }) {
   const action = useItemAction(item.id);
+  const actionError = useItemActionError(item.id);
   const [panel, setPanel] = useState<"reply" | "snooze" | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -133,7 +135,7 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
           onPick={(key, until) => send(key, { type: "snooze", until })}
         />
       )}
-      <ActionError error={action.error} />
+      <ActionError error={actionError} />
     </div>
   );
 }
@@ -147,8 +149,8 @@ export function ActionError({ error }: { error: unknown }) {
   );
 }
 
-// The popover from the Snooze button: four presets with the time each returns at, then a
-// custom date and time.
+// The popover from the Snooze button: the server's four presets with the time each returns
+// at, then a custom date and time.
 function SnoozePicker({
   busy,
   onClose,
@@ -158,7 +160,8 @@ function SnoozePicker({
   onClose: () => void;
   onPick: (key: string, until: number) => void;
 }) {
-  const [now] = useState(() => new Date());
+  const [now] = useState(() => Date.now());
+  const options = useQuery(snoozeOptionsQuery());
   const [custom, setCustom] = useState("");
   const customAt = custom ? new Date(custom).getTime() : Number.NaN;
   const pickCustom = (event: FormEvent) => {
@@ -176,18 +179,19 @@ function SnoozePicker({
       <h3 className="py-1.5 font-mono text-[0.6rem] font-normal uppercase tracking-[0.13em] text-gray-600">
         Snooze until
       </h3>
-      {snoozePresets(now).map(({ label, until }) => (
+      {options.error && <ActionError error={options.error} />}
+      {options.data?.map(({ preset, until }) => (
         <button
-          key={label}
+          key={preset}
           type="button"
           disabled={busy !== null}
-          aria-busy={busy === `snooze-${label}`}
-          onClick={() => onPick(`snooze-${label}`, until)}
+          aria-busy={busy === `snooze-${preset}`}
+          onClick={() => onPick(`snooze-${preset}`, until)}
           className="flex cursor-pointer items-center justify-between gap-3 border-b border-line py-1.5 text-left text-[0.8rem] disabled:cursor-default disabled:opacity-50"
         >
-          <span>{label}</span>
+          <span>{snoozePresetLabel[preset]}</span>
           <span className="font-mono text-[0.7rem] text-gray-600">
-            {formatReturnTime(until, now.getTime())}
+            {formatReturnTime(until, now)}
           </span>
         </button>
       ))}
@@ -204,7 +208,7 @@ function SnoozePicker({
           type="submit"
           icon="check"
           label="Snooze until this time"
-          disabled={busy !== null || !(customAt > now.getTime())}
+          disabled={busy !== null || !(customAt > now)}
           aria-busy={busy === "snooze-custom"}
         />
       </form>
