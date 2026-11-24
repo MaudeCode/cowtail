@@ -14,8 +14,20 @@ const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 const OPENERS = new Set(["(", "[", "{"]);
 const CLOSERS = new Set([")", "]", "}"]);
 
-// The last comparison outside any brackets, braces or quotes, where comparisons bind
-// loosest: in `a + b > 1` it splits off `1`, and `{x!="y"}` and `(a > 1)` hide theirs.
+const IDENTIFIER = /[A-Za-z0-9_:]/;
+const SET_OPERATORS = ["and", "or", "unless"];
+
+// A set operator (`and`, `or`, `unless`) at `i`, as a whole word.
+function setOperatorAt(expr: string, i: number): boolean {
+  if (i > 0 && IDENTIFIER.test(expr[i - 1])) return false;
+  return SET_OPERATORS.some(
+    (word) => expr.startsWith(word, i) && !IDENTIFIER.test(expr[i + word.length] ?? ""),
+  );
+}
+
+// The last comparison outside any brackets, braces or quotes: in `a + b > 1` it splits off
+// `1`, and `{x!="y"}` and `(a > 1)` hide theirs. A top-level set operator binds looser than any
+// comparison, so the expression's root is no comparison and there is none to split.
 function lastTopLevelComparison(expr: string): { at: number; op: ThresholdOp } | undefined {
   let depth = 0;
   let quote: string | undefined;
@@ -31,6 +43,7 @@ function lastTopLevelComparison(expr: string): { at: number; op: ThresholdOp } |
     else if (OPENERS.has(char)) depth += 1;
     else if (CLOSERS.has(char)) depth -= 1;
     else if (depth === 0) {
+      if (setOperatorAt(expr, i)) return undefined;
       const two = expr.slice(i, i + 2);
       if (two === ">=" || two === "<=" || two === "==" || two === "!=") {
         found = { at: i, op: two };
@@ -69,6 +82,8 @@ export function generatorExpression(generatorURL: string): string | undefined {
 
 export type GraphAlert = {
   generatorURL?: string;
+  // The alert's labels; the series they name are the alert's own.
+  labels?: Record<string, unknown>;
   firedAt: number;
   resolvedAt?: number;
 };
@@ -112,8 +127,16 @@ export async function itemGraph(
     return unavailable(range, error instanceof Error ? error.message : "Prometheus query failed");
   }
 
-  // NaN and ±Inf samples have no place on a line and no JSON form.
-  const series = results.slice(0, itemGraphMaxSeries).map((result) => ({
+  // A series is the alert's when no label it shares with the alert differs; comparisons and
+  // the rule's own labels add the rest. NaN and ±Inf samples have no place on a line and no
+  // JSON form.
+  const labels = alert.labels ?? {};
+  const own = results.filter((result) =>
+    Object.entries(result.metric).every(
+      ([key, value]) => key === "__name__" || !(key in labels) || String(labels[key]) === value,
+    ),
+  );
+  const series = own.slice(0, itemGraphMaxSeries).map((result) => ({
     labels: result.metric,
     points: result.values
       .map(([at, value]) => ({ at: Math.round(at * 1000), value: Number(value) }))

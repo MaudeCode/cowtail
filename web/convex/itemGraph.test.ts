@@ -18,6 +18,9 @@ describe("splitThreshold", () => {
     ["(a > 1) and b", { query: "(a > 1) and b" }],
     ["a > 1 and b", { query: "a > 1 and b" }],
     ["a > 1e999", { query: "a > 1e999" }],
+    ["a > 1 and b > 2", { query: "a > 1 and b > 2" }],
+    ["up unless down > 0", { query: "up unless down > 0" }],
+    ["errors_and_warnings > 3", { query: "errors_and_warnings", threshold: { op: ">", value: 3 } }],
     ["", { query: "" }],
   ])("%j", (expr, split) => {
     expect(splitThreshold(expr)).toEqual(split);
@@ -135,6 +138,19 @@ test("graph returns at most 10 series of at most 120 points", async () => {
 
   expect(series?.length).toBe(10);
   expect(series?.map((line) => line.points.length)).toEqual(Array(10).fill(120));
+});
+
+test("graph draws only the series of the alert's own labels", async () => {
+  const t = newBackend();
+  const itemId = await seedAlertItem(t, {
+    generatorURL: graphUrl("container_memory_working_set_bytes > 536870912"),
+    labels: { alertname: "PodMemoryHigh", pod: "pod-11", severity: "critical" },
+  });
+  stubPrometheus(() => rangeResult(12, 2));
+
+  const { series } = await graph(t, itemId);
+
+  expect(series?.map((line) => line.labels)).toEqual([{ pod: "pod-11" }]);
 });
 
 test.each([

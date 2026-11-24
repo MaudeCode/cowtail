@@ -914,6 +914,7 @@ export const graphAlert = internalQuery({
     return {
       alert: {
         generatorURL: alert.generatorURL,
+        labels: alert.labels,
         firedAt: alert.startsAt ?? alert.timestamp,
         resolvedAt: alert.status === "resolved" ? (alert.resolvedAt ?? alert.endsAt) : undefined,
       },
