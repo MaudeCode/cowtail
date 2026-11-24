@@ -14,6 +14,7 @@ Keep this document scrubbed:
 - Use `bun`, not `npm`.
 - Treat Kubernetes and runtime infrastructure as GitOps-managed.
 - Do not patch running cluster resources directly when the source of truth lives in a separate infrastructure repo.
+- A checkout's `web/.env` can hold the live Convex deployment's address and admin key, and worktrees get a copy of it. Never run `convex dev`, `convex deploy`, `convex run` or `convex import` from a checkout. Test Convex code in memory, and let the release workflow deploy it.
 - Keep deployment documentation generic and non-identifying.
 
 ## Protocol Boundary
@@ -59,6 +60,10 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 - Build or change one of those screens from its figure (each has an `id`) and the page's Rules section. The figure decides layout, grouping, order and controls. The ticket decides behavior, data and API.
 - When a screen must differ from its figure, change the figure in the same pull request.
 - Review a UI pull request against its figures as well as its ticket.
+
+## Phone Validation
+
+The owner declined the physical-phone validation gate, in advance, for every ticket of the item rewrite epic (decision of 2026-11-23). For those tickets, record the device result as `declined`, offer no phone build, and merge on the simulator unit and UI tests in CI. The owner tries the finished app on a phone once, after the epic. A ticket outside that epic follows the usual gate.
 
 ## CI Runners
 
