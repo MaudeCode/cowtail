@@ -137,6 +137,23 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.incidents["incident-1"], storageOutage)
     }
 
+    func testAReadFromBeforeAWriteSettledIsDiscarded() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        await api.holdIncidentRead()
+        let poll = Task { await store.loadIncident(id: "incident-1") }
+        await api.waitUntilIncidentReadHeld()
+        await store.change(.remove(itemID: approval.id), incidentID: "incident-1")
+        await api.releaseIncidentRead()
+        await poll.value
+
+        // The poll read the incident before the removal; it cannot bring the member back.
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+    }
+
     func testAnAddWaitingOnTheServerShowsAddAnItemBusy() async {
         let api = FakeItemAPI(inbox: .empty)
         await api.seedIncident(storageOutage)
@@ -920,6 +937,9 @@ private actor FakeItemAPI: CowtailAPIClient {
     private var incident: IncidentDetail?
     private(set) var sentIncidentChanges: [IncidentChange] = []
     private var failsIncidentReads = false
+    private var holdsIncidentRead = false
+    private var heldIncidentRead: CheckedContinuation<Void, Never>?
+    private var heldReadWaiters: [CheckedContinuation<Void, Never>] = []
     private var holdsIncidentChange = false
     private var heldIncidentChange: CheckedContinuation<Error?, Never>?
     private var heldIncidentWaiters: [CheckedContinuation<Void, Never>] = []
@@ -950,7 +970,33 @@ private actor FakeItemAPI: CowtailAPIClient {
         if failsIncidentReads {
             throw URLError(.notConnectedToInternet)
         }
-        return incident
+        let snapshot = incident
+        if holdsIncidentRead {
+            holdsIncidentRead = false
+            await withCheckedContinuation { continuation in
+                heldIncidentRead = continuation
+                heldReadWaiters.forEach { $0.resume() }
+                heldReadWaiters = []
+            }
+        }
+        return snapshot
+    }
+
+    /// The next read takes its snapshot now and answers with it once `releaseIncidentRead`.
+    func holdIncidentRead() {
+        holdsIncidentRead = true
+    }
+
+    func waitUntilIncidentReadHeld() async {
+        if heldIncidentRead != nil {
+            return
+        }
+        await withCheckedContinuation { heldReadWaiters.append($0) }
+    }
+
+    func releaseIncidentRead() {
+        heldIncidentRead?.resume()
+        heldIncidentRead = nil
     }
 
     /// Incident reads fail until this is set back.

@@ -132,6 +132,8 @@ final class CowtailStore: ObservableObject {
     }
     /// What the server last said about each incident.
     private var confirmedIncidents: [String: IncidentDetail] = [:]
+    /// Bumped each time a write to the incident settles, so a read taken before is discarded.
+    private var incidentWriteGenerations: [String: Int] = [:]
     /// The last change sent or queued for each incident; the next one waits for it.
     private var incidentChangeQueues: [String: Task<Void, Never>] = [:]
 
@@ -365,8 +367,12 @@ final class CowtailStore: ObservableObject {
             incidentErrors[id] = Self.signInMessage
             return
         }
+        // A read taken before a write settled is older than what the write showed.
+        let generation = incidentWriteGenerations[id, default: 0]
         do {
-            if let detail = try await api.fetchIncident(id: id, sessionToken: token) {
+            let read = try await api.fetchIncident(id: id, sessionToken: token)
+            guard generation == incidentWriteGenerations[id, default: 0] else { return }
+            if let detail = read {
                 // The read says whether each change whose reply was lost landed.
                 pendingIncidentChanges[id]?.removeAll(where: \.unconfirmed)
                 confirm(detail, incidentID: id)
@@ -433,7 +439,11 @@ final class CowtailStore: ObservableObject {
     private func send(_ pending: PendingIncidentChange, incidentID id: String, sessionToken token: String) async {
         incidentChangesInFlight[id] = pending.change
         defer { incidentChangesInFlight[id] = nil }
-        let settle = { self.pendingIncidentChanges[id]?.removeAll { $0.id == pending.id } }
+        // Whatever the outcome, a read that started before it is out of date.
+        let settle = {
+            self.pendingIncidentChanges[id]?.removeAll { $0.id == pending.id }
+            self.incidentWriteGenerations[id, default: 0] += 1
+        }
         do {
             let reply = try await api.changeIncident(id: id, change: pending.change, sessionToken: token)
             settle()
@@ -448,6 +458,8 @@ final class CowtailStore: ObservableObject {
             if let index = pendingIncidentChanges[id]?.firstIndex(where: { $0.id == pending.id }) {
                 pendingIncidentChanges[id]?[index].unconfirmed = true
             }
+            // Only a read started from here on can say whether it landed.
+            incidentWriteGenerations[id, default: 0] += 1
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             incidentErrors[id] = error.localizedDescription
             await loadIncident(id: id)
