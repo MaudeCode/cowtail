@@ -102,6 +102,8 @@ export default defineSchema({
     sources: v.array(v.string()),
     silenceIds: v.array(v.string()),
     silenceError: v.optional(v.string()),
+    // A silence request went unanswered, so Alertmanager may hold one Cowtail has no id for.
+    silenceUnconfirmed: v.optional(v.boolean()),
     // The client's id for the start request, so a retried start finds its window.
     requestId: v.optional(v.string()),
   })

@@ -15,7 +15,13 @@ const RECENT_LIMIT = 20;
 type Window = Doc<"maintenanceWindows">;
 
 export function windowRecord(window: Window, now: number): MaintenanceWindowRecord {
-  const { _id, _creationTime, requestId: _requestId, ...fields } = window;
+  const {
+    _id,
+    _creationTime,
+    requestId: _requestId,
+    silenceUnconfirmed: _silenceUnconfirmed,
+    ...fields
+  } = window;
   return {
     ...fields,
     id: String(_id),
@@ -117,12 +123,14 @@ export const recordSilence = internalMutation({
     id: v.id("maintenanceWindows"),
     silenceIds: v.optional(v.array(v.string())),
     silenceError: v.optional(v.string()),
+    silenceUnconfirmed: v.optional(v.boolean()),
   },
-  handler: async (ctx, { id, silenceIds, silenceError }) => {
+  handler: async (ctx, { id, silenceIds, silenceError, silenceUnconfirmed }) => {
     const window = requireWindow(await ctx.db.get(id));
     await ctx.db.patch(id, {
       silenceIds: [...window.silenceIds, ...(silenceIds ?? [])],
       silenceError,
+      silenceUnconfirmed,
     });
   },
 });
@@ -141,10 +149,20 @@ export const end = internalMutation({
   },
 });
 
-// A window ended early still holds silences until Cowtail expires them; past its end they
-// expire in Alertmanager by themselves.
+// A window ended early still holds silences until Cowtail expires them, and may hold one
+// Alertmanager made without its reply reaching Cowtail; past its end they expire in
+// Alertmanager by themselves.
 function silencesToExpire(window: Window, now: number) {
-  return window.endedAt !== undefined && window.endsAt > now ? window.silenceIds : [];
+  const ended = window.endedAt !== undefined && window.endsAt > now;
+  return {
+    silenceIds: ended ? window.silenceIds : [],
+    unconfirmed: ended && window.silenceUnconfirmed === true,
+  };
+}
+
+function holdsSilences(window: Window, now: number) {
+  const { silenceIds, unconfirmed } = silencesToExpire(window, now);
+  return silenceIds.length > 0 || unconfirmed;
 }
 
 export const leftoverSilences = internalQuery({
@@ -159,21 +177,25 @@ export const windowsWithLeftoverSilences = internalQuery({
       .query("maintenanceWindows")
       .withIndex("by_endsAt", (q) => q.gt("endsAt", now))
       .collect();
-    return running.filter((window) => silencesToExpire(window, now).length > 0).map((w) => w._id);
+    return running.filter((window) => holdsSilences(window, now)).map((window) => window._id);
   },
 });
 
-// The silences Alertmanager expired leave the window; an error says why the rest stay.
+// Silences found in Alertmanager join the window, the ones it expired leave it, and an
+// error says why the rest stay. `found` is set once Alertmanager's list was read.
 export const settleSilences = internalMutation({
   args: {
     id: v.id("maintenanceWindows"),
+    found: v.optional(v.array(v.string())),
     expired: v.array(v.string()),
     silenceError: v.optional(v.string()),
   },
-  handler: async (ctx, { id, expired, silenceError }) => {
+  handler: async (ctx, { id, found, expired, silenceError }) => {
     const window = requireWindow(await ctx.db.get(id));
+    const held = [...new Set([...window.silenceIds, ...(found ?? [])])];
     await ctx.db.patch(id, {
-      silenceIds: window.silenceIds.filter((silenceId) => !expired.includes(silenceId)),
+      silenceIds: held.filter((silenceId) => !expired.includes(silenceId)),
+      silenceUnconfirmed: found ? undefined : window.silenceUnconfirmed,
       silenceError,
     });
   },
@@ -182,7 +204,7 @@ export const settleSilences = internalMutation({
 const leftoverSilencesRef = makeFunctionReference<
   "query",
   { id: Id<"maintenanceWindows">; now: number },
-  string[]
+  { silenceIds: string[]; unconfirmed: boolean }
 >("maintenance:leftoverSilences");
 const windowsWithLeftoverSilencesRef = makeFunctionReference<
   "query",
@@ -191,22 +213,35 @@ const windowsWithLeftoverSilencesRef = makeFunctionReference<
 >("maintenance:windowsWithLeftoverSilences");
 const settleSilencesRef = makeFunctionReference<
   "mutation",
-  { id: Id<"maintenanceWindows">; expired: string[]; silenceError?: string }
+  { id: Id<"maintenanceWindows">; found?: string[]; expired: string[]; silenceError?: string }
 >("maintenance:settleSilences");
 
 /**
  * Expires the silences a window ended early still holds. The end request, a start whose
  * window ended while its silence was being made, and a retry every minute all run it, so a
- * silence Alertmanager could not expire is removed once it answers again.
+ * silence Alertmanager could not expire is removed once it answers again. When a silence's
+ * creation went unanswered, Alertmanager's own list says whether it was made.
  */
 export async function expireWindowSilences(
   ctx: Pick<ActionCtx, "runQuery" | "runMutation">,
   id: Id<"maintenanceWindows">,
 ) {
-  const silenceIds = await ctx.runQuery(leftoverSilencesRef, { id, now: Date.now() });
-  if (silenceIds.length === 0) return;
-  const { expired, error } = await expireSilences(silenceIds);
-  await ctx.runMutation(settleSilencesRef, { id, expired, silenceError: error });
+  const leftover = await ctx.runQuery(leftoverSilencesRef, { id, now: Date.now() });
+  if (leftover.silenceIds.length === 0 && !leftover.unconfirmed) return;
+  let found: string[] | undefined;
+  if (leftover.unconfirmed) {
+    try {
+      found = await windowSilences(String(id));
+    } catch (failure) {
+      const silenceError = `Could not check Alertmanager's silences: ${(failure as Error).message}`;
+      await ctx.runMutation(settleSilencesRef, { id, expired: [], silenceError });
+      return;
+    }
+  }
+  const { expired, error } = await expireSilences([
+    ...new Set([...leftover.silenceIds, ...(found ?? [])]),
+  ]);
+  await ctx.runMutation(settleSilencesRef, { id, found, expired, silenceError: error });
 }
 
 // Runs every minute.
@@ -289,11 +324,40 @@ async function alertmanager(path: string, init: RequestInit) {
   return response;
 }
 
-/** Silences the window's alerts. A window over sources alone needs no silence. */
+// Every silence's comment ends with its window's tag, so a silence whose creation went
+// unanswered can be found again.
+const windowTag = (id: string) => `(cowtail window ${id})`;
+
+/** The silences in Alertmanager still in force for this window. */
+async function windowSilences(id: string): Promise<string[]> {
+  const response = await alertmanager("/api/v2/silences", { method: "GET" });
+  const silences = (await response.json()) as {
+    id: string;
+    comment?: string;
+    createdBy?: string;
+    status?: { state?: string };
+  }[];
+  return silences
+    .filter(
+      (silence) =>
+        silence.createdBy === "cowtail" &&
+        silence.comment?.endsWith(windowTag(id)) &&
+        silence.status?.state !== "expired",
+    )
+    .map((silence) => silence.id);
+}
+
+/**
+ * Silences the window's alerts. A window over sources alone needs no silence. When the request
+ * fails, Alertmanager may still have made the silence, so the window keeps that in doubt.
+ */
 export async function silenceWindow(
   record: MaintenanceWindowRecord,
-): Promise<{ silenceIds?: string[]; silenceError?: string } | undefined> {
+): Promise<
+  { silenceIds?: string[]; silenceError?: string; silenceUnconfirmed?: boolean } | undefined
+> {
   if (!record.allAlerts && record.matchers.length === 0) return undefined;
+  if (!alertmanagerBaseUrl()) return { silenceError: "ALERTMANAGER_BASE_URL is not set" };
   try {
     const response = await alertmanager("/api/v2/silences", {
       method: "POST",
@@ -303,7 +367,7 @@ export async function silenceWindow(
         startsAt: new Date(record.startsAt).toISOString(),
         endsAt: new Date(record.endsAt).toISOString(),
         createdBy: "cowtail",
-        comment: record.title,
+        comment: `${record.title} ${windowTag(record.id)}`,
       }),
     });
     const body = (await response.json().catch(() => null)) as { silenceID?: unknown } | null;
@@ -312,7 +376,7 @@ export async function silenceWindow(
     }
     return { silenceIds: [body.silenceID] };
   } catch (error) {
-    return { silenceError: (error as Error).message };
+    return { silenceError: (error as Error).message, silenceUnconfirmed: true };
   }
 }
 

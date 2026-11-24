@@ -38,11 +38,14 @@ type Call = { method: string; path: string; body: unknown };
 // Every silence leaves the Watchdog firing, so the pipeline check keeps its heartbeat.
 const WATCHDOG_KEPT = { name: "alertname", value: "Watchdog", isRegex: false, isEqual: false };
 
-// Alertmanager's v2 silence API: it records each request and answers `status`, refusing any
-// other URL. `onCreate` runs while a silence is being made, before Alertmanager answers.
+// Alertmanager's v2 silence API: it records each request, keeps the silences it made, and
+// answers `status`, refusing any other URL. `onCreate` runs while a silence is being made,
+// before Alertmanager answers; with `loseCreateReply` it makes the silence and the reply fails.
 function fakeAlertmanager(status = 200, onCreate?: () => Promise<unknown>) {
   const calls: Call[] = [];
-  const fake = { calls, status };
+  const silences: { id: string; comment: string; createdBy: string; status: { state: string } }[] =
+    [];
+  const fake = { calls, status, loseCreateReply: false };
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (url, init) => {
@@ -52,9 +55,20 @@ function fakeAlertmanager(status = 200, onCreate?: () => Promise<unknown>) {
       }
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
       calls.push({ method: init?.method ?? "GET", path, body });
+      const method = init?.method ?? "GET";
+      if (method === "POST" && fake.loseCreateReply) {
+        silences.push({ ...body, id: "silence-1", status: { state: "active" } });
+        throw new TypeError("fetch failed");
+      }
       if (fake.status !== 200) return new Response("down", { status: fake.status });
-      if (init?.method !== "POST") return new Response();
+      if (method === "GET") return Response.json(silences);
+      if (method === "DELETE") {
+        const silence = silences.find((entry) => path.endsWith(`/${entry.id}`));
+        if (silence) silence.status.state = "expired";
+        return new Response();
+      }
       await onCreate?.();
+      silences.push({ ...body, id: "silence-1", status: { state: "active" } });
       return Response.json({ silenceID: "silence-1" });
     }),
   );
@@ -101,7 +115,8 @@ describe("maintenance window silences", () => {
           startsAt: new Date(NOW).toISOString(),
           endsAt: new Date(NOW + HOUR).toISOString(),
           createdBy: "cowtail",
-          comment: "Cluster upgrade",
+          // The window's tag finds the silence again if its reply is lost.
+          comment: `Cluster upgrade (cowtail window ${window.id})`,
         },
       },
     ]);
@@ -185,6 +200,30 @@ describe("maintenance window silences", () => {
     expect(window).toMatchObject({ active: false, silenceIds: [] });
     expect(fake.calls.map(({ method, path }) => `${method} ${path}`)).toEqual([
       "POST /api/v2/silences",
+      "DELETE /api/v2/silence/silence-1",
+    ]);
+  });
+
+  test("a silence made without its reply reaching Cowtail is found and expired when the window ends", async () => {
+    const fake = fakeAlertmanager();
+    fake.loseCreateReply = true;
+    const backend = newBackend();
+    const window = await start(backend, {});
+    expect(window).toMatchObject({ silenceIds: [], silenceError: expect.any(String) });
+
+    fake.loseCreateReply = false;
+    const ended = await request(backend, `/api/me/maintenance-windows/${window.id}/end`, {
+      method: "POST",
+      bearer: SERVICE,
+    });
+
+    expect(maintenanceWindowResponseSchema.parse(ended.json).window).toMatchObject({
+      active: false,
+      silenceIds: [],
+    });
+    expect(fake.calls.map(({ method, path }) => `${method} ${path}`)).toEqual([
+      "POST /api/v2/silences",
+      "GET /api/v2/silences",
       "DELETE /api/v2/silence/silence-1",
     ]);
   });
