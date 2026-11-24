@@ -40,6 +40,10 @@
 	<string>$(COWTAIL_ROUNDUP_TIMEZONE)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>INSendMessageIntent</string>
+	</array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk-Regular.ttf</string>

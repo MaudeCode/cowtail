@@ -65,6 +65,8 @@ struct Item: Identifiable, Hashable, Sendable {
     let source: String
     /// The registered source's display name.
     let sourceName: String
+    /// The registered source's uploaded icon, absent until it has one.
+    let sourceIconURL: URL?
     let kind: ItemKind
     let urgency: ItemUrgency
     var state: ItemState
@@ -105,6 +107,7 @@ struct Item: Identifiable, Hashable, Sendable {
         id: String,
         source: String,
         sourceName: String? = nil,
+        sourceIconURL: URL? = nil,
         kind: ItemKind,
         urgency: ItemUrgency,
         state: ItemState = .open,
@@ -137,6 +140,7 @@ struct Item: Identifiable, Hashable, Sendable {
         self.id = id
         self.source = source
         self.sourceName = sourceName ?? source
+        self.sourceIconURL = sourceIconURL
         self.kind = kind
         self.urgency = urgency
         self.state = state

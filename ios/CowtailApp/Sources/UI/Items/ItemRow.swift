@@ -19,9 +19,12 @@ struct ItemRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 10) {
                 NavigationLink(value: AppRoute.item(item.id)) {
-                    summary
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                    HStack(alignment: .top, spacing: 10) {
+                        ItemSourceIcon(item: item)
+                        summary
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("row.item.\(item.id)")
@@ -118,6 +121,44 @@ struct ItemRow: View {
                 CowtailStatusBadge(title: item.state.rawValue, tint: item.state.tint(palette))
             }
         }
+    }
+}
+
+/// The item's source: its uploaded icon in a small rounded square, or the source's symbol.
+/// VoiceOver reads it as the source's display name, so a row starts with who sent it.
+struct ItemSourceIcon: View {
+    let item: Item
+
+    @Environment(\.cowtailPalette) private var palette
+
+    private static let size: CGFloat = 22
+
+    var body: some View {
+        AsyncImage(url: item.sourceIconURL) { phase in
+            if let image = phase.image {
+                labeled(image.resizable().scaledToFill(), identifier: "icon.source.image")
+            } else {
+                labeled(
+                    Image(systemName: item.sourceSymbol)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(palette.mutedInk),
+                    identifier: "icon.source.symbol"
+                )
+            }
+        }
+        .frame(width: Self.size, height: Self.size)
+        .background(palette.surfaceRaised)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(palette.border, lineWidth: 1))
+    }
+
+    /// A loaded image has no accessibility of its own, so each phase is one image named for the source.
+    private func labeled(_ icon: some View, identifier: String) -> some View {
+        icon
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(item.sourceName)
+            .accessibilityAddTraits(.isImage)
+            .accessibilityIdentifier(identifier)
     }
 }
 

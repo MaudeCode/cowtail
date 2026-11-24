@@ -53,6 +53,8 @@ jobs:
       commit: ${{ steps.number.outputs.commit }}
     env:
       BUNDLE_ID: ${{ secrets.COWTAIL_PRODUCT_BUNDLE_IDENTIFIER }}
+      # The Notification Service Extension, embedded in the app and signed with its own profile.
+      NOTIFICATION_SERVICE_BUNDLE_ID: ${{ secrets.COWTAIL_PRODUCT_BUNDLE_IDENTIFIER }}.NotificationService
       ARCHIVE_PATH: ${{ github.workspace }}/ios/build/ios/Cowtail.xcarchive
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -102,7 +104,9 @@ jobs:
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          bundle-ids: ${{ env.BUNDLE_ID }}
+          bundle-ids: |
+            ${{ env.BUNDLE_ID }}
+            ${{ env.NOTIFICATION_SERVICE_BUNDLE_ID }}
           internal-testing-only: true
 
       - name: Write iOS project env
@@ -141,7 +145,8 @@ jobs:
         working-directory: ios
         env:
           TEAM_ID: ${{ steps.signing.outputs.team-id }}
-          PROFILE: ${{ fromJSON(steps.signing.outputs.profiles)[env.BUNDLE_ID] }}
+          APP_PROFILE: ${{ fromJSON(steps.signing.outputs.profiles)[env.BUNDLE_ID] }}
+          NOTIFICATION_SERVICE_PROFILE: ${{ fromJSON(steps.signing.outputs.profiles)[env.NOTIFICATION_SERVICE_BUNDLE_ID] }}
           MARKETING_VERSION: ${{ steps.version.outputs.marketing_version }}
           BUILD_NUMBER: ${{ steps.number.outputs.build-number }}
         run: |
@@ -156,7 +161,8 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM="${TEAM_ID}" \
-            PROVISIONING_PROFILE_SPECIFIER="${PROFILE}" \
+            COWTAIL_APP_PROFILE="${APP_PROFILE}" \
+            COWTAIL_NOTIFICATION_SERVICE_PROFILE="${NOTIFICATION_SERVICE_PROFILE}" \
             -quiet
 
       - id: publish
