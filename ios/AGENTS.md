@@ -9,7 +9,8 @@ This file covers the native iOS app in [`ios/`](./).
 - Treat `ios/` as a standalone Xcode/XcodeGen project inside the monorepo.
 - Do not add `ios/` to the Bun workspace.
 - Run project generation from `ios/` with `./generate.sh`.
-- Prefer the `iPhone 17 Pro (iOS 26.4)` simulator unless the user asks for a different target.
+- Build with Xcode 27.2, the version CI pins in `.github/actions/setup-ios`.
+- Prefer the `iPhone 17 Pro (iOS 27.2)` simulator unless the user asks for a different target.
 
 ## Product-Specific Values
 
