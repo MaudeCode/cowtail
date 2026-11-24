@@ -17,5 +17,5 @@ jobs:
     runs-on: ubuntu-24.04
     permissions: { statuses: write, pull-requests: read, actions: read }
     steps:
-      - uses: MaudeCode/.github/actions/release-freeze@20b180ba0237e316fcc65d83ed4e8f19ac5e16a7
+      - uses: MaudeCode/.github/actions/release-freeze@418695a65b056488bad5f6a769e49c638832bca9
         with: { mode: pull-request }
