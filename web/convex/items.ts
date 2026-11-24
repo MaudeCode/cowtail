@@ -34,7 +34,8 @@ import {
 } from "./itemValidators";
 import { fixesForAlert } from "./fixes";
 import { findPriorOccurrences } from "./priorOccurrences";
-import { effectivePreferences, preferencesRow } from "./notificationPreferences";
+import { withRunbookCalls } from "./runbookModel";
+import { approvalsNeedAuth, preferencesRow } from "./notificationPreferences";
 import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
 import { sourceInfo } from "./sources";
@@ -401,13 +402,6 @@ function investigationResult(alert: Doc<"alerts">) {
   return rootCause || action || ownerNote ? { rootCause, action, ownerNote } : undefined;
 }
 
-async function approvalsNeedAuth(ctx: QueryCtx) {
-  const owner = cowtailOwnerUserId();
-  return owner
-    ? effectivePreferences(await preferencesRow(ctx, owner)).requireAuthForApprovals
-    : false;
-}
-
 // The app badge: open items that need the owner.
 // ponytail: reads every open item per push; add a counter when open items number thousands.
 export async function ownerBadgeCount(ctx: QueryCtx) {
@@ -436,7 +430,7 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     needsOwner: itemNeedsOwner(item, workflow),
     needsOwnerWhenOpen:
       item.state === "snoozed" ? itemNeedsOwner({ ...item, state: "open" }, workflow) : undefined,
-    availableActions: itemAvailableActions(item),
+    availableActions: await withRunbookCalls(ctx, itemAvailableActions(item)),
     contextOrder: Object.keys(item.context).sort(),
     alertActions: jobs ? alertOwnerActions(jobs) : undefined,
     investigationResult: alert ? investigationResult(alert) : undefined,

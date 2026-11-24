@@ -22,6 +22,8 @@ export const itemEventTypes = [
   "action_taken",
   "state_changed",
   "resolved",
+  "run_started",
+  "run_finished",
 ] as const;
 
 export const itemKindSchema = z.enum(itemKinds);
@@ -57,6 +59,16 @@ export const itemActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("snooze") }),
   z.object({ type: z.literal("ack") }),
   z.object({ type: z.literal("open"), url: webUrlSchema }),
+  // Runs a runbook script for the item. In an item's `availableActions` the server adds the
+  // script's `confirmText` and `needsAuth`, as the Hermes status shows them, and leaves out a
+  // script Hermes no longer reports.
+  z.object({
+    type: z.literal("run"),
+    scriptId: nonEmptyStringSchema.max(200),
+    label: nonEmptyStringSchema.max(200),
+    confirmText: z.string().optional(),
+    needsAuth: z.boolean().optional(),
+  }),
 ]);
 
 // Producer-owned routing data, returned to the producer untouched.

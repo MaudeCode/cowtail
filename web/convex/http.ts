@@ -32,6 +32,13 @@ import {
   hermesResponseFailRequestSchema,
   hermesSnapshotSchema,
   hermesStatusResponseSchema,
+  runbookRunClaimRequestSchema,
+  runbookRunClaimResponseSchema,
+  runbookRunCompleteRequestSchema,
+  runbookRunGetResponseSchema,
+  runbookRunOutputRequestSchema,
+  runbookRunRequestSchema,
+  runbookRunResponseSchema,
   investigationEvidenceSchema,
   itemActionQuerySchema,
   itemActionRequestSchema,
@@ -1516,6 +1523,12 @@ const codedErrorStatus: Record<string, [number, string]> = {
   RESPONSE_NOT_FOUND: [404, "Response not found"],
   RESPONSE_NOT_CLAIMED: [409, "Response is not claimed with this token"],
   MAINTENANCE_WINDOW_NOT_FOUND: [404, "Maintenance window not found"],
+  UNKNOWN_SCRIPT: [404, "Hermes does not report this script"],
+  RUN_NEEDS_CONFIRM: [400, "This script asks to confirm before it runs"],
+  RUN_NEEDS_AUTH: [403, "This script needs Face ID: run it again in Cowtail"],
+  RUN_NOT_FOUND: [404, "Run not found"],
+  RUN_NOT_CLAIMED: [409, "Run is not claimed with this token"],
+  OUTPUT_OUT_OF_ORDER: [409, "Output batch is out of order"],
 };
 
 function codedErrorResponse(error: unknown) {
@@ -2103,6 +2116,96 @@ app.post("/api/hermes/heartbeat", async (c) => {
     snapshot: parsed.data,
     now: Date.now(),
   });
+  return c.json(okResponseSchema.parse({ ok: true }));
+});
+
+// --- Runbook ----------------------------------------------------------------------------
+
+const RUNBOOK_LEASE_SECONDS = 60;
+
+// POST /api/me/runbook/runs — the owner asks Hermes to run a runbook script
+app.post("/api/me/runbook/runs", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+  const ownerError = requireCowtailOwner(auth);
+  if (ownerError) return ownerError;
+
+  const parsed = runbookRunRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  try {
+    const run = await c.env.runMutation((internal as any).runbook.requestRun, {
+      ...parsed.data,
+      actor: auth.userId,
+      now: Date.now(),
+    });
+    return c.json(runbookRunResponseSchema.parse({ ok: true, run }));
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+});
+
+// GET /api/me/runbook/runs/:id — a run and its output so far
+app.get("/api/me/runbook/runs/:id", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const reply = await c.env.runQuery((internal as any).runbook.getRun, { id: c.req.param("id") });
+  if (!reply) return jsonError("Run not found", 404);
+  return c.json(runbookRunGetResponseSchema.parse({ ok: true, ...reply }));
+});
+
+// POST /api/hermes/runbook-runs/claim — lease the oldest run waiting for Hermes
+app.post("/api/hermes/runbook-runs/claim", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = runbookRunClaimRequestSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const run = await c.env.runMutation((internal as any).runbook.claimRun, {
+    workerId: parsed.data.workerId ?? "hermes-default-gateway",
+    claimToken: generateClaimToken(),
+    leaseSeconds: parsed.data.leaseSeconds ?? RUNBOOK_LEASE_SECONDS,
+    now: Date.now(),
+  });
+  return c.json(runbookRunClaimResponseSchema.parse({ ok: true, run: run ?? undefined }));
+});
+
+// POST /api/hermes/runbook-runs/:id/output — one batch of a claimed run's output
+app.post("/api/hermes/runbook-runs/:id/output", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = runbookRunOutputRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  try {
+    await c.env.runMutation((internal as any).runbook.appendOutput, {
+      id: c.req.param("id"),
+      ...parsed.data,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
+  return c.json(okResponseSchema.parse({ ok: true }));
+});
+
+// POST /api/hermes/runbook-runs/:id/complete — the script exited
+app.post("/api/hermes/runbook-runs/:id/complete", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = runbookRunCompleteRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  try {
+    await c.env.runMutation((internal as any).runbook.completeRun, {
+      id: c.req.param("id"),
+      ...parsed.data,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return codedErrorResponse(error);
+  }
   return c.json(okResponseSchema.parse({ ok: true }));
 });
 
