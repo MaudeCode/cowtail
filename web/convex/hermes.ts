@@ -114,7 +114,7 @@ export const recordHeartbeat = internalMutation({
       await ctx.db.insert("hermesStatus", { snapshot, receivedAt: now });
     }
 
-    const missing = await openItemByDedupeKey(ctx, HEARTBEAT_MISSING_KEY);
+    const missing = await openItemByDedupeKey(ctx, COWTAIL, HEARTBEAT_MISSING_KEY);
     if (missing) {
       await transitionItem(ctx, missing, "resolved", {
         actor: COWTAIL,
@@ -146,7 +146,7 @@ export const checkHeartbeat = internalMutation({
     const now = Date.now();
     const status = await ctx.db.query("hermesStatus").first();
     if (!status || now - status.receivedAt < HEARTBEAT_MISSING_AFTER_MS) return;
-    if (await openItemByDedupeKey(ctx, HEARTBEAT_MISSING_KEY)) return;
+    if (await openItemByDedupeKey(ctx, COWTAIL, HEARTBEAT_MISSING_KEY)) return;
 
     await createItem(
       ctx,

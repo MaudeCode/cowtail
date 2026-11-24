@@ -112,8 +112,8 @@ export function hermesHookItem({
 }
 
 // True when this provider error is the ERROR_STORM_COUNT-th for its open item within an hour.
-async function isErrorStorm(ctx: MutationCtx, dedupeKey: string, now: number) {
-  const open = await openItemByDedupeKey(ctx, dedupeKey);
+async function isErrorStorm(ctx: MutationCtx, source: string, dedupeKey: string, now: number) {
+  const open = await openItemByDedupeKey(ctx, source, dedupeKey);
   if (!open) return false;
   const earlier = await ctx.db
     .query("itemEvents")
@@ -139,7 +139,8 @@ export const ingest = internalMutation({
     await ctx.db.insert("hermesHookDeliveries", { deliveryId, receivedAt: now });
 
     // A storm repeats at `today`, and the shared repeat path raises the open item once.
-    const storm = errorStorm && item.dedupeKey && (await isErrorStorm(ctx, item.dedupeKey, now));
+    const storm =
+      errorStorm && item.dedupeKey && (await isErrorStorm(ctx, item.source, item.dedupeKey, now));
     await createItem(ctx, storm ? { ...item, urgency: "today" } : item, now);
     return { duplicate: false };
   },

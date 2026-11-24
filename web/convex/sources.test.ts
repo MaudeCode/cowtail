@@ -187,6 +187,18 @@ describe("source tokens", () => {
     expect(hermesEvents.map((event: Json) => event.type)).not.toContain("hermes_update");
   });
 
+  test("a source token's dedupeKey never counts into another source's item", async () => {
+    const t = await newBackendWithSources();
+    const token = await createSource(t);
+    const hermes = await postItem(t, SERVICE, { source: "hermes", dedupeKey: "shared" });
+    const deployer = await postItem(t, token, { dedupeKey: "shared" });
+
+    expect(deployer.json).toMatchObject({ created: true, occurrenceCount: 1 });
+    expect(deployer.json.id).not.toBe(hermes.json.id);
+    const hermesItem = (await api(t, `/api/items/${hermes.json.id}`)).json.item;
+    expect(hermesItem.occurrenceCount).toBe(1);
+  });
+
   test("service auth must name a registered source", async () => {
     const t = await newBackendWithSources();
     expect((await postItem(t, SERVICE, { source: "nobody" })).status).toBe(400);
