@@ -28,6 +28,9 @@ Phase 1 is implemented:
 - `cowtail items list`
 - `cowtail items show`
 - `cowtail items stats`
+- `cowtail maintenance start` — `--for 1h [--title ...] [--match namespace=x] [--source hermes]`; with neither `--match` nor `--source` it silences all alerts
+- `cowtail maintenance end`
+- `cowtail maintenance list`
 - `cowtail push send`
 - `cowtail push test`
 - `cowtail sources add`
@@ -87,7 +90,7 @@ Example config:
 }
 ```
 
-`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, `roundup test`, and the `sources` commands.
+`baseUrl` is required. `pushBearerToken` is only required for authenticated commands such as `users list`, `users devices`, `push send`, `push test`, `roundup test`, and the `sources` and `maintenance` commands.
 
 `cowtail config show` reports the resolved config path, whether the file was found, whether a base URL is configured, and whether a push token is configured without printing secret values.
 
