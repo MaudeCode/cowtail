@@ -335,7 +335,7 @@ registry.registerPath({
   path: "/me/items/{id}/actions",
   operationId: "performItemAction",
   tags: ["items"],
-  summary: "Ack, snooze or answer an item",
+  summary: "Ack, snooze, unsnooze or answer an item",
   security: [{ appSession: [] }],
   request: {
     params: z.object({ id: nonEmptyStringSchema }),
@@ -351,7 +351,7 @@ registry.registerPath({
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
     404: jsonResponse("Item not found.", ErrorResponse),
-    409: jsonResponse("The item is closed or does not offer the action.", ErrorResponse),
+    409: jsonResponse("The item is closed, does not offer the action, or is not snoozed.", ErrorResponse),
   },
 });
 
@@ -376,7 +376,7 @@ registry.registerPath({
   path: "/items/inbox",
   operationId: "getItemInbox",
   tags: ["items"],
-  summary: "The owner's inbox: needs you, with Hermes, and handled in the last 24 hours",
+  summary: "The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours",
   security: [{ appSession: [] }],
   responses: {
     200: jsonResponse("The inbox sections.", ItemInboxResponse),

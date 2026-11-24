@@ -47,6 +47,13 @@ crons.interval(
 );
 
 crons.interval(
+  "return snoozed items whose time has come",
+  { minutes: 1 },
+  (internal as any).items.returnSnoozedItems,
+  {},
+);
+
+crons.interval(
   "watch the Hermes heartbeat",
   { minutes: 1 },
   (internal as any).hermes.checkHeartbeat,

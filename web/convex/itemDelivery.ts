@@ -146,6 +146,7 @@ const deliveryReasonValidator = v.union(
   v.literal("urgency_raised"),
   v.literal("reopened"),
   v.literal("resend"),
+  v.literal("reminder"),
 );
 
 type DeliverItemArgs = { itemId: Id<"items">; reason: ItemDeliveryReason; attempt?: number };
@@ -220,6 +221,15 @@ export const planDelivery = internalMutation({
     const userId = cowtailOwnerUserId();
     if (!userId) return await skip("no_owner");
     if (item.state !== "open") return await skip("not_open");
+    // The owner asked to be reminded at this time: one push now, at least as loud as `today`.
+    if (reason === "reminder") {
+      const urgency = item.urgency === "now" ? "now" : "today";
+      return {
+        userId,
+        push: itemPush({ ...(await pushItem(ctx, item)), urgency }, await ownerBadgeCount(ctx)),
+        itemIds: [itemId],
+      };
+    }
     if (item.urgency === "whenever") return await skip("whenever");
     if (reason === "resend" && item.urgency !== "now") return await skip("not_now");
 

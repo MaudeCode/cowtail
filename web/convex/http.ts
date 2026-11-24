@@ -1438,6 +1438,7 @@ const codedErrorStatus: Record<string, [number, string]> = {
   ACTION_NOT_OFFERED: [409, "Item does not offer this action"],
   APPROVAL_NEEDS_AUTH: [403, "Approvals need Face ID: answer again in Cowtail"],
   INVALID_SNOOZE: [400, "Snooze must end in the future"],
+  ITEM_NOT_SNOOZED: [409, "Item is not snoozed"],
   ANSWER_PENDING: [409, "An answer to this item is already on its way"],
   RESPONSE_NOT_FOUND: [404, "Response not found"],
   RESPONSE_NOT_CLAIMED: [409, "Response is not claimed with this token"],
@@ -1664,6 +1665,7 @@ app.get("/api/items/inbox", async (c) => {
       counts: {
         needsYou: inbox.needsYou.length,
         withHermes: inbox.withHermes.length,
+        upcoming: inbox.upcoming.length,
         handled: inbox.handled.length,
       },
       ...inbox,

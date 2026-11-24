@@ -238,6 +238,47 @@ describe("owner actions", () => {
     expectTimelineReplaysState(timeline);
   });
 
+  test("unsnooze returns a snoozed item to open, and refuses an item that is not snoozed", async () => {
+    const t = await newBackendWithSources("cron");
+    const act = await ownerActions(t);
+    const { id } = await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Disk at 70%",
+    });
+    await act(id, { type: "snooze", until: NOW + 3_600_000 });
+
+    const unsnoozed = await act(id, { type: "unsnooze" });
+    const again = await act(id, { type: "unsnooze" });
+
+    expect(unsnoozed.status).toBe(200);
+    const item = itemResponseSchema.parse(unsnoozed.json).item;
+    expect(item.state).toBe("open");
+    expect(item.snoozedUntil).toBeUndefined();
+    expect(again.status).toBe(409);
+    expect(again.json).toMatchObject({ code: "ITEM_NOT_SNOOZED" });
+    const timeline = await getItem(t, id);
+    expect(timeline.events.slice(-2).map((event) => [event.type, event.payload.to])).toEqual([
+      ["action_taken", undefined],
+      ["state_changed", "open"],
+    ]);
+    expectTimelineReplaysState(timeline);
+  });
+
+  test("an item whose remindAt has passed is created open", async () => {
+    const t = await newBackendWithSources("cron");
+    const { id } = await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Late reminder",
+      remindAt: NOW - 1,
+    });
+
+    expect((await getItem(t, id)).item).toMatchObject({ state: "open" });
+  });
+
   test("a snooze must end in the future", async () => {
     const t = await newBackendWithSources("cron");
     const act = await ownerActions(t);
@@ -434,7 +475,7 @@ describe("item list", () => {
 });
 
 describe("inbox", () => {
-  test("splits open items by whether they need the owner and lists the day's resolved", async () => {
+  test("splits open items by whether they need the owner, lists snoozed items soonest first and the day's resolved", async () => {
     const t = await newBackendWithSources("cron");
     const bearer = await seedSession(t, OWNER);
     const resolve = (id: string) =>
@@ -460,18 +501,34 @@ describe("inbox", () => {
     });
     const today = await item("Certificate renewed", "fyi");
     await resolve(today.id);
+    const snooze = (id: string, until: number) =>
+      request(t, `/api/me/items/${id}/actions`, {
+        method: "POST",
+        bearer,
+        body: { type: "snooze", until },
+      });
+    const monday = await item("Merge queue stalled", "failure");
+    await snooze(monday.id, Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const reminder = await createItem(t, {
+      source: "hermes",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Check the disk shipment",
+      remindAt: Date.now() + 60 * 60 * 1000,
+    });
 
     const response = await request(t, "/api/items/inbox", { bearer });
 
     expect(response.status).toBe(200);
     const inbox = itemInboxResponseSchema.parse(response.json);
-    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, handled: 1 });
-    const ids = (items: { id: string }[]) => items.map((entry) => entry.id);
-    expect([ids(inbox.needsYou), ids(inbox.withHermes), ids(inbox.handled)]).toEqual([
-      [approval.id],
-      [acked.id, working.id],
-      [today.id],
-    ]);
+    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, upcoming: 2, handled: 1 });
+    const ids = (items: { id: string }[] = []) => items.map((entry) => entry.id);
+    expect([
+      ids(inbox.needsYou),
+      ids(inbox.withHermes),
+      ids(inbox.upcoming),
+      ids(inbox.handled),
+    ]).toEqual([[approval.id], [acked.id, working.id], [reminder.id, monday.id], [today.id]]);
   });
 });
 

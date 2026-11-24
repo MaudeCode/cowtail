@@ -1213,7 +1213,7 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// Ack, snooze or answer an item
+    /// Ack, snooze, unsnooze or answer an item
     ///
     /// - Remark: HTTP `POST /me/items/{id}/actions`.
     /// - Remark: Generated from `#/paths//me/items/{id}/actions/post(performItemAction)`.
@@ -1604,7 +1604,7 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// The owner's inbox: needs you, with Hermes, and handled in the last 24 hours
+    /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
     ///
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.

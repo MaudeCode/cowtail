@@ -225,6 +225,73 @@ describe("item delivery", () => {
   });
 });
 
+describe("reminders", () => {
+  const states = async (t: Backend, id: string) =>
+    (await getItem(t, id)).events
+      .filter((event) => event.type === "state_changed")
+      .map(({ actor, payload }) => ({ actor, ...payload }));
+  const triggers = async (t: Backend, id: string) =>
+    (await decisions(t, id)).map(({ trigger, decision }) => [trigger, decision]);
+
+  test("a snoozed item returns to open when its snooze ends and pushes once, at least as today", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "whenever", title: "Check the disk shipment" });
+    const snooze = await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "snooze", until: NOW + 60 * MINUTE },
+    });
+    expect(snooze.status).toBe(200);
+
+    await advance(t, 59 * MINUTE);
+    expect((await getItem(t, id)).item.state).toBe("snoozed");
+
+    await advance(t, 60 * MINUTE);
+    expect((await getItem(t, id)).item.state).toBe("open");
+    expect((await states(t, id)).at(-1)).toEqual({
+      actor: "cowtail",
+      from: "snoozed",
+      to: "open",
+      reason: "reminder",
+    });
+    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+      title: "Check the disk shipment",
+      aps: { interruptionLevel: "active" },
+    });
+    expect(await triggers(t, id)).toEqual([
+      ["created", "skipped"],
+      ["reminder", "pushed"],
+    ]);
+  });
+
+  test("an item created with a future remindAt sends nothing until then, then returns the same way", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, {
+      urgency: "whenever",
+      title: "Ping about the renewal",
+      remindAt: NOW + 120 * MINUTE,
+    });
+    expect((await getItem(t, id)).item).toMatchObject({
+      state: "snoozed",
+      snoozedUntil: NOW + 120 * MINUTE,
+    });
+
+    await advance(t, 119 * MINUTE);
+    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(await decisions(t, id)).toEqual([]);
+
+    await advance(t, 60 * MINUTE);
+    expect((await states(t, id)).at(-1)).toMatchObject({ to: "open", reason: "reminder" });
+    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+      title: "Ping about the renewal",
+      aps: { interruptionLevel: "active" },
+    });
+    expect(await triggers(t, id)).toEqual([["reminder", "pushed"]]);
+  });
+});
+
 describe("notification preferences endpoints", () => {
   test("round-trip quiet hours, urgency overrides and the approval auth setting", async () => {
     const t = await newBackendWithSources("cron");

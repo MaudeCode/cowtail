@@ -54,6 +54,8 @@ type Transition = {
   payload?: Record<string, unknown>;
   // False for writes that replay history, such as the alert backfill: they push nothing.
   notify?: boolean;
+  // Why a move to `open` pushes: `reopened` unless a snooze ran out.
+  delivery?: ItemDeliveryReason;
 };
 
 export function itemErrorCode(error: unknown): string | undefined {
@@ -82,7 +84,7 @@ async function patchItemContent(ctx: MutationCtx, id: Id<"items">, patch: ItemCo
 
 // --- Delivery -----------------------------------------------------------------------
 
-export type ItemDeliveryReason = "created" | "urgency_raised" | "reopened" | "resend";
+export type ItemDeliveryReason = "created" | "urgency_raised" | "reopened" | "resend" | "reminder";
 
 const deliverItemRef = makeFunctionReference<
   "action",
@@ -118,7 +120,7 @@ export async function transitionItem(
   ctx: MutationCtx,
   target: Doc<"items"> | { create: NewItem },
   to: ItemState,
-  { actor, at, snoozedUntil, payload = {}, notify = true }: Transition,
+  { actor, at, snoozedUntil, payload = {}, notify = true, delivery = "reopened" }: Transition,
 ): Promise<Id<"items">> {
   const timing = {
     updatedAt: at,
@@ -136,14 +138,15 @@ export async function transitionItem(
       ...timing,
     });
     await appendItemEvent(ctx, id, "created", actor, at, { ...payload, state: to });
-    if (notify) await scheduleDelivery(ctx, id, "created");
+    // A reminder created snoozed stays silent until it returns.
+    if (notify && to === "open") await scheduleDelivery(ctx, id, "created");
     return id;
   }
 
   const item = target;
   if (item.state === to && item.snoozedUntil === timing.snoozedUntil) return item._id;
   await ctx.db.patch(item._id, { state: to, ...timing });
-  if (notify && to === "open") await scheduleDelivery(ctx, item._id, "reopened");
+  if (notify && to === "open") await scheduleDelivery(ctx, item._id, delivery);
   await appendItemEvent(
     ctx,
     item._id,
@@ -443,6 +446,7 @@ export const createItemRequest = v.object({
   actions: v.optional(v.array(itemActionValidator)),
   replyTo: v.optional(v.record(v.string(), v.any())),
   expiresAt: v.optional(v.number()),
+  remindAt: v.optional(v.number()),
 });
 
 type CreateItemRequest = Infer<typeof createItemRequest>;
@@ -460,7 +464,11 @@ export async function openItemByDedupeKey(ctx: QueryCtx, source: string, dedupeK
 }
 
 /** Creates an item, or records a repeat on the open item that shares its `dedupeKey`. */
-export async function createItem(ctx: MutationCtx, request: CreateItemRequest, now: number) {
+export async function createItem(
+  ctx: MutationCtx,
+  { remindAt, ...request }: CreateItemRequest,
+  now: number,
+) {
   const actor = request.source;
   if (request.dedupeKey) {
     const open = await openItemByDedupeKey(ctx, request.source, request.dedupeKey);
@@ -494,8 +502,9 @@ export async function createItem(ctx: MutationCtx, request: CreateItemRequest, n
         actions: request.actions ?? [],
       },
     },
-    "open",
-    { actor, at: now },
+    // A reminder waits snoozed until its time, when returnSnoozedItems brings it back.
+    remindAt !== undefined && remindAt > now ? "snoozed" : "open",
+    { actor, at: now, snoozedUntil: remindAt },
   );
   return { id: String(id), created: true, occurrenceCount: 1 };
 }
@@ -547,6 +556,7 @@ export const applyAction = internalMutation({
     action: v.union(
       itemAnswerValidator,
       v.object({ type: v.literal("snooze"), until: v.number() }),
+      v.object({ type: v.literal("unsnooze") }),
     ),
     actor: v.string(),
     now: v.number(),
@@ -555,6 +565,14 @@ export const applyAction = internalMutation({
   handler: async (ctx, { id, action, actor, now, authenticated }) => {
     const item = await requireItem(ctx, id);
     requireOpenItem(item);
+
+    // The owner brings a snoozed item back now; they are looking at it, so nothing pushes.
+    if (action.type === "unsnooze") {
+      if (item.state !== "snoozed") throw new ConvexError({ code: "ITEM_NOT_SNOOZED" });
+      await appendItemEvent(ctx, item._id, "action_taken", actor, now, { ...action });
+      await transitionItem(ctx, item, "open", { actor, at: now, notify: false });
+      return;
+    }
 
     // An answer sent without Face ID is refused while the owner requires it.
     // An older app sends no flag at all; that counts as no Face ID too.
@@ -619,6 +637,31 @@ export const expireDueItems = internalMutation({
           payload: { reason: "The deadline passed without an answer" },
         });
       }
+    }
+  },
+});
+
+const RETURN_BATCH_SIZE = 100;
+
+// Runs every minute: a snoozed item whose time has come returns to the inbox and reminds the
+// owner, who asked for it.
+export const returnSnoozedItems = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const due = await ctx.db
+      .query("items")
+      .withIndex("by_state_snoozedUntil", (q) =>
+        q.eq("state", "snoozed").gte("snoozedUntil", 0).lte("snoozedUntil", now),
+      )
+      .take(RETURN_BATCH_SIZE);
+    for (const item of due) {
+      await transitionItem(ctx, item, "open", {
+        actor: "cowtail",
+        at: now,
+        payload: { reason: "reminder" },
+        delivery: "reminder",
+      });
     }
   },
 });
@@ -781,7 +824,14 @@ export const inbox = internalQuery({
         handled.push(await itemRecord(ctx, item));
       }
     }
-    return { needsYou, withHermes, handled };
+
+    const snoozed = await ctx.db
+      .query("items")
+      .withIndex("by_state_snoozedUntil", (q) => q.eq("state", "snoozed"))
+      .take(INBOX_READ_LIMIT);
+    const upcoming: ItemRecord[] = [];
+    for (const item of snoozed) upcoming.push(await itemRecord(ctx, item));
+    return { needsYou, withHermes, upcoming, handled };
   },
 });
 
