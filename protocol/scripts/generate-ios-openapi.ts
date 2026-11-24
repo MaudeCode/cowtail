@@ -25,6 +25,10 @@ import {
   fixListResponseSchema,
   fixRecordSchema,
   healthResponseSchema,
+  hermesRecentAnswerSchema,
+  hermesStatusCronJobSchema,
+  hermesStatusIncidentSchema,
+  hermesStatusResponseSchema,
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemActionSchema,
@@ -62,6 +66,12 @@ const AlertListResponse = alertListResponseSchema.meta({ id: "AlertListResponse"
 const FixListResponse = fixListResponseSchema.meta({ id: "FixListResponse" });
 
 const HealthResponse = healthResponseSchema.meta({ id: "HealthResponse" });
+
+// The Hermes tab's rows are named types.
+zodToOpenAPIRegistry.add(hermesStatusCronJobSchema, { _internal: { refId: "HermesCronJob" } });
+zodToOpenAPIRegistry.add(hermesStatusIncidentSchema, { _internal: { refId: "HermesIncident" } });
+zodToOpenAPIRegistry.add(hermesRecentAnswerSchema, { _internal: { refId: "HermesRecentAnswer" } });
+const HermesStatusResponse = hermesStatusResponseSchema.meta({ id: "HermesStatusResponse" });
 const AuthSessionCreateRequest = authSessionCreateRequestSchema.meta({
   id: "AuthSessionCreateRequest",
 });
@@ -418,6 +428,20 @@ registry.registerPath({
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
     404: jsonResponse("Item not found.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/hermes/status",
+  operationId: "getHermesStatus",
+  tags: ["hermes"],
+  summary: "Hermes's latest heartbeat, how alive it looks, and the owner's recent answers",
+  security: [{ appSession: [] }],
+  responses: {
+    200: jsonResponse("The Hermes status.", HermesStatusResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
+    403: jsonResponse("Cowtail owner access required.", ErrorResponse),
   },
 });
 

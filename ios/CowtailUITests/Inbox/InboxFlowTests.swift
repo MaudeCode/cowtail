@@ -9,6 +9,16 @@ final class InboxFlowTests: XCTestCase {
         app.assertSections(["Needs you", "Hermes is on it", "Handled · 24h"])
     }
 
+    func testTheHeaderShowsTheHermesDotBesideTheClusterDot() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let hermes = app.element("chip.inbox.hermes")
+        XCTAssertTrue(hermes.waitForExistence(timeout: 10))
+        XCTAssertEqual(hermes.label, "Hermes green")
+        XCTAssertGreaterThan(hermes.frame.minX, app.element("chip.inbox.cluster").frame.maxX)
+    }
+
     func testEveryNeedsYouActionButtonNamesItsAction() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()

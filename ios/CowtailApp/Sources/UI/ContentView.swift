@@ -23,6 +23,14 @@ struct ContentView: View {
             .tabItem { Label("Cluster", systemImage: "server.rack") }
             .accessibilityIdentifier("tab.cluster")
 
+            NavigationStack {
+                HermesView()
+                    .navigationDestination(for: AppRoute.self, destination: destination)
+            }
+            .tag(AppTab.hermes)
+            .tabItem { Label("Hermes", systemImage: "sparkles") }
+            .accessibilityIdentifier("tab.hermes")
+
             NavigationStack(path: $universalLinkRouter.historyPath) {
                 HistoryView()
                     .navigationDestination(for: AppRoute.self, destination: destination)

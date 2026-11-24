@@ -3,6 +3,7 @@ import Foundation
 enum AppTab: String, Hashable {
     case inbox
     case cluster
+    case hermes
     case history
     case settings
 }

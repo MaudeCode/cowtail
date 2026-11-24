@@ -256,6 +256,74 @@ enum CowtailPreviewFixtures {
         ]
     )
 
+    static let hermes = HermesStatus(
+        heartbeat: HermesStatus.Heartbeat(
+            receivedAt: .now.addingTimeInterval(-38),
+            level: .green,
+            platforms: ["cowtail", "telegram", "api"],
+            model: "opus-5.5",
+            provider: "anthropic",
+            cronJobs: [
+                HermesStatus.CronJob(
+                    id: "backup-verify",
+                    name: "backup-verify",
+                    schedule: "0 3 * * *",
+                    lastRunAt: minutesAgo(6 * 60),
+                    lastStatus: "failed",
+                    nextRunAt: .now.addingTimeInterval(18 * 3_600),
+                    failing: true
+                ),
+                HermesStatus.CronJob(
+                    id: "roundup-digest",
+                    name: "roundup-digest",
+                    schedule: "0 8 * * *",
+                    lastRunAt: minutesAgo(60),
+                    lastStatus: "ok",
+                    nextRunAt: .now.addingTimeInterval(23 * 3_600),
+                    failing: false
+                ),
+                HermesStatus.CronJob(
+                    id: "repo-sweep",
+                    name: "repo-sweep",
+                    schedule: "*/30 * * * *",
+                    lastRunAt: minutesAgo(11),
+                    lastStatus: "ok",
+                    nextRunAt: .now.addingTimeInterval(19 * 60),
+                    failing: false
+                ),
+            ],
+            failingCronCount: 1,
+            incidents: [
+                HermesStatus.Incident(
+                    id: "backup-verify-sig",
+                    jobName: "backup-verify",
+                    state: "open",
+                    failureType: "failing",
+                    firstSeenAt: minutesAgo(6 * 60),
+                    itemID: "failure-backup",
+                    itemTitle: "Nightly backup verify failed"
+                ),
+            ],
+            kanban: HermesStatus.Kanban(blocked: 2, running: 1),
+            budget: [HermesStatus.Limit(key: "today", value: "62%")],
+            rateLimits: [HermesStatus.Limit(key: "anthropic", value: "ok")]
+        ),
+        recentAnswers: [
+            HermesStatus.Answer(
+                itemID: "answer-ingress",
+                title: "Restart ingress in edge?",
+                answer: .approve,
+                answeredAt: minutesAgo(40)
+            ),
+            HermesStatus.Answer(
+                itemID: "answer-pvcs",
+                title: "Delete 14 stale PVCs?",
+                answer: .deny,
+                answeredAt: daysAgo(2, hour: 16)
+            ),
+        ]
+    )
+
     static let devices = [
         UserDevice(id: "device-1", name: "iPhone", lastSeenAt: minutesAgo(1)),
         UserDevice(id: "device-2", name: "iPad", lastSeenAt: daysAgo(3, hour: 9)),

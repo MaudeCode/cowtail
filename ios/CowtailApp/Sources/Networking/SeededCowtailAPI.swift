@@ -6,6 +6,7 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         var items: [Item] = CowtailPreviewFixtures.items
         var health = CowtailPreviewFixtures.health
         var stats = CowtailPreviewFixtures.stats
+        var hermes = CowtailPreviewFixtures.hermes
         var devices = CowtailPreviewFixtures.devices
         var roundupAlerts = CowtailPreviewFixtures.roundupAlerts
         var roundupFixes = CowtailPreviewFixtures.roundupFixes
@@ -132,6 +133,10 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
     func fetchItemSources(sessionToken _: String) async throws -> [String] {
         try requireItems()
         return Set(seed.items.map(\.source)).sorted()
+    }
+
+    func fetchHermesStatus(sessionToken _: String) async throws -> HermesStatus {
+        seed.hermes
     }
 
     func fetchDevices(sessionToken _: String) async throws -> [UserDevice] {

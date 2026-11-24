@@ -87,6 +87,38 @@ extension HealthSummary.PipelineState {
     }
 }
 
+extension HermesStatus.Level {
+    func tint(_ palette: ThemePalette) -> Color {
+        switch self {
+        case .green: palette.success
+        case .amber: palette.warning
+        case .red: palette.accent
+        }
+    }
+}
+
+extension ItemActionRequest {
+    /// The owner's answer, in a word or the words they chose.
+    var answerLabel: String {
+        switch self {
+        case .approve: "approved"
+        case .deny: "denied"
+        case .ack: "acknowledged"
+        case .snooze: "snoozed"
+        case .choose(let option): option
+        case .reply(let text): text
+        }
+    }
+
+    func answerTint(_ palette: ThemePalette) -> Color {
+        switch self {
+        case .approve: palette.success
+        case .deny: palette.accent
+        default: palette.ink
+        }
+    }
+}
+
 /// A button an item row or the item header shows: one per action the item offers, and the
 /// owner's alert dispositions.
 enum ItemButton: Hashable, Identifiable {
@@ -220,6 +252,13 @@ enum ItemFormat {
 
     static func time(_ date: Date) -> String {
         date.formatted(date: .omitted, time: .shortened)
+    }
+
+    /// 09:42 today, otherwise Sun 16:10.
+    static func when(_ date: Date, now: Date = .now) -> String {
+        Calendar.current.isDate(date, inSameDayAs: now)
+            ? time(date)
+            : date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 
     static func percent(_ share: Double) -> String {

@@ -13,6 +13,7 @@ protocol CowtailAPIClient: Sendable {
     /// Stats for the query's start, source, kind and outcome; no start means the last 7 days.
     func fetchItemStats(_ query: ItemListQuery, sessionToken: String) async throws -> ItemStats
     func fetchItemSources(sessionToken: String) async throws -> [String]
+    func fetchHermesStatus(sessionToken: String) async throws -> HermesStatus
     /// `authenticated` says, for an approve or deny, whether the owner passed Face ID.
     func performItemAction(
         itemID: String,
@@ -398,6 +399,19 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.requestFailed(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Source list request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchHermesStatus(sessionToken: String) async throws -> HermesStatus {
+        switch try await sessionClient(sessionToken: sessionToken).getHermesStatus() {
+        case .ok(let response):
+            return Self.makeHermesStatus(try response.body.json)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Hermes status request failed with HTTP \(statusCode).")
         }
     }
 
