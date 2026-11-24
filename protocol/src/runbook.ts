@@ -35,7 +35,9 @@ export const runbookSectionSchema = z.object({
 
 // --- Runs --------------------------------------------------------------------------------
 
-export const runbookRunStatuses = ["queued", "running", "succeeded", "failed"] as const;
+// `unknown`: Hermes stopped reporting after the script started, so it may or may not have run.
+// Cowtail never runs it again on its own.
+export const runbookRunStatuses = ["queued", "running", "succeeded", "failed", "unknown"] as const;
 export const runbookRunStatusSchema = z.enum(runbookRunStatuses);
 
 export const runbookRunRecordSchema = z.object({
@@ -100,7 +102,9 @@ export const runbookRunClaimResponseSchema = z.object({
 });
 
 // One batch of output. `seq` counts the claim's batches from 0, so a batch sent again is
-// stored once; each batch also renews the claim's lease. An empty batch only renews it.
+// stored once; each batch also renews the claim's lease. An empty batch only renews it. Hermes
+// sends batch 0 before it asks MaudeUtils to run the script: a claim whose lease runs out before
+// any batch is leased again, and one that sent a batch ends `unknown` instead.
 export const runbookRunOutputRequestSchema = z.object({
   claimToken: nonEmptyStringSchema,
   seq: z.number().int().nonnegative(),

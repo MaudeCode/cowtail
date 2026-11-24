@@ -14,7 +14,9 @@ import {
 
 const HERMES = "hermes";
 const TRUNCATED_MARKER = "\n[Output truncated at 256 KB]\n";
-const RERUN_MARKER = "\n[Hermes stopped reporting this run; running the script again]\n";
+const RERUN_MARKER = "\n[Hermes stopped before it started the script; starting it again]\n";
+const LOST_MARKER =
+  "\n[Hermes stopped reporting after the script started; it may or may not have finished]\n";
 const EXCERPT_CHARS = 500;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -102,8 +104,41 @@ async function insertOutput(ctx: MutationCtx, run: Doc<"runbookRuns">, text: str
   return run.outputChunks + 1;
 }
 
-// Leases the oldest queued run, or a running one whose lease ran out without a word from
-// Hermes. Each claim numbers its output batches from 0.
+// A running run whose lease ran out ends `unknown` once its script started, since it may have
+// run; it is never run again without the owner. One that never started can be leased again.
+async function settleLapsedRuns(ctx: MutationCtx, now: number) {
+  const lapsed = await ctx.db
+    .query("runbookRuns")
+    .withIndex("by_status_availableAt", (q) => q.eq("status", "running").lte("availableAt", now))
+    .collect();
+  const releasable: Doc<"runbookRuns">[] = [];
+  for (const run of lapsed) {
+    if (run.executingAt === undefined) {
+      releasable.push(run);
+      continue;
+    }
+    const outputChunks = await insertOutput(ctx, run, LOST_MARKER);
+    await ctx.db.patch(run._id, {
+      status: "unknown",
+      outputChunks,
+      finishedAt: now,
+      updatedAt: now,
+    });
+    await recordFinish(ctx, { ...run, outputChunks }, "unknown", now);
+  }
+  return releasable;
+}
+
+// Runs every minute, so a run Hermes stopped reporting ends even while no Hermes claims.
+export const settleLapsed = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await settleLapsedRuns(ctx, Date.now());
+  },
+});
+
+// Leases the oldest queued run, or a running one whose lease ran out before its script
+// started. Each claim numbers its output batches from 0.
 export const claimRun = internalMutation({
   args: {
     workerId: v.string(),
@@ -112,14 +147,12 @@ export const claimRun = internalMutation({
     now: v.number(),
   },
   handler: async (ctx, { workerId, claimToken, leaseSeconds, now }) => {
-    let run: Doc<"runbookRuns"> | null = null;
-    for (const status of ["queued", "running"] as const) {
-      run = await ctx.db
+    const releasable = await settleLapsedRuns(ctx, now);
+    const run =
+      (await ctx.db
         .query("runbookRuns")
-        .withIndex("by_status_availableAt", (q) => q.eq("status", status).lte("availableAt", now))
-        .first();
-      if (run) break;
-    }
+        .withIndex("by_status_availableAt", (q) => q.eq("status", "queued").lte("availableAt", now))
+        .first()) ?? releasable[0];
     if (!run) return null;
 
     const leaseMs = leaseSeconds * 1000;
@@ -183,6 +216,7 @@ export const appendOutput = internalMutation({
     if (seq > run.nextSeq) throw new ConvexError({ code: "OUTPUT_OUT_OF_ORDER" });
 
     let { outputChunks, outputBytes, truncated } = run;
+    const executingAt = run.executingAt ?? now;
     if (text && !truncated) {
       const size = encoder.encode(text).length;
       const room = runbookOutputLimitBytes - outputBytes;
@@ -196,6 +230,7 @@ export const appendOutput = internalMutation({
     }
     await ctx.db.patch(run._id, {
       ...renewed,
+      executingAt,
       nextSeq: seq + 1,
       outputChunks,
       outputBytes,
@@ -223,23 +258,31 @@ export const completeRun = internalMutation({
   args: { id: v.string(), claimToken: v.string(), exitCode: v.number(), now: v.number() },
   handler: async (ctx, { id, claimToken, exitCode, now }) => {
     const run = await claimedRun(ctx, id, claimToken);
-    await ctx.db.patch(run._id, {
-      status: exitCode === 0 ? "succeeded" : "failed",
-      exitCode,
-      finishedAt: now,
-      updatedAt: now,
-    });
-    if (!run.itemId || !(await ctx.db.get(run.itemId))) return;
-    await appendItemEvent(ctx, run.itemId, "run_finished", HERMES, now, {
-      runId: String(run._id),
-      scriptId: run.scriptId,
-      scriptName: run.scriptName,
-      exitCode,
-      excerpt: await outputExcerpt(ctx, run._id),
-    });
-    await ctx.db.patch(run.itemId, { updatedAt: now });
+    const status = exitCode === 0 ? "succeeded" : "failed";
+    await ctx.db.patch(run._id, { status, exitCode, finishedAt: now, updatedAt: now });
+    await recordFinish(ctx, run, status, now, exitCode);
   },
 });
+
+// A run for an item ends on the item's timeline, with its output's last lines.
+async function recordFinish(
+  ctx: MutationCtx,
+  run: Doc<"runbookRuns">,
+  status: "succeeded" | "failed" | "unknown",
+  now: number,
+  exitCode?: number,
+) {
+  if (!run.itemId || !(await ctx.db.get(run.itemId))) return;
+  await appendItemEvent(ctx, run.itemId, "run_finished", HERMES, now, {
+    runId: String(run._id),
+    scriptId: run.scriptId,
+    scriptName: run.scriptName,
+    status,
+    ...(exitCode === undefined ? {} : { exitCode }),
+    excerpt: await outputExcerpt(ctx, run._id),
+  });
+  await ctx.db.patch(run.itemId, { updatedAt: now });
+}
 
 const RECENT_RUNS_LIMIT = 10;
 

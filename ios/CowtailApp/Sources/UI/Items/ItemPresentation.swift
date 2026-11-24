@@ -246,7 +246,8 @@ extension ItemEvent {
         case .runStarted:
             return "\(payload["scriptName"] ?? "Script") started"
         case .runFinished:
-            let result = "\(payload["scriptName"] ?? "Script") · exit \(payload["exitCode"] ?? "?")"
+            let outcome = payload["exitCode"].map { "exit \($0)" } ?? "outcome unknown"
+            let result = "\(payload["scriptName"] ?? "Script") · \(outcome)"
             return [result, payload["excerpt"]].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "\n")
         case .stateChanged, .resolved:
             let change = [payload["from"], payload["to"]].compactMap { $0 }.joined(separator: " → ")
@@ -300,6 +301,7 @@ extension RunbookRun {
         case .running: palette.warning
         case .succeeded: palette.success
         case .failed: palette.accent
+        case .unknown: palette.warning
         }
     }
 

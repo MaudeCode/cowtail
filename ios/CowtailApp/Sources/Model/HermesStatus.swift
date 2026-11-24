@@ -99,6 +99,8 @@ struct RunbookSection: Identifiable, Equatable, Sendable {
 struct RunbookRun: Identifiable, Equatable, Sendable {
     enum Status: String, Sendable {
         case queued, running, succeeded, failed
+        /// Hermes stopped reporting after the script started; it may or may not have run.
+        case unknown
     }
 
     let id: String

@@ -2737,7 +2737,8 @@
               "queued",
               "running",
               "succeeded",
-              "failed"
+              "failed",
+              "unknown"
             ]
           },
           "active": {

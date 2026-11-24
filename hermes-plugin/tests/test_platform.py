@@ -147,6 +147,7 @@ class FakeCowtail:
         self.waiting: list[dict] = []
         self.refused_completions = 0
         self.runs: list[dict] = []
+        self.refuse_runbook_output = False
 
     def __call__(self, method, path, body=None, query=None):
         self.requests.append((method, path, body))
@@ -164,6 +165,8 @@ class FakeCowtail:
         if (method, path) == ("POST", "/api/hermes/runbook-runs/claim"):
             return {"ok": True, "run": self.runs.pop(0)} if self.runs else {"ok": True}
         if method == "POST" and path.startswith("/api/hermes/runbook-runs/"):
+            if self.refuse_runbook_output and path.endswith("/output"):
+                raise CowtailError("Cowtail HTTP 409: Run is not claimed with this token")
             return {"ok": True}
         raise AssertionError(f"unexpected Cowtail request {method} {path}")
 

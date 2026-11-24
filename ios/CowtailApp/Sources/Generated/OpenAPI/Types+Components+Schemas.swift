@@ -4190,6 +4190,7 @@ extension Components {
                 case running = "running"
                 case succeeded = "succeeded"
                 case failed = "failed"
+                case unknown = "unknown"
             }
             /// - Remark: Generated from `#/components/schemas/RunbookRun/status`.
             internal var status: Components.Schemas.RunbookRun.StatusPayload

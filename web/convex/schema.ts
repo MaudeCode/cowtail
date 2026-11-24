@@ -155,7 +155,10 @@ export default defineSchema({
       v.literal("running"),
       v.literal("succeeded"),
       v.literal("failed"),
+      v.literal("unknown"),
     ),
+    // When Hermes said it was starting the script; from then on the run is never run again.
+    executingAt: v.optional(v.number()),
     // When the row can next be claimed: its creation, then the end of each lease.
     availableAt: v.number(),
     claimToken: v.optional(v.string()),

@@ -152,7 +152,9 @@ export function eventText({ type, actor, payload }: ItemEventRecord): string {
     case "run_started":
       return `${text(payload.scriptName) ?? "Script"} started`;
     case "run_finished": {
-      const result = `${text(payload.scriptName) ?? "Script"} · exit ${text(payload.exitCode) ?? "?"}`;
+      const outcome =
+        text(payload.exitCode) === undefined ? "outcome unknown" : `exit ${text(payload.exitCode)}`;
+      const result = `${text(payload.scriptName) ?? "Script"} · ${outcome}`;
       const excerpt = text(payload.excerpt);
       return excerpt ? `${result}\n${excerpt}` : result;
     }
@@ -186,6 +188,7 @@ export const runStatusTone: Record<RunbookRunStatus, Tone> = {
   running: "today",
   succeeded: "ok",
   failed: "now",
+  unknown: "today",
 };
 
 // What a maintenance window silences: all alerts or its label matchers, then the other

@@ -77,6 +77,11 @@ class _Output:
         self._seq = 0
         self._sent_at = now
 
+    def begin(self) -> None:
+        """Tells Cowtail the script is about to start. Cowtail never runs a script again once it
+        heard this, so it goes before MaudeUtils is asked, and a failure here starts nothing."""
+        self._send("")
+
     def add(self, text: str, now: float) -> None:
         self._pending.append(text)
         if now - self._sent_at >= BATCH_SECONDS:
@@ -140,6 +145,7 @@ def execute_run(cowtail: Any, run: dict[str, Any]) -> int:
     cannot start reports exit code -1 with the reason as its output."""
     clock = _clock
     output = _Output(cowtail, run, clock())
+    output.begin()
     try:
         exit_code = _stream(output, str(run["scriptId"]), clock)
     except urllib.error.HTTPError as error:

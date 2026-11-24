@@ -140,7 +140,7 @@ describe("runbook requests", () => {
 });
 
 describe("runbook leases", () => {
-  test("lease a run once, then again after its lease runs out", async () => {
+  test("lease a run once, then again after its lease runs out before its script started", async () => {
     const { t, owner } = await backend();
     const run = await startRun(t, owner, { scriptId: diskUsage.id });
 
@@ -154,6 +154,21 @@ describe("runbook leases", () => {
     expect(second?.claimToken).not.toBe(first?.claimToken);
     const stale = await sendOutput(t, run.id, { claimToken: first!.claimToken, seq: 0, text: "x" });
     expect(stale.status).toBe(409);
+  });
+
+  test("never run a script again once it started; a lapsed lease leaves its outcome unknown", async () => {
+    const { t, owner } = await backend();
+    const run = await startRun(t, owner, { scriptId: diskUsage.id });
+    const { claimToken } = (await claim(t))!;
+    expect((await sendOutput(t, run.id, { claimToken, seq: 0, text: "" })).status).toBe(200);
+
+    await advance(t, 61_000);
+
+    expect(await claim(t)).toBeUndefined();
+    expect((await getRun(t, owner, run.id)).run).toMatchObject({
+      status: "unknown",
+      active: false,
+    });
   });
 });
 
@@ -248,6 +263,7 @@ describe("runbook runs for an item", () => {
           runId: run.id,
           scriptId: restartGateway.id,
           scriptName: "Restart Hermes gateway",
+          status: "succeeded",
           exitCode: 0,
           excerpt: "gateway restarted",
         },

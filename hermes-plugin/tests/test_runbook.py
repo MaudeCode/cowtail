@@ -35,6 +35,7 @@ class FakeMaudeUtils(BaseHTTPRequestHandler):
     """GET /api/scripts, and POST /api/run-stream/<id> streaming ``events`` as NDJSON."""
 
     events: list[dict] = []
+    requests: list[str] = []
 
     def do_GET(self):
         if self.path == "/api/scripts":
@@ -43,6 +44,7 @@ class FakeMaudeUtils(BaseHTTPRequestHandler):
             self._json(404, {"error": "Not found"})
 
     def do_POST(self):
+        FakeMaudeUtils.requests.append(self.path)
         if self.headers.get("authorization") != f"Bearer {TOKEN}":
             return self._json(401, {"error": "Unauthorized — enter your token above"})
         script_id = self.path.removeprefix("/api/run-stream/")
@@ -131,17 +133,27 @@ class RunbookTest(PlatformTest):
         self.assertEqual(
             self.runbook_calls(),
             [
+                ("/api/hermes/runbook-runs/run-1/output", {"claimToken": "token-1", "seq": 0, "text": ""}),
                 (
                     "/api/hermes/runbook-runs/run-1/output",
-                    {"claimToken": "token-1", "seq": 0, "text": "Filesystem  Size\nwarning: slow disk\n"},
+                    {"claimToken": "token-1", "seq": 1, "text": "Filesystem  Size\nwarning: slow disk\n"},
                 ),
                 (
                     "/api/hermes/runbook-runs/run-1/output",
-                    {"claimToken": "token-1", "seq": 1, "text": "/dev/nvme0  916G\n"},
+                    {"claimToken": "token-1", "seq": 2, "text": "/dev/nvme0  916G\n"},
                 ),
                 ("/api/hermes/runbook-runs/run-1/complete", {"claimToken": "token-1", "exitCode": 0}),
             ],
         )
+
+    def test_a_run_whose_start_cowtail_did_not_record_never_reaches_maudeutils(self):
+        self.cowtail.refuse_runbook_output = True
+        FakeMaudeUtils.requests = []
+
+        self.run_claimed("disk-usage", [0.0])
+
+        self.assertEqual(FakeMaudeUtils.requests, [])
+        self.assertEqual([path for path, _ in self.runbook_calls()], ["/api/hermes/runbook-runs/run-1/output"])
 
     def test_a_run_maudeutils_refuses_reports_a_failed_exit(self):
         cases = [
@@ -161,9 +173,10 @@ class RunbookTest(PlatformTest):
                 self.assertEqual(
                     self.runbook_calls(),
                     [
+                        ("/api/hermes/runbook-runs/run-1/output", {"claimToken": "token-1", "seq": 0, "text": ""}),
                         (
                             "/api/hermes/runbook-runs/run-1/output",
-                            {"claimToken": "token-1", "seq": 0, "text": message},
+                            {"claimToken": "token-1", "seq": 1, "text": message},
                         ),
                         ("/api/hermes/runbook-runs/run-1/complete", {"claimToken": "token-1", "exitCode": -1}),
                     ],
