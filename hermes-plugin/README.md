@@ -1,0 +1,80 @@
+# hermes-cowtail-tool
+
+Standalone Hermes plugin exposing one typed `cowtail` tool for Cowtail alert and investigation-job operations.
+
+## Environment
+
+```text
+COWTAIL_API_BASE=https://convex-actions.thezoo.house
+COWTAIL_WORKER_TOKEN=<secret>
+COWTAIL_WORKER_ID=hermes-default-gateway
+```
+
+## Tool actions
+
+- `status`
+- `alert.get`
+- `alert.query_range`
+- `alert.write`
+- `fix.write`
+- `job.claim`
+- `job.get`
+- `job.renew`
+- `job.complete`
+- `job.fail`
+- `job.handoff`
+- `job.requeue`
+- `job.deadletters`
+- `webhook.render_alert_prompt`
+
+The plugin does not receive webhooks itself. Hermes webhook subscriptions invoke an agent, and that agent uses this tool to claim and complete Cowtail jobs.
+
+Alertmanager may group hundreds of firing alerts into one investigation job. `job.claim` returns the immutable firing-at-ingest members in `relatedAlerts`; `job.complete` requires `batch_results` with exactly one terminal outcome for every member, even if one has since resolved. Cowtail rejects partial batch completion, preserving one-session storm control without leaving sibling alerts unhandled.
+
+## Terminal failure and handoff
+
+`job.fail` reads the exact current job and frozen `relatedAlerts` projection from its immutable source event. It requires the current worker's claim token and a nonexpired lease. A retryable failure below `maxAttempts` keeps Cowtail's existing queued retry behavior, without messaging. Completion and resolved-only failures also remain silent.
+
+A nonretryable failure, or an exhausted retry budget, with **any** unresolved member requires a genuine external boundary. Ordinary repair failure is rejected with `continuation_needed=true`. Continue repair and renew rather than treating failure as permission to disappear.
+
+The rendered worker prompt requires loading the alertmanager skill and checking our configuration, supported invocation, version and source/target identities first. Previous diagnoses and deadletter reasons are hypotheses. An upstream-defect diagnosis requires an exact-version reproduction under supported usage, expected versus actual results and evidence ruling out local mistakes. Insufficient evidence means diagnosis unconfirmed and continued investigation, not a publication blocker. For Kopiur, compare capture, verifier and restore evidence for the same manifest and source; distinguish cached/new-file counters, complete tree counts and restored content. Upstream patches and custom artifacts are outside automated alert repair. A reproduced defect is evidence to retain, not permission to prepare a patch or request publication approval. Diagnosis and supported local configuration/runtime repair continue under the incident's authority.
+
+Structured boundary pairs:
+
+| `blocker_kind` | `blocker_code` | Required human decision/action |
+| --- | --- | --- |
+| `permission` | `permission_required` | Authorize a necessary privileged local repair |
+| `access` | `access_required` | Restore required account/system access |
+| `physical` | `physical_intervention` | Perform on-site hardware intervention |
+| `unavailable_external_prerequisite` | `external_prerequisite` | Restore the unavailable prerequisite |
+
+Automated alert workers may not prepare upstream patches, fork repositories, publish custom artifacts or request approval for those actions, even after a local defect reproduction. The schema no longer offers `upstream_publication`. Legacy requests using that code or `blocked_upstream_publication` / `blocked_upstream_artifact` phases are rejected with `continuation_needed=true` before any send or backend mutation. An already-stopped upstream-publication job cannot be relabeled as a generic permission handoff. Continue supported local diagnosis and repair without weakening integrity coverage. Separately user-directed upstream development is not an automated alert handoff.
+
+Before calling the existing Cowtail fail endpoint, the guard sends one deterministic actionable handoff through `hermes send --to imsg --json --file -`. Outgoing text contains only fixed template text, validated resource identifier values from `alertname`, `namespace`, `policy`, and `job`, plus the native job ID. It never includes errors, summaries, logs, claim tokens, URLs or arbitrary caller text.
+
+The stock installed iMessage standalone sender currently reports text success with an empty `message_id`. That is **not** accepted as proof. The guard reads the single configured target using `hermes send --list imsg --json` and verifies an exact outgoing text match, chat ID, send-time window and native GUID through read-only `imsg history`. Failed, empty, conflicting or ambiguous receipts do not release the claim. Native Messages history access must be available to the worker. No iMessage recipient is hardcoded and no new credentials are needed.
+
+Private delivery receipts live under `$HERMES_HOME/cowtail-delivery-receipts`, defaulting to `~/.hermes/cowtail-delivery-receipts`. Directory/files use 0700/0600. A hash of affected alert lifecycle identities and the structured root-cause/decision deduplicates successful sends across jobs and retries. An advisory file lock serializes concurrent attempts. This stores delivery receipts and in-flight delivery metadata only, not a second incident ledger. Keep it on a local filesystem shared by this worker's processes. Lock acquisition is bounded.
+
+An intent is durably stored before sending. Timeout/crash/ambiguous output leaves an unknown delivery receipt. Later attempts only read native history to reconcile it, never automatically resend. If no exact provider receipt exists, inspect delivery manually and continue repair/renew. Do not delete an unknown receipt just to force a resend. Successful receipts survive backend failures; retries reuse them without another message. After the fail endpoint, the guard reads the actual job back and verifies expected queued/deadletter status, released claim, unchanged attempts/source event, and exactly preserved error history plus the new failure. A lost mutation response can therefore be verified without another notification.
+
+For an **already deadlettered** exact job, `job.handoff` runs the same boundary/delivery gate without claiming, resetting, requeueing or editing the job:
+
+```json
+{"action":"job.handoff","job_id":"NATIVE_JOB_ID","blocker_kind":"permission","blocker_code":"permission_required"}
+```
+
+This action is idempotent for the same affected lifecycles and boundary. It does not accept a claimed job as an alternative terminal escape.
+
+## Verification and activation
+
+```sh
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q __init__.py handlers.py handoff.py cowtail_client.py
+hermes plugins validate /Volumes/Data/git/MaudeCode/hermes-cowtail-tool
+hermes plugins doctor /Volumes/Data/git/MaudeCode/hermes-cowtail-tool --ci
+```
+
+All unit-test transports are mocked. Tests do not send real messages or mutate Cowtail.
+
+Live proof requires a separately authorized operator and the gateway loading this source revision. Read `job.get` for the exact real incident first. If it is already deadlettered and still has an unresolved frozen member with a genuine publication authority boundary, call the `job.handoff` example with that native job ID. Confirm `handoff_verified=true`, the native provider receipt, one real iMessage, and unchanged job status/history. Repeat the identical call and verify no second message. Do not reset/requeue the incident to create a probe. For a claimed real incident, use its actual owned token and lease with `job.fail`, `retryable=false`, a concrete internal `error`, and the structured boundary only after available safe repair work is prepared; verify backend readback/history. Never put tokens into shell history or outgoing text.
