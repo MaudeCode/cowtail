@@ -4,6 +4,7 @@ import { CliError } from "../src/lib/errors.ts";
 import {
   optionalTrimmedString,
   parseCommaSeparatedStrings,
+  parseFutureTime,
   parseJsonObject,
   parseTimestamp,
   requireNonEmptyString,
@@ -33,6 +34,16 @@ describe("parse helpers", () => {
 
   test("parseTimestamp rejects invalid values", () => {
     expect(() => parseTimestamp("definitely-not-a-date", "timestamp")).toThrow(CliError);
+  });
+
+  test("parseFutureTime reads 30m, 3h and 2d from now, and an ISO time as itself", () => {
+    const now = 1712966400000;
+    expect(
+      ["30m", "3h", "2d", "2024-04-14T09:00:00Z"].map((value) =>
+        parseFutureTime(value, "remind-at", now),
+      ),
+    ).toEqual([now + 30 * 60_000, now + 3 * 3_600_000, now + 2 * 86_400_000, 1713085200000]);
+    expect(() => parseFutureTime("2x", "remind-at", now)).toThrow(CliError);
   });
 
   test("parseJsonObject parses object values", () => {

@@ -49,6 +49,23 @@ export function parseTimestamp(value: string | undefined, label: string): number
   return parsedValue;
 }
 
+const RELATIVE_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
+
+// A time from now like 30m, 3h or 2d, or a millisecond timestamp or ISO date.
+export function parseFutureTime(
+  value: string | undefined,
+  label: string,
+  now = Date.now(),
+): number | undefined {
+  const relative = value?.trim().match(/^(\d+)([mhd])$/);
+  if (relative) {
+    return (
+      now + Number(relative[1]) * RELATIVE_UNIT_MS[relative[2] as keyof typeof RELATIVE_UNIT_MS]
+    );
+  }
+  return parseTimestamp(value, label);
+}
+
 export function parseDateOnly(value: string | undefined, label: string): string | undefined {
   if (value === undefined) {
     return undefined;

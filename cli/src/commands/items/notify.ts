@@ -7,6 +7,7 @@ import { postJson } from "../../lib/http.ts";
 import { JsonCommand } from "../../lib/output.ts";
 import {
   optionalTrimmedString,
+  parseFutureTime,
   parseKeyValuePairs,
   parseTimestamp,
   requireNonEmptyString,
@@ -46,6 +47,10 @@ export class NotifyCommand extends JsonCommand {
     description: `Milliseconds since epoch or ISO timestamp.`,
   });
 
+  remindAt = Option.String(`--remind-at`, {
+    description: `Stay silent until this time, then remind: 30m, 3h, 2d, milliseconds since epoch or ISO timestamp.`,
+  });
+
   async execute(): Promise<void> {
     const payloadResult = itemCreateRequestSchema.safeParse({
       source: optionalTrimmedString(this.source) ?? "manual",
@@ -61,6 +66,7 @@ export class NotifyCommand extends JsonCommand {
         ? Object.fromEntries(parseKeyValuePairs(this.contextPairs, "context"))
         : undefined,
       expiresAt: parseTimestamp(this.expiresAt, "expires-at"),
+      remindAt: parseFutureTime(this.remindAt, "remind-at"),
     });
 
     if (!payloadResult.success) {

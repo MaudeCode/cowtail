@@ -697,7 +697,7 @@ describe("built binary user device commands", () => {
 });
 
 describe("built binary item commands", () => {
-  test("notify creates an item that items list then shows", async () => {
+  test("notify creates an item, reminding in 2h, that items list then shows", async () => {
     // A stand-in for the Cowtail API: POST /api/items stores, GET /api/items lists.
     const items: Record<string, unknown>[] = [];
     const requests: string[] = [];
@@ -757,6 +757,7 @@ describe("built binary item commands", () => {
       });
       const env = { env: { COWTAIL_CONFIG_PATH: configPath } };
 
+      const beforeNotify = Date.now();
       const notify = await runCliBinaryAsync(
         binaryPath,
         [
@@ -771,12 +772,18 @@ describe("built binary item commands", () => {
           "Report=https://reports.example.test/weekly",
           "--context",
           "week=47",
+          "--remind-at",
+          "2h",
         ],
         env,
       );
+      const afterNotify = Date.now();
       const list = await runCliBinaryAsync(binaryPath, ["items", "list", "--no-needs-owner"], env);
 
       expect(notify).toMatchObject({ status: 0, stderr: "", stdout: "Created item item-1\n" });
+      const remindAt = items[0]?.remindAt as number;
+      expect(remindAt - 2 * 3_600_000).toBeGreaterThanOrEqual(beforeNotify);
+      expect(remindAt - 2 * 3_600_000).toBeLessThanOrEqual(afterNotify);
       expect(items).toMatchObject([
         {
           source: "manual",
