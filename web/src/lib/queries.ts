@@ -277,6 +277,9 @@ export function useItemAction(itemId: string) {
   const client = useQueryClient();
   return useMutation({
     mutationKey: itemActionKey(itemId),
+    // One item's actions go to the server one at a time, each shown at once, so an older
+    // reply can never land after a newer one.
+    scope: { id: `item-${itemId}` },
     mutationFn: (action: ItemActionRequest) =>
       api(`/api/me/items/${encodeURIComponent(itemId)}/actions`, itemResponseSchema, {
         method: "POST",

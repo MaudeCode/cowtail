@@ -399,6 +399,7 @@ describe("Upcoming on Home", () => {
     needsOwner: false,
     needsOwnerWhenOpen: true,
     title: "CephOSDNearFull",
+    availableActions: [{ type: "ack" }],
     snoozedUntil: new Date(2030, 0, 2, 9, 0).getTime(),
   });
   const routes = () => signedIn({ "GET /actions/api/items/inbox": inbox({ upcoming: [snoozed] }) });
@@ -450,6 +451,27 @@ describe("Upcoming on Home", () => {
       ["snoozed-1"],
       [],
     ]);
+  });
+
+  test("a second action on an item waits for the first one's reply before it is sent", async () => {
+    let answerUnsnooze!: (reply: unknown) => void;
+    const { calls } = stubApi({
+      ...routes(),
+      "POST /actions/api/me/items/snoozed-1/actions": new Promise((resolve) => {
+        answerUnsnooze = resolve;
+      }),
+    });
+    renderApp("/");
+    const posts = () => calls.filter((call) => call.method === "POST").map((call) => call.body);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unsnooze" }));
+    await userEvent.click(
+      within(section(/Needs you/)).getByRole("button", { name: "Acknowledge" }),
+    );
+
+    expect(posts()).toEqual([{ type: "unsnooze" }]);
+    answerUnsnooze({ ok: true, item: { ...snoozed, state: "open", snoozedUntil: undefined } });
+    await waitFor(() => expect(posts()).toEqual([{ type: "unsnooze" }, { type: "ack" }]));
   });
 
   test("a refused unsnooze puts the item back in Upcoming and says why", async () => {
