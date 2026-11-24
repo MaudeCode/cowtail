@@ -1,0 +1,7 @@
+name: cowtail
+version: 0.1.0
+description: "Typed Hermes interface for Cowtail alerts, investigation jobs, outcomes, and fixes."
+author: MaudeCode
+kind: standalone
+provides_tools:
+  - cowtail

@@ -4,7 +4,8 @@
     "web": {},
     "cli": {},
     "ios": {},
-    "docker": {}
+    "docker": {},
+    "plugin": {}
   },
   "rules": [
     { "paths": ["**/*.md", "docs/**", "LICENSE", "cowtail.png"], "suites": [] },
@@ -28,6 +29,7 @@
     { "paths": [".github/workflows/cli-verify.yml", ".github/workflows/cli-build.yml"], "suites": ["cli"] },
     { "paths": [".github/workflows/ios-verify.yml", ".github/workflows/ios-build.yml"], "suites": ["ios"] },
     { "paths": [".github/workflows/docker-verify.yml", ".github/workflows/docker-build.yml"], "suites": ["docker"] },
+    { "paths": [".github/workflows/hermes-plugin-verify.yml"], "suites": ["plugin"] },
     {
       "paths": [
         ".github/workflows/convex-deploy.yml",
@@ -44,6 +46,7 @@
     { "paths": ["cli/**", "cli/**/.*"], "suites": ["global", "cli"] },
     { "paths": ["script/**", ".oxlintrc.json", ".oxfmtrc.json"], "suites": ["global"] },
     { "paths": ["ios/**", "ios/**/.*"], "suites": ["ios"] },
+    { "paths": ["hermes-plugin/**", "hermes-plugin/**/.*"], "suites": ["plugin"] },
     { "paths": [".dockerignore"], "suites": ["docker"] }
   ]
 }

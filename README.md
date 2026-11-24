@@ -10,12 +10,13 @@ Alert investigation log and cluster health dashboard for Kubernetes. Built to gi
 ![Dashboard](https://img.shields.io/badge/stack-React%20%2B%20Vite%20%2B%20Tailwind-0E0E10?style=flat&labelColor=B8242C)
 ![Backend](https://img.shields.io/badge/backend-Convex-0E0E10?style=flat&labelColor=B8242C)
 
-This repo contains four projects:
+This repo contains five projects:
 
 - `cli/` contains the local command-line client
 - `ios/` contains the native iPhone app and XcodeGen project
 - `web/` contains the React app and Convex functions
 - `protocol/` contains shared transport contracts and schemas
+- `hermes-plugin/` contains the Hermes plugin that gives Hermes agents the `cowtail` tool
 
 ## Features
 
@@ -66,6 +67,8 @@ For container/runtime values, copy `web/.env.container.example` into your deploy
 The root install covers the CLI too. Run its commands from `cli/`, or use `pnpm run build:cli`, `pnpm run check:cli` and `pnpm run test:cli` from the root.
 
 For iOS development, work from `ios/`, run `xcodegen generate`, and open `ios/Cowtail.xcodeproj`.
+
+The Hermes plugin needs only Python 3.11 or later. Test it with `python -m unittest discover -s hermes-plugin/tests -v`, and install it by copying `hermes-plugin/` into the Hermes plugins directory.
 
 ### Deploy to Kubernetes
 
