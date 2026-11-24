@@ -2,6 +2,7 @@ import type {
   AlertPipelineState,
   HermesRecentAnswer,
   HermesStatusLevel,
+  IncidentState,
   ItemEventRecord,
   ItemInvestigationStep,
   ItemOutcome,
@@ -158,6 +159,11 @@ export function eventText({ type, actor, payload }: ItemEventRecord): string {
       const excerpt = text(payload.excerpt);
       return excerpt ? `${result}\n${excerpt}` : result;
     }
+    case "item_added":
+    case "item_removed":
+      return text(payload.reason) ?? "";
+    case "postmortem_written":
+      return "Hermes wrote the postmortem";
     case "state_changed":
     case "resolved":
       return [
@@ -180,7 +186,19 @@ export const eventTone: Record<ItemEventRecord["type"], Tone> = {
   resolved: "ok",
   run_started: "today",
   run_finished: "info",
+  item_added: "now",
+  item_removed: "muted",
+  postmortem_written: "info",
 };
+
+export const incidentStateTone: Record<IncidentState, Tone> = {
+  open: "now",
+  resolved: "ok",
+};
+
+export function memberCountText(count: number) {
+  return `${count} ${count === 1 ? "item" : "items"}`;
+}
 
 // A runbook run's status, and the exit code's tone once it ended.
 export const runStatusTone: Record<RunbookRunStatus, Tone> = {

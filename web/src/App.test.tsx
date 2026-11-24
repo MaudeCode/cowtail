@@ -9,6 +9,8 @@ import { stubApi } from "./test/api";
 import {
   hermesStatus,
   inbox,
+  incidentDetail,
+  incidentSummary,
   item,
   MAINTENANCE,
   maintenanceWindow,
@@ -1270,5 +1272,173 @@ describe("Hermes", () => {
     renderApp("/hermes");
 
     expect(await screen.findByText("Hermes has not sent a heartbeat yet.")).toBeInTheDocument();
+  });
+});
+
+describe("incidents", () => {
+  const INCIDENT = "GET /actions/api/incidents/incident-1";
+
+  test("an incident in the inbox is one row with its member count, worst urgency and duration, and opens it", async () => {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items/inbox": inbox({
+          needsYou: [item({ incident: incidentSummary() })],
+        }),
+        [INCIDENT]: incidentDetail(),
+      }),
+    );
+    renderApp("/");
+
+    const row = await screen.findByRole("link", { name: /Storage outage/ });
+    expect(row).toHaveTextContent("Incident · 11 items · now · 47m");
+    expect(screen.queryByText("KubePodCrashLooping")).not.toBeInTheDocument();
+    await userEvent.click(row);
+    expect(screen.getByTestId("address")).toHaveTextContent("/incidents/incident-1");
+  });
+
+  test("an item in an incident links to it from its header", async () => {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items/item-9": {
+          ok: true,
+          item: item({ id: "item-9", incident: incidentSummary() }),
+          events: [],
+        },
+      }),
+    );
+    renderApp("/items/item-9");
+
+    const chip = await screen.findByRole("link", { name: "Storage outage" });
+    expect(chip).toHaveAttribute("href", "/incidents/incident-1");
+  });
+
+  test("incident detail shows the header, the merged timeline, the postmortem and the members", async () => {
+    stubApi(signedIn({ [INCIDENT]: incidentDetail() }));
+    renderApp("/incidents/incident-1");
+
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Storage outage");
+    expect(sectionLabels()).toEqual(["Timeline", "Postmortem", "Members"]);
+    expect(screen.getByText("item_added · CephHealthErr")).toBeInTheDocument();
+    expect(screen.getByText("Same Alertmanager group")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "Summary" })).toBeInTheDocument();
+    expect(screen.getByText("47 minutes").tagName).toBe("STRONG");
+    expect(screen.getByText("Replace the drive cable").tagName).toBe("LI");
+    expect(screen.getAllByRole("button", { name: "Remove from incident" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Add an item" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Request postmortem again" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
+  });
+
+  test("an open incident offers Resolve and waits for its postmortem", async () => {
+    stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail({
+          state: "open",
+          resolvedAt: undefined,
+          postmortemState: "none",
+          postmortem: undefined,
+          postmortemAt: undefined,
+          availableActions: ["resolve"],
+        }),
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    expect(await screen.findByRole("button", { name: "Resolve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request postmortem again" })).toBeDisabled();
+    expect(
+      screen.getByText("Hermes writes the postmortem once the incident resolves."),
+    ).toBeInTheDocument();
+  });
+
+  test("Remove from incident takes the member out before the server answers", async () => {
+    const { calls } = stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "DELETE /actions/api/me/incidents/incident-1/items/item-2": new Promise(() => {}),
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    await userEvent.click(first);
+
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+    expect(calls.filter((call) => call.method === "DELETE").map((call) => call.path)).toEqual([
+      "/actions/api/me/incidents/incident-1/items/item-2",
+    ]);
+  });
+
+  test("a refused removal puts the member back and says why", async () => {
+    stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "DELETE /actions/api/me/incidents/incident-1/items/item-2": {
+          status: 404,
+          body: { ok: false, error: "Item is not in this incident" },
+        },
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    await userEvent.click(first);
+
+    expect(await screen.findByText("Item is not in this incident")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CephHealthErr" })).toBeInTheDocument();
+  });
+
+  test("Add an item lists the server's candidates and adds the chosen one", async () => {
+    const { calls } = stubApi(
+      signedIn({
+        [INCIDENT]: incidentDetail(),
+        "GET /actions/api/incidents/incident-1/candidates": {
+          ok: true,
+          items: [item({ id: "item-7", title: "Nightly backup verify failed" })],
+        },
+        "POST /actions/api/me/incidents/incident-1/items": incidentDetail(),
+      }),
+    );
+    renderApp("/incidents/incident-1");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add an item" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Nightly backup verify failed/ }),
+    );
+
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/incidents/incident-1/items",
+          body: { itemId: "item-7" },
+        },
+      ]),
+    );
+    expect(screen.queryByRole("dialog", { name: "Add an item" })).not.toBeInTheDocument();
+  });
+
+  test("History shows an incident as one row that opens it", async () => {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items?limit=100": {
+          ok: true,
+          count: 1,
+          items: [
+            item({
+              state: "resolved",
+              createdDate: "2026-11-22",
+              incident: incidentSummary({ state: "resolved", resolvedAt: NOW }),
+            }),
+          ],
+          days: [{ date: "2026-11-22", count: 1 }],
+        },
+      }),
+    );
+    renderApp("/history");
+
+    const link = await screen.findByRole("link", { name: "Storage outage" });
+    expect(link).toHaveAttribute("href", "/incidents/incident-1");
+    expect(link.closest("tr")).toHaveTextContent("Incident · 11 items · now · 47m");
   });
 });

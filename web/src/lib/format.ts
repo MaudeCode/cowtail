@@ -33,6 +33,16 @@ export function formatReturnTime(at: number, now = Date.now()) {
   return `${formatShortDate(at)} ${formatClock(at)}`;
 }
 
+// Sun 22 Nov 22:31–23:18, or 22:31–now while it lasts.
+export function formatSpan(start: number, end?: number) {
+  const day = new Date(start).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  return `${day} ${formatClock(start)}–${end === undefined ? "now" : formatClock(end)}`;
+}
+
 // 12 Nov
 export function formatShortDate(at: number) {
   return new Date(at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });

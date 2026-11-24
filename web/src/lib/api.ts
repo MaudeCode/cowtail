@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-type Method = "GET" | "POST" | "PUT";
+type Method = "GET" | "POST" | "PUT" | "DELETE";
 
 // A protocol schema: every reply is checked against the contract before a page reads it.
 interface Schema<T> {

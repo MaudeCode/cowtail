@@ -3,11 +3,40 @@ import { Fragment } from "react";
 import { Link } from "react-router-dom";
 
 import { formatClock, formatDay, formatDuration } from "../../lib/format";
-import { itemResult } from "../../lib/itemPresentation";
+import { incidentStateTone, itemResult } from "../../lib/itemPresentation";
 import { Badge, Icon } from "../ui";
-import { itemPath } from "./ItemRow";
+import { IncidentLine, incidentPath, itemPath } from "./ItemRow";
+
+// A member that stands for its incident: the incident's title, line, state and duration.
+function IncidentRow({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
+  const incident = item.incident!;
+  return (
+    <tr>
+      <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
+        {formatClock(withFix ? incident.startedAt : (incident.resolvedAt ?? item.updatedAt))}
+      </td>
+      <td className="max-[599px]:hidden">Incident</td>
+      <td className="font-medium">
+        <Link to={incidentPath(incident.id)} className="hover:underline">
+          {incident.title}
+        </Link>
+        <div className="text-[0.7rem] font-normal text-gray-600">
+          <IncidentLine incident={incident} />
+        </div>
+      </td>
+      <td>
+        <Badge tone={incidentStateTone[incident.state]}>{incident.state}</Badge>
+      </td>
+      <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
+        {formatDuration(incident.durationMs)}
+      </td>
+      {withFix && <td className="font-mono text-[0.7rem] text-gray-600">–</td>}
+    </tr>
+  );
+}
 
 function Row({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
+  if (item.incident) return <IncidentRow item={item} withFix={withFix} />;
   const result = itemResult(item);
   return (
     <tr>

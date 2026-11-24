@@ -3,6 +3,8 @@ import {
   authProvidersResponseSchema,
   healthResponseSchema,
   hermesStatusResponseSchema,
+  incidentCandidatesResponseSchema,
+  incidentGetResponseSchema,
   itemGetResponseSchema,
   itemGraphResponseSchema,
   itemInboxResponseSchema,
@@ -16,6 +18,7 @@ import {
   runbookRunGetResponseSchema,
   runbookRunResponseSchema,
   snoozeOptionsResponseSchema,
+  type IncidentGetResponse,
   type ItemActionRequest,
   type ItemInboxResponse,
   type ItemGraphRange,
@@ -476,6 +479,110 @@ export function useItemActionError(itemId: string): unknown {
   });
   const latest = states.at(-1);
   return latest?.status === "error" ? latest.error : null;
+}
+
+// --- Incidents ------------------------------------------------------------------------------
+
+const incidentPath = (id: string) => encodeURIComponent(id);
+
+// An incident's page follows its members and Hermes's postmortem.
+export const incidentQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["incident", id],
+    queryFn: () => api(`/api/incidents/${incidentPath(id)}`, incidentGetResponseSchema),
+    refetchInterval: LIVE_REFRESH_MS,
+  });
+
+// The items the server says can join the incident.
+export const incidentCandidatesQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["incident", id, "candidates"],
+    queryFn: async () =>
+      (await api(`/api/incidents/${incidentPath(id)}/candidates`, incidentCandidatesResponseSchema))
+        .items,
+  });
+
+export type IncidentChange =
+  | { type: "add"; itemId: string }
+  | { type: "remove"; itemId: string }
+  | { type: "resolve" }
+  | { type: "request_postmortem" };
+
+function incidentRequest(
+  id: string,
+  change: IncidentChange,
+): { path: string; method: "POST" | "DELETE"; body?: unknown } {
+  const base = `/api/me/incidents/${incidentPath(id)}`;
+  switch (change.type) {
+    case "add":
+      return { path: `${base}/items`, method: "POST", body: { itemId: change.itemId } };
+    case "remove":
+      return { path: `${base}/items/${encodeURIComponent(change.itemId)}`, method: "DELETE" };
+    case "resolve":
+      return { path: `${base}/resolve`, method: "POST" };
+    case "request_postmortem":
+      return { path: `${base}/postmortem`, method: "POST" };
+  }
+}
+
+// What the owner's own change shows before the server answers. Adding waits for the server,
+// which works out the incident's new figures.
+export function showIncidentChange(
+  detail: IncidentGetResponse,
+  change: IncidentChange,
+): IncidentGetResponse {
+  switch (change.type) {
+    case "remove": {
+      const members = detail.members.filter((member) => member.id !== change.itemId);
+      return {
+        ...detail,
+        members,
+        incident: { ...detail.incident, memberCount: members.length },
+      };
+    }
+    case "resolve":
+      return {
+        ...detail,
+        incident: { ...detail.incident, state: "resolved", availableActions: [] },
+      };
+    case "request_postmortem":
+      return {
+        ...detail,
+        incident: { ...detail.incident, postmortemState: "requested", availableActions: [] },
+      };
+    case "add":
+      return detail;
+  }
+}
+
+// The owner changes an incident. Removing, resolving and asking again show at once; a refusal
+// puts back what the server last confirmed, and any other failure rereads what it kept.
+// Changes to one incident go one at a time, so an older reply never lands after a newer one.
+export function useIncidentChange(id: string) {
+  const client = useQueryClient();
+  const queryKey = incidentQuery(id).queryKey;
+  return useMutation({
+    scope: { id: `incident-${id}` },
+    mutationFn: (change: IncidentChange) => {
+      const { path, method, body } = incidentRequest(id, change);
+      return api(path, incidentGetResponseSchema, { method, body });
+    },
+    onMutate: async (change) => {
+      await client.cancelQueries({ queryKey });
+      const before = client.getQueryData(queryKey);
+      if (before) client.setQueryData(queryKey, showIncidentChange(before, change));
+      return { before };
+    },
+    onSuccess: (reply) => client.setQueryData(queryKey, reply),
+    onError: (error, _change, context) => {
+      const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
+      if (refused && context?.before) client.setQueryData(queryKey, context.before);
+    },
+    onSettled: () =>
+      Promise.all(
+        [["incident", id], ...lists].map((key) => client.invalidateQueries({ queryKey: key })),
+      ),
+  });
 }
 
 // The owner's own settings show at once. Once the last write in flight settles, the page
