@@ -326,6 +326,58 @@ describe("acting from Home", () => {
   });
 });
 
+describe("overlapping snoozes", () => {
+  const first = item({
+    id: "first-1",
+    title: "First alert",
+    availableActions: [{ type: "snooze" }],
+  });
+  const second = item({
+    id: "second-1",
+    title: "Second alert",
+    availableActions: [{ type: "snooze" }],
+  });
+  const timeZone = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const section = (label: RegExp) =>
+    screen.getByRole("heading", { name: label }).closest("section")!;
+  const snooze = async (title: string) => {
+    const row = (await screen.findByText(title)).closest<HTMLElement>("div.flex")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Snooze" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Tomorrow/ }));
+  };
+
+  test("a refusal puts back only its own item, and a write still in flight keeps its place", async () => {
+    let refuseFirst!: (reply: unknown) => void;
+    stubApi({
+      ...signedIn({ "GET /actions/api/items/inbox": inbox({ needsYou: [first, second] }) }),
+      [`GET /actions/api/me/snooze-options?timeZone=${timeZone}`]: {
+        ok: true,
+        options: [
+          { preset: "1h", until: new Date(2030, 0, 1, 10, 41).getTime() },
+          { preset: "4h", until: new Date(2030, 0, 1, 13, 41).getTime() },
+          { preset: "tomorrow", until: new Date(2030, 0, 2, 9, 0).getTime() },
+          { preset: "next_monday", until: new Date(2030, 0, 7, 9, 0).getTime() },
+        ],
+      },
+      "POST /actions/api/me/items/first-1/actions": new Promise((resolve) => {
+        refuseFirst = resolve;
+      }),
+      "POST /actions/api/me/items/second-1/actions": new Promise(() => {}),
+    });
+    renderApp("/");
+
+    await snooze("First alert");
+    await snooze("Second alert");
+    refuseFirst({ status: 409, body: { ok: false, error: "Item is closed" } });
+
+    expect(await within(section(/Needs you/)).findByRole("alert")).toHaveTextContent(
+      "Item is closed",
+    );
+    expect(within(section(/Needs you/)).getByText("First alert")).toBeInTheDocument();
+    expect(within(section(/Upcoming/)).getByText("Second alert")).toBeInTheDocument();
+  });
+});
+
 describe("Upcoming on Home", () => {
   const snoozed = item({
     id: "snoozed-1",

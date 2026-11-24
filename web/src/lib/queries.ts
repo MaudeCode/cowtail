@@ -148,6 +148,35 @@ export const itemsQuery = (filter: ItemFilter) =>
     getNextPageParam: (page) => page.nextCursor,
   });
 
+type InboxSection = "needsYou" | "withHermes" | "upcoming";
+const inboxSections: InboxSection[] = ["needsYou", "withHermes", "upcoming"];
+type Sections = Record<InboxSection, ItemInboxResponse["needsYou"]>;
+
+// The inbox with new section lists, its counts moved by as many items as each list moved.
+function withSections(inbox: ItemInboxResponse, sections: Sections): ItemInboxResponse {
+  const moved = (section: InboxSection) => sections[section].length - (inbox[section] ?? []).length;
+  return {
+    ...inbox,
+    ...sections,
+    counts: {
+      ...inbox.counts,
+      needsYou: inbox.counts.needsYou + moved("needsYou"),
+      withHermes: inbox.counts.withHermes + moved("withHermes"),
+      upcoming: (inbox.counts.upcoming ?? 0) + moved("upcoming"),
+    },
+  };
+}
+
+function sectionsWithout(inbox: ItemInboxResponse, itemId: string): Sections {
+  const without = (section: InboxSection) =>
+    (inbox[section] ?? []).filter((entry) => entry.id !== itemId);
+  return {
+    needsYou: without("needsYou"),
+    withHermes: without("withHermes"),
+    upcoming: without("upcoming"),
+  };
+}
+
 // The owner's snooze or unsnooze, shown at once: the item moves into Upcoming at its return
 // time, or back to the section the server said it returns to. Undefined when the inbox does
 // not list the item.
@@ -156,16 +185,13 @@ export function showSnoozeInInbox(
   itemId: string,
   action: Extract<ItemActionRequest, { type: "snooze" | "unsnooze" }>,
 ): ItemInboxResponse | undefined {
-  const item = [...inbox.needsYou, ...inbox.withHermes, ...(inbox.upcoming ?? [])].find(
-    (entry) => entry.id === itemId,
-  );
+  const item = inboxSections
+    .flatMap((section) => inbox[section] ?? [])
+    .find((entry) => entry.id === itemId);
   if (!item) return undefined;
-  const without = (items: ItemInboxResponse["needsYou"] = []) =>
-    items.filter((entry) => entry.id !== itemId);
-  const needsYou = without(inbox.needsYou);
-  const withHermes = without(inbox.withHermes);
-  const upcoming = without(inbox.upcoming);
+  const sections = sectionsWithout(inbox, itemId);
   if (action.type === "snooze") {
+    const { upcoming } = sections;
     const at = upcoming.findIndex((entry) => (entry.snoozedUntil ?? Infinity) > action.until);
     upcoming.splice(at === -1 ? upcoming.length : at, 0, {
       ...item,
@@ -177,29 +203,52 @@ export function showSnoozeInInbox(
   } else {
     const needsOwner = item.needsOwnerWhenOpen ?? false;
     const opened = { ...item, state: "open" as const, needsOwner, snoozedUntil: undefined };
-    (needsOwner ? needsYou : withHermes).unshift(opened);
+    sections[needsOwner ? "needsYou" : "withHermes"].unshift(opened);
   }
-  const moved = (before: unknown[] = [], after: unknown[]) => after.length - before.length;
-  return {
-    ...inbox,
-    counts: {
-      ...inbox.counts,
-      needsYou: inbox.counts.needsYou + moved(inbox.needsYou, needsYou),
-      withHermes: inbox.counts.withHermes + moved(inbox.withHermes, withHermes),
-      upcoming: (inbox.counts.upcoming ?? 0) + moved(inbox.upcoming, upcoming),
-    },
-    needsYou,
-    withHermes,
-    upcoming,
-  };
+  return withSections(inbox, sections);
+}
+
+// One refused item back where it was before the write, leaving every other item as it is now.
+export function restoreItemInInbox(
+  inbox: ItemInboxResponse,
+  before: ItemInboxResponse,
+  itemId: string,
+): ItemInboxResponse {
+  const sections = sectionsWithout(inbox, itemId);
+  for (const section of inboxSections) {
+    const list = before[section] ?? [];
+    const index = list.findIndex((entry) => entry.id === itemId);
+    if (index !== -1) sections[section].splice(index, 0, list[index]);
+  }
+  return withSections(inbox, sections);
 }
 
 const itemActionKey = (itemId: string) => ["itemAction", itemId];
+const lists = [["inbox"], ["items"], ["stats"]];
+
+// Writes in flight, per query client and kind of write.
+const writesInFlight = new WeakMap<QueryClient, Map<string, number>>();
+
+function startWrite(client: QueryClient, kind: string) {
+  const counts = writesInFlight.get(client) ?? new Map<string, number>();
+  counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  writesInFlight.set(client, counts);
+}
+
+// True when this was the last write of its kind in flight.
+function lastWriteSettled(client: QueryClient, kind: string) {
+  const counts = writesInFlight.get(client);
+  const left = (counts?.get(kind) ?? 1) - 1;
+  counts?.set(kind, left);
+  return left === 0;
+}
 
 // The owner acts on an item. A snooze or unsnooze shows its result at once; a refusal puts
-// the inbox back, and any other failure waits for the reread below to show what the server
-// kept. Every other result (the item's new state and where it lists) is the server's to
-// decide, so the control that started it shows busy until the reply.
+// that item back, and any other failure waits for the reread to show what the server kept.
+// The lists are reread once the last item action in flight settles, so a reply cannot pull
+// back another item whose write is still on its way. Every other result (the item's new
+// state and where it lists) is the server's to decide, so the control that started it shows
+// busy until the reply.
 export function useItemAction(itemId: string) {
   const client = useQueryClient();
   return useMutation({
@@ -210,6 +259,7 @@ export function useItemAction(itemId: string) {
         body: action,
       }),
     onMutate: async (action) => {
+      startWrite(client, "itemAction");
       if (action.type !== "snooze" && action.type !== "unsnooze") return undefined;
       await client.cancelQueries({ queryKey: inboxQuery.queryKey });
       const before = client.getQueryData(inboxQuery.queryKey);
@@ -219,12 +269,17 @@ export function useItemAction(itemId: string) {
     },
     onError: (error, _action, context) => {
       const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
-      if (refused && context?.before) client.setQueryData(inboxQuery.queryKey, context.before);
+      const before = context?.before;
+      if (refused && before) {
+        client.setQueryData(inboxQuery.queryKey, (shown) =>
+          shown ? restoreItemInInbox(shown, before, itemId) : shown,
+        );
+      }
     },
     onSettled: () =>
       Promise.all(
-        [["inbox"], ["item", itemId], ["items"], ["stats"]].map((queryKey) =>
-          client.invalidateQueries({ queryKey }),
+        [["item", itemId], ...(lastWriteSettled(client, "itemAction") ? lists : [])].map(
+          (queryKey) => client.invalidateQueries({ queryKey }),
         ),
       ),
   });
@@ -241,9 +296,6 @@ export function useItemActionError(itemId: string): unknown {
   return latest?.status === "error" ? latest.error : null;
 }
 
-// Preference writes in flight, per query client.
-const writesInFlight = new WeakMap<QueryClient, number>();
-
 // The owner's own settings show at once. Once the last write in flight settles, the page
 // rereads the server: a refused write falls back to the confirmed value, a write whose
 // reply was lost shows what the server stored, and replies arriving out of order cannot
@@ -257,17 +309,16 @@ export function usePreferencesUpdate() {
         body: patch,
       }),
     onMutate: async (patch) => {
-      writesInFlight.set(client, (writesInFlight.get(client) ?? 0) + 1);
+      startWrite(client, "preferences");
       await client.cancelQueries({ queryKey: SESSION_KEY });
       client.setQueryData(sessionQuery.queryKey, (shown) =>
         shown ? { ...shown, preferences: { ...shown.preferences, ...patch } } : shown,
       );
     },
-    onSettled: () => {
-      const left = (writesInFlight.get(client) ?? 1) - 1;
-      writesInFlight.set(client, left);
-      return left === 0 ? client.invalidateQueries({ queryKey: SESSION_KEY }) : undefined;
-    },
+    onSettled: () =>
+      lastWriteSettled(client, "preferences")
+        ? client.invalidateQueries({ queryKey: SESSION_KEY })
+        : undefined,
   });
 }
 
