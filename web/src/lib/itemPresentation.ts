@@ -103,8 +103,13 @@ export function eventText({ type, actor, payload }: ItemEventRecord): string {
       return "Investigation sent to Hermes";
     case "hermes_update":
       return text(payload.text) ?? "";
-    case "notified":
-      return text(payload.reason) ?? text(payload.result) ?? "Push sent";
+    case "notified": {
+      // The server records what it decided: pushed, or skipped, batched or held and why.
+      const decision = text(payload.decision);
+      if (!decision || decision === "pushed") return "Push sent";
+      const why = text(payload.why)?.replaceAll("_", " ");
+      return [decision[0].toUpperCase() + decision.slice(1), why].filter(Boolean).join(" · ");
+    }
     case "action_taken": {
       const detail = text(payload.option) ?? text(payload.text);
       const action = `${actor} · ${text(payload.type) ?? "action"}`;

@@ -58,18 +58,22 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
                 </button>
               ));
             case "approve":
-            case "deny":
+            case "deny": {
+              // The server refuses an answer without Face ID while the owner requires it,
+              // and a browser has no Face ID: the answer belongs to the iOS app then.
+              const verb = offered.type === "approve" ? "Approve" : "Deny";
               return (
                 <IconButton
                   key={offered.type}
                   icon={offered.type === "approve" ? "check" : "x"}
-                  label={offered.type === "approve" ? "Approve" : "Deny"}
+                  label={item.approvalNeedsAuth ? `${verb} in the iOS app, with Face ID` : verb}
                   tone={offered.type === "approve" ? "yes" : "no"}
-                  disabled={busy !== null}
+                  disabled={busy !== null || item.approvalNeedsAuth === true}
                   aria-busy={busy === offered.type}
                   onClick={() => send(offered.type, { type: offered.type })}
                 />
               );
+            }
             case "ack":
               return (
                 <IconButton

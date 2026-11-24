@@ -93,7 +93,12 @@ describe("each area's sections, in its figure's order", () => {
         "GET /actions/api/items/inbox": inbox({ handled: [fixed] }),
         "GET /actions/api/items/stats": stats,
         "GET /actions/api/items?limit=100": { ok: true, count: 1, items: [fixed], days: [] },
-        "GET /actions/api/items/item-9": { ok: true, item: fixed, events: [] },
+        "GET /actions/api/items/item-9": {
+          ok: true,
+          item: fixed,
+          events: [],
+          fixes: fixed.fix ? [fixed.fix] : [],
+        },
       }),
     );
 
@@ -191,6 +196,24 @@ describe("acting from Home", () => {
         { method: "POST", path: `/actions/api/me/items/${id}/actions`, body },
       ]),
     );
+  });
+
+  test("an approval that needs Face ID is left to the iOS app", async () => {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items/inbox": inbox({
+          needsYou: [{ ...approval, approvalNeedsAuth: true }],
+        }),
+      }),
+    );
+
+    renderApp("/");
+
+    const approve = await screen.findByRole("button", {
+      name: "Approve in the iOS app, with Face ID",
+    });
+    const deny = screen.getByRole("button", { name: "Deny in the iOS app, with Face ID" });
+    expect([approve, deny].map((button) => button.hasAttribute("disabled"))).toEqual([true, true]);
   });
 
   test("Snooze posts a time in the future", async () => {

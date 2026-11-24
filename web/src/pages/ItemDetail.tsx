@@ -13,19 +13,22 @@ export default function ItemDetail() {
   const { data, error } = useQuery(itemQuery(id));
   if (error) return <QueryError error={error} />;
   if (!data) return null;
-  const { item, events } = data;
-  const context = Object.entries(item.context);
+  const { item, events, fixes = [] } = data;
+  const context = (item.contextOrder ?? Object.keys(item.context)).flatMap((key) =>
+    item.context[key] === undefined ? [] : [[key, item.context[key]] as const],
+  );
+  const result = item.investigationResult;
 
   return (
     <>
       <header className="flex flex-wrap items-center gap-2.5 border-b border-gray-200 pt-3.5 pb-3">
         <SourceIcon source={item.sourceInfo} large />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-[220px]">
           <div className="text-[0.7rem] text-gray-600">
             {item.sourceInfo.displayName}
             {item.subtitle && ` · ${item.subtitle}`}
           </div>
-          <h1 className="text-[1.05rem] font-medium [overflow-wrap:anywhere]">{item.title}</h1>
+          <h1 className="text-[1.05rem] font-medium break-words">{item.title}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge>{item.kind}</Badge>
@@ -74,6 +77,9 @@ export default function ItemDetail() {
                 ))}
               </div>
             )}
+            {result?.rootCause && <KeyValue label="Root cause">{result.rootCause}</KeyValue>}
+            {result?.action && <KeyValue label="Action taken">{result.action}</KeyValue>}
+            {result?.ownerNote && <KeyValue label="Your note">{result.ownerNote}</KeyValue>}
             {item.links.map((link) => (
               <KeyValue key={link.url} label={link.label}>
                 <a
@@ -88,11 +94,13 @@ export default function ItemDetail() {
               </KeyValue>
             ))}
           </Section>
-          {item.fix && (
+          {fixes.length > 0 && (
             <Section label="Fix">
-              <KeyValue label={item.fix.description}>
-                <span className="font-mono">{item.fix.commit?.slice(0, 7) ?? item.fix.scope}</span>
-              </KeyValue>
+              {fixes.map((fix) => (
+                <KeyValue key={fix.id} label={fix.description}>
+                  <span className="font-mono">{fix.commit?.slice(0, 7) ?? fix.scope}</span>
+                </KeyValue>
+              ))}
             </Section>
           )}
         </div>
