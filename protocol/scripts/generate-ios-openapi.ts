@@ -9,6 +9,10 @@ import {
   alertHumanActionRequestSchema,
   alertHumanActionResponseSchema,
   alertInvestigationSchema,
+  authLogoutResponseSchema,
+  authOidcHandoffRequestSchema,
+  authOidcHandoffResponseSchema,
+  authProvidersResponseSchema,
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
   healthResponseSchema,
@@ -145,6 +149,14 @@ const AuthSessionCreateRequest = authSessionCreateRequestSchema.meta({
 const AuthSessionCreateResponse = authSessionCreateResponseSchema.meta({
   id: "AuthSessionCreateResponse",
 });
+const AuthProvidersResponse = authProvidersResponseSchema.meta({ id: "AuthProvidersResponse" });
+const AuthOidcHandoffRequest = authOidcHandoffRequestSchema.meta({
+  id: "AuthOidcHandoffRequest",
+});
+const AuthOidcHandoffResponse = authOidcHandoffResponseSchema.meta({
+  id: "AuthOidcHandoffResponse",
+});
+const AuthLogoutResponse = authLogoutResponseSchema.meta({ id: "AuthLogoutResponse" });
 const NotificationPreferencesResponse = notificationPreferencesResponseSchema.meta({
   id: "NotificationPreferencesResponse",
 });
@@ -230,6 +242,50 @@ registry.registerPath({
   },
   responses: {
     200: jsonResponse("The app session payload.", AuthSessionCreateResponse),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/auth/providers",
+  operationId: "getAuthProviders",
+  tags: ["auth"],
+  summary: "List the sign-in methods the server accepts",
+  responses: {
+    200: jsonResponse("The configured sign-in methods.", AuthProvidersResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/oidc/handoff",
+  operationId: "redeemOidcHandoff",
+  tags: ["auth"],
+  summary: "Redeem an OIDC hand-off code with its PKCE verifier for an app session",
+  request: {
+    body: {
+      required: true,
+      content: jsonContent(AuthOidcHandoffRequest),
+    },
+  },
+  responses: {
+    200: jsonResponse("The app session payload.", AuthOidcHandoffResponse),
+    400: jsonResponse("Invalid hand-off request.", ErrorResponse),
+    401: jsonResponse("Unknown, used, expired or mismatched hand-off code.", ErrorResponse),
+    404: jsonResponse("OIDC sign-in is not configured.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/logout",
+  operationId: "logout",
+  tags: ["auth"],
+  summary: "Revoke the current app session",
+  security: [{ appSession: [] }],
+  responses: {
+    200: jsonResponse("The session was revoked.", AuthLogoutResponse),
+    401: jsonResponse("App session required.", ErrorResponse),
   },
 });
 

@@ -18,4 +18,11 @@ crons.interval(
   {},
 );
 
+crons.interval(
+  "delete expired OIDC logins",
+  { hours: 1 },
+  internal.authSessions.deleteExpiredOidcLogins,
+  {},
+);
+
 export default crons;

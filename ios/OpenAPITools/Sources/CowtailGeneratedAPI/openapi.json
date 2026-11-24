@@ -576,6 +576,119 @@
           "identityToken"
         ]
       },
+      "AuthProvidersResponse": {
+        "type": "object",
+        "properties": {
+          "apple": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "oidc": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        },
+        "required": [
+          "apple"
+        ]
+      },
+      "AuthOidcHandoffResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "session": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "minLength": 1
+              },
+              "userId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "expiresAt": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "token",
+              "userId",
+              "expiresAt"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "session"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ]
+      },
+      "AuthOidcHandoffRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verifier": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+          }
+        },
+        "required": [
+          "code",
+          "verifier"
+        ]
+      },
+      "AuthLogoutResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
       "PushRegisterResponse": {
         "type": "object",
         "properties": {
@@ -941,25 +1054,6 @@
           "alert"
         ]
       },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              false
-            ]
-          },
-          "error": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "ok",
-          "error"
-        ]
-      },
       "AlertHumanActionRequest": {
         "type": "object",
         "properties": {
@@ -1060,6 +1154,124 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuthSessionCreateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/providers": {
+      "get": {
+        "operationId": "getAuthProviders",
+        "tags": [
+          "auth"
+        ],
+        "summary": "List the sign-in methods the server accepts",
+        "responses": {
+          "200": {
+            "description": "The configured sign-in methods.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/oidc/handoff": {
+      "post": {
+        "operationId": "redeemOidcHandoff",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Redeem an OIDC hand-off code with its PKCE verifier for an app session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthOidcHandoffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The app session payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOidcHandoffResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid hand-off request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown, used, expired or mismatched hand-off code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "OIDC sign-in is not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Revoke the current app session",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session was revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLogoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

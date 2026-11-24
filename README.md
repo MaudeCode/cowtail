@@ -90,7 +90,18 @@ The Hermes plugin needs only Python 3.11 or later. Test it with `python -m unitt
    - `APNS_TOPIC` — the native app bundle identifier used for APNs
    - `APPLE_AUTH_AUDIENCE` — optional explicit Sign in with Apple audience override; defaults to `APNS_TOPIC`
 
-4. **Deploy** using the HelmRelease in your GitOps repo, or any Kubernetes deployment method.
+4. **Optional: sign in with Pocket ID (OIDC).** Cowtail is single-owner, and Pocket ID signs in as the same owner as Sign in with Apple.
+   - In Pocket ID, add an OIDC client that is confidential (not public), with PKCE enabled and the callback URL `<COWTAIL_WEB_ORIGIN>/actions/api/auth/oidc/callback`.
+   - Find the owner's `sub`: in Pocket ID, open the owner's user; its ID is the `sub` the ID token carries.
+   - Set all four of these on the Convex deployment, or none of them:
+     - `OIDC_ISSUER_URL` — the Pocket ID base URL, `https://` only
+     - `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` — from the client above
+     - `COWTAIL_OWNER_OIDC_SUBJECT` — the owner's Pocket ID `sub`
+   - `COWTAIL_OWNER_USER_ID` must already hold the owner's Sign in with Apple subject; a Pocket ID sign-in becomes that user. Every other Pocket ID user is refused.
+   - `OIDC_DISPLAY_NAME` optionally renames the button; it defaults to `Pocket ID`.
+   - With none set, the OIDC routes return 404. With only some set, they return 500 naming the missing ones.
+
+5. **Deploy** using the HelmRelease in your GitOps repo, or any Kubernetes deployment method.
 
 ### Writing alerts
 

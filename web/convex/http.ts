@@ -1,9 +1,14 @@
 import { Hono } from "hono";
 import { ConvexError } from "convex/values";
 import type { Context } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { cors } from "hono/cors";
 import { type HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
 import {
+  authLogoutResponseSchema,
+  authOidcHandoffRequestSchema,
+  authOidcHandoffResponseSchema,
+  authProvidersResponseSchema,
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
   alertGetResponseSchema,
@@ -58,10 +63,19 @@ import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
 import { itemErrorCode } from "./items";
+import {
+  exchangeOidcCode,
+  fetchOidcDiscovery,
+  OidcError,
+  oidcConfig,
+  verifyOidcIdToken,
+} from "./oidcIdentity";
 import { validateOpenClawLimit } from "./openclawModel";
 import { sendPushToUser } from "./pushDelivery";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_COOKIE = "cowtail_session";
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 const app: HonoWithConvex<ActionCtx> = new Hono();
 type RouteContext = Context;
@@ -256,16 +270,60 @@ function createOpaqueToken(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function requireAppSession(c: {
-  env: ActionCtx;
-  req: { header(name: string): string | undefined };
-}) {
+function base64Url(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function randomBase64Url(): string {
+  return base64Url(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+// RFC 7636 S256: base64url(SHA-256(ASCII verifier)).
+async function pkceChallenge(verifier: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return base64Url(new Uint8Array(hash));
+}
+
+// The one place a session is created: Apple sign-in, the OIDC web callback and the OIDC
+// iOS hand-off all issue through it.
+async function issueSession(ctx: ActionCtx, userId: string) {
+  const token = createOpaqueToken();
+  const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
+  await ctx.runMutation(internal.authSessions.createSession, {
+    userId,
+    tokenHash: await sha256Hex(token),
+    expiresAt,
+  });
+
+  return { token, userId, expiresAt };
+}
+
+type AppSessionContext = Context<typeof app extends Hono<infer Env> ? Env : never>;
+
+// A bearer token wins when present. Without one, the `cowtail_session` cookie is accepted,
+// and a state-changing cookie request must come from the web origin (CSRF).
+async function requireAppSession(c: AppSessionContext) {
   const authorization = c.req.header("authorization")?.trim();
-  if (!authorization?.startsWith("Bearer ")) {
-    return { error: jsonError("Unauthorized", 401) };
+  let token: string | undefined;
+  if (authorization) {
+    if (!authorization.startsWith("Bearer ")) {
+      return { error: jsonError("Unauthorized", 401) };
+    }
+    token = authorization.slice("Bearer ".length).trim();
+  } else {
+    token = getCookie(c, SESSION_COOKIE)?.trim();
+    if (
+      token &&
+      UNSAFE_METHODS.has(c.req.method.toUpperCase()) &&
+      c.req.header("origin") !== cowtailWebOrigin()
+    ) {
+      return { error: jsonError("Forbidden", 403) };
+    }
   }
 
-  const token = authorization.slice("Bearer ".length).trim();
   if (!token) {
     return { error: jsonError("Unauthorized", 401) };
   }
@@ -287,6 +345,13 @@ async function requireAppSession(c: {
   };
 }
 
+function cowtailOwnerUserId(): string | undefined {
+  return (
+    nonEmptyString(process.env.COWTAIL_OWNER_USER_ID) ??
+    nonEmptyString(process.env.COWTAIL_OPENCLAW_OWNER_USER_ID)
+  );
+}
+
 export function requireOpenClawOwner(auth: { userId: string }) {
   return requireCowtailOwner(auth, "OpenClaw owner user ID is not configured");
 }
@@ -295,9 +360,7 @@ export function requireCowtailOwner(
   auth: { userId: string },
   missingMessage = "Cowtail owner user ID is not configured",
 ) {
-  const ownerUserId =
-    nonEmptyString(process.env.COWTAIL_OWNER_USER_ID) ??
-    nonEmptyString(process.env.COWTAIL_OPENCLAW_OWNER_USER_ID);
+  const ownerUserId = cowtailOwnerUserId();
   if (!ownerUserId) {
     return jsonError(missingMessage, 500);
   }
@@ -1470,26 +1533,202 @@ app.post("/api/auth/session", async (c) => {
     return jsonError(message, 500);
   }
 
-  const token = createOpaqueToken();
-  const tokenHash = await sha256Hex(token);
-  const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
-
-  await c.env.runMutation(internal.authSessions.createSession, {
-    userId,
-    tokenHash,
-    expiresAt,
-  });
-
   return c.json(
     authSessionCreateResponseSchema.parse({
       ok: true,
-      session: {
-        token,
-        userId,
-        expiresAt,
-      },
+      session: await issueSession(c.env, userId),
     }),
   );
+});
+
+// GET /api/auth/providers — the sign-in methods clients should offer
+app.get("/api/auth/providers", (c) => {
+  let oidc;
+  try {
+    oidc = oidcConfig();
+  } catch {
+    oidc = null;
+  }
+
+  return c.json(
+    authProvidersResponseSchema.parse({
+      apple: true,
+      ...(oidc ? { oidc: { name: oidc.displayName } } : {}),
+    }),
+  );
+});
+
+function textPage(message: string, status: number) {
+  return new Response(message, {
+    status,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+function oidcRedirectUri(): string {
+  return `${cowtailWebOrigin()}/actions/api/auth/oidc/callback`;
+}
+
+// Off (404), partial (500) or the configuration. `respond` shapes the error for a browser
+// page or a JSON client.
+function requireOidc(respond: (message: string, status: number) => Response) {
+  try {
+    const config = oidcConfig();
+    return config ? { config } : { error: respond("Not found", 404) };
+  } catch (error) {
+    if (error instanceof OidcError) {
+      return { error: respond(error.message, error.statusCode) };
+    }
+    throw error;
+  }
+}
+
+const HANDOFF_CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+// GET /api/auth/oidc/start — begin an OIDC sign-in for the browser or the iOS app
+app.get("/api/auth/oidc/start", async (c) => {
+  const oidc = requireOidc(textPage);
+  if ("error" in oidc) return oidc.error;
+
+  const client = c.req.query("client");
+  const handoffChallenge = c.req.query("handoff_challenge");
+  if (client !== "web" && client !== "ios") {
+    return textPage("client must be web or ios", 400);
+  }
+  if (client === "ios" && !HANDOFF_CHALLENGE_PATTERN.test(handoffChallenge ?? "")) {
+    return textPage("client=ios requires a base64url S256 handoff_challenge", 400);
+  }
+
+  try {
+    const discovery = await fetchOidcDiscovery(oidc.config);
+    const state = randomBase64Url();
+    const nonce = randomBase64Url();
+    const codeVerifier = randomBase64Url();
+    await c.env.runMutation(internal.authSessions.createOidcLogin, {
+      stateHash: await sha256Hex(state),
+      codeVerifier,
+      nonce,
+      client,
+      handoffChallenge: client === "ios" ? handoffChallenge : undefined,
+    });
+
+    const authorize = new URL(discovery.authorizationEndpoint);
+    authorize.search = new URLSearchParams({
+      response_type: "code",
+      client_id: oidc.config.clientId,
+      redirect_uri: oidcRedirectUri(),
+      scope: "openid profile email",
+      state,
+      nonce,
+      code_challenge: await pkceChallenge(codeVerifier),
+      code_challenge_method: "S256",
+    }).toString();
+    return c.redirect(authorize.toString(), 302);
+  } catch (error) {
+    if (error instanceof OidcError) return textPage(error.message, error.statusCode);
+    throw error;
+  }
+});
+
+// GET /api/auth/oidc/callback — the provider's redirect back after the user signs in
+app.get("/api/auth/oidc/callback", async (c) => {
+  const oidc = requireOidc(textPage);
+  if ("error" in oidc) return oidc.error;
+  const ownerUserId = cowtailOwnerUserId();
+  if (!ownerUserId) {
+    return textPage("Cowtail owner user ID is not configured", 500);
+  }
+
+  const code = nonEmptyString(c.req.query("code"));
+  const state = nonEmptyString(c.req.query("state"));
+  if (!code || !state) {
+    return textPage("Sign-in failed: the provider returned no code or state", 400);
+  }
+
+  const login = await c.env.runMutation(internal.authSessions.consumeOidcLoginByState, {
+    stateHash: await sha256Hex(state),
+  });
+  if (!login) {
+    return textPage("Sign-in expired or was already used. Start again.", 400);
+  }
+
+  let subject: string;
+  try {
+    const discovery = await fetchOidcDiscovery(oidc.config);
+    const idToken = await exchangeOidcCode(oidc.config, discovery, {
+      code,
+      codeVerifier: login.codeVerifier,
+      redirectUri: oidcRedirectUri(),
+    });
+    subject = await verifyOidcIdToken(oidc.config, discovery, { idToken, nonce: login.nonce });
+  } catch (error) {
+    if (error instanceof OidcError) return textPage(error.message, error.statusCode);
+    throw error;
+  }
+
+  if (subject !== oidc.config.ownerSubject) {
+    return textPage("This account is not allowed to sign in to Cowtail.", 403);
+  }
+
+  if (login.client === "ios") {
+    const handoffCode = createOpaqueToken();
+    await c.env.runMutation(internal.authSessions.storeOidcHandoffCode, {
+      id: login.id,
+      handoffCodeHash: await sha256Hex(handoffCode),
+    });
+    return c.redirect(`cowtail://auth/callback?code=${encodeURIComponent(handoffCode)}`, 302);
+  }
+
+  const session = await issueSession(c.env, ownerUserId);
+  setCookie(c, SESSION_COOKIE, session.token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: AUTH_SESSION_TTL_MS / 1000,
+  });
+  return c.redirect("/", 302);
+});
+
+// POST /api/auth/oidc/handoff — the iOS app trades its hand-off code and PKCE verifier for a session
+app.post("/api/auth/oidc/handoff", async (c) => {
+  const oidc = requireOidc((message, status) => jsonError(message, status));
+  if ("error" in oidc) return oidc.error;
+  const ownerUserId = cowtailOwnerUserId();
+  if (!ownerUserId) {
+    return jsonError("Cowtail owner user ID is not configured", 500);
+  }
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = authOidcHandoffRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(formatIssues(parsed.error.issues), 400);
+  }
+
+  const redemption = await c.env.runMutation(internal.authSessions.redeemOidcHandoffCode, {
+    handoffCodeHash: await sha256Hex(parsed.data.code),
+    handoffChallenge: await pkceChallenge(parsed.data.verifier),
+  });
+  if (!redemption.ok) {
+    return jsonError("Invalid or expired hand-off code", 401);
+  }
+
+  return c.json(
+    authOidcHandoffResponseSchema.parse({
+      ok: true,
+      session: await issueSession(c.env, ownerUserId),
+    }),
+  );
+});
+
+// POST /api/auth/logout — revoke the current bearer or cookie session and clear the cookie
+app.post("/api/auth/logout", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  await c.env.runMutation(internal.authSessions.revokeSession, { id: auth.session._id });
+  deleteCookie(c, SESSION_COOKIE, { path: "/", secure: true, httpOnly: true, sameSite: "Lax" });
+  return c.json(authLogoutResponseSchema.parse({ ok: true }));
 });
 
 // POST /api/push/register — register or refresh an iOS device token
