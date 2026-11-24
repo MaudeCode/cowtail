@@ -113,7 +113,8 @@ private final class RecordingTransport: ClientTransport, @unchecked Sendable {
         lock.withLock { recorded.append((full, bytes)) }
 
         let item = """
-        {"ok":true,"item":{"id":"item-1","source":"hermes","kind":"approval","urgency":"now",\
+        {"ok":true,"item":{"id":"item-1","source":"hermes",\
+        "sourceInfo":{"slug":"hermes","displayName":"Hermes"},"kind":"approval","urgency":"now",\
         "state":"open","needsOwner":true,"title":"Restart ingress in edge?","body":"","links":[],\
         "context":{},"occurrenceCount":1,"actions":[{"type":"approve"},{"type":"deny"}],\
         "createdAt":1,"updatedAt":2}}
