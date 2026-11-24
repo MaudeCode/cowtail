@@ -116,6 +116,27 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.incidents["incident-1"]?.members, [])
     }
 
+    func testALostReplyKeepsTheChangeShownUntilAReadSaysWhich() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        await api.holdIncidentChange()
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        let removing = Task { await store.change(.remove(itemID: approval.id), incidentID: "incident-1") }
+        await api.waitUntilIncidentChangeHeld()
+        await api.failIncidentReads(true)
+        await api.releaseIncidentChange(with: URLError(.networkConnectionLost))
+        await removing.value
+        // The removal may have landed, and no read has said otherwise.
+        XCTAssertEqual(store.incidents["incident-1"]?.members, [])
+
+        await api.failIncidentReads(false)
+        await store.loadIncident(id: "incident-1")
+        // The server kept the member: the removal never landed.
+        XCTAssertEqual(store.incidents["incident-1"], storageOutage)
+    }
+
     func testAnAddWaitingOnTheServerShowsAddAnItemBusy() async {
         let api = FakeItemAPI(inbox: .empty)
         await api.seedIncident(storageOutage)
@@ -898,6 +919,7 @@ private actor FakeItemAPI: CowtailAPIClient {
 
     private var incident: IncidentDetail?
     private(set) var sentIncidentChanges: [IncidentChange] = []
+    private var failsIncidentReads = false
     private var holdsIncidentChange = false
     private var heldIncidentChange: CheckedContinuation<Error?, Never>?
     private var heldIncidentWaiters: [CheckedContinuation<Void, Never>] = []
@@ -925,7 +947,15 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func fetchIncident(id _: String, sessionToken _: String) async throws -> IncidentDetail? {
-        incident
+        if failsIncidentReads {
+            throw URLError(.notConnectedToInternet)
+        }
+        return incident
+    }
+
+    /// Incident reads fail until this is set back.
+    func failIncidentReads(_ fails: Bool) {
+        failsIncidentReads = fails
     }
 
     func fetchIncidentCandidates(id _: String, sessionToken _: String) async throws -> [Item] {

@@ -185,8 +185,8 @@ export default function IncidentDetail() {
   const { id = "" } = useParams();
   const { data, error } = useQuery(incidentQuery(id));
   const change = useIncidentChange(id);
-  if (error) return <QueryError error={error} />;
-  if (!data) return null;
+  // A failed reread keeps the incident on screen; only a first read that fails shows the error.
+  if (!data) return error ? <QueryError error={error} /> : null;
   const { incident } = data;
 
   return (

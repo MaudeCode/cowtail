@@ -1388,6 +1388,28 @@ describe("incidents", () => {
     expect(shown.members.map((member) => member.id)).toEqual(["item-1"]);
   });
 
+  test("a removal whose reply is lost stays shown until a read says what the server kept", async () => {
+    const routes: Record<string, unknown> = signedIn({
+      [INCIDENT]: incidentDetail(),
+      "DELETE /actions/api/me/incidents/incident-1/items/item-2": {
+        status: 502,
+        body: { ok: false, error: "Bad gateway" },
+      },
+    });
+    stubApi(routes);
+    const { queryClient } = renderApp("/incidents/incident-1");
+    const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
+    routes[INCIDENT] = { status: 503, body: { ok: false, error: "Unavailable" } };
+
+    await userEvent.click(first);
+    await screen.findByText("Bad gateway");
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
+
+    routes[INCIDENT] = incidentDetail();
+    await queryClient.refetchQueries({ queryKey: ["incident", "incident-1"], exact: true });
+    expect(await screen.findByRole("link", { name: "CephHealthErr" })).toBeInTheDocument();
+  });
+
   test("a refused removal puts the member back and says why", async () => {
     stubApi(
       signedIn({

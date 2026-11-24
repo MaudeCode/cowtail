@@ -127,6 +127,8 @@ final class CowtailStore: ObservableObject {
     private struct PendingIncidentChange {
         let id = UUID()
         let change: IncidentChange
+        /// Sent, and its reply lost: shown until a read from the server says whether it landed.
+        var unconfirmed = false
     }
     /// What the server last said about each incident.
     private var confirmedIncidents: [String: IncidentDetail] = [:]
@@ -365,6 +367,8 @@ final class CowtailStore: ObservableObject {
         }
         do {
             if let detail = try await api.fetchIncident(id: id, sessionToken: token) {
+                // The read says whether each change whose reply was lost landed.
+                pendingIncidentChanges[id]?.removeAll(where: \.unconfirmed)
                 confirm(detail, incidentID: id)
                 incidentErrors[id] = nil
             } else {
@@ -406,7 +410,8 @@ final class CowtailStore: ObservableObject {
 
     /// Every change shows at once and waits for the one before it to settle, so changes reach
     /// the server in the order the owner made them. A refusal puts back what the server last
-    /// confirmed, with the later changes still shown; any other failure rereads what it kept.
+    /// confirmed, with the later changes still shown. A change whose reply was lost stays shown
+    /// until a read from the server says whether it landed.
     func change(_ change: IncidentChange, incidentID id: String) async {
         incidentErrors[id] = nil
         guard let token = await sessionToken() else {
@@ -439,8 +444,10 @@ final class CowtailStore: ObservableObject {
             confirm(nil, incidentID: id)
             incidentErrors[id] = message
         } catch {
-            settle()
-            confirm(nil, incidentID: id)
+            // The change may or may not have landed: it stays shown until a read says which.
+            if let index = pendingIncidentChanges[id]?.firstIndex(where: { $0.id == pending.id }) {
+                pendingIncidentChanges[id]?[index].unconfirmed = true
+            }
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
             incidentErrors[id] = error.localizedDescription
             await loadIncident(id: id)
