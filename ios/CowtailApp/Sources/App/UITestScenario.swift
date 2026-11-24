@@ -231,7 +231,7 @@ private enum SeedFactory {
                 notification: UITestScenario.NotificationSeed(
                     authorizationStatus: .authorized,
                     registrationState: .registered,
-                    serverRegistrationState: .waitingForIdentity,
+                    serverRegistrationState: .registered,
                     deviceToken: "ui-test-device-token",
                     registrationError: nil,
                     serverRegistrationMessage: nil,
