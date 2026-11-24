@@ -27,6 +27,15 @@ describe(".github/ci-suites.json", () => {
     expect(selected("protocol/src/alerts.ts")).toEqual(["global", "web", "cli", "ios"]);
   });
 
+  // The global suite runs the test-rules scan, so every scanned test file must reach it.
+  test("an iOS test change runs the global suite's test-rules scan", () => {
+    expect(selected("ios/CowtailTests/Shared/InboxRefreshBehaviorTests.swift")).toEqual([
+      "global",
+      "ios",
+    ]);
+    expect(selected("ios/CowtailUITests/Support/AppLaunching.swift")).toEqual(["global", "ios"]);
+  });
+
   test("a Markdown change runs no suite", () => {
     expect(selected("README.md")).toEqual([]);
   });

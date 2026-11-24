@@ -42,15 +42,18 @@ final class RoundupInternalsTests: XCTestCase {
         XCTAssertEqual(router.roundupRoute, RoundupRoute(from: "2026-04-12", to: "2026-04-12"))
     }
 
-    func testRoundupViewUsesInjectedRoundupDataClientAndSeededRoundupData() async throws {
+    func testRoundupViewUsesInjectedRoundupDataClientAndSeededRoundupData() async {
         let seed = UITestScenario(named: .inboxPopulated).seed
         let view = RoundupView(roundupRoute: RoundupRoute(from: "2026-04-14", to: "2026-04-14"))
         XCTAssertFalse(Mirror(reflecting: view).children.compactMap(\.label).contains("api"))
 
         let expectedRange = Self.expectedRoundupRange(from: "2026-04-14", to: "2026-04-14")
+        let loaded = expectation(description: "roundup alerts and fixes fetched")
+        loaded.expectedFulfillmentCount = 2
         let client = RoundupDataClientSpy(
             alerts: seed.roundupAlerts,
-            fixes: seed.roundupFixes
+            fixes: seed.roundupFixes,
+            loaded: loaded
         )
         let store = CowtailStore(alerts: [])
         let host = UIHostingController(
@@ -67,7 +70,7 @@ final class RoundupInternalsTests: XCTestCase {
         host.beginAppearanceTransition(true, animated: false)
         host.endAppearanceTransition()
 
-        try await client.waitUntilLoaded(timeout: 2)
+        await fulfillment(of: [loaded], timeout: 2)
 
         let snapshot = await client.snapshot()
         XCTAssertEqual(snapshot.alertRequestCount, 1)
@@ -146,16 +149,19 @@ private actor RoundupDataClientSpy: RoundupDataClient {
     private var fixRequestRangeStorage: RequestRange?
     private var lastAlertsStorage: [AlertItem] = []
     private var lastFixesStorage: [AlertFix] = []
+    private let loaded: XCTestExpectation
 
-    init(alerts: [AlertItem], fixes: [AlertFix]) {
+    init(alerts: [AlertItem], fixes: [AlertFix], loaded: XCTestExpectation) {
         self.alerts = alerts
         self.fixes = fixes
+        self.loaded = loaded
     }
 
     func fetchRoundupAlerts(from: Date, to: Date) async throws -> [AlertItem] {
         alertRequestCountStorage += 1
         alertRequestRangeStorage = RequestRange(from: from, to: to)
         lastAlertsStorage = alerts
+        loaded.fulfill()
         return alerts
     }
 
@@ -163,18 +169,8 @@ private actor RoundupDataClientSpy: RoundupDataClient {
         fixRequestCountStorage += 1
         fixRequestRangeStorage = RequestRange(from: from, to: to)
         lastFixesStorage = fixes
+        loaded.fulfill()
         return fixes
-    }
-
-    func waitUntilLoaded(timeout: TimeInterval) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while alertRequestCountStorage == 0 || fixRequestCountStorage == 0 {
-            if Date() >= deadline {
-                throw TimeoutError()
-            }
-
-            try await Task.sleep(for: .milliseconds(10))
-        }
     }
 
     func snapshot() -> Snapshot {
@@ -187,8 +183,6 @@ private actor RoundupDataClientSpy: RoundupDataClient {
             lastFixes: lastFixesStorage
         )
     }
-
-    struct TimeoutError: Error {}
 
     struct RequestRange {
         let from: Date

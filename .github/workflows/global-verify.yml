@@ -29,8 +29,10 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec maudecode-ci rules --config script/ci/test-rules.json
       - run: pnpm run fmt:ts:check
       - run: pnpm run lint:ts
       - run: pnpm run check:protocol
-      - run: pnpm run test:protocol
-      - run: pnpm run test:script
+      - run: pnpm run test:protocol --reporter=default --reporter=junit --outputFile.junit="${RUNNER_TEMP}/junit/protocol.xml"
+      - run: pnpm run test:script --reporter=default --reporter=junit --outputFile.junit="${RUNNER_TEMP}/junit/script.xml"
+      - run: pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/junit/protocol.xml" "${RUNNER_TEMP}/junit/script.xml"

@@ -43,7 +43,10 @@ jobs:
         run: pnpm run check:cli
 
       - name: Test CLI
-        run: pnpm run test:cli
+        run: pnpm run test:cli --reporter=default --reporter=junit --outputFile.junit="${RUNNER_TEMP}/junit/cli.xml"
+
+      - name: Check CLI test run times
+        run: pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/junit/cli.xml"
 
       - name: Verify the packed CLI prints its version
         working-directory: cli

@@ -28,7 +28,7 @@ Keep this document scrubbed:
 
 **Optimistic writes.** A user-initiated write shows its result at once. If the server refuses it, the client rolls back to the last confirmed value and shows the error. An unknown outcome reconciles with the server before the client keeps or rolls back the change, and a non-idempotent write is never replayed blind. Only writes whose result the server must produce keep a busy state, and only on the control that started them.
 
-**Tests.** Tests own synthetic, disposable state and never depend on a live account, cluster or device. Every added or changed test passes the `test-audit` skill's authoring gate. Fixing a bad test writes its rule into that skill in the same change.
+**Tests.** Read [`docs/testing.md`](./docs/testing.md) before writing, changing or fixing a test. Tests own synthetic, disposable state and never depend on a live account, cluster or device. Every added or changed test passes the `test-audit` skill's authoring gate. Fixing a bad test writes its rule into that skill in the same change.
 
 **Dependencies.** Add no third-party dependency without the owner's approval.
 
