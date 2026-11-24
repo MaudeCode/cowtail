@@ -92,6 +92,8 @@ struct Item: Identifiable, Hashable, Sendable {
     /// Answering approve or deny needs Face ID: the owner's current setting, from the server.
     let approvalNeedsAuth: Bool
     let expiresAt: Date?
+    /// When a snoozed item returns to the inbox.
+    var snoozedUntil: Date?
     let createdAt: Date
     let updatedAt: Date
     let resolvedAt: Date?
@@ -127,6 +129,7 @@ struct Item: Identifiable, Hashable, Sendable {
         ownerNote: String? = nil,
         approvalNeedsAuth: Bool = false,
         expiresAt: Date? = nil,
+        snoozedUntil: Date? = nil,
         createdAt: Date,
         updatedAt: Date? = nil,
         resolvedAt: Date? = nil,
@@ -160,6 +163,7 @@ struct Item: Identifiable, Hashable, Sendable {
         self.ownerNote = ownerNote
         self.approvalNeedsAuth = approvalNeedsAuth
         self.expiresAt = expiresAt
+        self.snoozedUntil = snoozedUntil
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.resolvedAt = resolvedAt
@@ -203,6 +207,7 @@ struct ItemInbox: Equatable, Sendable {
     struct Counts: Equatable, Sendable {
         var needsYou: Int
         var withHermes: Int
+        var upcoming: Int
         var handled: Int
     }
 
@@ -210,22 +215,30 @@ struct ItemInbox: Equatable, Sendable {
     var counts: Counts
     var needsYou: [Item]
     var withHermes: [Item]
+    /// Snoozed items, the soonest return first.
+    var upcoming: [Item]
     var handled: [Item]
 
     static let empty = ItemInbox(needsYou: [], withHermes: [], handled: [])
 
     func item(withID id: String) -> Item? {
-        (needsYou + withHermes + handled).first { $0.id == id }
+        (needsYou + withHermes + upcoming + handled).first { $0.id == id }
     }
 }
 
 extension ItemInbox {
     /// An inbox whose totals are its lists, as a stand-in server builds it.
-    init(needsYou: [Item], withHermes: [Item], handled: [Item]) {
+    init(needsYou: [Item], withHermes: [Item], upcoming: [Item] = [], handled: [Item]) {
         self.init(
-            counts: Counts(needsYou: needsYou.count, withHermes: withHermes.count, handled: handled.count),
+            counts: Counts(
+                needsYou: needsYou.count,
+                withHermes: withHermes.count,
+                upcoming: upcoming.count,
+                handled: handled.count
+            ),
             needsYou: needsYou,
             withHermes: withHermes,
+            upcoming: upcoming,
             handled: handled
         )
     }
@@ -235,6 +248,8 @@ extension ItemInbox {
 enum ItemActionRequest: Hashable, Sendable {
     case ack
     case snooze(until: Date)
+    /// Returns a snoozed item to the inbox now.
+    case unsnooze
     case approve
     case deny
     case choose(String)
@@ -249,7 +264,7 @@ enum ItemActionRequest: Hashable, Sendable {
 
     var isAnswer: Bool {
         switch self {
-        case .ack, .snooze: false
+        case .ack, .snooze, .unsnooze: false
         case .approve, .deny, .choose, .reply: true
         }
     }

@@ -82,4 +82,59 @@ final class CowtailAPITests: XCTestCase {
 
         XCTAssertNil(status.heartbeat)
     }
+
+    private static func itemRecord(_ id: String, snoozedUntil: Int? = nil) -> String {
+        let snooze = snoozedUntil.map { #","state":"snoozed","snoozedUntil":\#($0)"# } ?? #","state":"open""#
+        return """
+        {"id":"\(id)","source":"hermes","sourceInfo":{"slug":"hermes","displayName":"Hermes"},\
+        "kind":"fyi","urgency":"today","needsOwner":false,"title":"\(id)","body":"","links":[],\
+        "context":{},"occurrenceCount":1,"actions":[],"createdAt":1,"updatedAt":2\(snooze)}
+        """
+    }
+
+    func testTheInboxKeepsTheServersUpcomingOrderAndReturnTimes() async throws {
+        let reply = """
+        {"ok":true,"counts":{"needsYou":0,"withHermes":0,"upcoming":7,"handled":0},\
+        "needsYou":[],"withHermes":[],"handled":[],\
+        "upcoming":[\(Self.itemRecord("later", snoozedUntil: 1_800_000_000_000)),\
+        \(Self.itemRecord("sooner", snoozedUntil: 1_700_000_000_000))]}
+        """
+        let transport = RecordingTransport(routes: ["GET /api/items/inbox": .init(json: reply)])
+
+        let inbox = try await CowtailAPI(transport: transport).fetchInbox(sessionToken: "session")
+
+        XCTAssertEqual(inbox.upcoming.map(\.id), ["later", "sooner"])
+        XCTAssertEqual(inbox.upcoming.map(\.snoozedUntil), [Date(timeIntervalSince1970: 1_800_000_000), Date(timeIntervalSince1970: 1_700_000_000)])
+        XCTAssertEqual(inbox.counts.upcoming, 7)
+    }
+
+    func testAnInboxFromAServerBeforeUpcomingHasNoUpcomingItems() async throws {
+        let reply = """
+        {"ok":true,"counts":{"needsYou":1,"withHermes":0,"handled":0},\
+        "needsYou":[\(Self.itemRecord("open"))],"withHermes":[],"handled":[]}
+        """
+        let transport = RecordingTransport(routes: ["GET /api/items/inbox": .init(json: reply)])
+
+        let inbox = try await CowtailAPI(transport: transport).fetchInbox(sessionToken: "session")
+
+        XCTAssertEqual(inbox.upcoming, [])
+        XCTAssertEqual(inbox.counts.upcoming, 0)
+        XCTAssertEqual(inbox.needsYou.map(\.id), ["open"])
+    }
+
+    func testUnsnoozeSendsItsType() async throws {
+        let transport = RecordingTransport(routes: [
+            "POST /api/me/items/item-1/actions": .init(json: #"{"ok":true,"item":\#(Self.itemRecord("item-1"))}"#),
+        ])
+
+        _ = try await CowtailAPI(transport: transport).performItemAction(
+            itemID: "item-1",
+            request: .unsnooze,
+            authenticated: nil,
+            sessionToken: "session"
+        )
+
+        let sent = try XCTUnwrap(transport.requests("POST /api/me/items/item-1/actions").first)
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: sent.body) as? [String: String], ["type": "unsnooze"])
+    }
 }

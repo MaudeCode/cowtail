@@ -41,6 +41,9 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         return ItemInbox(
             needsYou: byUpdate.filter { $0.state == .open && $0.needsOwner },
             withHermes: byUpdate.filter { ($0.state == .open || $0.state == .acked) && !$0.needsOwner },
+            upcoming: seed.items
+                .filter { $0.state == .snoozed }
+                .sorted { ($0.snoozedUntil ?? .distantFuture) < ($1.snoozedUntil ?? .distantFuture) },
             handled: byUpdate.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) >= dayAgo }
         )
     }
@@ -99,7 +102,9 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
             throw CowtailAPIError.refused("Item not found")
         }
         var item = seed.items[index]
-        item.needsOwner = false
+        if request != .unsnooze {
+            item.needsOwner = false
+        }
         if request.isAnswer {
             item.availableActions.removeAll(where: \.isAnswer)
         }
@@ -108,9 +113,17 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         case .ack:
             item.state = .acked
             payload = ["type": "ack"]
-        case .snooze:
+        case .snooze(let until):
             item.state = .snoozed
+            item.snoozedUntil = until
             payload = ["type": "snooze"]
+        case .unsnooze:
+            guard item.state == .snoozed else {
+                throw CowtailAPIError.refused("Item is not snoozed")
+            }
+            item.state = .open
+            item.snoozedUntil = nil
+            payload = ["type": "unsnooze"]
         case .approve: payload = ["type": "approve"]
         case .deny: payload = ["type": "deny"]
         case .choose(let option): payload = ["type": "choose", "option": option]

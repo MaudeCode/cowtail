@@ -311,6 +311,7 @@ final class CowtailStore: ObservableObject {
         change(&current)
         current.counts.needsYou += current.needsYou.count - before.needsYou.count
         current.counts.withHermes += current.withHermes.count - before.withHermes.count
+        current.counts.upcoming += current.upcoming.count - before.upcoming.count
         current.counts.handled += current.handled.count - before.handled.count
         inbox = current
     }
@@ -318,36 +319,49 @@ final class CowtailStore: ObservableObject {
     /// Puts one refused item back where it was, leaving every other item as it is now.
     private func restore(_ itemID: String, from before: ItemInbox?) {
         guard let before else { return }
+        let sections: [WritableKeyPath<ItemInbox, [Item]>] = [\.needsYou, \.withHermes, \.upcoming, \.handled]
         adjustInbox { current in
-        current.needsYou.removeAll { $0.id == itemID }
-        current.withHermes.removeAll { $0.id == itemID }
-        current.handled.removeAll { $0.id == itemID }
-        func putBack(_ section: WritableKeyPath<ItemInbox, [Item]>) {
-            guard let index = before[keyPath: section].firstIndex(where: { $0.id == itemID }) else { return }
-            current[keyPath: section].insert(before[keyPath: section][index], at: min(index, current[keyPath: section].count))
-        }
-            putBack(\.needsYou)
-            putBack(\.withHermes)
-            putBack(\.handled)
+            for section in sections {
+                current[keyPath: section].removeAll { $0.id == itemID }
+                guard let index = before[keyPath: section].firstIndex(where: { $0.id == itemID }) else { continue }
+                current[keyPath: section].insert(before[keyPath: section][index], at: min(index, current[keyPath: section].count))
+            }
         }
     }
 
     private func showOptimistically(_ request: ItemActionRequest, on item: Item) {
         var moved = item
-        moved.needsOwner = false
         if request.isAnswer {
             moved.availableActions.removeAll(where: \.isAnswer)
         }
         switch request {
-        case .ack: moved.state = .acked
-        case .snooze: moved.state = .snoozed
-        default: break
+        case .ack:
+            moved.state = .acked
+            moved.needsOwner = false
+        case .snooze(let until):
+            moved.state = .snoozed
+            moved.snoozedUntil = until
+            moved.needsOwner = false
+        case .unsnooze:
+            moved.state = .open
+            moved.snoozedUntil = nil
+        default:
+            moved.needsOwner = false
         }
 
         adjustInbox { current in
             current.needsYou.removeAll { $0.id == item.id }
             current.withHermes.removeAll { $0.id == item.id }
-            if moved.state != .snoozed {
+            current.upcoming.removeAll { $0.id == item.id }
+            switch request {
+            case .snooze(let until):
+                // Upcoming is the soonest return first; the server's next read keeps that order.
+                let index = current.upcoming.firstIndex { ($0.snoozedUntil ?? .distantFuture) > until }
+                current.upcoming.insert(moved, at: index ?? current.upcoming.endIndex)
+            case .unsnooze:
+                // The server decides whether it returns to Needs you or to Hermes.
+                break
+            default:
                 current.withHermes.insert(moved, at: 0)
             }
         }

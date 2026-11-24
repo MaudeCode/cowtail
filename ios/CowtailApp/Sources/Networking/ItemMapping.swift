@@ -38,6 +38,7 @@ extension CowtailAPI {
             ownerNote: record.investigationResult?.ownerNote,
             approvalNeedsAuth: record.approvalNeedsAuth ?? false,
             expiresAt: record.expiresAt.map(date),
+            snoozedUntil: record.snoozedUntil.map(date),
             createdAt: date(record.createdAt),
             updatedAt: date(record.updatedAt),
             resolvedAt: record.resolvedAt.map(date),
@@ -137,6 +138,8 @@ extension CowtailAPI {
             .case5(.init(_type: .choose, option: option))
         case .reply(let text):
             .case6(.init(_type: .reply, text: text))
+        case .unsnooze:
+            .case7(.init(_type: .unsnooze))
         }
     }
 

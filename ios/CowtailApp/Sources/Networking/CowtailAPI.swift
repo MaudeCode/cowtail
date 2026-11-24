@@ -301,10 +301,13 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
                 counts: ItemInbox.Counts(
                     needsYou: inbox.counts.needsYou,
                     withHermes: inbox.counts.withHermes,
+                    // Absent from a server that predates Upcoming.
+                    upcoming: inbox.counts.upcoming ?? 0,
                     handled: inbox.counts.handled
                 ),
                 needsYou: inbox.needsYou.map(Self.makeItem),
                 withHermes: inbox.withHermes.map(Self.makeItem),
+                upcoming: (inbox.upcoming ?? []).map(Self.makeItem),
                 handled: inbox.handled.map(Self.makeItem)
             )
         case .unauthorized(let response):
