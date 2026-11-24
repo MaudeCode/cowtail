@@ -16,7 +16,7 @@ COPY web web
 COPY protocol protocol
 RUN pnpm --dir web run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 ENV CONVEX_API_UPSTREAM=http://convex-backend:3210 \
     CONVEX_ACTIONS_UPSTREAM=http://convex-backend:3211/ \
     PROMETHEUS_UPSTREAM=http://prometheus:9090/ \
