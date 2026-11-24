@@ -68,6 +68,7 @@ Use `protocol` for any versioned contract that crosses repo or process boundarie
 - The CLI source lives in [`cli/`](./cli).
 - The native iOS app lives in [`ios/`](./ios) and remains outside the pnpm workspace.
 - Shared contracts live in [`protocol/`](./protocol).
+- The Hermes plugin lives in [`hermes-plugin/`](./hermes-plugin), outside the pnpm workspace and stdlib-only Python. Test it with `python -m unittest discover -s hermes-plugin/tests -v` on Python 3.11 or later. The production install copies `hermes-plugin/` into the Hermes plugins directory.
 - The production image is built from [`web/Dockerfile`](./web/Dockerfile) using the repo root as the Docker build context.
 - Static assets are served by nginx using the templated config in [`web/nginx.conf`](./web/nginx.conf).
 - Example app/Convex env values live in [`web/.env.example`](./web/.env.example).
@@ -99,7 +100,7 @@ The owner declined the physical-phone validation gate, in advance, for every tic
 
 CI follows `CI.md` in the organization's public `.github` repository: a change runs only the suites it reaches.
 
-- [`.github/ci-suites.json`](./.github/ci-suites.json) names the suites, `global` (lint, format, protocol, script tests), `web`, `cli`, `ios` and `docker`, and the ordered rules that route a changed path to them. The first rule that matches a path decides it, so narrow rules come before broad ones. A path no rule matches runs every suite; [`script/ci/suites.test.ts`](./script/ci/suites.test.ts) fails when a tracked path is matched by no rule.
+- [`.github/ci-suites.json`](./.github/ci-suites.json) names the suites, `global` (lint, format, protocol, script tests), `web`, `cli`, `ios`, `docker` and `plugin` (the Hermes plugin's tests, in `hermes-plugin-verify.yml`), and the ordered rules that route a changed path to them. The first rule that matches a path decides it, so narrow rules come before broad ones. A path no rule matches runs every suite; [`script/ci/suites.test.ts`](./script/ci/suites.test.ts) fails when a tracked path is matched by no rule.
 - [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs on every pull request, every push to `main` and by hand. Its `changes` job selects the suites with the shared `ci-suites` action, one job per suite calls `.github/workflows/<suite>-verify.yml`, and `CI Gate` passes only when every selected suite passed. A suite's checks are named `<suite> / <job>`.
 - The verify workflows run only when `ci.yml` or the release calls them, or by hand; they have no `push` or `pull_request` trigger of their own.
 - To add a suite: add it and its rules to `ci-suites.json`, add its `<suite>-verify.yml` with `workflow_call`, add a job with the suite's name to `ci.yml` and to `CI Gate`'s `needs`, and, when the release should reuse it, add `ci.yml: <suite> / *` to the release preflight's `checks`.
