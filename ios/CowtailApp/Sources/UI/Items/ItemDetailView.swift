@@ -190,7 +190,7 @@ struct ItemDetailView: View {
             }
             .padding(.vertical, 6)
         }
-        ForEach(item.links, id: \.self) { link in
+        ForEach(links, id: \.self) { link in
             Link(destination: link.url) {
                 HStack {
                     Text(link.label)
@@ -203,6 +203,12 @@ struct ItemDetailView: View {
             }
             .cowtailRow()
         }
+    }
+
+    /// The item's links, and for an alert its page on Cowtail Web, as the alert screen had.
+    private var links: [ItemLink] {
+        let web = item.alertID.flatMap(AppConfig.alertDetailURL(for:)).map { ItemLink(label: "Cowtail Web", url: $0) }
+        return item.links + [web].compactMap { $0 }
     }
 
     /// The mockup's order: details, then the fixes recorded for the alert.

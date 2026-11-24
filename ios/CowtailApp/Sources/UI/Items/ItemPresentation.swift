@@ -164,7 +164,14 @@ extension ItemEvent {
         case .hermesUpdate:
             return payload["text"] ?? ""
         case .notified:
-            return payload["reason"] ?? payload["result"] ?? "Push sent"
+            // The server records what it decided: pushed, or skipped, batched or held and why.
+            switch payload["decision"] {
+            case "pushed", nil:
+                return "Push sent"
+            case let decision?:
+                let why = payload["why"]?.replacingOccurrences(of: "_", with: " ")
+                return [decision.capitalized, why].compactMap { $0 }.joined(separator: " · ")
+            }
         case .actionTaken:
             let action = payload["type"] ?? "action"
             let detail = payload["option"] ?? payload["text"]

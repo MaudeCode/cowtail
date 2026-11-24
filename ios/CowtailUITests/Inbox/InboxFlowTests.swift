@@ -68,6 +68,8 @@ final class InboxFlowTests: XCTestCase {
 
         XCTAssertTrue(app.element("screen.item-detail").waitForExistence(timeout: 10))
         XCTAssertEqual(app.element("text.item.title").label, "KubePodCrashLooping")
+        // The alert's page on Cowtail Web stays one tap away.
+        XCTAssertTrue(app.links["Cowtail Web"].waitForExistence(timeout: 10))
     }
 
     func testAnUnknownAlertLinkSaysSo() {

@@ -195,7 +195,7 @@ enum CowtailPreviewFixtures {
             return [
                 event(150, .created, "alertmanager", ["state": "open"]),
                 event(150, .dispatched, "cowtail"),
-                event(150, .notified, "cowtail", ["reason": "Push sent, time-sensitive"]),
+                event(150, .notified, "cowtail", ["decision": "pushed"]),
                 event(145, .repeated, "alertmanager", ["occurrenceCount": "2"]),
                 event(140, .hermesUpdate, "hermes", ["text": "One replica is OOMKilled. Raising the limit."]),
                 event(138, .actionTaken, "owner", ["type": "ack"]),
