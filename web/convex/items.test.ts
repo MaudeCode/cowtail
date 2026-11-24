@@ -1,6 +1,7 @@
 import {
   itemCreateResponseSchema,
   itemGetResponseSchema,
+  itemInboxResponseSchema,
   itemListResponseSchema,
   itemResponseSchema,
   type ItemGetResponse,
@@ -131,10 +132,15 @@ describe("item ingest", () => {
     });
 
     expect(progress.status).toBe(200);
+    const update = { text: "Re-running against a fresh snapshot", at: NOW };
+    expect(itemResponseSchema.parse(progress.json).item.latestUpdate).toEqual(update);
     expect(itemResponseSchema.parse(resolved.json).item).toMatchObject({
       state: "resolved",
       resolvedAt: NOW + 60_000,
       needsOwner: false,
+      latestUpdate: update,
+      outcome: "other",
+      resolvedAfterMs: 60_000,
     });
     const timeline = await getItem(t, id);
     expect(timeline.events.map((event) => [event.type, event.actor])).toEqual([
@@ -262,9 +268,11 @@ describe("owner actions", () => {
     const unknownOption = await act(id, { type: "choose", option: "Panic" });
     const notOffered = await act(id, { type: "approve" });
 
+    // Answered, the item waits on its producer, not the owner.
     expect(itemResponseSchema.parse(chosen.json).item).toMatchObject({
       state: "open",
-      needsOwner: true,
+      needsOwner: false,
+      answeredAt: NOW,
     });
     expect([unknownOption.status, notOffered.status]).toEqual([409, 409]);
     const { events } = await getItem(t, id);
@@ -316,6 +324,9 @@ describe("item list", () => {
 
     const ids = (items: { id: string }[]) => items.map((item) => item.id);
     expect(ids(await listItems(t))).toEqual([fyi.id, approval.id]);
+    expect(ids(await listItems(t, "?kind=approval"))).toEqual([approval.id]);
+    expect(ids(await listItems(t, "?q=INGRESS"))).toEqual([approval.id]);
+    expect(ids(await listItems(t, "?outcome=other"))).toEqual([]);
     expect(ids(await listItems(t, "?needsOwner=true"))).toEqual([approval.id]);
     expect(ids(await listItems(t, "?needsOwner=false"))).toEqual([fyi.id]);
     expect(ids(await listItems(t, "?source=cron"))).toEqual([fyi.id]);
@@ -368,6 +379,47 @@ describe("item list", () => {
   });
 });
 
+describe("inbox", () => {
+  test("splits open items by whether they need the owner and lists the day's resolved", async () => {
+    const t = newBackend();
+    const bearer = await seedSession(t, OWNER);
+    const resolve = (id: string) =>
+      request(t, `/api/items/${id}/events`, {
+        method: "POST",
+        bearer: SERVICE,
+        body: { type: "state_changed", to: "resolved" },
+      });
+    const item = (title: string, kind: string, urgency = "today") =>
+      createItem(t, { source: "hermes", kind, urgency, title });
+
+    const yesterday = await item("Resolved yesterday", "fyi");
+    await resolve(yesterday.id);
+    vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+    const approval = await item("Restart ingress in edge?", "approval");
+    const working = await item("Nightly backup verify failed", "failure");
+    const acked = await item("Disk at 90%", "failure", "now");
+    vi.advanceTimersByTime(1_000);
+    await request(t, `/api/me/items/${acked.id}/actions`, {
+      method: "POST",
+      bearer,
+      body: { type: "ack" },
+    });
+    const today = await item("Certificate renewed", "fyi");
+    await resolve(today.id);
+
+    const response = await request(t, "/api/items/inbox", { bearer });
+
+    expect(response.status).toBe(200);
+    const inbox = itemInboxResponseSchema.parse(response.json);
+    const ids = (items: { id: string }[]) => items.map((entry) => entry.id);
+    expect([ids(inbox.needsYou), ids(inbox.withHermes), ids(inbox.handled)]).toEqual([
+      [approval.id],
+      [acked.id, working.id],
+      [today.id],
+    ]);
+  });
+});
+
 describe("alert items", () => {
   function alertmanagerPayload(status: "firing" | "resolved") {
     return {
@@ -404,8 +456,11 @@ describe("alert items", () => {
     const [alert] = await rows(t, "alerts");
     const [listed, ...others] = await listItems(t);
     expect(others).toEqual([]);
+    expect(await listItems(t, `?alertId=${alert._id}`)).toEqual([listed]);
     expect(listed).toMatchObject({
       alertId: alert._id,
+      subtitle: "media",
+      outcome: "self-resolved",
       source: "alertmanager",
       kind: "alert",
       urgency: "now",
@@ -435,14 +490,24 @@ describe("alert items", () => {
     job?: Doc<"investigationJobs">["status"];
     state: "open" | "resolved";
     needsOwner: boolean;
+    step?: "queued" | "investigating" | "failed";
+    outcome?: string;
   }> = [
-    { workflow: "investigation failed", alert: {}, job: "failed", state: "open", needsOwner: true },
+    {
+      workflow: "investigation failed",
+      alert: {},
+      job: "failed",
+      state: "open",
+      needsOwner: true,
+      step: "failed",
+    },
     {
       workflow: "investigation deadlettered",
       alert: {},
       job: "deadletter",
       state: "open",
       needsOwner: true,
+      step: "failed",
     },
     {
       workflow: "needs review (owner escalated)",
@@ -456,8 +521,22 @@ describe("alert items", () => {
       state: "open",
       needsOwner: true,
     },
-    { workflow: "investigating", alert: {}, job: "claimed", state: "open", needsOwner: false },
-    { workflow: "queued", alert: {}, job: "queued", state: "open", needsOwner: false },
+    {
+      workflow: "investigating",
+      alert: {},
+      job: "claimed",
+      state: "open",
+      needsOwner: false,
+      step: "investigating",
+    },
+    {
+      workflow: "queued",
+      alert: {},
+      job: "queued",
+      state: "open",
+      needsOwner: false,
+      step: "queued",
+    },
     {
       workflow: "monitoring",
       alert: { outcome: "fixed" },
@@ -471,24 +550,28 @@ describe("alert items", () => {
       alert: { status: "resolved", outcome: "self-resolved" },
       state: "resolved",
       needsOwner: false,
+      outcome: "self-resolved",
     },
     {
       workflow: "fixed",
       alert: { status: "resolved", outcome: "fixed" },
       state: "resolved",
       needsOwner: false,
+      outcome: "fixed",
     },
     {
       workflow: "noise",
       alert: { ownerDisposition: "noise", outcome: "noise" },
       state: "resolved",
       needsOwner: false,
+      outcome: "noise",
     },
     {
       workflow: "recorded",
       alert: { status: "unknown", outcome: "recorded" },
       state: "resolved",
       needsOwner: false,
+      outcome: "other",
     },
   ];
 
@@ -530,6 +613,7 @@ describe("alert items", () => {
 
     const [item] = await listItems(t);
     expect(item).toMatchObject({ state: example.state, needsOwner: example.needsOwner });
+    expect([item.investigationStep, item.outcome]).toEqual([example.step, example.outcome]);
     expect(item.context.disposition).toBe(example.workflow === "noise" ? "noise" : undefined);
     expectTimelineReplaysState(await getItem(t, item.id));
   });

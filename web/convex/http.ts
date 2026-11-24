@@ -37,6 +37,7 @@ import {
   itemCreateResponseSchema,
   itemEventAppendRequestSchema,
   itemGetResponseSchema,
+  itemInboxResponseSchema,
   itemListQuerySchema,
   itemListResponseSchema,
   itemResponseSchema,
@@ -1575,6 +1576,10 @@ app.get("/api/items", async (c) => {
     state: nonEmptyString(c.req.query("state")),
     needsOwner: needsOwner === "true" ? true : needsOwner === "false" ? false : needsOwner,
     source: nonEmptyString(c.req.query("source")),
+    kind: nonEmptyString(c.req.query("kind")),
+    outcome: nonEmptyString(c.req.query("outcome")),
+    alertId: nonEmptyString(c.req.query("alertId")),
+    q: nonEmptyString(c.req.query("q")),
     from: parseOptionalQueryTimestamp(c.req.query("from")),
     to: parseOptionalQueryTimestamp(c.req.query("to")),
     limit: limit === undefined ? undefined : Number(limit),
@@ -1615,6 +1620,15 @@ app.get("/api/items/stats", async (c) => {
 
   const stats = await c.env.runQuery((internal as any).itemStats.stats, { ...range, timeZone });
   return c.json(itemStatsResponseSchema.parse({ ok: true, ...stats }));
+});
+
+// GET /api/items/inbox — what needs the owner, what Hermes is on, and what resolved today
+app.get("/api/items/inbox", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const inbox = await c.env.runQuery((internal as any).items.inbox, { now: Date.now() });
+  return c.json(itemInboxResponseSchema.parse({ ok: true, ...inbox }));
 });
 
 // GET /api/items/:id — the item and its timeline
@@ -2200,6 +2214,24 @@ app.put("/api/me/notification-preferences", async (c) => {
   });
 
   return c.json(notificationPreferencesResponseSchema.parse({ ok: true, preferences }));
+});
+
+// GET /api/me/devices — the signed-in account's enabled push devices
+app.get("/api/me/devices", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+
+  const devices = await c.env.runQuery(internal.push.listEnabledDevicesForUser, {
+    userId: auth.userId,
+  });
+  return c.json(
+    userDevicesResponseSchema.parse({
+      ok: true,
+      userId: auth.userId,
+      count: devices.length,
+      devices: devices.map((device: any) => mapUserDevice(device as any)),
+    }),
+  );
 });
 
 // GET /api/me/openclaw-preferences — account-scoped OpenClaw preferences

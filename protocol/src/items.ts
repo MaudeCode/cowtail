@@ -55,6 +55,12 @@ export const itemActionSchema = z.discriminatedUnion("type", [
 // Producer-owned routing data, returned to the producer untouched.
 export const itemReplyToSchema = z.record(fieldNameSchema, z.unknown());
 
+export const itemOutcomes = ["fixed", "self-resolved", "noise", "escalated", "other"] as const;
+export const itemOutcomeSchema = z.enum(itemOutcomes);
+// How far an open alert item's investigation has got.
+export const itemInvestigationSteps = ["queued", "investigating", "failed"] as const;
+export const itemInvestigationStepSchema = z.enum(itemInvestigationSteps);
+
 export const itemRecordSchema = z.object({
   id: nonEmptyStringSchema,
   source: nonEmptyStringSchema,
@@ -78,6 +84,17 @@ export const itemRecordSchema = z.object({
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
   resolvedAt: timestampSchema.optional(),
+  // The rest the server derives for display. `subtitle` is the line under the title.
+  subtitle: z.string().optional(),
+  // When the owner answered (approve, deny, choose or reply); an answered item no longer
+  // needs them while its producer applies the answer.
+  answeredAt: timestampSchema.optional(),
+  // The newest `hermes_update` on the timeline.
+  latestUpdate: z.object({ text: z.string(), at: timestampSchema }).optional(),
+  investigationStep: itemInvestigationStepSchema.optional(),
+  // Resolved items only: how it ended, and how long after creation.
+  outcome: itemOutcomeSchema.optional(),
+  resolvedAfterMs: z.number().int().nonnegative().optional(),
 });
 
 export const itemEventRecordSchema = z.object({
@@ -133,6 +150,11 @@ export const itemListQuerySchema = z.object({
   state: itemStateSchema.optional(),
   needsOwner: z.boolean().optional(),
   source: itemSourceSchema.optional(),
+  kind: itemKindSchema.optional(),
+  outcome: itemOutcomeSchema.optional(),
+  alertId: nonEmptyStringSchema.optional(),
+  // Matches title, subtitle and body, ignoring case.
+  q: nonEmptyStringSchema.max(200).optional(),
   from: timestampSchema.optional(),
   to: timestampSchema.optional(),
   limit: z.number().int().min(1).max(500).optional(),
@@ -144,6 +166,17 @@ export const itemListResponseSchema = z.object({
   count: z.number().int().nonnegative(),
   items: z.array(itemRecordSchema),
   nextCursor: nonEmptyStringSchema.optional(),
+});
+
+// The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked
+// items that do not. Handled: items resolved in the last 24 hours. Each list is the most
+// recently updated first.
+export const itemInboxHandledWindowMs = 24 * 60 * 60 * 1000;
+export const itemInboxResponseSchema = z.object({
+  ok: z.literal(true),
+  needsYou: z.array(itemRecordSchema),
+  withHermes: z.array(itemRecordSchema),
+  handled: z.array(itemRecordSchema),
 });
 
 export const itemGetResponseSchema = z.object({
@@ -178,7 +211,6 @@ export const itemResponseSchema = z.object({
   item: itemRecordSchema,
 });
 
-export const itemOutcomes = ["fixed", "self-resolved", "noise", "escalated", "other"] as const;
 const itemStatsMaxRangeMs = 92 * 24 * 60 * 60 * 1000;
 
 // Without a range, the stats cover the last 7 days in the server's time zone, today included.
@@ -267,6 +299,8 @@ export type ItemListQuery = z.infer<typeof itemListQuerySchema>;
 export type ItemListResponse = z.infer<typeof itemListResponseSchema>;
 export type ItemGetResponse = z.infer<typeof itemGetResponseSchema>;
 export type ItemAnswer = z.infer<typeof itemAnswerSchema>;
+export type ItemInboxResponse = z.infer<typeof itemInboxResponseSchema>;
+export type ItemInvestigationStep = z.infer<typeof itemInvestigationStepSchema>;
 export type ItemActionRequest = z.infer<typeof itemActionRequestSchema>;
 export type ItemResponse = z.infer<typeof itemResponseSchema>;
 export type ItemOutcome = (typeof itemOutcomes)[number];

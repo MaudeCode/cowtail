@@ -1,4 +1,10 @@
-import type { ItemEventType, ItemKind, ItemState, ItemUrgency } from "@maudecode/cowtail-protocol";
+import {
+  itemInboxHandledWindowMs,
+  type ItemEventType,
+  type ItemKind,
+  type ItemState,
+  type ItemUrgency,
+} from "@maudecode/cowtail-protocol";
 import { ConvexError, type Infer, v } from "convex/values";
 import { makeFunctionReference, type WithoutSystemFields } from "convex/server";
 
@@ -10,7 +16,10 @@ import {
   alertItemState,
   alertItemUrgency,
   alertWorkflowState,
+  itemInvestigationStep,
   itemNeedsOwner,
+  itemOutcome,
+  itemSubtitle,
   terminalItemStates,
 } from "./itemModel";
 import {
@@ -328,16 +337,16 @@ export async function deleteItemsForAlert(ctx: MutationCtx, alertId: Id<"alerts"
 
 // --- Records ------------------------------------------------------------------------
 
-async function alertWorkflowForItem(ctx: QueryCtx, item: Doc<"items">) {
-  if (!item.alertId) return undefined;
+async function alertContext(ctx: QueryCtx, item: Doc<"items">) {
+  if (!item.alertId) return {};
   const alertId = item.alertId;
   const alert = await ctx.db.get(alertId);
-  if (!alert) return undefined;
+  if (!alert) return {};
   const jobs = await ctx.db
     .query("investigationJobs")
     .withIndex("by_alertId", (q) => q.eq("alertId", alertId))
     .collect();
-  return alertWorkflowState(alert, newestInvestigationJob(jobs)?.status);
+  return { alert, workflow: alertWorkflowState(alert, newestInvestigationJob(jobs)?.status) };
 }
 
 // The app badge: open items that need the owner.
@@ -349,21 +358,53 @@ export async function ownerBadgeCount(ctx: QueryCtx) {
     .collect();
   let count = 0;
   for (const item of open) {
-    if (itemNeedsOwner(item, await alertWorkflowForItem(ctx, item))) count += 1;
+    if (itemNeedsOwner(item, (await alertContext(ctx, item)).workflow)) count += 1;
   }
   return count;
 }
 
+async function latestHermesUpdate(ctx: QueryCtx, itemId: Id<"items">) {
+  const events = ctx.db
+    .query("itemEvents")
+    .withIndex("by_item_at", (q) => q.eq("itemId", itemId))
+    .order("desc");
+  for await (const event of events) {
+    if (event.type === "hermes_update" && typeof event.payload.text === "string") {
+      return { text: event.payload.text, at: event.at };
+    }
+  }
+  return undefined;
+}
+
 async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
   const { _id, _creationTime, alertId, investigationJobId, ...fields } = item;
+  const { alert, workflow } = await alertContext(ctx, item);
+  const resolvedAt = item.state === "resolved" ? item.resolvedAt : undefined;
   return {
     ...fields,
     id: String(_id),
     sourceInfo: await sourceInfo(ctx, item.source),
     alertId: alertId ? String(alertId) : undefined,
     investigationJobId: investigationJobId ? String(investigationJobId) : undefined,
-    needsOwner: itemNeedsOwner(item, await alertWorkflowForItem(ctx, item)),
+    needsOwner: itemNeedsOwner(item, workflow),
+    subtitle: itemSubtitle(item),
+    latestUpdate: await latestHermesUpdate(ctx, _id),
+    investigationStep: terminalItemStates.has(item.state)
+      ? undefined
+      : itemInvestigationStep(workflow),
+    outcome: resolvedAt === undefined ? undefined : itemOutcome(item, alert ?? null),
+    resolvedAfterMs:
+      resolvedAt === undefined ? undefined : Math.max(0, resolvedAt - item.createdAt),
   };
+}
+
+type ItemRecord = Awaited<ReturnType<typeof itemRecord>>;
+
+function matchesSearch(record: ItemRecord, q: string) {
+  const needle = q.toLowerCase();
+  return [record.title, record.subtitle ?? "", record.body].some((text) =>
+    text.toLowerCase().includes(needle),
+  );
 }
 
 // --- Functions ----------------------------------------------------------------------
@@ -516,8 +557,9 @@ export const applyAction = internalMutation({
     } else if (action.type === "snooze") {
       await transitionItem(ctx, item, "snoozed", { actor, at: now, snoozedUntil: action.until });
     } else {
-      // The producer closes the item once it has applied the answer.
-      await patchItemContent(ctx, item._id, { updatedAt: now });
+      // The producer closes the item once it has applied the answer; until then the item
+      // waits on the producer, not the owner.
+      await patchItemContent(ctx, item._id, { updatedAt: now, answeredAt: now });
     }
   },
 });
@@ -558,13 +600,36 @@ export const list = internalQuery({
     state: v.optional(itemStateValidator),
     needsOwner: v.optional(v.boolean()),
     source: v.optional(v.string()),
+    kind: v.optional(itemKindValidator),
+    outcome: v.optional(v.string()),
+    alertId: v.optional(v.string()),
+    q: v.optional(v.string()),
     from: v.optional(v.number()),
     to: v.optional(v.number()),
     limit: v.number(),
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { source, from, to } = args;
+    const { source, kind, outcome, q, from, to } = args;
+    const keep = (record: ItemRecord) =>
+      (args.needsOwner === undefined || record.needsOwner === args.needsOwner) &&
+      (kind === undefined || record.kind === kind) &&
+      (outcome === undefined || record.outcome === outcome) &&
+      (q === undefined || matchesSearch(record, q));
+
+    // An alert has one item, so this filter reads it alone.
+    if (args.alertId !== undefined) {
+      const alertId = ctx.db.normalizeId("alerts", args.alertId);
+      const item = alertId
+        ? await ctx.db
+            .query("items")
+            .withIndex("by_alertId", (q) => q.eq("alertId", alertId))
+            .first()
+        : null;
+      const record = item ? await itemRecord(ctx, item) : null;
+      return { items: record && keep(record) ? [record] : [], nextCursor: undefined };
+    }
+
     // Only an open item can need the owner, so that filter reads open items alone.
     const state = args.needsOwner ? (args.state ?? "open") : args.state;
     if (args.needsOwner && state !== "open") return { items: [], nextCursor: undefined };
@@ -593,10 +658,45 @@ export const list = internalQuery({
       if (from !== undefined && item.createdAt < from) continue;
       if (to !== undefined && item.createdAt > to) continue;
       const record = await itemRecord(ctx, item);
-      if (args.needsOwner !== undefined && record.needsOwner !== args.needsOwner) continue;
-      records.push(record);
+      if (keep(record)) records.push(record);
     }
     return { items: records, nextCursor: page.isDone ? undefined : page.continueCursor };
+  },
+});
+
+// ponytail: reads every open and acked item per call, like ownerBadgeCount.
+export const inbox = internalQuery({
+  args: { now: v.number() },
+  handler: async (ctx, { now }) => {
+    const byState = (state: ItemState) =>
+      ctx.db
+        .query("items")
+        .withIndex("by_state_updatedAt", (q) => q.eq("state", state))
+        .collect();
+    const active = [...(await byState("open")), ...(await byState("acked"))].sort(
+      (a, b) => b.updatedAt - a.updatedAt,
+    );
+    const needsYou: ItemRecord[] = [];
+    const withHermes: ItemRecord[] = [];
+    for (const item of active) {
+      const record = await itemRecord(ctx, item);
+      (record.needsOwner ? needsYou : withHermes).push(record);
+    }
+
+    // A resolved item was last updated no earlier than it resolved.
+    const since = now - itemInboxHandledWindowMs;
+    const recent = await ctx.db
+      .query("items")
+      .withIndex("by_state_updatedAt", (q) => q.eq("state", "resolved").gte("updatedAt", since))
+      .order("desc")
+      .collect();
+    const handled: ItemRecord[] = [];
+    for (const item of recent) {
+      if (item.resolvedAt !== undefined && item.resolvedAt >= since) {
+        handled.push(await itemRecord(ctx, item));
+      }
+    }
+    return { needsYou, withHermes, handled };
   },
 });
 

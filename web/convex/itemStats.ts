@@ -8,10 +8,10 @@ import { v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery } from "./_generated/server";
+import { itemOutcome } from "./itemModel";
 import { addDaysToDateOnly, dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 
 const REPEAT_OFFENDER_LIMIT = 10;
-const knownOutcomes = new Set<string>(itemOutcomes);
 
 // Without a start, the range opens at local midnight six days before its end's day.
 export function resolveItemStatsRange(
@@ -25,16 +25,6 @@ export function resolveItemStatsRange(
     range.from ??
     resolveRoundupWindow(addDaysToDateOnly(lastDay, -6), lastDay, timeZone).fromTimestamp;
   return { from, to };
-}
-
-// An owner's noise call outranks every other outcome, as in alertWorkflowState.
-function itemOutcome(item: Doc<"items">, alert: Doc<"alerts"> | null): ItemOutcome {
-  const outcome = alert
-    ? alert.ownerDisposition === "noise" || alert.outcome === "noise"
-      ? "noise"
-      : (alert.ownerDisposition ?? alert.outcome)
-    : item.context.disposition;
-  return outcome !== undefined && knownOutcomes.has(outcome) ? (outcome as ItemOutcome) : "other";
 }
 
 // Nearest-rank percentile of an ascending list.

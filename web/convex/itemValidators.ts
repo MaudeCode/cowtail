@@ -54,4 +54,5 @@ export const itemFields = {
   createdAt: v.number(),
   updatedAt: v.number(),
   resolvedAt: v.optional(v.number()),
+  answeredAt: v.optional(v.number()),
 };
