@@ -5,27 +5,15 @@ import OpenAPIURLSession
 import OSLog
 
 protocol CowtailAPIClient: Sendable {
-    func fetchAlerts(from: Date, to: Date) async throws -> [AlertItem]
-    func fetchAlert(id: String) async throws -> AlertItem?
-    func fetchFixes(alertIDs: [String]) async throws -> [AlertFix]
     func fetchHealthSummary() async throws -> HealthSummary
-    func performAlertAction(
-        alertID: String,
-        action: AlertHumanAction,
-        note: String?,
-        sessionToken: String
-    ) async throws -> AlertItem
-}
-
-extension CowtailAPIClient {
-    func performAlertAction(
-        alertID _: String,
-        action _: AlertHumanAction,
-        note _: String?,
-        sessionToken _: String
-    ) async throws -> AlertItem {
-        throw CowtailAPIError.requestFailed("Alert actions are not supported by this API client.")
-    }
+    func fetchInbox(sessionToken: String) async throws -> ItemInbox
+    func fetchItems(_ query: ItemListQuery, sessionToken: String) async throws -> ItemPage
+    /// Nil when the server has no such item.
+    func fetchItem(id: String, sessionToken: String) async throws -> ItemDetail?
+    func fetchItemStats(from: Date?, to: Date?, sessionToken: String) async throws -> ItemStats
+    func performItemAction(itemID: String, request: ItemActionRequest, sessionToken: String) async throws -> Item
+    func performAlertAction(alertID: String, action: AlertHumanAction, sessionToken: String) async throws
+    func fetchDevices(sessionToken: String) async throws -> [UserDevice]
 }
 
 actor CowtailAPI: CowtailAPIClient {
@@ -78,7 +66,7 @@ actor CowtailAPI: CowtailAPIClient {
         )
     }
 
-    private func alertActionClient(sessionToken: String) -> Client {
+    private func sessionClient(sessionToken: String) -> Client {
         Client(
             serverURL: AppConfig.alertAPIBaseURL,
             transport: transport,
@@ -126,82 +114,6 @@ actor CowtailAPI: CowtailAPIClient {
             )
             let body = await redactedResponseBodyString(from: payload.body)
             throw CowtailAPIError.requestFailed("Alert list request failed with status \(statusCode): \(body)")
-        }
-    }
-
-    func fetchAlert(id: String) async throws -> AlertItem? {
-        let output = try await queryClient.query(
-            body: .json(
-                .init(
-                    value2: .init(
-                        path: .alerts_colon_getById,
-                        args: .init(id: id),
-                        format: .convexEncodedJson
-                    )
-                )
-            )
-        )
-
-        switch output {
-        case let .ok(response):
-            let payload = try response.body.json
-            guard let envelope = payload.value2 else {
-                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for alert fetch.")
-            }
-
-            switch envelope.status {
-            case .success:
-                return envelope.value?.value1.map(makeAlertItem)
-            case .error:
-                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
-            }
-        case let .undocumented(statusCode, payload):
-            await logUndocumentedResponse(
-                operation: "query.fetchAlert",
-                statusCode: statusCode,
-                payload: payload
-            )
-            let body = await redactedResponseBodyString(from: payload.body)
-            throw CowtailAPIError.requestFailed("Alert fetch failed with status \(statusCode): \(body)")
-        }
-    }
-
-    func fetchFixes(alertIDs: [String]) async throws -> [AlertFix] {
-        let output = try await queryClient.query(
-            body: .json(
-                .init(
-                    value3: .init(
-                        path: .fixes_colon_getByAlertIds,
-                        args: .init(alertIds: alertIDs),
-                        format: .convexEncodedJson
-                    )
-                )
-            )
-        )
-
-        switch output {
-        case let .ok(response):
-            let payload = try response.body.json
-            guard let envelope = payload.value3 else {
-                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for fixes.")
-            }
-
-            switch envelope.status {
-            case .success:
-                return (envelope.value ?? [])
-                    .map(makeAlertFix)
-                    .sorted { $0.timestamp > $1.timestamp }
-            case .error:
-                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
-            }
-        case let .undocumented(statusCode, payload):
-            await logUndocumentedResponse(
-                operation: "query.fetchFixes",
-                statusCode: statusCode,
-                payload: payload
-            )
-            let body = await redactedResponseBodyString(from: payload.body)
-            throw CowtailAPIError.requestFailed("Fix list request failed with status \(statusCode): \(body)")
         }
     }
 
@@ -348,41 +260,138 @@ actor CowtailAPI: CowtailAPIClient {
 
     func updateNotificationPreferences(
         sessionToken: String,
-        dailyRoundupEnabled: Bool
+        change: NotificationPreferencesChange
     ) async throws -> AppNotificationPreferences {
         let response: NotificationPreferencesResponse = try await sendJSONRequest(
             url: AppConfig.notificationPreferencesURL,
             method: "PUT",
-            body: NotificationPreferencesUpdateRequest(dailyRoundupEnabled: dailyRoundupEnabled),
+            body: change,
             bearerToken: sessionToken
         )
 
         return AppNotificationPreferences(response.preferences)
     }
 
-    /// Acks, snoozes or answers an item, as the owner.
-    func performItemAction(
-        itemID: String,
-        request: Components.Schemas.ItemActionRequest,
-        sessionToken: String
-    ) async throws {
-        let output = try await alertActionClient(sessionToken: sessionToken).performItemAction(
-            .init(path: .init(id: itemID), body: .json(request))
-        )
+    func fetchInbox(sessionToken: String) async throws -> ItemInbox {
+        switch try await sessionClient(sessionToken: sessionToken).getItemInbox() {
+        case .ok(let response):
+            let inbox = try response.body.json
+            return ItemInbox(
+                needsYou: inbox.needsYou.map(Self.makeItem),
+                withHermes: inbox.withHermes.map(Self.makeItem),
+                handled: inbox.handled.map(Self.makeItem)
+            )
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Inbox request failed with HTTP \(statusCode).")
+        }
+    }
 
-        switch output {
-        case .ok:
-            return
+    func fetchItems(_ query: ItemListQuery, sessionToken: String) async throws -> ItemPage {
+        let input = Operations.ListItems.Input.Query(
+            source: query.source,
+            kind: query.kind.flatMap { .init(rawValue: $0.rawValue) },
+            outcome: query.outcome.flatMap { .init(rawValue: $0.rawValue) },
+            alertId: query.alertID,
+            q: query.search,
+            from: query.from.map(Self.milliseconds),
+            to: query.to.map(Self.milliseconds),
+            limit: query.limit,
+            cursor: query.cursor
+        )
+        switch try await sessionClient(sessionToken: sessionToken).listItems(query: input) {
+        case .ok(let response):
+            let page = try response.body.json
+            return ItemPage(items: page.items.map(Self.makeItem), nextCursor: page.nextCursor)
         case .badRequest(let response):
             throw CowtailAPIError.requestFailed(try response.body.json.error)
         case .unauthorized(let response):
             throw CowtailAPIError.requestFailed(try response.body.json.error)
         case .forbidden(let response):
             throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Item list request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchItem(id: String, sessionToken: String) async throws -> ItemDetail? {
+        switch try await sessionClient(sessionToken: sessionToken).getItem(path: .init(id: id)) {
+        case .ok(let response):
+            let detail = try response.body.json
+            return ItemDetail(item: Self.makeItem(detail.item), events: detail.events.map(Self.makeEvent))
+        case .notFound:
+            return nil
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Item request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchItemStats(from: Date?, to: Date?, sessionToken: String) async throws -> ItemStats {
+        let query = Operations.GetItemStats.Input.Query(
+            from: from.map(Self.milliseconds),
+            to: to.map(Self.milliseconds)
+        )
+        switch try await sessionClient(sessionToken: sessionToken).getItemStats(query: query) {
+        case .ok(let response):
+            return Self.makeStats(try response.body.json)
+        case .badRequest(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Stats request failed with HTTP \(statusCode).")
+        }
+    }
+
+    func fetchDevices(sessionToken: String) async throws -> [UserDevice] {
+        switch try await sessionClient(sessionToken: sessionToken).listMyDevices() {
+        case .ok(let response):
+            return try response.body.json.devices.map {
+                UserDevice(
+                    id: $0.id,
+                    name: $0.deviceName ?? $0.platform,
+                    lastSeenAt: Self.date($0.lastSeenAt)
+                )
+            }
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Device list request failed with HTTP \(statusCode).")
+        }
+    }
+
+    /// Acks, snoozes or answers an item, as the owner.
+    func performItemAction(
+        itemID: String,
+        request: ItemActionRequest,
+        sessionToken: String
+    ) async throws -> Item {
+        let output = try await sessionClient(sessionToken: sessionToken).performItemAction(
+            .init(path: .init(id: itemID), body: .json(Self.makeActionRequest(request)))
+        )
+
+        switch output {
+        case .ok(let response):
+            return Self.makeItem(try response.body.json.item)
+        case .badRequest(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .notFound(let response):
-            throw CowtailAPIError.requestFailed(try response.body.json.error)
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .conflict(let response):
-            throw CowtailAPIError.requestFailed(try response.body.json.error)
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Request failed with HTTP \(statusCode).")
         }
@@ -391,34 +400,33 @@ actor CowtailAPI: CowtailAPIClient {
     func performAlertAction(
         alertID: String,
         action: AlertHumanAction,
-        note: String?,
         sessionToken: String
-    ) async throws -> AlertItem {
+    ) async throws {
         let generatedAction: AlertHumanActionRequest.ActionPayload = switch action {
         case .retryInvestigation: .retryInvestigation
         case .markNoise: .markNoise
         case .escalate: .escalate
         }
-        let output = try await alertActionClient(sessionToken: sessionToken).performAlertAction(
+        let output = try await sessionClient(sessionToken: sessionToken).performAlertAction(
             .init(
                 path: .init(id: alertID),
-                body: .json(AlertHumanActionRequest(action: generatedAction, note: note))
+                body: .json(AlertHumanActionRequest(action: generatedAction, note: nil))
             )
         )
 
         switch output {
-        case .ok(let response):
-            return makeAlertItem(try response.body.json.alert)
+        case .ok:
+            return
         case .badRequest(let response):
-            throw CowtailAPIError.requestFailed(try response.body.json.error)
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .unauthorized(let response):
-            throw CowtailAPIError.requestFailed(try response.body.json.error)
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .forbidden(let response):
-            throw CowtailAPIError.requestFailed(try response.body.json.error)
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .notFound(let response):
-            throw CowtailAPIError.requestFailed(try response.body.json.error)
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .conflict(let response):
-            throw CowtailAPIError.requestFailed(try response.body.json.error)
+            throw CowtailAPIError.refused(try response.body.json.error)
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Request failed with HTTP \(statusCode).")
         }
@@ -439,44 +447,6 @@ actor CowtailAPI: CowtailAPIClient {
             status: AlertLifecycleStatus(rawValue: record.status) ?? .unknown,
             resolvedAt: record.resolvedAt.map { Date(timeIntervalSince1970: $0 / 1000) },
             messaged: record.messaged ?? false,
-            investigation: record.investigation.map {
-                makeInvestigation(
-                    id: $0.id,
-                    status: $0.status.rawValue,
-                    priority: $0.priority.rawValue,
-                    attempts: $0.attempts,
-                    maxAttempts: $0.maxAttempts,
-                    nextAttemptAt: $0.nextAttemptAt,
-                    claimedAt: $0.claimedAt,
-                    leaseUntil: $0.leaseUntil,
-                    lastError: $0.lastError,
-                    lastErrorPhase: $0.lastErrorPhase,
-                    completedAt: $0.completedAt,
-                    deadletteredAt: $0.deadletteredAt,
-                    updatedAt: $0.updatedAt
-                )
-            },
-            ownerDisposition: record.ownerDisposition.flatMap { AlertOwnerDisposition(rawValue: $0.rawValue) },
-            ownerNote: record.ownerNote ?? "",
-            ownerUpdatedAt: record.ownerUpdatedAt.map(millisecondsToDate)
-        )
-    }
-
-    private func makeAlertItem(_ record: AlertHumanActionResponse.AlertPayload) -> AlertItem {
-        AlertItem(
-            id: record.id,
-            timestamp: millisecondsToDate(record.timestamp),
-            alertName: record.alertname,
-            severity: AlertSeverity(rawValue: record.severity) ?? .unknown,
-            namespace: record.namespace,
-            node: record.node ?? "",
-            outcome: AlertOutcome(rawValue: record.outcome.rawValue) ?? .unknown,
-            summary: record.summary,
-            rootCause: record.rootCause ?? "",
-            actionTaken: record.action,
-            status: AlertLifecycleStatus(rawValue: record.status.rawValue) ?? .unknown,
-            resolvedAt: record.resolvedAt.map(millisecondsToDate),
-            messaged: record.messaged,
             investigation: record.investigation.map {
                 makeInvestigation(
                     id: $0.id,
@@ -565,7 +535,9 @@ actor CowtailAPI: CowtailAPIClient {
             cephMessage: payload.cephMessage,
             storageTotal: payload.storageTotal,
             storageUsed: payload.storageUsed,
-            storageUnit: payload.storageUnit
+            storageUnit: payload.storageUnit,
+            pipelineState: payload.alertPipeline.flatMap { .init(rawValue: $0.state.rawValue) },
+            lastWatchdogAt: payload.alertPipeline?.lastWatchdogAt.map { Date(timeIntervalSince1970: $0 / 1000) }
         )
     }
 
@@ -691,10 +663,12 @@ actor CowtailAPI: CowtailAPIClient {
 
 enum CowtailAPIError: LocalizedError {
     case requestFailed(String)
+    /// The server answered and turned the request down; nothing changed.
+    case refused(String)
 
     var errorDescription: String? {
         switch self {
-        case .requestFailed(let body):
+        case .requestFailed(let body), .refused(let body):
             return body
         }
     }
@@ -731,13 +705,59 @@ struct AppAuthSession: Sendable {
     let expiresAt: Date
 }
 
-struct AppNotificationPreferences: Sendable {
-    let dailyRoundupEnabled: Bool
-    let requireAuthForApprovals: Bool
+struct QuietHours: Equatable, Sendable {
+    /// `HH:MM`, in `timeZone`.
+    var start: String
+    var end: String
+    var timeZone: String
+}
+
+struct AppNotificationPreferences: Equatable, Sendable {
+    var dailyRoundupEnabled: Bool
+    var requireAuthForApprovals: Bool
+    var quietHours: QuietHours?
+    var urgencyOverrides: [String: ItemUrgency]
+
+    init(
+        dailyRoundupEnabled: Bool = false,
+        requireAuthForApprovals: Bool = false,
+        quietHours: QuietHours? = nil,
+        urgencyOverrides: [String: ItemUrgency] = [:]
+    ) {
+        self.dailyRoundupEnabled = dailyRoundupEnabled
+        self.requireAuthForApprovals = requireAuthForApprovals
+        self.quietHours = quietHours
+        self.urgencyOverrides = urgencyOverrides
+    }
 
     init(_ preferences: NotificationPreferencesResponse.PreferencesPayload) {
         dailyRoundupEnabled = preferences.dailyRoundupEnabled
         requireAuthForApprovals = preferences.requireAuthForApprovals
+        quietHours = preferences.quietHours.map {
+            QuietHours(start: $0.start, end: $0.end, timeZone: $0.timeZone)
+        }
+        urgencyOverrides = preferences.urgencyOverrides.additionalProperties.compactMapValues {
+            ItemUrgency(rawValue: $0.rawValue)
+        }
+    }
+}
+
+/// One settings change. Fields left nil keep their stored value; `quietHoursOff` sends
+/// `quietHours: null`, which the generated request type cannot express.
+struct NotificationPreferencesChange: Encodable, Sendable {
+    var request = NotificationPreferencesUpdateRequest()
+    var quietHoursOff = false
+
+    func encode(to encoder: any Encoder) throws {
+        try request.encode(to: encoder)
+        if quietHoursOff {
+            var container = encoder.container(keyedBy: QuietHoursKey.self)
+            try container.encodeNil(forKey: .quietHours)
+        }
+    }
+
+    private enum QuietHoursKey: String, CodingKey {
+        case quietHours
     }
 }
 

@@ -5,7 +5,7 @@ final class RoundupFlowTests: XCTestCase {
     func testRoundupPopulatedShowsSummaryAndOutcomeSections() {
         let app = AppLaunching.configuredApp(
             scenario: "roundup_populated",
-            startTab: "roundup"
+            deepLinkURL: "/roundup"
         )
 
         app.launch()
@@ -35,7 +35,7 @@ final class RoundupFlowTests: XCTestCase {
     func testRoundupEmptyShowsQuietDay() {
         let app = AppLaunching.configuredApp(
             scenario: "roundup_empty",
-            startTab: "roundup"
+            deepLinkURL: "/roundup"
         )
 
         app.launch()

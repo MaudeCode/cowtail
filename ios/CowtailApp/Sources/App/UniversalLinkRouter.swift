@@ -1,12 +1,15 @@
 import Foundation
 
-enum AppTab: Hashable {
+enum AppTab: String, Hashable {
     case inbox
-    case roundup
-    case farmhouse
+    case cluster
+    case history
+    case settings
 }
 
-enum InboxRoute: Hashable {
+/// A screen pushed onto a tab's stack. An alert link opens the alert's item.
+enum AppRoute: Hashable {
+    case item(String)
     case alert(String)
     case roundup(RoundupRoute)
 }
@@ -21,7 +24,8 @@ final class UniversalLinkRouter: ObservableObject {
     static let shared = UniversalLinkRouter()
 
     @Published var selectedTab: AppTab = .inbox
-    @Published var inboxPath: [InboxRoute] = []
+    @Published var inboxPath: [AppRoute] = []
+    @Published var historyPath: [AppRoute] = []
     @Published var roundupRoute: RoundupRoute
 
     private init() {
@@ -73,15 +77,18 @@ final class UniversalLinkRouter: ObservableObject {
             return handle(url)
         }
 
+        if let itemID = stringValue(for: ["itemId"], in: userInfo) {
+            openItem(itemID)
+            return true
+        }
+
         if let alertID = stringValue(for: ["alertId", "alertID", "alert_id"], in: userInfo) {
             openAlert(alertID)
             return true
         }
 
-        // An item without an alert, or a summary of several, opens the inbox until the app
-        // shows items (COW-12).
-        if stringValue(for: ["itemId"], in: userInfo) != nil
-            || stringValue(for: ["type"], in: userInfo) == "item_batch" {
+        // A summary of several items opens the inbox.
+        if stringValue(for: ["type"], in: userInfo) == "item_batch" {
             openInbox()
             return true
         }
@@ -115,13 +122,19 @@ final class UniversalLinkRouter: ObservableObject {
         }
 
         selectedTab = .inbox
-        inboxPath.removeAll()
         inboxPath = [.alert(trimmedAlertID)]
     }
 
+    func openItem(_ itemID: String) {
+        selectedTab = .inbox
+        inboxPath = [.item(itemID)]
+    }
+
+    /// The roundup lives under History.
     func openRoundup(_ roundupRoute: RoundupRoute) {
-        selectedTab = .roundup
         self.roundupRoute = roundupRoute
+        selectedTab = .history
+        historyPath = [.roundup(roundupRoute)]
     }
 
     func applyUITestStartupSelection(selectedTab: AppTab?, deepLinkURL: URL?) {
@@ -131,21 +144,15 @@ final class UniversalLinkRouter: ObservableObject {
             return
         }
 
-        switch selectedTab {
-        case .inbox:
-            openInbox()
-        case .roundup:
-            openRoundup(roundupRoute)
-        case .farmhouse:
-            self.selectedTab = .farmhouse
-        case nil:
-            break
+        if let selectedTab {
+            self.selectedTab = selectedTab
         }
     }
 
     private func resetForUITesting() {
         selectedTab = .inbox
         inboxPath.removeAll()
+        historyPath.removeAll()
         roundupRoute = Self.makeDefaultRoundupRoute()
     }
 

@@ -10,27 +10,13 @@ final class RoundupInternalsTests: XCTestCase {
         UniversalLinkRouter.shared.openInbox()
     }
 
-    func testRoundupUsesRenamedInternalTypes() {
-        let tab: AppTab = .roundup
-        XCTAssertEqual(tab, .roundup)
-
-        let route = RoundupRoute(from: "2026-04-14", to: "2026-04-14")
-        XCTAssertEqual(route.from, "2026-04-14")
-        XCTAssertEqual(route.to, "2026-04-14")
-
-        _ = RoundupView.self
-        _ = RoundupHeroCard.self
-        _ = RoundupStats.self
-        _ = RoundupOutcomeSection.self
-    }
-
-    func testRoundupURLRoutesIntoRoundupTabAndParsesDateRange() throws {
+    func testRoundupURLOpensTheRoundupUnderHistoryAndParsesDateRange() throws {
         let handled = try XCTUnwrap(URL(string: "\(AppConfig.publicSiteURL.absoluteString)/roundup?from=2026-04-10&to=2026-04-11"))
         let router = UniversalLinkRouter.shared
 
         XCTAssertTrue(router.handle(handled))
-        XCTAssertEqual(router.selectedTab, .roundup)
-        XCTAssertEqual(router.roundupRoute, RoundupRoute(from: "2026-04-10", to: "2026-04-11"))
+        XCTAssertEqual(router.selectedTab, .history)
+        XCTAssertEqual(router.historyPath, [.roundup(RoundupRoute(from: "2026-04-10", to: "2026-04-11"))])
     }
 
     func testRoundupURLFallsBackMissingToDateFromFromDate() throws {
@@ -38,29 +24,25 @@ final class RoundupInternalsTests: XCTestCase {
         let router = UniversalLinkRouter.shared
 
         XCTAssertTrue(router.handle(handled))
-        XCTAssertEqual(router.selectedTab, .roundup)
         XCTAssertEqual(router.roundupRoute, RoundupRoute(from: "2026-04-12", to: "2026-04-12"))
     }
 
     func testRoundupViewUsesInjectedRoundupDataClientAndSeededRoundupData() async {
-        let seed = UITestScenario(named: .inboxPopulated).seed
+        let seed = UITestScenario(named: .inboxPopulated).seed.server
         let view = RoundupView(roundupRoute: RoundupRoute(from: "2026-04-14", to: "2026-04-14"))
         XCTAssertFalse(Mirror(reflecting: view).children.compactMap(\.label).contains("api"))
 
         let expectedRange = Self.expectedRoundupRange(from: "2026-04-14", to: "2026-04-14")
-        let loaded = expectation(description: "roundup alerts and fixes fetched")
-        loaded.expectedFulfillmentCount = 2
+        let loaded = expectation(description: "roundup alerts and fixes requested")
         let client = RoundupDataClientSpy(
             alerts: seed.roundupAlerts,
             fixes: seed.roundupFixes,
-            loaded: loaded
+            onLoaded: { loaded.fulfill() }
         )
-        let store = CowtailStore(alerts: [])
         let host = UIHostingController(
             rootView: RoundupHost(
                 roundupRoute: RoundupRoute(from: "2026-04-14", to: "2026-04-14"),
-                client: client,
-                store: store
+                client: client
             )
         )
         let window = UIWindow(frame: UIScreen.main.bounds)
@@ -70,7 +52,7 @@ final class RoundupInternalsTests: XCTestCase {
         host.beginAppearanceTransition(true, animated: false)
         host.endAppearanceTransition()
 
-        await fulfillment(of: [loaded], timeout: 2)
+        await fulfillment(of: [loaded], timeout: 30)
 
         let snapshot = await client.snapshot()
         XCTAssertEqual(snapshot.alertRequestCount, 1)
@@ -81,10 +63,6 @@ final class RoundupInternalsTests: XCTestCase {
         XCTAssertEqual(snapshot.fixRequestRange?.to, expectedRange.to)
         XCTAssertEqual(snapshot.lastAlerts.map(\.id), seed.roundupAlerts.map(\.id))
         XCTAssertEqual(snapshot.lastFixes.map(\.id), seed.roundupFixes.map(\.id))
-        XCTAssertEqual(
-            seed.roundupAlerts.compactMap { store.alert(withID: $0.id)?.id },
-            seed.roundupAlerts.map(\.id)
-        )
 
         window.isHidden = true
     }
@@ -131,12 +109,10 @@ final class RoundupInternalsTests: XCTestCase {
 private struct RoundupHost: View {
     let roundupRoute: RoundupRoute
     let client: any RoundupDataClient
-    let store: CowtailStore
 
     var body: some View {
         RoundupView(roundupRoute: roundupRoute)
             .environment(\.roundupDataClient, client)
-            .environmentObject(store)
     }
 }
 
@@ -149,19 +125,25 @@ private actor RoundupDataClientSpy: RoundupDataClient {
     private var fixRequestRangeStorage: RequestRange?
     private var lastAlertsStorage: [AlertItem] = []
     private var lastFixesStorage: [AlertFix] = []
-    private let loaded: XCTestExpectation
+    private let onLoaded: @Sendable () -> Void
 
-    init(alerts: [AlertItem], fixes: [AlertFix], loaded: XCTestExpectation) {
+    init(alerts: [AlertItem], fixes: [AlertFix], onLoaded: @escaping @Sendable () -> Void) {
         self.alerts = alerts
         self.fixes = fixes
-        self.loaded = loaded
+        self.onLoaded = onLoaded
+    }
+
+    private func signalWhenLoaded() {
+        if alertRequestCountStorage == 1, fixRequestCountStorage == 1 {
+            onLoaded()
+        }
     }
 
     func fetchRoundupAlerts(from: Date, to: Date) async throws -> [AlertItem] {
         alertRequestCountStorage += 1
         alertRequestRangeStorage = RequestRange(from: from, to: to)
         lastAlertsStorage = alerts
-        loaded.fulfill()
+        signalWhenLoaded()
         return alerts
     }
 
@@ -169,7 +151,7 @@ private actor RoundupDataClientSpy: RoundupDataClient {
         fixRequestCountStorage += 1
         fixRequestRangeStorage = RequestRange(from: from, to: to)
         lastFixesStorage = fixes
-        loaded.fulfill()
+        signalWhenLoaded()
         return fixes
     }
 

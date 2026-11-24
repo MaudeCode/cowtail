@@ -58,7 +58,7 @@ final class ItemNotificationsTests: XCTestCase {
                 ItemNotifications.request(actionIdentifier: action.rawValue, replyText: replyText, now: now)
             )
 
-            try await CowtailAPI(transport: transport)
+            _ = try await CowtailAPI(transport: transport)
                 .performItemAction(itemID: "item-1", request: request, sessionToken: "session-token")
 
             let sent = try XCTUnwrap(transport.requests.first)
@@ -75,13 +75,18 @@ final class ItemNotificationsTests: XCTestCase {
     }
 
     @MainActor
-    func testOpeningAnItemOrSummaryPushOpensTheInbox() {
-        for userInfo: [String: String] in [["itemId": "item-1"], ["type": "item_batch"]] {
+    func testOpeningAnItemPushOpensTheItemAndASummaryOpensTheInbox() {
+        let cases: [([String: String], [AppRoute])] = [
+            (["itemId": "item-1", "alertId": "alert-1"], [.item("item-1")]),
+            (["type": "item_batch"], []),
+        ]
+        for (userInfo, path) in cases {
             let router = UniversalLinkRouter.makeForTesting()
             router.openRoundup(RoundupRoute(from: "2026-04-10", to: "2026-04-10"))
 
             XCTAssertTrue(router.handleNotification(userInfo: userInfo), "\(userInfo)")
             XCTAssertEqual(router.selectedTab, .inbox, "\(userInfo)")
+            XCTAssertEqual(router.inboxPath, path, "\(userInfo)")
         }
     }
 

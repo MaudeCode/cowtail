@@ -65,7 +65,7 @@ final class AppRuntime {
             }
 
             let scenario = UITestScenario(named: scenarioName)
-            let seededAPI = SeededCowtailAPI(mode: scenario.seed.apiMode)
+            let seededAPI = SeededCowtailAPI(seed: scenario.seed.server)
 
             appleAccountManager.seedForUITesting(
                 signInState: scenario.seed.apple.signInState,
@@ -89,7 +89,7 @@ final class AppRuntime {
                 deviceToken: scenario.seed.notification.deviceToken,
                 registrationError: scenario.seed.notification.registrationError,
                 serverRegistrationMessage: scenario.seed.notification.serverRegistrationMessage,
-                dailyRoundupEnabled: scenario.seed.notification.dailyRoundupEnabled,
+                preferences: scenario.seed.notification.preferences,
                 dailyRoundupPreferenceRequiresSignIn: scenario.seed.notification.dailyRoundupPreferenceRequiresSignIn,
                 dailyRoundupPreferenceError: scenario.seed.notification.dailyRoundupPreferenceError
             )
@@ -100,14 +100,7 @@ final class AppRuntime {
             return AppRuntime(
                 appleAccountManager: appleAccountManager,
                 appSessionManager: appSessionManager,
-                cowtailStore: CowtailStore(
-                    api: seededAPI,
-                    alerts: scenario.seed.store.alerts,
-                    health: scenario.seed.store.health,
-                    fixesByAlertID: scenario.seed.store.fixesByAlertID,
-                    errorMessage: scenario.seed.store.alertErrorMessage,
-                    hasLoaded: true
-                ),
+                cowtailStore: CowtailStore(api: seededAPI, authenticator: SeededApprovalAuthenticator()),
                 notificationManager: notificationManager,
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,
