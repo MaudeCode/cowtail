@@ -89,6 +89,16 @@ const fixed = item({
   },
 });
 
+const priorOccurrence = {
+  alertId: "alert-0",
+  firedAt: Date.UTC(2026, 10, 12, 12),
+  resolvedAt: Date.UTC(2026, 10, 12, 13),
+  outcome: "fixed" as const,
+  rootCause: "OOMKilled at 256Mi",
+  summary: "Pod crash looped",
+  fixes: [{ description: "Raise the limit", rootCause: "OOMKilled", commit: "7be01d4e" }],
+};
+
 describe("each area's sections, in its figure's order", () => {
   test.each([
     ["/", ["Needs you", "Hermes is on it", "Cluster", "Hermes", "Handled · 24h"]],
@@ -98,7 +108,7 @@ describe("each area's sections, in its figure's order", () => {
     ],
     ["/history", ["Outcomes", "Time to resolve", "Noise rate"]],
     ["/hermes", ["Cron", "Cron incidents", "Recent approvals and answers", "Status"]],
-    ["/items/item-9", ["Timeline", "Details", "Fix"]],
+    ["/items/item-9", ["Timeline", "Details", "Fix", "Past occurrences"]],
     ["/settings", ["Notifications", "Account", "Urgency overrides"]],
   ])("%s", async (route, labels) => {
     stubApi(
@@ -111,6 +121,7 @@ describe("each area's sections, in its figure's order", () => {
           item: fixed,
           events: [],
           fixes: fixed.fix ? [fixed.fix] : [],
+          priorOccurrences: [priorOccurrence],
         },
       }),
     );
@@ -477,6 +488,71 @@ test("Cluster stacks and lists volume sources in the server's order", async () =
         .getAllByText(/^(hermes|alertmanager)$/)
         .map((legend) => legend.textContent),
     ).toEqual(["hermes", "alertmanager"]);
+  });
+});
+
+describe("item detail", () => {
+  const hermesUpdate = {
+    id: "event-1",
+    itemId: "item-9",
+    at: NOW - 5 * 60_000,
+    type: "hermes_update" as const,
+    actor: "hermes",
+    payload: { text: "Raised the memory limit to 1Gi." },
+    evidence: [
+      {
+        step: "Read the last termination state",
+        command: "kubectl -n media describe pod transcoder-7d9f",
+        output: "Reason: OOMKilled",
+      },
+      { step: "Raise the limit in GitOps and wait for rollout" },
+    ],
+  };
+
+  function renderDetail() {
+    stubApi(
+      signedIn({
+        "GET /actions/api/items/item-9": {
+          ok: true,
+          item: fixed,
+          events: [hermesUpdate],
+          fixes: [],
+          priorOccurrences: [priorOccurrence],
+        },
+      }),
+    );
+    renderApp("/items/item-9");
+  }
+
+  test("Hermes's evidence is a collapsed disclosure of numbered steps, each command with its output", async () => {
+    renderDetail();
+
+    const disclosure = (await screen.findByText("Evidence · 2 steps")).closest("details")!;
+    expect(disclosure).not.toHaveAttribute("open");
+    await userEvent.click(within(disclosure).getByText("Evidence · 2 steps"));
+
+    expect(disclosure).toHaveAttribute("open");
+    expect(within(disclosure).getByText("1 · Read the last termination state")).toBeVisible();
+    expect(
+      within(disclosure).getByText("2 · Raise the limit in GitOps and wait for rollout"),
+    ).toBeVisible();
+    expect(disclosure.querySelectorAll("pre")).toHaveLength(1);
+    expect(disclosure.querySelector("pre")?.textContent).toBe(
+      "$ kubectl -n media describe pod transcoder-7d9f\nReason: OOMKilled",
+    );
+  });
+
+  test("each past occurrence shows its date, outcome, root cause and fix commit", async () => {
+    renderDetail();
+
+    const section = (await screen.findByRole("heading", { name: "Past occurrences" })).closest(
+      "section",
+    )!;
+    expect(
+      within(section)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["12 Nov", "fixed", "OOMKilled at 256Mi", "7be01d4"]);
   });
 });
 

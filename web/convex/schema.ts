@@ -51,6 +51,8 @@ export default defineSchema({
     .index("by_dedupeKey", ["dedupeKey"])
     .index("by_fingerprint_startsAt", ["alertmanagerFingerprint", "startsAt"])
     .index("by_fingerprint_status", ["alertmanagerFingerprint", "status"])
+    .index("by_fingerprint_timestamp", ["alertmanagerFingerprint", "timestamp"])
+    .index("by_alertname_namespace_timestamp", ["alertname", "namespace", "timestamp"])
     .index("by_sourceEventId", ["sourceEventId"])
     .index("by_status_timestamp", ["status", "timestamp"]),
 

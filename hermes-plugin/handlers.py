@@ -29,6 +29,26 @@ _ACTIONS = [
 _OUTCOMES = ["pending", "recorded", "fixed", "self-resolved", "noise", "escalated"]
 _TERMINAL_OUTCOMES = [outcome for outcome in _OUTCOMES if outcome != "pending"]
 
+# The steps behind a result, as Cowtail stores them on the item's timeline.
+_EVIDENCE_SCHEMA: dict[str, Any] = {
+    "type": "array",
+    "maxItems": 20,
+    "description": "Each diagnostic step in order: what it checked, its command and key output.",
+    "items": {
+        "type": "object",
+        "properties": {
+            "step": {"type": "string"},
+            "command": {"type": "string"},
+            "output": {"type": "string"},
+            "at": {"type": "integer", "description": "Unix time in milliseconds."},
+        },
+        "required": ["step"],
+        "additionalProperties": False,
+    },
+}
+# Prior occurrences past this size stay in the claim result instead of the prompt.
+_PROMPT_HISTORY_LIMIT = 20_000
+
 COWTAIL_SCHEMA: dict[str, Any] = {
     "name": "cowtail",
     "description": (
@@ -60,6 +80,7 @@ COWTAIL_SCHEMA: dict[str, Any] = {
             },
             "retryable": {"type": "boolean", "default": True},
             "messaged": {"type": "boolean", "default": False},
+            "evidence": _EVIDENCE_SCHEMA,
             "batch_results": {
                 "type": "array",
                 "minItems": 1,
@@ -73,6 +94,7 @@ COWTAIL_SCHEMA: dict[str, Any] = {
                         "action_taken": {"type": "string"},
                         "root_cause": {"type": "string"},
                         "messaged": {"type": "boolean", "default": False},
+                        "evidence": _EVIDENCE_SCHEMA,
                     },
                     "required": ["alert_id", "outcome", "summary", "action_taken"],
                     "additionalProperties": False,
@@ -152,9 +174,16 @@ def _batch_results(args: dict[str, Any]) -> list[dict[str, Any]] | None:
                 "action": _required(value, "action_taken"),
                 "rootCause": value.get("root_cause"),
                 "messaged": bool(value.get("messaged", False)),
+                **_evidence(value),
             }
         )
     return results
+
+
+def _evidence(args: dict[str, Any]) -> dict[str, Any]:
+    """The `evidence` field to send, when Hermes recorded any; Cowtail validates the steps."""
+    evidence = args.get("evidence")
+    return {"evidence": evidence} if evidence is not None else {}
 
 
 def _compact_alert(alert: Any) -> Any:
@@ -201,14 +230,31 @@ def _compact_large_job_context(result: dict[str, Any]) -> dict[str, Any]:
     return compact
 
 
-def _render_alert_prompt(args: dict[str, Any]) -> str:
+def _prior_occurrences(client: CowtailClient, job_id: str) -> str | None:
+    """Each member alert's earlier firings as JSON, or None when there are none or the job
+    cannot be read: the history is a starting hint, never a reason to skip the investigation."""
+    try:
+        history = client.get_job(job_id).get("priorOccurrences")
+    except (CowtailError, OSError, ValueError):
+        return None
+    if not isinstance(history, dict) or not any(history.values()):
+        return None
+    text = json.dumps(history, sort_keys=True)
+    return text if len(text) <= _PROMPT_HISTORY_LIMIT else None
+
+
+def _render_alert_prompt(args: dict[str, Any], client: CowtailClient) -> str:
     job_id = _required(args, "job_id")
+    history = _prior_occurrences(client, job_id)
     return _ok(
         prompt=(
             "Cowtail alert investigation job is available. "
             f"Use the cowtail tool to claim job_id={job_id}. "
             "If claim returns claimed=false, output NO_REPLY. If claimed, treat relatedAlerts as one "
-            "incident batch. Load the alertmanager skill before diagnosis. Previous attempts' "
+            "incident batch. Load the alertmanager skill before diagnosis. The claim's "
+            "priorOccurrences lists each related alert's earlier firings with their root causes and "
+            "fixes: check whether the previous root cause and fix apply before investigating from "
+            "scratch, and confirm it with current evidence. Previous attempts' "
             "root-cause summaries, deadletter reasons and upstream-release blockers are hypotheses, "
             "not established facts. Reuse primary evidence only after checking its exact version, "
             "resource identity and relevance; do not repeat expensive checks of unchanged valid evidence. "
@@ -228,9 +274,10 @@ def _render_alert_prompt(args: dict[str, Any]) -> str:
             "decision for every member; never copy or preserve an earlier sibling summary merely to "
             "satisfy the schema. Renew the lease when needed. Call job.complete once with batch_results "
             "containing exactly one evidence-backed terminal outcome for every related alert. Cowtail "
-            "will reject incomplete batches. Never use silence or job.fail as a terminal escape for "
-            "unresolved members. Continue repair and renew the claim. Upstream source modifications, "
-            "forks, custom artifact publication and requests to authorize them are outside automated "
+            "will reject incomplete batches. In each result, record each diagnostic command and its "
+            "key output as evidence, one step per check, at most 20 steps. Never use silence or "
+            "job.fail as a terminal escape for unresolved members. Continue repair and renew the "
+            "claim. Upstream source modifications, forks, custom artifact publication and requests to authorize them are outside automated "
             "alert repair, even if a local unit test reproduces a defect. Do not prepare an upstream "
             "patch or ask the owner to publish one. Never relabel upstream_publication as permission_required "
             "or external_prerequisite. Diagnose and test supported local configuration or runtime repair "
@@ -243,6 +290,7 @@ def _render_alert_prompt(args: dict[str, Any]) -> str:
             "and reconcile ambiguous delivery. Routine retryable failures below budget remain silent. "
             "For an already deadlettered exact job use job.handoff with the same structured boundary, "
             "never reset or requeue it merely to notify. Resolved-only jobs and completion do not notify."
+            + (f" Prior occurrences by alert ID, newest first: {history}" if history else "")
         )
     )
 
@@ -303,6 +351,7 @@ def handle_cowtail(args: dict[str, Any], client: CowtailClient | None = None) ->
                             "action": _required(args, "action_taken"),
                             "rootCause": args.get("root_cause"),
                             "messaged": bool(args.get("messaged", False)),
+                            **_evidence(args),
                         },
                     )
                 )
@@ -331,7 +380,7 @@ def handle_cowtail(args: dict[str, Any], client: CowtailClient | None = None) ->
         if action == "job.deadletters":
             return _ok(result=client.deadletters(_int_arg(args, "limit", 50)))
         if action == "webhook.render_alert_prompt":
-            return _render_alert_prompt(args)
+            return _render_alert_prompt(args, client)
 
         return _err(f"unsupported action: {action}")
     except ContinuationNeeded as error:

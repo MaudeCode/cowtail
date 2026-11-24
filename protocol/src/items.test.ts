@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import { itemCreateRequestSchema, itemRecordSchema } from "./items.ts";
+import {
+  itemCreateRequestSchema,
+  itemEventRecordSchema,
+  itemRecordSchema,
+  priorOccurrenceSchema,
+} from "./items.ts";
 
 const request = { source: "hermes", kind: "fyi", urgency: "whenever", title: "Weekly report" };
 
@@ -57,5 +62,39 @@ describe("item records", () => {
     expect(
       itemRecordSchema.parse({ ...record, sourceInfo: { ...sourceInfo, iconUrl } }).sourceInfo,
     ).toEqual({ ...sourceInfo, iconUrl });
+  });
+});
+
+describe("investigation history on item detail", () => {
+  test("an event keeps the evidence Hermes recorded", () => {
+    const evidence = [{ step: "Read logs", command: "kubectl logs pod", output: "OOMKilled" }];
+    const event = {
+      id: "event-1",
+      itemId: "item-1",
+      at: 1,
+      type: "hermes_update",
+      actor: "hermes",
+      payload: { text: "Raised the limit" },
+      evidence,
+    };
+    expect(itemEventRecordSchema.parse(event).evidence).toEqual(evidence);
+  });
+
+  test("a prior occurrence carries its result and its fixes, the commit optional", () => {
+    const prior = {
+      alertId: "alert-1",
+      firedAt: 1,
+      resolvedAt: 2,
+      outcome: "fixed",
+      rootCause: "Memory limit too low",
+      summary: "OOMKilled at 256Mi",
+      ownerDisposition: "escalated",
+      fixes: [
+        { description: "Raise the limit", rootCause: "Memory limit too low", commit: "7be01d4" },
+        { description: "Drain the node", rootCause: "Bad node" },
+      ],
+    };
+    expect(priorOccurrenceSchema.parse(prior)).toEqual(prior);
+    expect(priorOccurrenceSchema.safeParse({ ...prior, outcome: "recorded" }).success).toBe(false);
   });
 });

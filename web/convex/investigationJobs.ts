@@ -3,7 +3,26 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { patchAlert } from "./alerts";
-import { recordAlertDispatch } from "./items";
+import { recordAlertDispatch, recordAlertHermesUpdate } from "./items";
+
+const EVIDENCE_OUTPUT_LIMIT_BYTES = 4096;
+const EVIDENCE_TRUNCATED_MARKER = "\n… [output truncated]";
+
+// Keeps the first 4 KB of a step's output and marks the cut.
+function truncateOutput(output: string) {
+  const bytes = new TextEncoder().encode(output);
+  if (bytes.length <= EVIDENCE_OUTPUT_LIMIT_BYTES) return output;
+  // A cut through a multi-byte character decodes to U+FFFD; drop it.
+  const kept = new TextDecoder().decode(bytes.slice(0, EVIDENCE_OUTPUT_LIMIT_BYTES));
+  return kept.replace(/\uFFFD$/, "") + EVIDENCE_TRUNCATED_MARKER;
+}
+
+const evidenceStepValidator = v.object({
+  step: v.string(),
+  command: v.optional(v.string()),
+  output: v.optional(v.string()),
+  at: v.optional(v.number()),
+});
 
 async function investigationMemberIds(ctx: MutationCtx, job: Doc<"investigationJobs">) {
   const sourceEvent = await ctx.db.get(job.sourceEventId);
@@ -187,6 +206,8 @@ export const completeBatch = internalMutation({
         action: v.string(),
         rootCause: v.optional(v.string()),
         messaged: v.boolean(),
+        // At most 20 steps; the HTTP route refuses more.
+        evidence: v.optional(v.array(evidenceStepValidator)),
       }),
     ),
     now: v.number(),
@@ -218,19 +239,27 @@ export const completeBatch = internalMutation({
     const byId = new Map(alerts.map((alert) => [String(alert._id), alert]));
     for (const result of args.results) {
       const alert = byId.get(String(result.alertId))!;
-      if (alert.ownerDisposition) continue;
-      await patchAlert(
-        ctx,
-        result.alertId,
-        {
-          outcome: result.outcome,
-          summary: result.summary,
-          action: result.action,
-          rootCause: result.rootCause,
-          messaged: result.messaged,
-        },
-        { actor: "hermes", now: args.now },
-      );
+      if (!alert.ownerDisposition) {
+        await patchAlert(
+          ctx,
+          result.alertId,
+          {
+            outcome: result.outcome,
+            summary: result.summary,
+            action: result.action,
+            rootCause: result.rootCause,
+            messaged: result.messaged,
+          },
+          { actor: "hermes", now: args.now },
+        );
+      }
+      // The owner's call stands, but what Hermes found still goes on the item's timeline.
+      await recordAlertHermesUpdate(ctx, result.alertId, args.now, {
+        text: result.summary,
+        evidence: result.evidence?.map((step) =>
+          step.output === undefined ? step : { ...step, output: truncateOutput(step.output) },
+        ),
+      });
     }
 
     await ctx.db.patch(args.id, {
