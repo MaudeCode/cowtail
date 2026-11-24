@@ -9,10 +9,14 @@ import {
   itemResponseSchema,
   itemSourcesResponseSchema,
   itemStatsResponseSchema,
+  maintenanceWindowListResponseSchema,
+  maintenanceWindowResponseSchema,
   notificationPreferencesResponseSchema,
   snoozeOptionsResponseSchema,
   type ItemActionRequest,
   type ItemInboxResponse,
+  type MaintenanceWindowListResponse,
+  type MaintenanceWindowStartRequest,
   type NotificationPreferences,
   type NotificationPreferencesUpdateRequest,
 } from "@maudecode/cowtail-protocol";
@@ -98,6 +102,85 @@ export const hermesStatusQuery = queryOptions({
   queryFn: () => api("/api/hermes/status", hermesStatusResponseSchema),
   refetchInterval: LIVE_REFRESH_MS,
 });
+
+const MAINTENANCE_PATH = "/api/me/maintenance-windows";
+
+// Windows the owner ended and the server has not yet answered, per query client: a poll that
+// reads the list before the reply keeps them gone.
+const pendingEnds = new WeakMap<QueryClient, Set<string>>();
+
+function withoutWindows(list: MaintenanceWindowListResponse, ids: Set<string> | undefined) {
+  if (!ids?.size) return list;
+  return { ...list, active: list.active.filter((window) => !ids.has(window.id)) };
+}
+
+export const maintenanceQuery = queryOptions({
+  queryKey: ["maintenance"],
+  queryFn: async ({ client }) =>
+    withoutWindows(
+      await api(MAINTENANCE_PATH, maintenanceWindowListResponseSchema),
+      pendingEnds.get(client),
+    ),
+  refetchInterval: LIVE_REFRESH_MS,
+});
+
+// The server starts the window and silences Alertmanager, so the sheet's submit shows busy
+// until the reply, which lists the window at once.
+export function useStartMaintenance() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (request: MaintenanceWindowStartRequest) =>
+      api(MAINTENANCE_PATH, maintenanceWindowResponseSchema, { method: "POST", body: request }),
+    onSuccess: ({ window }) =>
+      client.setQueryData(maintenanceQuery.queryKey, (shown) =>
+        shown
+          ? {
+              ...shown,
+              active: [...shown.active.filter((entry) => entry.id !== window.id), window].sort(
+                (a, b) => a.endsAt - b.endsAt,
+              ),
+            }
+          : shown,
+      ),
+    onSettled: () => client.invalidateQueries({ queryKey: maintenanceQuery.queryKey }),
+  });
+}
+
+// Ending a window shows at once: its banner goes, and comes back if the server refuses. Any
+// other failure waits for the reread to show what the server kept.
+export function useEndMaintenance() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`${MAINTENANCE_PATH}/${encodeURIComponent(id)}/end`, maintenanceWindowResponseSchema, {
+        method: "POST",
+      }),
+    onMutate: async (id) => {
+      const ending = pendingEnds.get(client) ?? new Set<string>();
+      pendingEnds.set(client, ending.add(id));
+      await client.cancelQueries({ queryKey: maintenanceQuery.queryKey });
+      const before = client.getQueryData(maintenanceQuery.queryKey);
+      if (before) {
+        client.setQueryData(maintenanceQuery.queryKey, withoutWindows(before, new Set([id])));
+      }
+      return { before };
+    },
+    onError: (error, id, context) => {
+      const window = context?.before?.active.find((entry) => entry.id === id);
+      const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
+      if (!refused || !window) return;
+      client.setQueryData(maintenanceQuery.queryKey, (shown) =>
+        shown && !shown.active.some((entry) => entry.id === id)
+          ? { ...shown, active: [...shown.active, window].sort((a, b) => a.endsAt - b.endsAt) }
+          : shown,
+      );
+    },
+    onSettled: (_reply, _error, id) => {
+      pendingEnds.get(client)?.delete(id);
+      return client.invalidateQueries({ queryKey: maintenanceQuery.queryKey });
+    },
+  });
+}
 
 export const sourcesQuery = queryOptions({
   queryKey: ["sources"],

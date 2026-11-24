@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 
 import { formatClock, formatDay, formatDuration } from "../../lib/format";
 import { itemResult } from "../../lib/itemPresentation";
-import { Badge } from "../ui";
+import { Badge, Icon } from "../ui";
 import { itemPath } from "./ItemRow";
 
 function Row({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
@@ -19,6 +19,12 @@ function Row({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
         <Link to={itemPath(item.id)} className="hover:underline">
           {item.subtitle ? `${item.title} · ${item.subtitle}` : item.title}
         </Link>
+        {item.maintenanceWindowId && (
+          <span title="Recorded during a maintenance window" className="ml-1.5 inline-block">
+            <Icon name="wrench" className="inline size-3 align-[-1px] text-gray-600" />
+            <span className="sr-only">Recorded during a maintenance window</span>
+          </span>
+        )}
         {/* Narrow screens fold the Source column into the item. */}
         <div className="text-[0.7rem] font-normal text-gray-600 min-[600px]:hidden">
           {item.sourceInfo.displayName}

@@ -96,6 +96,10 @@ const paths = {
   chev: <path d="m9 18 6-6-6-6" />,
   down: <path d="m6 9 6 6 6-6" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  wrench: (
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  ),
+  stop: <rect x="6" y="6" width="12" height="12" rx="1" />,
 } as const;
 
 export type IconName = keyof typeof paths;
