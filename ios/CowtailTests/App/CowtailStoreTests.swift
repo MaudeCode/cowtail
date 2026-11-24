@@ -249,6 +249,33 @@ final class CowtailStoreTests: XCTestCase {
         }
     }
 
+    func testARefreshWhileTheUnsnoozeIsOnItsWayKeepsTheItemWhereItMoved() async {
+        let soon = snoozed("soon", hours: 1, needsOwnerWhenOpen: true)
+        let api = FakeItemAPI(inbox: snoozeInbox(soon))
+        let store = store(api: api)
+        await store.refresh()
+        await api.hold(itemID: soon.id)
+
+        let unsnooze = Task { await store.perform(.unsnooze, on: soon) }
+        await api.waitUntilHeld()
+        await store.refresh()
+
+        XCTAssertEqual(store.inbox?.needsYou.map(\.id), [soon.id, approval.id])
+        XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["later"])
+        await api.releaseHeld(with: CowtailAPIError.refused("done"))
+        await unsnooze.value
+    }
+
+    func testAPendingSnoozeOverTheServersResultOfItChangesNothing() {
+        let until = Self.start.addingTimeInterval(3_600)
+        let snoozedRead = snoozeInbox(snoozed("soon", hours: 1, needsOwnerWhenOpen: true))
+        let reopened = Item(id: "soon", source: "hermes", kind: .approval, urgency: .now, needsOwner: true, title: "soon", createdAt: Self.start)
+        let reopenedRead = ItemInbox(needsYou: [reopened], withHermes: [], handled: [])
+
+        XCTAssertEqual(snoozedRead.showingPending(.snooze(until: until), on: "soon"), snoozedRead)
+        XCTAssertEqual(reopenedRead.showingPending(.unsnooze, on: "soon"), reopenedRead)
+    }
+
     func testARefusedUnsnoozePutsTheItemBackInItsPlace() async {
         let soon = snoozed("soon", hours: 1, needsOwnerWhenOpen: true)
         let api = FakeItemAPI(inbox: snoozeInbox(soon), actionError: CowtailAPIError.refused("The item is not snoozed"))
