@@ -9,6 +9,7 @@ import type {
   ItemState,
   ItemUrgency,
   MaintenanceWindowRecord,
+  RunbookRunStatus,
   SnoozePreset,
 } from "@maudecode/cowtail-protocol";
 
@@ -148,6 +149,13 @@ export function eventText({ type, actor, payload }: ItemEventRecord): string {
       const action = `${actor} · ${text(payload.type) ?? "action"}`;
       return detail ? `${action}: ${detail}` : action;
     }
+    case "run_started":
+      return `${text(payload.scriptName) ?? "Script"} started`;
+    case "run_finished": {
+      const result = `${text(payload.scriptName) ?? "Script"} · exit ${text(payload.exitCode) ?? "?"}`;
+      const excerpt = text(payload.excerpt);
+      return excerpt ? `${result}\n${excerpt}` : result;
+    }
     case "state_changed":
     case "resolved":
       return [
@@ -168,6 +176,16 @@ export const eventTone: Record<ItemEventRecord["type"], Tone> = {
   action_taken: "today",
   state_changed: "muted",
   resolved: "ok",
+  run_started: "today",
+  run_finished: "info",
+};
+
+// A runbook run's status, and the exit code's tone once it ended.
+export const runStatusTone: Record<RunbookRunStatus, Tone> = {
+  queued: "muted",
+  running: "today",
+  succeeded: "ok",
+  failed: "now",
 };
 
 // What a maintenance window silences: all alerts or its label matchers, then the other

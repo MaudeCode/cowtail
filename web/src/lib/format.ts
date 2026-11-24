@@ -67,6 +67,14 @@ export function formatDuration(ms: number) {
     .join(" ");
 }
 
+// 0:07, 12:40, 1:02:05: how long a run has taken.
+export function formatElapsed(ms: number) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(seconds / 3_600);
+  const clock = `${Math.floor(seconds / 60) % 60}:${String(seconds % 60).padStart(2, "0")}`;
+  return hours > 0 ? `${hours}:${clock.padStart(5, "0")}` : clock;
+}
+
 // 2m, from the largest unit only.
 export function formatAge(at: number, now = Date.now()) {
   return formatDuration(now - at).split(" ")[0];

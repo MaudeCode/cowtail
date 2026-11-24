@@ -14,6 +14,7 @@ import {
   maintenanceWindow,
   NOW,
   preferences,
+  recentRuns,
   SESSION,
   signedIn,
   stats,
@@ -137,7 +138,18 @@ describe("each area's sections, in its figure's order", () => {
       ["Alert pipeline", "Nodes", "Ceph", "Firing by namespace", "Volume · 7 days", "Noisiest"],
     ],
     ["/history", ["Outcomes", "Time to resolve", "Noise rate"]],
-    ["/hermes", ["Cron", "Cron incidents", "Recent approvals and answers", "Status"]],
+    [
+      "/hermes",
+      [
+        "Cron",
+        "Cron incidents",
+        "Recent approvals and answers",
+        "Run · Disk usage",
+        "Status",
+        "Runbook · services",
+        "Runbook · diagnostics",
+      ],
+    ],
     [
       "/items/item-9",
       ["Timeline", "container_memory_working_set_bytes", "Details", "Fix", "Past occurrences"],
@@ -252,6 +264,54 @@ describe("acting from Home", () => {
     await waitFor(() =>
       expect(calls.filter((call) => call.method === "POST")).toEqual([
         { method: "POST", path: `/actions/api/me/items/${id}/actions`, body },
+      ]),
+    );
+  });
+
+  test("a script action is its label beside a play glyph, and runs the script for the item once confirmed", async () => {
+    const failure = item({
+      id: "failure-1",
+      source: "cowtail",
+      kind: "failure",
+      title: "Gateway is not answering",
+      availableActions: [
+        {
+          type: "run",
+          scriptId: "gateway-restart",
+          label: "Restart Hermes gateway",
+          confirmText: "Restart the Hermes gateway?",
+          needsAuth: false,
+        },
+      ],
+    });
+    const { calls } = stubApi(
+      signedIn({
+        "GET /actions/api/items/inbox": inbox({ needsYou: [failure] }),
+        "POST /actions/api/me/runbook/runs": {
+          ok: true,
+          run: { ...recentRuns[0], itemId: "failure-1" },
+        },
+      }),
+    );
+    renderApp("/");
+
+    const button = await screen.findByRole("button", { name: "Restart Hermes gateway" });
+    expect(button.querySelector("svg")).not.toBeNull();
+    await userEvent.click(button);
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Run Restart Hermes gateway" })).getByRole(
+        "button",
+        { name: "Run" },
+      ),
+    );
+
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "POST")).toEqual([
+        {
+          method: "POST",
+          path: "/actions/api/me/runbook/runs",
+          body: { scriptId: "gateway-restart", itemId: "failure-1", confirmed: true },
+        },
       ]),
     );
   });
@@ -1078,6 +1138,99 @@ describe("Hermes", () => {
       .slice(1)
       .map((row) => row.children[1].textContent);
     expect(answers).toEqual(["approved", "Wait", "denied"]);
+  });
+
+  test("/hermes lists each runbook script with a Run button, red and noted when it asks to confirm, waiting while it runs", async () => {
+    stubApi(signedIn());
+
+    renderApp("/hermes");
+
+    const restart = await screen.findByRole("button", { name: "Run Restart Hermes gateway" });
+    expect(restart.closest("div.border-b")).toHaveTextContent(
+      "Restart Hermes gatewayAsks to confirm",
+    );
+    expect(restart).toHaveClass("text-accent-text");
+    const runner = screen.getByRole("button", { name: "Run Restart script runner" });
+    expect(runner.closest("div.border-b")).not.toHaveTextContent("Asks to confirm");
+    expect(runner).not.toHaveClass("text-accent-text");
+    expect(screen.getByRole("button", { name: "Run Disk usage" })).toBeDisabled();
+  });
+
+  test("/hermes shows a script's prompt before it runs, then follows the new run's output", async () => {
+    const started = {
+      ...recentRuns[0],
+      id: "run-4",
+      scriptId: "gateway-restart",
+      scriptName: "Restart Hermes gateway",
+      status: "queued" as const,
+      startedAt: undefined,
+    };
+    const { calls } = stubApi(
+      signedIn({
+        "POST /actions/api/me/runbook/runs": { ok: true, run: started },
+        "GET /actions/api/me/runbook/runs/run-4": {
+          ok: true,
+          run: { ...started, status: "running", startedAt: NOW },
+          output: "Stopping gateway…\n",
+        },
+      }),
+    );
+    renderApp("/hermes");
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Run Restart Hermes gateway" }),
+    );
+    const prompt = screen.getByRole("dialog", { name: "Run Restart Hermes gateway" });
+    expect(prompt).toHaveTextContent("Restart the Hermes gateway?");
+    expect(calls.some((call) => call.method === "POST")).toBe(false);
+    await userEvent.click(within(prompt).getByRole("button", { name: "Run" }));
+
+    expect(await screen.findByText("Stopping gateway…")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /^Run · Restart Hermes gateway/ }),
+    ).toBeInTheDocument();
+    expect(calls.filter((call) => call.method === "POST").map((call) => call.body)).toEqual([
+      { scriptId: "gateway-restart", confirmed: true },
+    ]);
+  });
+
+  test("/hermes shows the newest run's output and ends each recent run in its exit code and time", async () => {
+    stubApi(signedIn());
+
+    renderApp("/hermes");
+
+    const output = await screen.findByLabelText("Run output");
+    await waitFor(() => expect(output).toHaveTextContent("/dev/nvme0n1p2 916G 604G 266G 70% /"));
+    const rows = ["Disk usage", "Restart script runner", "Tail gateway log"].map(
+      (name) => screen.getByRole("button", { name }).closest("div.border-b")!.textContent,
+    );
+    expect(rows[0]).toMatch(/^Disk usagerunning · 0:0\d·/);
+    expect(rows[1]).toMatch(/^Restart script runnerexit 0·\d\d:\d\d$/);
+    expect(rows[2]).toMatch(/^Tail gateway logexit 1·\d\d:\d\d$/);
+  });
+
+  test("/hermes leaves a script that needs Face ID to the iOS app", async () => {
+    const [services, ...rest] = hermesStatus.status!.runbook!;
+    const guarded = {
+      ...services,
+      scripts: [{ ...services.scripts[0], needsAuth: true }, ...services.scripts.slice(1)],
+    };
+    stubApi(
+      signedIn({
+        "GET /actions/api/hermes/status": {
+          ...hermesStatus,
+          status: { ...hermesStatus.status!, runbook: [guarded, ...rest] },
+        },
+      }),
+    );
+
+    renderApp("/hermes");
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Run Restart Hermes gateway in the iOS app, with Face ID",
+      }),
+    ).toBeDisabled();
   });
 
   test("/hermes says when Hermes has never sent a heartbeat", async () => {
