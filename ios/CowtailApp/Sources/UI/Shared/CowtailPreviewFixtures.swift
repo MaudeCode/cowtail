@@ -268,6 +268,7 @@ enum CowtailPreviewFixtures {
         matchers: [],
         sources: ["alertmanager"],
         allAlerts: true,
+        heldSources: [],
         active: true
     )
 

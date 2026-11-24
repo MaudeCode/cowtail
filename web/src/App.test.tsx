@@ -499,7 +499,7 @@ describe("maintenance windows", () => {
   const routes = (windows = [running]) =>
     signedIn({
       "GET /actions/api/items/inbox": inbox(),
-      [MAINTENANCE]: { ok: true, active: windows, recent: [] },
+      [MAINTENANCE]: { ok: true, active: windows, recent: [], sourceChoices: ["cron", "hermes"] },
     });
   const banner = async () =>
     (await screen.findByText("Cluster upgrade")).closest("div.rounded-lg") as HTMLElement;
@@ -563,15 +563,15 @@ describe("maintenance windows", () => {
       matchers: [{ label: "namespace", value: "media" }],
       sources: ["hermes"],
       allAlerts: false,
+      heldSources: ["hermes"],
       endsAt: NOW + 120 * 60_000,
     });
     // The list serves the started window once the POST has made it.
     let active: (typeof started)[] = [];
     const { calls } = stubApi({
       ...routes([]),
-      "GET /actions/api/items/sources": { ok: true, sources: ["alertmanager", "cron", "hermes"] },
       get [MAINTENANCE]() {
-        return { ok: true, active, recent: [] };
+        return { ok: true, active, recent: [], sourceChoices: ["cron", "hermes"] };
       },
       get "POST /actions/api/me/maintenance-windows"() {
         active = [started];
@@ -600,6 +600,7 @@ describe("maintenance windows", () => {
         durationMs: 2 * 60 * 60_000,
         matchers: [{ label: "namespace", value: "media" }],
         sources: ["hermes"],
+        requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       },
     ]);
   });

@@ -4,7 +4,14 @@ import {
 } from "@maudecode/cowtail-protocol";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { type Backend, advance, newBackend, request, stubEnv } from "../test/convexHarness";
+import {
+  type Backend,
+  advance,
+  newBackend,
+  newBackendWithSources,
+  request,
+  stubEnv,
+} from "../test/convexHarness";
 
 const NOW = Date.UTC(2026, 10, 24, 12, 0, 0);
 const HOUR = 60 * 60_000;
@@ -27,6 +34,9 @@ afterEach(() => {
 });
 
 type Call = { method: string; path: string; body: unknown };
+
+// Every silence leaves the Watchdog firing, so the pipeline check keeps its heartbeat.
+const WATCHDOG_KEPT = { name: "alertname", value: "Watchdog", isRegex: false, isEqual: false };
 
 // Alertmanager's v2 silence API: it records each request and answers `status`, refusing any
 // other URL. `onCreate` runs while a silence is being made, before Alertmanager answers.
@@ -84,7 +94,10 @@ describe("maintenance window silences", () => {
         method: "POST",
         path: "/api/v2/silences",
         body: {
-          matchers: [{ name: "namespace", value: "media", isRegex: false, isEqual: true }],
+          matchers: [
+            { name: "namespace", value: "media", isRegex: false, isEqual: true },
+            WATCHDOG_KEPT,
+          ],
           startsAt: new Date(NOW).toISOString(),
           endsAt: new Date(NOW + HOUR).toISOString(),
           createdBy: "cowtail",
@@ -101,7 +114,7 @@ describe("maintenance window silences", () => {
 
     expect(window).toMatchObject({ sources: ["alertmanager"], allAlerts: true });
     expect(calls.map((call) => (call.body as { matchers: unknown }).matchers)).toEqual([
-      [{ name: "alertname", value: ".+", isRegex: true, isEqual: true }],
+      [{ name: "alertname", value: ".+", isRegex: true, isEqual: true }, WATCHDOG_KEPT],
     ]);
   });
 
@@ -176,6 +189,18 @@ describe("maintenance window silences", () => {
     ]);
   });
 
+  test("a start repeated with its requestId returns the first window and makes no second silence", async () => {
+    const { calls } = fakeAlertmanager();
+    const backend = newBackend();
+    const requestId = "0b6f1e2a-4c3d-4e5f-8a9b-0c1d2e3f4a5b";
+
+    const first = await start(backend, { requestId });
+    const again = await start(backend, { requestId });
+
+    expect(again.id).toBe(first.id);
+    expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
+  });
+
   test("a window starts with silenceError when Alertmanager refuses the silence", async () => {
     fakeAlertmanager(503);
     const window = await start(newBackend(), {});
@@ -198,4 +223,37 @@ describe("maintenance window silences", () => {
     });
     expect(calls).toEqual([]);
   });
+});
+
+test("a new window's source choices are the sources with items, but Alertmanager", async () => {
+  const backend = await newBackendWithSources("cron");
+  for (const source of ["hermes", "cron"]) {
+    const created = await request(backend, "/api/items", {
+      method: "POST",
+      bearer: SERVICE,
+      body: { source, kind: "fyi", urgency: "whenever", title: "Item" },
+    });
+    expect(created.status).toBe(200);
+  }
+  await backend.run(async (ctx) => {
+    await ctx.db.insert("items", {
+      source: "alertmanager",
+      kind: "alert",
+      urgency: "today",
+      state: "open",
+      title: "TargetDown",
+      body: "",
+      links: [],
+      context: {},
+      occurrenceCount: 1,
+      actions: [],
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+  });
+
+  const list = maintenanceWindowListResponseSchema.parse(
+    (await request(backend, "/api/me/maintenance-windows", { bearer: SERVICE })).json,
+  );
+  expect(list.sourceChoices).toEqual(["cron", "hermes"]);
 });

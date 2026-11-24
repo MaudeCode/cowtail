@@ -348,7 +348,7 @@ extension MaintenanceWindow {
     var scope: String {
         let alerts = allAlerts ? ["All alerts"] : []
         let matched = matchers.map { "\($0.label)=\($0.value)" }
-        let held = sources.filter { $0 != "alertmanager" }.map { $0 == "*" ? "every source" : $0 }
+        let held = heldSources.map { $0 == "*" ? "every source" : $0 }
         return (alerts + matched + held).joined(separator: ", ")
     }
 

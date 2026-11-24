@@ -69,6 +69,7 @@ export function maintenanceWindow(
     matchers: [],
     sources: ["alertmanager"],
     allAlerts: true,
+    heldSources: [],
     active: true,
     silenceIds: ["silence-1"],
     ...overrides,
@@ -198,7 +199,7 @@ export function signedIn(routes: Record<string, unknown> = {}) {
     "GET /actions/api/auth/providers": { apple: true, oidc: { name: "Pocket ID" } },
     "GET /actions/api/health": health,
     "GET /actions/api/hermes/status": hermesStatus,
-    [MAINTENANCE]: { ok: true, active: [], recent: [] },
+    [MAINTENANCE]: { ok: true, active: [], recent: [], sourceChoices: [] },
     ...routes,
   };
 }

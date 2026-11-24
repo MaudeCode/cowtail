@@ -35,6 +35,7 @@ final class CowtailStoreTests: XCTestCase {
         matchers: [],
         sources: ["alertmanager"],
         allAlerts: true,
+        heldSources: [],
         active: true
     )
 
@@ -621,8 +622,8 @@ private actor FakeItemAPI: CowtailAPIClient {
         heldEnd = nil
     }
 
-    func fetchMaintenanceWindows(sessionToken _: String) async throws -> [MaintenanceWindow] {
-        windows
+    func fetchMaintenanceWindows(sessionToken _: String) async throws -> MaintenanceWindows {
+        MaintenanceWindows(active: windows, sourceChoices: [])
     }
 
     func startMaintenanceWindow(_ request: MaintenanceWindowRequest, sessionToken _: String) async throws -> MaintenanceWindow {
@@ -634,6 +635,7 @@ private actor FakeItemAPI: CowtailAPIClient {
             matchers: request.matchers,
             sources: request.sources,
             allAlerts: request.sources.contains("alertmanager"),
+            heldSources: request.sources.filter { $0 != "alertmanager" },
             active: true
         )
         windows.append(window)

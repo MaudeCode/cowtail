@@ -5,6 +5,8 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import type { ActionCtx, QueryCtx } from "./_generated/server";
+import { itemSourceNames } from "./items";
+import { WATCHDOG_ALERTNAME } from "./pipelineStatus";
 
 // A window names `alertmanager` among its sources to cover every alert.
 const ALL_ALERTS_SOURCES = new Set(["alertmanager", "*"]);
@@ -13,11 +15,12 @@ const RECENT_LIMIT = 20;
 type Window = Doc<"maintenanceWindows">;
 
 export function windowRecord(window: Window, now: number): MaintenanceWindowRecord {
-  const { _id, _creationTime, ...fields } = window;
+  const { _id, _creationTime, requestId: _requestId, ...fields } = window;
   return {
     ...fields,
     id: String(_id),
     allAlerts: window.sources.some((source) => ALL_ALERTS_SOURCES.has(source)),
+    heldSources: window.sources.filter((source) => source !== "alertmanager"),
     active: window.endedAt === undefined && window.startsAt <= now && now < window.endsAt,
   };
 }
@@ -83,9 +86,20 @@ export const start = internalMutation({
     matchers: v.array(matcherValidator),
     sources: v.array(v.string()),
     createdBy: v.string(),
+    requestId: v.optional(v.string()),
     now: v.number(),
   },
+  // A repeat of a request already started returns its window, so a client may retry a start
+  // whose reply it lost without making a second window.
   handler: async (ctx, { durationMs, sources, now, ...fields }) => {
+    const { requestId } = fields;
+    const repeated = requestId
+      ? await ctx.db
+          .query("maintenanceWindows")
+          .withIndex("by_requestId", (q) => q.eq("requestId", requestId))
+          .first()
+      : null;
+    if (repeated) return { window: windowRecord(repeated, now), repeated: true };
     const id = await ctx.db.insert("maintenanceWindows", {
       ...fields,
       // A window that names nothing covers all alerts.
@@ -94,7 +108,7 @@ export const start = internalMutation({
       endsAt: now + durationMs,
       silenceIds: [],
     });
-    return windowRecord(requireWindow(await ctx.db.get(id)), now);
+    return { window: windowRecord(requireWindow(await ctx.db.get(id)), now), repeated: false };
   },
 });
 
@@ -226,6 +240,8 @@ export const list = internalQuery({
     return {
       active: active.map((window) => windowRecord(window, now)),
       recent: over.map((window) => windowRecord(window, now)),
+      // All alerts is a scope of its own, so Alertmanager is no source choice.
+      sourceChoices: (await itemSourceNames(ctx)).filter((source) => source !== "alertmanager"),
     };
   },
 });
@@ -240,17 +256,21 @@ function alertmanagerBaseUrl() {
   return process.env.ALERTMANAGER_BASE_URL?.trim().replace(/\/+$/, "") || undefined;
 }
 
-// Equality matchers ANDed together; a window over all alerts matches any alertname.
+// Equality matchers ANDed together; a window over all alerts matches any alertname. No
+// silence takes the Watchdog: it is how Cowtail knows the alert pipeline works.
 function silenceMatchers(record: MaintenanceWindowRecord) {
-  if (record.allAlerts) {
-    return [{ name: "alertname", value: ".+", isRegex: true, isEqual: true }];
-  }
-  return record.matchers.map(({ label, value }: MaintenanceMatcher) => ({
-    name: label,
-    value,
-    isRegex: false,
-    isEqual: true,
-  }));
+  const scope = record.allAlerts
+    ? [{ name: "alertname", value: ".+", isRegex: true, isEqual: true }]
+    : record.matchers.map(({ label, value }: MaintenanceMatcher) => ({
+        name: label,
+        value,
+        isRegex: false,
+        isEqual: true,
+      }));
+  return [
+    ...scope,
+    { name: "alertname", value: WATCHDOG_ALERTNAME, isRegex: false, isEqual: false },
+  ];
 }
 
 async function alertmanager(path: string, init: RequestInit) {

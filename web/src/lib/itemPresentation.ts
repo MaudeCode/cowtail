@@ -176,9 +176,7 @@ export function maintenanceScope(window: MaintenanceWindowRecord) {
   const parts = [
     ...(window.allAlerts ? ["All alerts"] : []),
     ...window.matchers.map(({ label, value }) => `${label}=${value}`),
-    ...window.sources
-      .filter((source) => source !== "alertmanager")
-      .map((source) => (source === "*" ? "every source" : source)),
+    ...window.heldSources.map((source) => (source === "*" ? "every source" : source)),
   ];
   return parts.join(", ");
 }

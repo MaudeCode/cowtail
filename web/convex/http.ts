@@ -1901,15 +1901,19 @@ app.post("/api/me/maintenance-windows", async (c) => {
   );
   if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
 
-  const started = await c.env.runMutation((internal as any).maintenance.start, {
-    title: parsed.data.title,
-    durationMs: parsed.data.durationMs,
-    matchers: parsed.data.matchers ?? [],
-    sources: parsed.data.sources ?? [],
-    createdBy: caller.actor,
-    now: Date.now(),
-  });
-  const silence = await silenceWindow(started);
+  const { window: started, repeated } = await c.env.runMutation(
+    (internal as any).maintenance.start,
+    {
+      title: parsed.data.title,
+      durationMs: parsed.data.durationMs,
+      matchers: parsed.data.matchers ?? [],
+      sources: parsed.data.sources ?? [],
+      createdBy: caller.actor,
+      requestId: parsed.data.requestId,
+      now: Date.now(),
+    },
+  );
+  const silence = repeated ? undefined : await silenceWindow(started);
   if (silence) {
     await c.env.runMutation((internal as any).maintenance.recordSilence, {
       id: started.id,

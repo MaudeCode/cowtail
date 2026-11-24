@@ -19,6 +19,7 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
     }
 
     private var seed: Seed
+    private var startedByRequest: [UUID: MaintenanceWindow] = [:]
     private var events: [String: [ItemEvent]]
 
     init(seed: Seed) {
@@ -186,15 +187,22 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         ]
     }
 
-    func fetchMaintenanceWindows(sessionToken _: String) async throws -> [MaintenanceWindow] {
-        seed.maintenanceWindows.sorted { $0.endsAt < $1.endsAt }
+    func fetchMaintenanceWindows(sessionToken _: String) async throws -> MaintenanceWindows {
+        MaintenanceWindows(
+            active: seed.maintenanceWindows.sorted { $0.endsAt < $1.endsAt },
+            sourceChoices: Set(seed.items.map(\.source)).subtracting(["alertmanager"]).sorted()
+        )
     }
 
-    /// Starts the window the way the server does: a window naming nothing covers all alerts.
+    /// Starts the window the way the server does: a window naming nothing covers all alerts, and
+    /// a repeated request returns its first window.
     func startMaintenanceWindow(
         _ request: MaintenanceWindowRequest,
         sessionToken _: String
     ) async throws -> MaintenanceWindow {
+        if let repeated = startedByRequest[request.requestID] {
+            return repeated
+        }
         let sources = request.sources.isEmpty && request.matchers.isEmpty ? ["alertmanager"] : request.sources
         let window = MaintenanceWindow(
             id: "seeded-window-\(seed.maintenanceWindows.count + 1)",
@@ -204,9 +212,11 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
             matchers: request.matchers,
             sources: sources,
             allAlerts: sources.contains("alertmanager") || sources.contains("*"),
+            heldSources: sources.filter { $0 != "alertmanager" },
             active: true
         )
         seed.maintenanceWindows.append(window)
+        startedByRequest[request.requestID] = window
         return window
     }
 

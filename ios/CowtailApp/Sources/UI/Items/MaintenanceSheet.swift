@@ -47,8 +47,9 @@ struct MaintenanceSheet: View {
     @State private var customMinutes = ""
     @State private var scope: AlertScope? = .all
     @State private var scopeValue = ""
-    @State private var sources: [String] = []
     @State private var held: Set<String> = []
+    /// One id per opened sheet: a submit retried after a lost reply finds the same window.
+    @State private var requestID = UUID()
     @State private var isStarting = false
     @State private var error: String?
 
@@ -70,17 +71,25 @@ struct MaintenanceSheet: View {
         guard !name.isEmpty, let duration else { return nil }
         switch scope {
         case .all:
-            return MaintenanceWindowRequest(title: name, duration: duration, sources: held.sorted() + ["alertmanager"])
+            return MaintenanceWindowRequest(
+                title: name,
+                duration: duration,
+                sources: held.sorted() + ["alertmanager"],
+                requestID: requestID
+            )
         case .namespace, .alertname:
             guard !trimmedValue.isEmpty, let label = scope?.rawValue else { return nil }
             return MaintenanceWindowRequest(
                 title: name,
                 duration: duration,
                 matchers: [.init(label: label, value: trimmedValue)],
-                sources: held.sorted()
+                sources: held.sorted(),
+                requestID: requestID
             )
         case nil:
-            return held.isEmpty ? nil : MaintenanceWindowRequest(title: name, duration: duration, sources: held.sorted())
+            return held.isEmpty
+                ? nil
+                : MaintenanceWindowRequest(title: name, duration: duration, sources: held.sorted(), requestID: requestID)
         }
     }
 
@@ -147,9 +156,6 @@ struct MaintenanceSheet: View {
             }
             .padding(20)
         }
-        .task {
-            sources = (try? await store.itemSources())?.filter { $0 != "alertmanager" } ?? []
-        }
         .presentationDetents([.large])
         .presentationBackground(palette.canvas)
         .accessibilityElement(children: .contain)
@@ -193,7 +199,7 @@ struct MaintenanceSheet: View {
             Text("Sources").font(.cowtailSans(14, relativeTo: .body)).foregroundStyle(palette.ink)
             Spacer()
             HStack(spacing: 5) {
-                ForEach(sources, id: \.self) { source in
+                ForEach(store.maintenanceSourceChoices, id: \.self) { source in
                     let on = held.contains(source)
                     Button {
                         if on {

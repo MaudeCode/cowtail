@@ -1039,6 +1039,7 @@ describe("built binary maintenance commands", () => {
     matchers: [{ label: "namespace", value: "media" }],
     sources: ["hermes"],
     allAlerts: false,
+    heldSources: ["hermes"],
     active: true,
     silenceIds: ["silence-1"],
   };
@@ -1063,6 +1064,7 @@ describe("built binary maintenance commands", () => {
         reply({
           active: [window],
           recent: [{ ...window, id: "mw0", title: "Disk swap", active: false, allAlerts: true }],
+          sourceChoices: ["hermes"],
         });
       } else {
         response.writeHead(404).end();

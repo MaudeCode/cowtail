@@ -4,12 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import { formatDuration } from "../../lib/format";
 import { maintenanceScope } from "../../lib/itemPresentation";
-import {
-  maintenanceQuery,
-  sourcesQuery,
-  useEndMaintenance,
-  useStartMaintenance,
-} from "../../lib/queries";
+import { maintenanceQuery, useEndMaintenance, useStartMaintenance } from "../../lib/queries";
 import { useNow } from "../../lib/useNow";
 import { Icon, IconButton } from "../ui";
 import { ActionError } from "../items/ItemActions";
@@ -52,7 +47,9 @@ export function MaintenanceButton() {
 // other sources to hold back.
 function MaintenanceDialog({ onClose }: { onClose: () => void }) {
   const start = useStartMaintenance();
-  const sources = useQuery(sourcesQuery);
+  const windows = useQuery(maintenanceQuery);
+  // One id per opened dialog: a submit retried after a lost reply finds the same window.
+  const [requestId] = useState(() => crypto.randomUUID());
   const [title, setTitle] = useState("");
   const [preset, setPreset] = useState<string>("1h");
   const [customMinutes, setCustomMinutes] = useState("");
@@ -83,11 +80,12 @@ function MaintenanceDialog({ onClose }: { onClose: () => void }) {
           ? [{ label: scope, value: scopeValue.trim() }]
           : [],
       sources: scope === "all" ? [...held, "alertmanager"] : held,
+      requestId,
     };
     start.mutate(request, { onSuccess: onClose });
   };
 
-  const choices = (sources.data ?? []).filter((source) => source !== "alertmanager");
+  const choices = windows.data?.sourceChoices ?? [];
   return (
     <dialog
       open

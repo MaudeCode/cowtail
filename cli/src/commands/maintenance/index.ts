@@ -21,7 +21,7 @@ function windowLine(window: MaintenanceWindowRecord): string {
   const scope = [
     ...(window.allAlerts ? ["all alerts"] : []),
     ...window.matchers.map(({ label, value }) => `${label}=${value}`),
-    ...window.sources.filter((source) => source !== "alertmanager"),
+    ...window.heldSources,
   ];
   return [
     window.id,

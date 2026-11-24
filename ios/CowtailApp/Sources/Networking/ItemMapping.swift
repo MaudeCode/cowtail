@@ -63,6 +63,7 @@ extension CowtailAPI {
             matchers: record.matchers.map { MaintenanceWindow.Matcher(label: $0.label, value: $0.value) },
             sources: record.sources,
             allAlerts: record.allAlerts,
+            heldSources: record.heldSources,
             active: record.active,
             silenceError: record.silenceError
         )

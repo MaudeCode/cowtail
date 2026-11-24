@@ -2531,12 +2531,20 @@
             "items": {
               "$ref": "#/components/schemas/MaintenanceWindowRecord"
             }
+          },
+          "sourceChoices": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "required": [
           "ok",
           "active",
-          "recent"
+          "recent",
+          "sourceChoices"
         ]
       },
       "MaintenanceWindowRecord": {
@@ -2598,6 +2606,14 @@
           "allAlerts": {
             "type": "boolean"
           },
+          "heldSources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^(\\*|[a-z0-9][a-z0-9:_-]*)$"
+            }
+          },
           "active": {
             "type": "boolean"
           },
@@ -2621,6 +2637,7 @@
           "matchers",
           "sources",
           "allAlerts",
+          "heldSources",
           "active",
           "silenceIds"
         ]
@@ -2686,6 +2703,10 @@
               "pattern": "^(\\*|[a-z0-9][a-z0-9:_-]*)$"
             },
             "maxItems": 20
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [

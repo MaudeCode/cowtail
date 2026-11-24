@@ -29,6 +29,9 @@ export const maintenanceWindowStartRequestSchema = z.object({
   durationMs: z.number().int().min(60_000).max(maintenanceWindowMaxDurationMs),
   matchers: z.array(maintenanceMatcherSchema).max(10).optional(),
   sources: z.array(maintenanceSourceSchema).max(20).optional(),
+  // The client's id for this start. A start repeated with the same id returns the window the
+  // first one made, so a client that lost the reply can retry safely.
+  requestId: z.uuid().optional(),
 });
 
 export const maintenanceWindowRecordSchema = z.object({
@@ -43,6 +46,8 @@ export const maintenanceWindowRecordSchema = z.object({
   sources: z.array(maintenanceSourceSchema),
   // Whether the window silences every alert, whatever its labels.
   allAlerts: z.boolean(),
+  // The sources it holds back besides alerts, in `sources` order; `*` is every source.
+  heldSources: z.array(maintenanceSourceSchema),
   // Whether the window is running now: started, not ended and not past `endsAt`.
   active: z.boolean(),
   // The Alertmanager silences the window holds. A window ended early keeps the ones Cowtail
@@ -59,10 +64,13 @@ export const maintenanceWindowResponseSchema = z.object({
 });
 
 // The running windows, the soonest end first, and the 20 newest windows that are over.
+// `sourceChoices` are the sources a new window can hold back, in name order: every source with
+// an item but Alertmanager, whose alerts are the "all alerts" scope.
 export const maintenanceWindowListResponseSchema = z.object({
   ok: z.literal(true),
   active: z.array(maintenanceWindowRecordSchema),
   recent: z.array(maintenanceWindowRecordSchema),
+  sourceChoices: z.array(nonEmptyStringSchema),
 });
 
 export type MaintenanceMatcher = z.infer<typeof maintenanceMatcherSchema>;

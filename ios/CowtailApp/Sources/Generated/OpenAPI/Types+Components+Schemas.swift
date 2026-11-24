@@ -3860,25 +3860,31 @@ extension Components {
             internal var active: [Components.Schemas.MaintenanceWindowRecord]
             /// - Remark: Generated from `#/components/schemas/MaintenanceWindowListResponse/recent`.
             internal var recent: [Components.Schemas.MaintenanceWindowRecord]
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowListResponse/sourceChoices`.
+            internal var sourceChoices: [Swift.String]
             /// Creates a new `MaintenanceWindowListResponse`.
             ///
             /// - Parameters:
             ///   - ok:
             ///   - active:
             ///   - recent:
+            ///   - sourceChoices:
             internal init(
                 ok: Swift.Bool,
                 active: [Components.Schemas.MaintenanceWindowRecord],
-                recent: [Components.Schemas.MaintenanceWindowRecord]
+                recent: [Components.Schemas.MaintenanceWindowRecord],
+                sourceChoices: [Swift.String]
             ) {
                 self.ok = ok
                 self.active = active
                 self.recent = recent
+                self.sourceChoices = sourceChoices
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
                 case active
                 case recent
+                case sourceChoices
             }
         }
         /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord`.
@@ -3926,6 +3932,8 @@ extension Components {
             internal var sources: [Swift.String]
             /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/allAlerts`.
             internal var allAlerts: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/heldSources`.
+            internal var heldSources: [Swift.String]
             /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/active`.
             internal var active: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/MaintenanceWindowRecord/silenceIds`.
@@ -3944,6 +3952,7 @@ extension Components {
             ///   - matchers:
             ///   - sources:
             ///   - allAlerts:
+            ///   - heldSources:
             ///   - active:
             ///   - silenceIds:
             ///   - silenceError:
@@ -3957,6 +3966,7 @@ extension Components {
                 matchers: Components.Schemas.MaintenanceWindowRecord.MatchersPayload,
                 sources: [Swift.String],
                 allAlerts: Swift.Bool,
+                heldSources: [Swift.String],
                 active: Swift.Bool,
                 silenceIds: [Swift.String],
                 silenceError: Swift.String? = nil
@@ -3970,6 +3980,7 @@ extension Components {
                 self.matchers = matchers
                 self.sources = sources
                 self.allAlerts = allAlerts
+                self.heldSources = heldSources
                 self.active = active
                 self.silenceIds = silenceIds
                 self.silenceError = silenceError
@@ -3984,6 +3995,7 @@ extension Components {
                 case matchers
                 case sources
                 case allAlerts
+                case heldSources
                 case active
                 case silenceIds
                 case silenceError
@@ -4047,6 +4059,8 @@ extension Components {
             internal var matchers: Components.Schemas.MaintenanceWindowStartRequest.MatchersPayload?
             /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/sources`.
             internal var sources: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/MaintenanceWindowStartRequest/requestId`.
+            internal var requestId: Swift.String?
             /// Creates a new `MaintenanceWindowStartRequest`.
             ///
             /// - Parameters:
@@ -4054,22 +4068,26 @@ extension Components {
             ///   - durationMs:
             ///   - matchers:
             ///   - sources:
+            ///   - requestId:
             internal init(
                 title: Swift.String,
                 durationMs: Swift.Int,
                 matchers: Components.Schemas.MaintenanceWindowStartRequest.MatchersPayload? = nil,
-                sources: [Swift.String]? = nil
+                sources: [Swift.String]? = nil,
+                requestId: Swift.String? = nil
             ) {
                 self.title = title
                 self.durationMs = durationMs
                 self.matchers = matchers
                 self.sources = sources
+                self.requestId = requestId
             }
             internal enum CodingKeys: String, CodingKey {
                 case title
                 case durationMs
                 case matchers
                 case sources
+                case requestId
             }
         }
     }

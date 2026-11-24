@@ -220,7 +220,8 @@ final class CowtailAPITests: XCTestCase {
                 title: "Disk swap",
                 duration: 90 * 60,
                 matchers: [.init(label: "namespace", value: "media")],
-                sources: ["hermes"]
+                sources: ["hermes"],
+                requestID: UUID(uuidString: "0B6F1E2A-4C3D-4E5F-8A9B-0C1D2E3F4A5B")!
             ),
             sessionToken: "session"
         )
@@ -234,19 +235,23 @@ final class CowtailAPITests: XCTestCase {
                 "durationMs": 5_400_000,
                 "matchers": [["label": "namespace", "value": "media"]],
                 "sources": ["hermes"],
+                "requestId": "0b6f1e2a-4c3d-4e5f-8a9b-0c1d2e3f4a5b",
             ] as NSDictionary
         )
     }
 
     func testMaintenanceWindowsKeepTheServersScopeAndSilenceError() async throws {
         let transport = RecordingTransport(routes: [
-            "GET /api/me/maintenance-windows": .init(json: #"{"ok":true,"active":[\#(Self.windowRecord)],"recent":[]}"#),
+            "GET /api/me/maintenance-windows": .init(
+                json: #"{"ok":true,"active":[\#(Self.windowRecord)],"recent":[],"sourceChoices":["cron","hermes"]}"#
+            ),
         ])
 
         let windows = try await CowtailAPI(transport: transport).fetchMaintenanceWindows(sessionToken: "session")
 
+        XCTAssertEqual(windows.sourceChoices, ["cron", "hermes"])
         XCTAssertEqual(
-            windows,
+            windows.active,
             [
                 MaintenanceWindow(
                     id: "window-1",
@@ -256,6 +261,7 @@ final class CowtailAPITests: XCTestCase {
                     matchers: [.init(label: "namespace", value: "media")],
                     sources: ["hermes"],
                     allAlerts: false,
+                    heldSources: ["hermes"],
                     active: true,
                     silenceError: "Alertmanager answered 503"
                 ),
@@ -266,6 +272,6 @@ final class CowtailAPITests: XCTestCase {
     private static let windowRecord = """
     {"id":"window-1","title":"Disk swap","startsAt":1800000000000,"endsAt":1800005400000,\
     "createdBy":"owner","matchers":[{"label":"namespace","value":"media"}],"sources":["hermes"],\
-    "allAlerts":false,"active":true,"silenceIds":[],"silenceError":"Alertmanager answered 503"}
+    "allAlerts":false,"heldSources":["hermes"],"active":true,"silenceIds":[],"silenceError":"Alertmanager answered 503"}
     """
 }

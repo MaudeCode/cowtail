@@ -102,7 +102,11 @@ export default defineSchema({
     sources: v.array(v.string()),
     silenceIds: v.array(v.string()),
     silenceError: v.optional(v.string()),
-  }).index("by_endsAt", ["endsAt"]),
+    // The client's id for the start request, so a retried start finds its window.
+    requestId: v.optional(v.string()),
+  })
+    .index("by_endsAt", ["endsAt"])
+    .index("by_requestId", ["requestId"]),
 
   // `today` items wait here for one summary push when the window ends.
   itemPushBatches: defineTable({
