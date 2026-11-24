@@ -1,4 +1,4 @@
-"""Hermes plugin entrypoint for Cowtail operations."""
+"""Hermes plugin entrypoint for Cowtail: the `cowtail` tool and the `cowtail` platform."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from .handlers import COWTAIL_SCHEMA, check_cowtail_available, handle_cowtail
 
 
 def register(ctx) -> None:
-    """Register the Cowtail tool with Hermes."""
+    """Register the Cowtail tool, and the Cowtail platform where the gateway is importable."""
     ctx.register_tool(
         name="cowtail",
         toolset="cowtail",
@@ -15,3 +15,8 @@ def register(ctx) -> None:
         check_fn=check_cowtail_available,
         emoji="🐄",
     )
+    try:
+        from .cowtail_platform import register_platform
+    except ImportError:
+        return
+    register_platform(ctx)

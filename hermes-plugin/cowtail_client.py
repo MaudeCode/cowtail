@@ -26,6 +26,12 @@ def cowtail_available() -> bool:
     return _env("COWTAIL_API_BASE") is not None and _env("COWTAIL_WORKER_TOKEN") is not None
 
 
+def cowtail_platform_enabled() -> bool:
+    """The Cowtail platform runs only where the owner turned it on, not wherever the tool works."""
+    enabled = (_env("COWTAIL_PLATFORM_ENABLED") or "").lower() in ("1", "true", "yes")
+    return enabled and cowtail_available()
+
+
 class CowtailClient:
     """Cowtail HTTP API client.
 
@@ -119,3 +125,18 @@ class CowtailClient:
 
     def deadletters(self, limit: int = 50) -> dict[str, Any]:
         return self._request("GET", "/api/investigation-jobs/deadletters", query={"limit": limit})
+
+    def create_item(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/items", payload)
+
+    def claim_response(self, lease_seconds: int = 60) -> dict[str, Any]:
+        return self._request("POST", "/api/hermes/responses/claim", {"workerId": self.worker_id, "leaseSeconds": lease_seconds})
+
+    def complete_response(self, response_id: str, claim_token: str, text: str) -> dict[str, Any]:
+        return self._request("POST", f"/api/hermes/responses/{response_id}/complete", {"claimToken": claim_token, "text": text})
+
+    def fail_response(self, response_id: str, claim_token: str, reason: str) -> dict[str, Any]:
+        return self._request("POST", f"/api/hermes/responses/{response_id}/fail", {"claimToken": claim_token, "reason": reason})
+
+    def heartbeat(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/hermes/heartbeat", snapshot)
