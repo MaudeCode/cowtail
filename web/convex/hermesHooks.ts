@@ -16,9 +16,14 @@ const PRUNE_BATCH = 500;
 
 type ItemRequest = Infer<typeof itemCreateValidator>;
 
-function text(value: unknown): string | undefined {
+// Identifiers are cut to 200 characters, so titles, dedupe keys and context values built
+// from them stay inside the item limits in protocol/src/items.ts.
+const ID_MAX = 200;
+const BODY_MAX = 20_000;
+
+function text(value: unknown, max = ID_MAX): string | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
 }
 
 function definedContext(context: Record<string, string | undefined>): Record<string, string> {
@@ -55,7 +60,7 @@ export function hermesHookItem({
           kind: "question",
           urgency: "today",
           title: `Hermes task ${taskId} is blocked`,
-          body: text(extra.reason) ?? "",
+          body: text(extra.reason, BODY_MAX) ?? "",
           context: definedContext(task),
           dedupeKey: `hermes-kanban:${taskId}`,
         },
@@ -82,7 +87,8 @@ export function hermesHookItem({
       const provider = text(extra.provider) ?? "unknown";
       const status = text(extra.status_code) ?? "none";
       const error = extra.error && typeof extra.error === "object" ? extra.error : {};
-      const message = text((error as Record<string, unknown>).message) ?? text(extra.reason);
+      const message =
+        text((error as Record<string, unknown>).message, BODY_MAX) ?? text(extra.reason, BODY_MAX);
       return {
         item: {
           source: "hermes",

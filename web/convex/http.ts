@@ -1474,7 +1474,9 @@ app.post("/api/hermes/hooks", async (c) => {
   if (hook) {
     await c.env.runMutation((internal as any).hermesHooks.ingest, {
       deliveryId: parsed.data.delivery_id,
-      ...hook,
+      errorStorm: hook.errorStorm,
+      // The same limits as POST /api/items, so the stored item reads back.
+      item: itemCreateRequestSchema.parse(hook.item),
       now: Date.now(),
     });
   }

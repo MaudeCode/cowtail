@@ -189,6 +189,24 @@ describe("Hermes hook events", () => {
     ]);
   });
 
+  test("oversized hook fields are cut to what an item record holds", async () => {
+    const t = newBackend();
+    const long = "x".repeat(3_000);
+    const payload = hook("api_request_error", {
+      provider: long,
+      model: long,
+      status_code: 500,
+      error: { message: long.repeat(10) },
+    });
+
+    expect(await send(t, payload)).toBe(200);
+
+    const [item] = await listItems(t);
+    expect(item.title.length).toBeLessThanOrEqual(500);
+    expect(item.body.length).toBeLessThanOrEqual(20_000);
+    expect(item.dedupeKey!.length).toBeLessThanOrEqual(500);
+  });
+
   test("the tenth provider error within an hour raises urgency to today, once", async () => {
     const t = newBackend();
     const urgencyAfterEachError: string[] = [];
