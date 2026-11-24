@@ -977,8 +977,8 @@ internal struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "notification",
-                    value: input.query.notification
+                    name: "authenticated",
+                    value: input.query.authenticated
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

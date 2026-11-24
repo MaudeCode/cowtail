@@ -34,6 +34,8 @@ extension CowtailAPI {
             alertActions: (record.alertActions ?? []).compactMap { AlertHumanAction(rawValue: $0.rawValue) },
             rootCause: record.investigationResult?.rootCause,
             actionTaken: record.investigationResult?.action,
+            ownerNote: record.investigationResult?.ownerNote,
+            approvalNeedsAuth: record.approvalNeedsAuth ?? false,
             expiresAt: record.expiresAt.map(date),
             createdAt: date(record.createdAt),
             updatedAt: date(record.updatedAt),

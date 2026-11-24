@@ -229,10 +229,18 @@ final class CowtailStore: ObservableObject {
             return
         }
         actionErrors[item.id] = nil
-        if request.isApproval, requiresApprovalAuthentication() {
-            guard await authenticator.authenticate(reason: "Confirm your answer to “\(item.title)”.") else {
-                actionErrors[item.id] = "Approval needs Face ID or your passcode."
-                return
+        // The server's word on the item and this device's setting both count; the server
+        // refuses an approval sent without Face ID while the owner requires it.
+        var authenticated: Bool?
+        if request.isApproval {
+            if item.approvalNeedsAuth || requiresApprovalAuthentication() {
+                guard await authenticator.authenticate(reason: "Confirm your answer to “\(item.title)”.") else {
+                    actionErrors[item.id] = "Approval needs Face ID or your passcode."
+                    return
+                }
+                authenticated = true
+            } else {
+                authenticated = false
             }
         }
         guard let token = await sessionToken() else {
@@ -245,7 +253,12 @@ final class CowtailStore: ObservableObject {
         showOptimistically(request, on: item)
 
         do {
-            let updated = try await api.performItemAction(itemID: item.id, request: request, sessionToken: token)
+            let updated = try await api.performItemAction(
+                itemID: item.id,
+                request: request,
+                authenticated: authenticated,
+                sessionToken: token
+            )
             if details[item.id] != nil {
                 details[item.id]?.item = updated
                 await loadDetail(itemID: item.id)
@@ -348,7 +361,10 @@ final class CowtailStore: ObservableObject {
 
     // MARK: History
 
+    /// Loads the first page for a new filter; a refresh of the same filter reloads as many
+    /// items as are already shown, so the owner keeps their place.
     func loadHistory(_ filter: HistoryFilter) async {
+        let shown = filter == historyFilter && historyQuery != nil ? historyItems.count : 0
         historyFilter = filter
         guard let token = await sessionToken() else {
             historyError = Self.signInMessage
@@ -357,7 +373,9 @@ final class CowtailStore: ObservableObject {
         isLoadingHistory = true
         defer { isLoadingHistory = false }
 
-        let query = filter.query(now: .now)
+        var firstPage = filter.query(now: .now)
+        firstPage.limit = min(500, max(firstPage.limit, shown))
+        let query = firstPage
         do {
             async let page = fetchHistoryPage(query, sessionToken: token)
             async let stats = api.fetchItemStats(query, sessionToken: token)

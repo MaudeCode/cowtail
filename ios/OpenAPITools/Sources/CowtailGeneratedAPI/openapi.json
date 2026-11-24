@@ -1416,8 +1416,14 @@
               },
               "action": {
                 "type": "string"
+              },
+              "ownerNote": {
+                "type": "string"
               }
             }
+          },
+          "approvalNeedsAuth": {
+            "type": "boolean"
           },
           "createdDate": {
             "type": "string",
@@ -2654,14 +2660,10 @@
           },
           {
             "schema": {
-              "type": "string",
-              "enum": [
-                "protected",
-                "unprotected"
-              ]
+              "type": "boolean"
             },
             "required": false,
-            "name": "notification",
+            "name": "authenticated",
             "in": "query"
           }
         ],

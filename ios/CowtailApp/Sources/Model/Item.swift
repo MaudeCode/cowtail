@@ -85,6 +85,10 @@ struct Item: Identifiable, Hashable, Sendable {
     /// The linked alert's investigation results.
     let rootCause: String?
     let actionTaken: String?
+    /// The note the owner gave when they marked the alert as noise or escalated it.
+    let ownerNote: String?
+    /// Answering approve or deny needs Face ID: the owner's current setting, from the server.
+    let approvalNeedsAuth: Bool
     let expiresAt: Date?
     let createdAt: Date
     let updatedAt: Date
@@ -117,6 +121,8 @@ struct Item: Identifiable, Hashable, Sendable {
         alertActions: [AlertHumanAction] = [],
         rootCause: String? = nil,
         actionTaken: String? = nil,
+        ownerNote: String? = nil,
+        approvalNeedsAuth: Bool = false,
         expiresAt: Date? = nil,
         createdAt: Date,
         updatedAt: Date? = nil,
@@ -147,6 +153,8 @@ struct Item: Identifiable, Hashable, Sendable {
         self.alertActions = alertActions
         self.rootCause = rootCause
         self.actionTaken = actionTaken
+        self.ownerNote = ownerNote
+        self.approvalNeedsAuth = approvalNeedsAuth
         self.expiresAt = expiresAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt

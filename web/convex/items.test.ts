@@ -284,7 +284,7 @@ describe("owner actions", () => {
     ]);
   });
 
-  test("an unprotected notification cannot approve while the owner requires Face ID", async () => {
+  test("an answer without Face ID is refused while the owner requires it", async () => {
     const t = await newBackendWithSources("cron");
     const bearer = await seedSession(t, OWNER);
     await request(t, "/api/me/notification-preferences", {
@@ -299,15 +299,17 @@ describe("owner actions", () => {
       title: "Restart ingress in edge?",
       actions: [{ type: "approve" }, { type: "deny" }],
     });
-    const approve = (notification: string) =>
-      request(t, `/api/me/items/${id}/actions?notification=${notification}`, {
+    const approve = (authenticated: boolean) =>
+      request(t, `/api/me/items/${id}/actions?authenticated=${authenticated}`, {
         method: "POST",
         bearer,
         body: { type: "approve" },
       });
 
-    const unprotected = await approve("unprotected");
-    const protectedApproval = await approve("protected");
+    // The item tells the app to ask for Face ID.
+    expect((await getItem(t, id)).item.approvalNeedsAuth).toBe(true);
+    const unprotected = await approve(false);
+    const protectedApproval = await approve(true);
 
     expect(unprotected).toMatchObject({ status: 403, json: { code: "APPROVAL_NEEDS_AUTH" } });
     expect(protectedApproval.status).toBe(200);
@@ -750,12 +752,14 @@ describe("alert items", () => {
     const response = await request(t, `/api/me/alerts/${alert._id}/actions`, {
       method: "POST",
       bearer,
-      body: { action: "mark-noise" },
+      body: { action: "mark-noise", note: "Flaps during backups" },
     });
 
     expect(response.status).toBe(200);
     const [item] = await listItems(t);
     expect(item).toMatchObject({ state: "resolved", context: { disposition: "noise" } });
+    // The owner's note stays on the item's detail.
+    expect(item.investigationResult?.ownerNote).toBe("Flaps during backups");
     expect((await getItem(t, item.id)).events.at(-1)).toMatchObject({
       type: "resolved",
       actor: "owner",

@@ -86,7 +86,12 @@ actor SeededCowtailAPI: CowtailAPIClient, RoundupDataClient {
         return seed.stats
     }
 
-    func performItemAction(itemID: String, request: ItemActionRequest, sessionToken _: String) async throws -> Item {
+    func performItemAction(
+        itemID: String,
+        request: ItemActionRequest,
+        authenticated _: Bool?,
+        sessionToken _: String
+    ) async throws -> Item {
         guard let index = seed.items.firstIndex(where: { $0.id == itemID }) else {
             throw CowtailAPIError.refused("Item not found")
         }

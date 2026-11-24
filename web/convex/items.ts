@@ -362,7 +362,15 @@ async function alertContext(ctx: QueryCtx, item: Doc<"items">) {
 function investigationResult(alert: Doc<"alerts">) {
   const rootCause = alert.rootCause?.trim() || undefined;
   const action = alert.action.trim() || undefined;
-  return rootCause || action ? { rootCause, action } : undefined;
+  const ownerNote = alert.ownerNote?.trim() || undefined;
+  return rootCause || action || ownerNote ? { rootCause, action, ownerNote } : undefined;
+}
+
+async function approvalsNeedAuth(ctx: QueryCtx) {
+  const owner = cowtailOwnerUserId();
+  return owner
+    ? effectivePreferences(await preferencesRow(ctx, owner)).requireAuthForApprovals
+    : false;
 }
 
 // The app badge: open items that need the owner.
@@ -394,6 +402,11 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     contextOrder: Object.keys(item.context).sort(),
     alertActions: jobs ? alertOwnerActions(jobs) : undefined,
     investigationResult: alert ? investigationResult(alert) : undefined,
+    approvalNeedsAuth: item.actions.some(
+      (action) => action.type === "approve" || action.type === "deny",
+    )
+      ? await approvalsNeedAuth(ctx)
+      : undefined,
     subtitle: itemSubtitle(item),
     investigationStep: terminalItemStates.has(item.state)
       ? undefined
@@ -535,22 +548,15 @@ export const applyAction = internalMutation({
     ),
     actor: v.string(),
     now: v.number(),
-    fromUnprotectedNotification: v.optional(v.boolean()),
+    authenticated: v.optional(v.boolean()),
   },
-  handler: async (ctx, { id, action, actor, now, fromUnprotectedNotification }) => {
+  handler: async (ctx, { id, action, actor, now, authenticated }) => {
     const item = await requireItem(ctx, id);
     requireOpenItem(item);
 
-    // A notification delivered before the owner required Face ID cannot answer from the lock
-    // screen once they do.
-    if (fromUnprotectedNotification && (action.type === "approve" || action.type === "deny")) {
-      const owner = cowtailOwnerUserId();
-      const preferences = owner
-        ? effectivePreferences(await preferencesRow(ctx, owner))
-        : undefined;
-      if (preferences?.requireAuthForApprovals) {
-        throw new ConvexError({ code: "APPROVAL_NEEDS_AUTH" });
-      }
+    // An answer sent without Face ID is refused while the owner requires it.
+    if (authenticated === false && (action.type === "approve" || action.type === "deny")) {
+      if (await approvalsNeedAuth(ctx)) throw new ConvexError({ code: "APPROVAL_NEEDS_AUTH" });
     }
 
     if (action.type === "snooze" && action.until <= now) {

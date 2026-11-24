@@ -107,8 +107,15 @@ export const itemRecordSchema = z.object({
   // investigation's recorded root cause and action.
   alertActions: z.array(alertHumanActionSchema).optional(),
   investigationResult: z
-    .object({ rootCause: z.string().optional(), action: z.string().optional() })
+    .object({
+      rootCause: z.string().optional(),
+      action: z.string().optional(),
+      // The note the owner gave when they marked the alert as noise or escalated it.
+      ownerNote: z.string().optional(),
+    })
     .optional(),
+  // Answering this item's approve or deny needs Face ID: the owner's current setting.
+  approvalNeedsAuth: z.boolean().optional(),
   // List results only: the day the item was created, in the server's time zone.
   createdDate: dateOnlyStringSchema.optional(),
 });
@@ -242,11 +249,12 @@ export const itemActionRequestSchema = z.discriminatedUnion("type", [
   ...answerActionSchemas,
 ]);
 
-// Where an owner action came from. A held notification's Approve or Deny says whether its
-// category asked for Face ID; while the owner requires it, an unprotected one is refused, so
-// a notification delivered before the setting changed cannot answer from the lock screen.
+// Whether the owner passed Face ID for this Approve or Deny: in the app, or through a held
+// notification whose category asked for it. While the owner requires Face ID for approvals,
+// an answer sent with `false` is refused, so neither a stale app nor a notification delivered
+// before the setting changed can answer without it.
 export const itemActionQuerySchema = z.object({
-  notification: z.enum(["protected", "unprotected"]).optional(),
+  authenticated: z.boolean().optional(),
 });
 
 export const itemResponseSchema = z.object({

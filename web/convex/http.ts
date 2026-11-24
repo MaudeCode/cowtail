@@ -1423,7 +1423,7 @@ const codedErrorStatus: Record<string, [number, string]> = {
   SOURCE_EXISTS: [409, "Source already exists"],
   ITEM_CLOSED: [409, "Item is already closed"],
   ACTION_NOT_OFFERED: [409, "Item does not offer this action"],
-  APPROVAL_NEEDS_AUTH: [403, "Open Cowtail to answer this with Face ID"],
+  APPROVAL_NEEDS_AUTH: [403, "Approvals need Face ID: answer again in Cowtail"],
   INVALID_SNOOZE: [400, "Snooze must end in the future"],
   ANSWER_PENDING: [409, "An answer to this item is already on its way"],
   RESPONSE_NOT_FOUND: [404, "Response not found"],
@@ -1797,8 +1797,10 @@ app.post("/api/me/items/:id/actions", async (c) => {
 
   const parsed = itemActionRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  const authenticated = c.req.query("authenticated");
   const query = itemActionQuerySchema.safeParse({
-    notification: nonEmptyString(c.req.query("notification")),
+    authenticated:
+      authenticated === "true" ? true : authenticated === "false" ? false : authenticated,
   });
   if (!query.success) return jsonError(formatIssues(query.error.issues));
 
@@ -1809,7 +1811,7 @@ app.post("/api/me/items/:id/actions", async (c) => {
       action: parsed.data,
       actor: auth.userId,
       now: Date.now(),
-      fromUnprotectedNotification: query.data.notification === "unprotected",
+      authenticated: query.data.authenticated,
     });
   } catch (error) {
     return codedErrorResponse(error);

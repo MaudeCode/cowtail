@@ -35,8 +35,8 @@ final class ItemNotificationsTests: XCTestCase {
         XCTAssertEqual(authenticated, ["ITEM_APPROVAL_AUTH Approve", "ITEM_APPROVAL_AUTH Deny"])
         // Each answer tells the server whether its category asked for Face ID.
         XCTAssertEqual(
-            ["ITEM_APPROVAL_AUTH", "ITEM_APPROVAL", "ITEM_ACK"].map { ItemNotifications.origin(categoryIdentifier: $0) },
-            [.protected, .unprotected, nil]
+            ["ITEM_APPROVAL_AUTH", "ITEM_APPROVAL", "ITEM_ACK"].map { ItemNotifications.authenticated(categoryIdentifier: $0) },
+            [true, false, nil]
         )
     }
 
@@ -67,7 +67,7 @@ final class ItemNotificationsTests: XCTestCase {
             _ = try await CowtailAPI(transport: transport).performItemAction(
                 itemID: "item-1",
                 request: request,
-                from: ItemNotifications.origin(categoryIdentifier: "ITEM_APPROVAL"),
+                authenticated: ItemNotifications.authenticated(categoryIdentifier: "ITEM_APPROVAL"),
                 sessionToken: "session-token"
             )
 
@@ -75,7 +75,7 @@ final class ItemNotificationsTests: XCTestCase {
             XCTAssertEqual(transport.requests.count, 1)
             XCTAssertEqual(sent.request.method, .post)
             // An answer from an approval category names whether it asked for Face ID.
-            XCTAssertEqual(sent.request.path, "/api/me/items/item-1/actions?notification=unprotected", "\(action)")
+            XCTAssertEqual(sent.request.path, "/api/me/items/item-1/actions?authenticated=false", "\(action)")
             XCTAssertEqual(sent.request.headerFields[.authorization], "Bearer session-token")
             XCTAssertEqual(
                 try JSONSerialization.jsonObject(with: sent.body) as? [String: AnyHashable],

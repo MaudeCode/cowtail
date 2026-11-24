@@ -13,7 +13,13 @@ protocol CowtailAPIClient: Sendable {
     /// Stats for the query's start, source, kind and outcome; no start means the last 7 days.
     func fetchItemStats(_ query: ItemListQuery, sessionToken: String) async throws -> ItemStats
     func fetchItemSources(sessionToken: String) async throws -> [String]
-    func performItemAction(itemID: String, request: ItemActionRequest, sessionToken: String) async throws -> Item
+    /// `authenticated` says, for an approve or deny, whether the owner passed Face ID.
+    func performItemAction(
+        itemID: String,
+        request: ItemActionRequest,
+        authenticated: Bool?,
+        sessionToken: String
+    ) async throws -> Item
     func performAlertAction(
         alertID: String,
         action: AlertHumanAction,
@@ -413,26 +419,17 @@ actor CowtailAPI: CowtailAPIClient {
         }
     }
 
-    /// Acks, snoozes or answers an item, as the owner, from the app.
+    /// Acks, snoozes or answers an item, as the owner.
     func performItemAction(
         itemID: String,
         request: ItemActionRequest,
-        sessionToken: String
-    ) async throws -> Item {
-        try await performItemAction(itemID: itemID, request: request, from: nil, sessionToken: sessionToken)
-    }
-
-    /// The same from a held notification, naming whether its category asked for Face ID.
-    func performItemAction(
-        itemID: String,
-        request: ItemActionRequest,
-        from notification: ItemNotifications.Origin?,
+        authenticated: Bool?,
         sessionToken: String
     ) async throws -> Item {
         let output = try await sessionClient(sessionToken: sessionToken).performItemAction(
             .init(
                 path: .init(id: itemID),
-                query: .init(notification: notification.flatMap { .init(rawValue: $0.rawValue) }),
+                query: .init(authenticated: authenticated),
                 body: .json(Self.makeActionRequest(request))
             )
         )

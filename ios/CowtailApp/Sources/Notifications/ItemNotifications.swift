@@ -21,18 +21,12 @@ enum ItemNotifications {
 
     static let snoozeInterval: TimeInterval = 60 * 60
 
-    /// Whether a notification's Approve and Deny asked for Face ID.
-    enum Origin: String {
-        case protected
-        case unprotected
-    }
-
-    /// The origin the server checks an answer from this category against; nil for categories
-    /// without approvals.
-    static func origin(categoryIdentifier: String) -> Origin? {
+    /// Whether an answer from this category passed Face ID; nil for categories without
+    /// approvals.
+    static func authenticated(categoryIdentifier: String) -> Bool? {
         switch categoryIdentifier {
-        case Category.approvalWithAuth: .protected
-        case Category.approval: .unprotected
+        case Category.approvalWithAuth: true
+        case Category.approval: false
         default: nil
         }
     }

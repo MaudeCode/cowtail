@@ -2091,25 +2091,33 @@ extension Components {
                 internal var rootCause: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/ItemRecord/investigationResult/action`.
                 internal var action: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/ItemRecord/investigationResult/ownerNote`.
+                internal var ownerNote: Swift.String?
                 /// Creates a new `InvestigationResultPayload`.
                 ///
                 /// - Parameters:
                 ///   - rootCause:
                 ///   - action:
+                ///   - ownerNote:
                 internal init(
                     rootCause: Swift.String? = nil,
-                    action: Swift.String? = nil
+                    action: Swift.String? = nil,
+                    ownerNote: Swift.String? = nil
                 ) {
                     self.rootCause = rootCause
                     self.action = action
+                    self.ownerNote = ownerNote
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case rootCause
                     case action
+                    case ownerNote
                 }
             }
             /// - Remark: Generated from `#/components/schemas/ItemRecord/investigationResult`.
             internal var investigationResult: Components.Schemas.ItemRecord.InvestigationResultPayload?
+            /// - Remark: Generated from `#/components/schemas/ItemRecord/approvalNeedsAuth`.
+            internal var approvalNeedsAuth: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/createdDate`.
             internal var createdDate: Swift.String?
             /// Creates a new `ItemRecord`.
@@ -2147,6 +2155,7 @@ extension Components {
             ///   - contextOrder:
             ///   - alertActions:
             ///   - investigationResult:
+            ///   - approvalNeedsAuth:
             ///   - createdDate:
             internal init(
                 id: Swift.String,
@@ -2181,6 +2190,7 @@ extension Components {
                 contextOrder: [Swift.String]? = nil,
                 alertActions: Components.Schemas.ItemRecord.AlertActionsPayload? = nil,
                 investigationResult: Components.Schemas.ItemRecord.InvestigationResultPayload? = nil,
+                approvalNeedsAuth: Swift.Bool? = nil,
                 createdDate: Swift.String? = nil
             ) {
                 self.id = id
@@ -2215,6 +2225,7 @@ extension Components {
                 self.contextOrder = contextOrder
                 self.alertActions = alertActions
                 self.investigationResult = investigationResult
+                self.approvalNeedsAuth = approvalNeedsAuth
                 self.createdDate = createdDate
             }
             internal enum CodingKeys: String, CodingKey {
@@ -2250,6 +2261,7 @@ extension Components {
                 case contextOrder
                 case alertActions
                 case investigationResult
+                case approvalNeedsAuth
                 case createdDate
             }
         }

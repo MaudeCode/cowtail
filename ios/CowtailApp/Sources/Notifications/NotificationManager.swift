@@ -138,7 +138,7 @@ final class NotificationManager: NSObject, ObservableObject {
     private func performItemAction(
         itemID: String,
         request: ItemActionRequest,
-        from origin: ItemNotifications.Origin?
+        authenticated: Bool?
     ) async {
         guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
             lastNotificationResponse = "Sign in with Apple again to act on notifications."
@@ -149,7 +149,7 @@ final class NotificationManager: NSObject, ObservableObject {
             _ = try await api.performItemAction(
                 itemID: itemID,
                 request: request,
-                from: origin,
+                authenticated: authenticated,
                 sessionToken: sessionToken
             )
         } catch {
@@ -876,9 +876,11 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
             await NotificationManager.shared.performItemAction(
                 itemID: itemID,
                 request: request,
-                from: ItemNotifications.origin(
-                    categoryIdentifier: response.notification.request.content.categoryIdentifier
-                )
+                authenticated: request.isApproval
+                    ? ItemNotifications.authenticated(
+                        categoryIdentifier: response.notification.request.content.categoryIdentifier
+                    )
+                    : nil
             )
             await MainActor.run {
                 NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)

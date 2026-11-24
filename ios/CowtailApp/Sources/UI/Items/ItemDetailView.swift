@@ -179,6 +179,9 @@ struct ItemDetailView: View {
         if let actionTaken = item.actionTaken {
             result("Action", actionTaken)
         }
+        if let ownerNote = item.ownerNote {
+            result("Your note", ownerNote)
+        }
         if !item.context.isEmpty {
             FlowLayout(spacing: 6) {
                 ForEach(item.contextOrder, id: \.self) { key in

@@ -1787,19 +1787,14 @@ internal enum Operations {
             internal var path: Operations.PerformItemAction.Input.Path
             /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/query`.
             internal struct Query: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/query/notification`.
-                internal enum NotificationPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case protected = "protected"
-                    case unprotected = "unprotected"
-                }
-                /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/query/notification`.
-                internal var notification: Operations.PerformItemAction.Input.Query.NotificationPayload?
+                /// - Remark: Generated from `#/paths/me/items/{id}/actions/POST/query/authenticated`.
+                internal var authenticated: Swift.Bool?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - notification:
-                internal init(notification: Operations.PerformItemAction.Input.Query.NotificationPayload? = nil) {
-                    self.notification = notification
+                ///   - authenticated:
+                internal init(authenticated: Swift.Bool? = nil) {
+                    self.authenticated = authenticated
                 }
             }
             internal var query: Operations.PerformItemAction.Input.Query

@@ -38,7 +38,9 @@ final class CowtailStoreTests: XCTestCase {
 
             let sent = await api.sentActions
             let asked = await authenticator.requests
+            let sentAuthentication = await api.sentAuthentication
             XCTAssertEqual(asked, 1, "allows=\(allows)")
+            XCTAssertEqual(sentAuthentication, allows ? [true] : [], "allows=\(allows)")
             XCTAssertEqual(sent.map(\.request), allows ? [.approve] : [], "allows=\(allows)")
             XCTAssertEqual(store.inbox?.needsYou.map(\.id), allows ? [] : [approval.id], "allows=\(allows)")
             XCTAssertEqual(store.actionErrors[approval.id] != nil, !allows, "allows=\(allows)")
@@ -55,8 +57,36 @@ final class CowtailStoreTests: XCTestCase {
 
         let sent = await api.sentActions
         let asked = await authenticator.requests
+        let sentAuthentication = await api.sentAuthentication
         XCTAssertEqual(asked, 0)
         XCTAssertEqual(sent.map(\.request), [.approve])
+        // The server hears that no Face ID was asked, and refuses it if the owner now needs one.
+        XCTAssertEqual(sentAuthentication, [false])
+    }
+
+    func testApproveAsksForFaceIDWhenTheServerSaysTheItemNeedsIt() async {
+        let guarded = Item(
+            id: approval.id,
+            source: "hermes",
+            kind: .approval,
+            urgency: .now,
+            needsOwner: true,
+            title: approval.title,
+            actions: [.approve, .deny],
+            approvalNeedsAuth: true,
+            createdAt: approval.createdAt
+        )
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [guarded], withHermes: [], handled: []))
+        let authenticator = FakeAuthenticator(allows: true)
+        let store = store(api: api, authenticator: authenticator)
+        await store.refresh()
+
+        await store.perform(.approve, on: guarded)
+
+        let asked = await authenticator.requests
+        let sentAuthentication = await api.sentAuthentication
+        XCTAssertEqual(asked, 1)
+        XCTAssertEqual(sentAuthentication, [true])
     }
 
     func testARefusedActionRollsTheInboxBackAndShowsTheServersError() async {
@@ -166,6 +196,21 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(queries.first?.from, queries.last?.from)
     }
 
+    func testRefreshingHistoryKeepsAsManyItemsAsAreShown() async {
+        let shown = (0..<120).map {
+            Item(id: "item-\($0)", source: "cron", kind: .fyi, urgency: .today, title: "\($0)", createdAt: .now)
+        }
+        let api = FakeItemAPI(inbox: .empty, pagesByCursor: ["": ItemPage(items: shown, nextCursor: nil)])
+        let store = store(api: api)
+        await store.loadHistory(HistoryFilter())
+
+        await store.loadHistory(HistoryFilter())
+
+        let limits = await api.listQueries.map(\.limit)
+        XCTAssertEqual(limits, [100, 120])
+        XCTAssertEqual(store.historyItems.count, 120)
+    }
+
     func testRefreshRetriesHealthAfterTransientFailure() async {
         let api = FakeItemAPI(inbox: .empty, failingHealthRequests: 1)
         let store = store(api: api)
@@ -204,6 +249,7 @@ private actor FakeItemAPI: CowtailAPIClient {
     private(set) var sentActions: [(itemID: String, request: ItemActionRequest)] = []
     private(set) var actionAttempts = 0
     private(set) var listQueries: [ItemListQuery] = []
+    private(set) var sentAuthentication: [Bool?] = []
     private(set) var healthRequests = 0
 
     /// `pagesByCursor[""]` is the first page.
@@ -277,7 +323,13 @@ private actor FakeItemAPI: CowtailAPIClient {
         CowtailPreviewFixtures.stats
     }
 
-    func performItemAction(itemID: String, request: ItemActionRequest, sessionToken _: String) async throws -> Item {
+    func performItemAction(
+        itemID: String,
+        request: ItemActionRequest,
+        authenticated: Bool?,
+        sessionToken _: String
+    ) async throws -> Item {
+        sentAuthentication.append(authenticated)
         actionAttempts += 1
         if itemID == heldItemID {
             heldItemID = nil
