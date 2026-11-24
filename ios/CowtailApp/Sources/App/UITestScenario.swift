@@ -15,6 +15,8 @@ struct UITestScenario {
         case notificationsPermissionDenied = "notifications_permission_denied"
         case notificationsReady = "notifications_ready"
         case notificationsSyncError = "notifications_sync_error"
+        case signedOutWithOIDC = "signed_out_with_oidc"
+        case signedInWithOIDC = "signed_in_with_oidc"
     }
 
     struct Seed {
@@ -39,6 +41,7 @@ struct UITestScenario {
         let userID: String?
         let expiresAt: Date?
         let lastError: String?
+        let provider: String?
     }
 
     struct NotificationSeed {
@@ -86,7 +89,8 @@ private enum SeedFactory {
         token: "ui-test-session-token",
         userID: "ui-test-apple-user",
         expiresAt: .now.addingTimeInterval(60 * 60),
-        lastError: nil
+        lastError: nil,
+        provider: AppSessionManager.appleProvider
     )
 
     private static let idleSession = UITestScenario.SessionSeed(
@@ -94,7 +98,23 @@ private enum SeedFactory {
         token: nil,
         userID: nil,
         expiresAt: nil,
-        lastError: nil
+        lastError: nil,
+        provider: nil
+    )
+
+    private static let pocketIDServer = SeededCowtailAPI.Seed(oidcProviderName: "Pocket ID")
+
+    /// Signed out: push waits for an Apple identity, and preferences for a session.
+    private static let signedOutNotification = UITestScenario.NotificationSeed(
+        authorizationStatus: .notDetermined,
+        registrationState: .idle,
+        serverRegistrationState: .waitingForIdentity,
+        deviceToken: nil,
+        registrationError: nil,
+        serverRegistrationMessage: "Sign in with Apple to attach this device token to a Cowtail identity.",
+        preferences: AppNotificationPreferences(),
+        dailyRoundupPreferenceRequiresSignIn: true,
+        dailyRoundupPreferenceError: nil
     )
 
     private static let connectedNotification = UITestScenario.NotificationSeed(
@@ -145,21 +165,7 @@ private enum SeedFactory {
             return scenarioDefaults
 
         case .notificationsNeedsApple:
-            return seed(
-                apple: signedOutApple,
-                session: idleSession,
-                notification: UITestScenario.NotificationSeed(
-                    authorizationStatus: .notDetermined,
-                    registrationState: .idle,
-                    serverRegistrationState: .waitingForIdentity,
-                    deviceToken: nil,
-                    registrationError: nil,
-                    serverRegistrationMessage: "Sign in with Apple to attach this device token to a Cowtail identity.",
-                    preferences: AppNotificationPreferences(),
-                    dailyRoundupPreferenceRequiresSignIn: true,
-                    dailyRoundupPreferenceError: nil
-                )
-            )
+            return seed(apple: signedOutApple, session: idleSession, notification: signedOutNotification)
 
         case .notificationsPermissionDenied:
             return seed(
@@ -204,6 +210,34 @@ private enum SeedFactory {
                     preferences: AppNotificationPreferences(),
                     dailyRoundupPreferenceRequiresSignIn: false,
                     dailyRoundupPreferenceError: "Seeded notification sync error."
+                )
+            )
+
+        case .signedOutWithOIDC:
+            return seed(server: pocketIDServer, apple: signedOutApple, session: idleSession, notification: signedOutNotification)
+
+        case .signedInWithOIDC:
+            return seed(
+                server: pocketIDServer,
+                apple: signedOutApple,
+                session: UITestScenario.SessionSeed(
+                    sessionState: .ready,
+                    token: "ui-test-session-token",
+                    userID: "ui-test-apple-user",
+                    expiresAt: .now.addingTimeInterval(60 * 60),
+                    lastError: nil,
+                    provider: "Pocket ID"
+                ),
+                notification: UITestScenario.NotificationSeed(
+                    authorizationStatus: .authorized,
+                    registrationState: .registered,
+                    serverRegistrationState: .waitingForIdentity,
+                    deviceToken: "ui-test-device-token",
+                    registrationError: nil,
+                    serverRegistrationMessage: nil,
+                    preferences: ownerPreferences,
+                    dailyRoundupPreferenceRequiresSignIn: false,
+                    dailyRoundupPreferenceError: nil
                 )
             )
         }
