@@ -71,6 +71,17 @@ jobs:
       - name: Run iOS Unit Tests
         run: bun run test:ios:unit
 
+      # The test script regenerates the OpenAPI sources with the pinned generator. A diff here means the protocol or
+      # the generator pin changed without the regenerated sources being committed.
+      - name: Check the generated OpenAPI sources are committed
+        run: |
+          changed="$(git status --porcelain -- ios/CowtailApp/Sources/Generated ios/OpenAPITools)"
+          if [ -n "$changed" ]; then
+            echo "$changed"
+            echo "::error::Run 'cd ios && ./generate.sh' and commit the result."
+            exit 1
+          fi
+
       - name: Reset simulator before UI tests
         working-directory: ios
         run: scripts/reset-simulator.sh
