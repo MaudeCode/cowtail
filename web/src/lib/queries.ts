@@ -500,6 +500,18 @@ function unconfirmedChanges(client: QueryClient) {
   return unconfirmed;
 }
 
+// Bumped each time a write to the incident settles, so a read started before is discarded.
+const incidentWriteGenerations = new WeakMap<QueryClient, Map<string, number>>();
+
+function writeGeneration(client: QueryClient, id: string) {
+  return incidentWriteGenerations.get(client)?.get(id) ?? 0;
+}
+
+function bumpWriteGeneration(client: QueryClient, id: string) {
+  const byIncident = incidentWriteGenerations.get(client) ?? new Map<string, number>();
+  incidentWriteGenerations.set(client, byIncident.set(id, writeGeneration(client, id) + 1));
+}
+
 // A read from the server settles every change whose reply was lost.
 function settleUnconfirmed(client: QueryClient, id: string) {
   const pending = pendingChanges(client, id);
@@ -530,8 +542,15 @@ function confirmIncident(client: QueryClient, id: string, detail: IncidentGetRes
 export const incidentQuery = (id: string) =>
   queryOptions({
     queryKey: ["incident", id],
-    queryFn: async ({ client }) => {
+    queryFn: async ({ client, signal }) => {
+      const generation = writeGeneration(client, id);
       const detail = await api(`/api/incidents/${incidentPath(id)}`, incidentGetResponseSchema);
+      // A read cancelled, or started before a write settled, is older than what that write
+      // showed: it confirms nothing.
+      const confirmed = confirmedIncidents.get(client)?.get(id);
+      if (signal.aborted || generation !== writeGeneration(client, id)) {
+        return withPendingChanges(client, id, confirmed ?? detail);
+      }
       settleUnconfirmed(client, id);
       return confirmIncident(client, id, detail);
     },
@@ -608,6 +627,7 @@ export function useIncidentChange(id: string) {
   const client = useQueryClient();
   const queryKey = incidentQuery(id).queryKey;
   const settle = (change: IncidentChange) => {
+    bumpWriteGeneration(client, id);
     const pending = pendingChanges(client, id);
     pending.splice(pending.indexOf(change), 1);
   };
@@ -630,8 +650,10 @@ export function useIncidentChange(id: string) {
     onError: (error, change) => {
       const refused = error instanceof ApiError && error.status >= 400 && error.status < 500;
       if (!refused) {
-        // It may or may not have landed: it stays shown until a read says which.
+        // It may or may not have landed: it stays shown until a read started from here on
+        // says which.
         unconfirmedChanges(client).add(change);
+        bumpWriteGeneration(client, id);
         return;
       }
       settle(change);

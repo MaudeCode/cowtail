@@ -1436,40 +1436,50 @@ describe("incidents", () => {
     expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
   });
 
-  test("a reread from before a removal settled cannot bring the member back", async () => {
+  test("a reread from before a removal settled neither shows nor restores the member", async () => {
     let answerRemoval!: (reply: unknown) => void;
     let answerRead!: (reply: unknown) => void;
     const routes: Record<string, unknown> = signedIn({
-      [INCIDENT]: incidentDetail(),
       "DELETE /actions/api/me/incidents/incident-1/items/item-2": new Promise((resolve) => {
         answerRemoval = resolve;
       }),
+      "POST /actions/api/me/incidents/incident-1/postmortem": {
+        status: 409,
+        body: { ok: false, error: "A postmortem is already on its way" },
+      },
+    });
+    // The page's first read, then a reread held until the removal settled, then reads that fail.
+    const reads: unknown[] = [
+      incidentDetail(),
+      new Promise((resolve) => {
+        answerRead = resolve;
+      }),
+    ];
+    Object.defineProperty(routes, INCIDENT, {
+      get: () => reads.shift() ?? { status: 503, body: { ok: false, error: "Unavailable" } },
     });
     stubApi(routes);
     const { queryClient } = renderApp("/incidents/incident-1");
     const [first] = await screen.findAllByRole("button", { name: "Remove from incident" });
     await userEvent.click(first);
-
-    // A reread starts while the removal is on its way and answers after it settles.
-    routes[INCIDENT] = new Promise((resolve) => {
-      answerRead = resolve;
-    });
     const reread = queryClient.refetchQueries({
       queryKey: ["incident", "incident-1"],
       exact: true,
     });
+    await waitFor(() => expect(reads).toHaveLength(0));
     const removed = incidentDetail();
     removed.members = removed.members.filter((member) => member.id !== "item-2");
-    routes[INCIDENT] = removed;
     answerRemoval(removed);
-    await waitFor(() =>
-      expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
     answerRead(incidentDetail());
     await reread;
-
     const shown = queryClient.getQueryData<IncidentGetResponse>(["incident", "incident-1"])!;
     expect(shown.members.map((member) => member.id)).toEqual(["item-1"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Request postmortem again" }));
+    await screen.findByText("A postmortem is already on its way");
+
+    expect(screen.queryByRole("link", { name: "CephHealthErr" })).not.toBeInTheDocument();
   });
 
   test("a refused removal puts the member back and says why", async () => {
