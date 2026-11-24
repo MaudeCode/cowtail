@@ -60,6 +60,10 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 - When a screen must differ from its figure, change the figure in the same pull request.
 - Review a UI pull request against its figures as well as its ticket.
 
+## Phone Validation
+
+The owner declined the physical-phone validation gate, in advance, for every ticket of the item rewrite epic (decision of 2026-11-23). For those tickets, record the device result as `declined`, offer no phone build, and merge on the simulator unit and UI tests in CI. The owner tries the finished app on a phone once, after the epic. A ticket outside that epic follows the usual gate.
+
 ## CI Runners
 
 - Workflows run on GitHub-hosted runners: `ubuntu-latest` or `ubuntu-24.04`, `ubuntu-24.04-arm` for the arm64 image, and the hosted `xcode-27` image for iOS.
