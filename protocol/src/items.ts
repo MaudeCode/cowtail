@@ -124,6 +124,9 @@ export const itemEventAppendRequestSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+// A state filter lists the most recently updated items first; any other list, the newest
+// created first. A page reads at most `limit` items and can hold fewer once filtered; follow
+// `nextCursor` until it is absent.
 export const itemListQuerySchema = z.object({
   state: itemStateSchema.optional(),
   needsOwner: z.boolean().optional(),
@@ -131,12 +134,14 @@ export const itemListQuerySchema = z.object({
   from: timestampSchema.optional(),
   to: timestampSchema.optional(),
   limit: z.number().int().min(1).max(500).optional(),
+  cursor: nonEmptyStringSchema.optional(),
 });
 
 export const itemListResponseSchema = z.object({
   ok: z.literal(true),
   count: z.number().int().nonnegative(),
   items: z.array(itemRecordSchema),
+  nextCursor: nonEmptyStringSchema.optional(),
 });
 
 export const itemGetResponseSchema = z.object({

@@ -410,41 +410,42 @@ export const list = internalQuery({
     from: v.optional(v.number()),
     to: v.optional(v.number()),
     limit: v.number(),
+    cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const state = args.state;
-    const source = args.source;
-    const query = state
-      ? ctx.db
-          .query("items")
-          .withIndex("by_state_updatedAt", (q) => q.eq("state", state))
-          .order("desc")
-      : source
-        ? ctx.db
-            .query("items")
-            .withIndex("by_source_createdAt", (q) => {
-              const bySource = q.eq("source", source);
-              if (args.from !== undefined && args.to !== undefined) {
-                return bySource.gte("createdAt", args.from).lte("createdAt", args.to);
-              }
-              if (args.from !== undefined) return bySource.gte("createdAt", args.from);
-              if (args.to !== undefined) return bySource.lte("createdAt", args.to);
-              return bySource;
-            })
-            .order("desc")
-        : ctx.db.query("items").order("desc");
+    const { source, from, to } = args;
+    // Only an open item can need the owner, so that filter reads open items alone.
+    const state = args.needsOwner ? (args.state ?? "open") : args.state;
+    if (args.needsOwner && state !== "open") return { items: [], nextCursor: undefined };
 
+    // ponytail: the range builder's types change after each bound; `any` keeps one helper.
+    const createdAtRange = (q: any) => {
+      let range = q;
+      if (from !== undefined) range = range.gte("createdAt", from);
+      if (to !== undefined) range = range.lte("createdAt", to);
+      return range;
+    };
+    const items = ctx.db.query("items");
+    const query = state
+      ? items.withIndex("by_state_updatedAt", (q) => q.eq("state", state))
+      : source
+        ? items.withIndex("by_source_createdAt", (q) => createdAtRange(q.eq("source", source)))
+        : items.withIndex("by_createdAt", (q) => createdAtRange(q));
+
+    // One page reads at most `limit` items; filters checked after reading can leave it short.
+    const page = await query
+      .order("desc")
+      .paginate({ cursor: args.cursor ?? null, numItems: args.limit });
     const records = [];
-    for await (const item of query) {
+    for (const item of page.page) {
       if (source !== undefined && item.source !== source) continue;
-      if (args.from !== undefined && item.createdAt < args.from) continue;
-      if (args.to !== undefined && item.createdAt > args.to) continue;
+      if (from !== undefined && item.createdAt < from) continue;
+      if (to !== undefined && item.createdAt > to) continue;
       const record = await itemRecord(ctx, item);
       if (args.needsOwner !== undefined && record.needsOwner !== args.needsOwner) continue;
       records.push(record);
-      if (records.length >= args.limit) break;
     }
-    return records;
+    return { items: records, nextCursor: page.isDone ? undefined : page.continueCursor };
   },
 });
 

@@ -1393,14 +1393,22 @@ app.get("/api/items", async (c) => {
     from: parseOptionalQueryTimestamp(c.req.query("from")),
     to: parseOptionalQueryTimestamp(c.req.query("to")),
     limit: limit === undefined ? undefined : Number(limit),
+    cursor: nonEmptyString(c.req.query("cursor")),
   });
   if (!parsedQuery.success) return jsonError(formatIssues(parsedQuery.error.issues));
 
-  const items = await c.env.runQuery((internal as any).items.list, {
-    ...parsedQuery.data,
-    limit: parsedQuery.data.limit ?? ITEM_LIST_DEFAULT_LIMIT,
-  });
-  return c.json(itemListResponseSchema.parse({ ok: true, count: items.length, items }));
+  let page: { items: unknown[]; nextCursor?: string };
+  try {
+    page = await c.env.runQuery((internal as any).items.list, {
+      ...parsedQuery.data,
+      limit: parsedQuery.data.limit ?? ITEM_LIST_DEFAULT_LIMIT,
+    });
+  } catch (error) {
+    // A cursor from another query, or a corrupted one, cannot continue this list.
+    if (parsedQuery.data.cursor) return jsonError("Invalid cursor");
+    throw error;
+  }
+  return c.json(itemListResponseSchema.parse({ ok: true, count: page.items.length, ...page }));
 });
 
 // GET /api/items/:id — the item and its timeline

@@ -36,7 +36,9 @@ export class ItemsListCommand extends JsonCommand {
     description: `Created at or before, as milliseconds since epoch or ISO timestamp.`,
   });
 
-  limit = Option.String(`--limit`, { description: `At most this many items (1-500).` });
+  limit = Option.String(`--limit`, { description: `Read at most this many items (1-500).` });
+
+  cursor = Option.String(`--cursor`, { description: `Continue from a previous page.` });
 
   async execute(): Promise<void> {
     if (this.limit !== undefined && !/^\d+$/.test(this.limit.trim())) {
@@ -50,6 +52,7 @@ export class ItemsListCommand extends JsonCommand {
       from: parseTimestamp(this.from, "from"),
       to: parseTimestamp(this.to, "to"),
       limit: optionalTrimmedString(this.limit),
+      cursor: optionalTrimmedString(this.cursor),
     };
     for (const [key, value] of Object.entries(filters)) {
       if (value !== undefined) params.set(key, String(value));
@@ -65,8 +68,9 @@ export class ItemsListCommand extends JsonCommand {
       return;
     }
 
+    const more = response.nextCursor ? [`More: --cursor ${response.nextCursor}`] : [];
     if (response.items.length === 0) {
-      this.printLine("No items");
+      this.printLine(["No items", ...more].join("\n"));
       return;
     }
 
@@ -81,6 +85,7 @@ export class ItemsListCommand extends JsonCommand {
             item.occurrenceCount > 1 ? `${item.title} x${item.occurrenceCount}` : item.title,
           ].join("  "),
         )
+        .concat(more)
         .join("\n"),
     );
   }

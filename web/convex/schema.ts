@@ -52,7 +52,8 @@ export default defineSchema({
     .index("by_state_updatedAt", ["state", "updatedAt"])
     .index("by_dedupeKey", ["dedupeKey"])
     .index("by_source_createdAt", ["source", "createdAt"])
-    .index("by_alertId", ["alertId"]),
+    .index("by_alertId", ["alertId"])
+    .index("by_createdAt", ["createdAt"]),
 
   itemEvents: defineTable({
     itemId: v.id("items"),

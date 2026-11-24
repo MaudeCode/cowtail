@@ -300,6 +300,47 @@ describe("item list", () => {
     expect(ids(await listItems(t, "?state=resolved"))).toEqual([]);
     expect((await request(t, "/api/items?needsOwner=maybe", { bearer: SERVICE })).status).toBe(400);
   });
+
+  test("lists the newest created first, backfilled history included", async () => {
+    const t = newBackend();
+    const fresh = await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Weekly report ready",
+    });
+    await t.run((ctx) => ctx.db.insert("alerts", alertFields({ timestamp: NOW - 86_400_000 })));
+    await t.mutation(backfillAlertItems, {});
+
+    const [first, second] = await listItems(t, "?limit=1&needsOwner=false");
+    const all = await listItems(t);
+
+    expect([first?.id, second]).toEqual([fresh.id, undefined]);
+    expect(all.map((item) => item.createdAt)).toEqual([NOW, NOW - 86_400_000]);
+  });
+
+  test("a page reads at most limit items and nextCursor continues it", async () => {
+    const t = newBackend();
+    for (const title of ["first", "second", "third"]) {
+      await createItem(t, { source: "cron", kind: "fyi", urgency: "whenever", title });
+      vi.advanceTimersByTime(1_000);
+    }
+    const page = async (query: string) => {
+      const response = await request(t, `/api/items${query}`, { bearer: SERVICE });
+      return itemListResponseSchema.parse(response.json);
+    };
+
+    const one = await page("?limit=2&needsOwner=true");
+    const two = await page("?limit=2");
+    const three = await page(`?limit=2&cursor=${encodeURIComponent(two.nextCursor ?? "")}`);
+
+    // Two items read, none needs the owner: an empty page that still continues.
+    expect(one).toMatchObject({ count: 0, items: [], nextCursor: expect.any(String) });
+    expect(two.items.map((item) => item.title)).toEqual(["third", "second"]);
+    expect(three.items.map((item) => item.title)).toEqual(["first"]);
+    expect(three.nextCursor).toBeUndefined();
+    expect((await request(t, "/api/items?cursor=nonsense", { bearer: SERVICE })).status).toBe(400);
+  });
 });
 
 describe("alert items", () => {
