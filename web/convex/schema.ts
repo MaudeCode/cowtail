@@ -221,6 +221,9 @@ export default defineSchema({
     environment: v.string(),
     enabled: v.boolean(),
     deviceName: v.optional(v.string()),
+    // The app session that registered the device; pushes stop when that session ends.
+    // Absent when an Apple identity token registered it.
+    sessionId: v.optional(v.id("authSessions")),
     lastSeenAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),

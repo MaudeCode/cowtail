@@ -379,13 +379,15 @@ async function requireAppSession(c: AppSessionContext) {
 }
 
 // A push route's user: the app session's when the request carries a bearer, otherwise the
-// Apple identity token's.
+// Apple identity token's. A registration keeps the session so its pushes end with it.
 async function requirePushUser(
   c: AppSessionContext,
   identityToken: string | undefined,
-): Promise<{ userId: string } | { error: Response }> {
+): Promise<{ userId: string; sessionId?: Id<"authSessions"> } | { error: Response }> {
   if (c.req.header("authorization")?.trim()) {
-    return await requireAppSession(c);
+    const auth = await requireAppSession(c);
+    if ("error" in auth) return auth;
+    return { userId: auth.userId, sessionId: auth.session._id };
   }
 
   if (!identityToken) {
@@ -2194,6 +2196,7 @@ app.post("/api/push/register", async (c) => {
   const ctx = c.env;
   const result = await ctx.runMutation(internal.push.upsertDeviceRegistration, {
     userId: auth.userId,
+    sessionId: auth.sessionId,
     deviceToken: deviceToken.trim(),
     platform: nonEmptyString(parsed.data.platform) ?? "ios",
     environment: parsed.data.environment ?? configuredApnsEnvironment(),

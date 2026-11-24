@@ -1,7 +1,8 @@
 import { userDevicesResponseSchema } from "@maudecode/cowtail-protocol";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { newBackend, request, rows, seedSession } from "../test/convexHarness";
+import { internal } from "./_generated/api";
 import { disableDeviceRegistrationByToken } from "./push";
 
 type ConvexFunctionForTest = {
@@ -107,6 +108,10 @@ describe("the signed-in account's devices", () => {
 });
 
 describe("push device registration routes", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const DEVICE = "device-token-0123456789";
 
   async function deviceRows(t: ReturnType<typeof newBackend>) {
@@ -162,6 +167,43 @@ describe("push device registration routes", () => {
       expect(response.status).toBe(401);
     }
     expect(await deviceRows(t)).toEqual([]);
+  });
+
+  async function deliverableDevices(t: ReturnType<typeof newBackend>, userId: string) {
+    const devices = await t.query(internal.push.listEnabledDevicesForUser, { userId });
+    return devices.map((device) => device.deviceToken);
+  }
+
+  test("a device registered with a session stops receiving pushes once that session is revoked", async () => {
+    const t = newBackend();
+    const bearer = await seedSession(t, "owner-user");
+    await request(t, "/api/push/register", {
+      method: "POST",
+      bearer,
+      body: { deviceToken: DEVICE },
+    });
+    expect(await deliverableDevices(t, "owner-user")).toEqual([DEVICE]);
+
+    const logout = await request(t, "/api/auth/logout", { method: "POST", bearer });
+
+    expect(logout.status).toBe(200);
+    expect(await deliverableDevices(t, "owner-user")).toEqual([]);
+  });
+
+  test("a device registered with a session stops receiving pushes once that session expires", async () => {
+    vi.useFakeTimers({ now: 1_000_000 });
+    const t = newBackend();
+    const bearer = await seedSession(t, "owner-user");
+    await request(t, "/api/push/register", {
+      method: "POST",
+      bearer,
+      body: { deviceToken: DEVICE },
+    });
+    expect(await deliverableDevices(t, "owner-user")).toEqual([DEVICE]);
+
+    vi.setSystemTime(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    expect(await deliverableDevices(t, "owner-user")).toEqual([]);
   });
 
   test("an Apple identity token still registers the device under the Apple user", async () => {

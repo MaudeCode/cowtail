@@ -41,4 +41,23 @@ final class PushRegistrationTests: XCTestCase {
         XCTAssertEqual(body["deviceToken"], "apns-device")
         XCTAssertNil(body["identityToken"])
     }
+
+    /// The server stops pushing to a device when the session that registered it ends.
+    func testANewSessionRegistersTheDeviceAgain() async {
+        let transport = RecordingTransport(routes: [
+            "POST /api/push/register": .init(json: #"{"ok":true,"created":false,"id":"device-1"}"#),
+        ])
+        let notifications = NotificationManager(api: CowtailAPI(transport: transport), deviceToken: "apns-device")
+        for token in ["first-session", "second-session"] {
+            sessions.store(
+                AppAuthSession(token: token, userID: "owner", expiresAt: .distantFuture),
+                provider: "Pocket ID"
+            )
+            await notifications.syncDeviceRegistration()
+        }
+
+        let bearers = transport.requests("POST /api/push/register").map { $0.request.headerFields[.authorization] }
+        XCTAssertEqual(bearers, ["Bearer first-session", "Bearer second-session"])
+        XCTAssertEqual(notifications.serverRegistrationState, .registered)
+    }
 }

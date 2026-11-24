@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import OSLog
 import SwiftUI
@@ -81,11 +82,10 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published private(set) var isSavingDailyRoundupPreference = false
     @Published private(set) var dailyRoundupPreferenceError: String?
     @Published private(set) var dailyRoundupPreferenceRequiresSignIn = false
-    private var lastSyncedRegistrationKey: String?
     private let deviceTokenKey = "notifications.deviceToken"
-    private let syncedUserIDKey = "notifications.syncedUserID"
-    private let syncedDeviceTokenKey = "notifications.syncedDeviceToken"
-    private let syncedEnvironmentKey = "notifications.syncedEnvironment"
+    /// What the device last registered with: the session (by digest) or Apple user, the APNs
+    /// token and environment. A new session registers the device again.
+    private let syncedRegistrationKey = "notifications.syncedRegistration"
     private let requireAuthForApprovalsKey = "notifications.requireAuthForApprovals"
     private var isUITesting = false
 
@@ -394,15 +394,9 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        guard let userID = pushUserID else {
+        guard pushUserID != nil else {
             serverRegistrationState = .waitingForIdentity
             serverRegistrationMessage = "Sign in to attach this device token to a Cowtail identity."
-            return
-        }
-
-        if hasPersistedServerRegistration(userID: userID, deviceToken: deviceToken) {
-            serverRegistrationState = .registered
-            serverRegistrationMessage = "Cowtail can send alert notifications to this device."
             return
         }
 
@@ -412,8 +406,10 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        let registrationKey = "\(userID)|\(deviceToken)|\(pushEnvironment)"
-        if lastSyncedRegistrationKey == registrationKey, serverRegistrationState == .registered {
+        let registrationKey = "\(Self.registrationScope(of: credential))|\(deviceToken)|\(pushEnvironment)"
+        if persistedString(for: syncedRegistrationKey) == registrationKey {
+            serverRegistrationState = .registered
+            serverRegistrationMessage = "Cowtail can send alert notifications to this device."
             return
         }
 
@@ -428,8 +424,7 @@ final class NotificationManager: NSObject, ObservableObject {
                 deviceName: UIDevice.current.name
             )
 
-            lastSyncedRegistrationKey = registrationKey
-            persistServerRegistration(userID: userID, deviceToken: deviceToken)
+            persist(registrationKey, for: syncedRegistrationKey)
             serverRegistrationState = .registered
             serverRegistrationMessage = response.created
                 ? "Created Cowtail device registration."
@@ -458,7 +453,6 @@ final class NotificationManager: NSObject, ObservableObject {
         }
 
         if isUITesting {
-            lastSyncedRegistrationKey = nil
             clearPersistedServerRegistration()
             serverRegistrationState = .idle
             serverRegistrationMessage = "Disabled the Cowtail device registration."
@@ -473,7 +467,6 @@ final class NotificationManager: NSObject, ObservableObject {
                 credential: credential,
                 deviceToken: deviceToken
             )
-            lastSyncedRegistrationKey = nil
             clearPersistedServerRegistration()
             serverRegistrationState = .idle
             serverRegistrationMessage = response.updated
@@ -508,7 +501,6 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     func appleIdentityDidChange() {
-        lastSyncedRegistrationKey = nil
         if AppleAccountManager.shared.userID == nil {
             clearPersistedServerRegistration()
             preferences = AppNotificationPreferences()
@@ -686,22 +678,19 @@ final class NotificationManager: NSObject, ObservableObject {
 #endif
     }
 
-    private func hasPersistedServerRegistration(userID: String, deviceToken: String) -> Bool {
-        persistedString(for: syncedUserIDKey) == userID
-            && persistedString(for: syncedDeviceTokenKey) == deviceToken
-            && persistedString(for: syncedEnvironmentKey) == pushEnvironment
-    }
-
-    private func persistServerRegistration(userID: String, deviceToken: String) {
-        persist(userID, for: syncedUserIDKey)
-        persist(deviceToken, for: syncedDeviceTokenKey)
-        persist(pushEnvironment, for: syncedEnvironmentKey)
+    /// A session by its SHA-256 digest, so the token itself is never stored here.
+    private static func registrationScope(of credential: PushCredential) -> String {
+        switch credential {
+        case let .session(sessionToken):
+            let digest = SHA256.hash(data: Data(sessionToken.utf8))
+            return "session:" + digest.map { String(format: "%02x", $0) }.joined()
+        case .appleIdentity:
+            return "apple:\(AppleAccountManager.shared.userID ?? "")"
+        }
     }
 
     private func clearPersistedServerRegistration() {
-        removePersistedValue(for: syncedUserIDKey)
-        removePersistedValue(for: syncedDeviceTokenKey)
-        removePersistedValue(for: syncedEnvironmentKey)
+        removePersistedValue(for: syncedRegistrationKey)
     }
 
     private func persistedString(for key: String) -> String? {
@@ -770,7 +759,6 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     private func clearPersistedNotificationState() {
-        lastSyncedRegistrationKey = nil
         removePersistedValue(for: deviceTokenKey)
         clearPersistedServerRegistration()
     }
@@ -786,7 +774,6 @@ final class NotificationManager: NSObject, ObservableObject {
         dailyRoundupPreferenceRequiresSignIn: Bool,
         dailyRoundupPreferenceError: String?
     ) {
-        lastSyncedRegistrationKey = nil
         self.authorizationStatus = authorizationStatus
         self.registrationState = registrationState
         self.serverRegistrationState = serverRegistrationState
