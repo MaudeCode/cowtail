@@ -78,8 +78,10 @@ final class UniversalLinkRouter: ObservableObject {
             return true
         }
 
-        // An item without an alert opens the inbox until the app shows items (COW-12).
-        if stringValue(for: ["itemId"], in: userInfo) != nil {
+        // An item without an alert, or a summary of several, opens the inbox until the app
+        // shows items (COW-12).
+        if stringValue(for: ["itemId"], in: userInfo) != nil
+            || stringValue(for: ["type"], in: userInfo) == "item_batch" {
             openInbox()
             return true
         }

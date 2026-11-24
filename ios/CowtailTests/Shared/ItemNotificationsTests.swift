@@ -74,6 +74,17 @@ final class ItemNotificationsTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testOpeningAnItemOrSummaryPushOpensTheInbox() {
+        for userInfo: [String: String] in [["itemId": "item-1"], ["type": "item_batch"]] {
+            let router = UniversalLinkRouter.makeForTesting()
+            router.openRoundup(RoundupRoute(from: "2026-04-10", to: "2026-04-10"))
+
+            XCTAssertTrue(router.handleNotification(userInfo: userInfo), "\(userInfo)")
+            XCTAssertEqual(router.selectedTab, .inbox, "\(userInfo)")
+        }
+    }
+
     func testATapAnEmptyReplyOrAnotherActionSendsNothing() {
         let now = Date()
         XCTAssertNil(ItemNotifications.request(actionIdentifier: UNNotificationDefaultActionIdentifier, replyText: nil, now: now))

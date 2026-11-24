@@ -46,9 +46,10 @@ export const itemPushDataSchema = z.object({
   alertId: nonEmptyStringSchema.optional(),
 });
 
-// The custom data of a summary push for a batch of `today` items.
+// The custom data of a summary push for a batch of `today` items; the app opens the inbox.
 export const itemBatchPushDataSchema = z.object({
-  itemIds: z.array(nonEmptyStringSchema).min(2),
+  type: z.literal("item_batch"),
+  count: z.number().int().min(2),
 });
 
 export const notificationPreferencesResponseSchema = z.object({

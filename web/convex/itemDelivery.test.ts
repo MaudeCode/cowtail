@@ -143,7 +143,7 @@ describe("item delivery", () => {
     expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
       title: "3 new items",
       body: "Backup verify failed, Merge queue stalled, 1 more",
-      data: { itemIds: ids },
+      data: { type: "item_batch", count: 3 },
       aps: { interruptionLevel: "active" },
     });
     for (const id of ids) {

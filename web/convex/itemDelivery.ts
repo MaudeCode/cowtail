@@ -48,16 +48,38 @@ type PushItem = Pick<
   "_id" | "kind" | "urgency" | "title" | "body" | "dedupeKey" | "alertId"
 >;
 
+// APNs refuses a payload over 4 KB. These budgets, in JSON-encoded UTF-8 bytes, keep the
+// longest item a producer may send inside it with room for the rest of the payload.
+const TITLE_BYTES = 400;
+const BODY_BYTES = 2000;
+const THREAD_BYTES = 400;
+
+const encoder = new TextEncoder();
+const jsonBytes = (text: string) => encoder.encode(JSON.stringify(text)).length - 2;
+
+/** The text cut to fit `maxBytes` once JSON-encoded, ending in an ellipsis when cut. */
+function fit(text: string, maxBytes: number) {
+  if (jsonBytes(text) <= maxBytes) return text;
+  let kept = "";
+  let used = jsonBytes("…");
+  for (const char of text) {
+    used += jsonBytes(char);
+    if (used > maxBytes) break;
+    kept += char;
+  }
+  return `${kept}…`;
+}
+
 export function itemPush(item: PushItem, badge: number): Push {
   const data: ItemPushData = { itemId: String(item._id) };
   if (item.alertId) data.alertId = String(item.alertId);
   return {
-    title: item.title,
-    body: item.body,
+    title: fit(item.title, TITLE_BYTES),
+    body: fit(item.body, BODY_BYTES),
     data,
     aps: {
       interruptionLevel: interruptionLevels[item.urgency],
-      threadId: item.dedupeKey ?? String(item._id),
+      threadId: fit(item.dedupeKey ?? String(item._id), THREAD_BYTES),
       badge,
       category: itemCategory(item.kind),
     },
@@ -69,10 +91,11 @@ export function batchPush(items: PushItem[], badge: number): Push {
   if (items.length === 1) return itemPush(items[0], badge);
   const shown = items.slice(0, 2).map((item) => item.title);
   const more = items.length - shown.length;
+  const suffix = more > 0 ? `, ${more} more` : "";
   return {
     title: `${items.length} new items`,
-    body: more > 0 ? `${shown.join(", ")}, ${more} more` : shown.join(", "),
-    data: { itemIds: items.map((item) => String(item._id)) },
+    body: fit(shown.join(", "), BODY_BYTES - jsonBytes(suffix)) + suffix,
+    data: { type: "item_batch", count: items.length },
     aps: { interruptionLevel: "active", badge },
   };
 }

@@ -2,7 +2,7 @@ import { itemKinds, type ItemKind } from "@maudecode/cowtail-protocol";
 import { describe, expect, test } from "vitest";
 
 import type { Id } from "./_generated/dataModel";
-import { itemPush } from "./itemDelivery";
+import { batchPush, itemPush } from "./itemDelivery";
 import { buildApnsPayload } from "./pushActions";
 
 describe("APNS payload construction", () => {
@@ -76,6 +76,19 @@ describe("item push payloads", () => {
       });
     }
   }
+
+  test("a push for the longest item a producer may send stays inside APNs' 4 KB", () => {
+    const longest = {
+      ...item("question", "now", "k".repeat(500)),
+      title: "Ä".repeat(500),
+      body: "🐄".repeat(20_000),
+    };
+    for (const pushed of [itemPush(longest, 99), batchPush([longest, longest, longest], 99)]) {
+      const bytes = Buffer.byteLength(buildApnsPayload({ deviceToken: "device-token", ...pushed }));
+      expect(bytes).toBeLessThanOrEqual(4096);
+      expect(pushed.body).toContain("…");
+    }
+  });
 
   test("an item without a dedupeKey threads by its id, and an alert item names its alert", () => {
     const pushed = payload(
