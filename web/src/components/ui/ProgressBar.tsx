@@ -1,31 +1,33 @@
 interface ProgressBarProps {
+  label: string;
+  // 0 to 100.
   value: number;
-  label?: string;
-  showLabel?: boolean;
+  // What the right column shows; the percentage by default.
+  display?: string;
   highThreshold?: number;
+  wide?: boolean;
 }
 
 export default function ProgressBar({
-  value,
   label,
-  showLabel = true,
+  value,
+  display = `${value}%`,
   highThreshold = 80,
+  wide = false,
 }: ProgressBarProps) {
-  const isHigh = value > highThreshold;
+  const width = Math.min(100, Math.max(0, value));
   return (
-    <div>
-      <div className="h-1 bg-gray-100 mt-1.5">
+    <div
+      className={`grid items-center gap-2 font-mono text-[0.65rem] text-gray-600 ${wide ? "grid-cols-[52px_1fr_auto] py-1.5" : "mt-1 grid-cols-[30px_1fr_34px]"}`}
+    >
+      <span>{label}</span>
+      <div className="h-1 bg-line">
         <div
-          className={`h-full transition-all duration-500 ease-out ${isHigh ? "bg-accent shadow-[0_0_8px_var(--color-accent-dim)]" : "bg-gray-400"}`}
-          style={{ width: `${value}%` }}
+          className={`h-full transition-[width] duration-500 ease-out ${value > highThreshold ? "bg-accent" : "bg-gray-400"}`}
+          style={{ width: `${width}%` }}
         />
       </div>
-      {showLabel && label && (
-        <div className="font-mono text-[0.6rem] text-gray-400 mt-1 flex justify-between">
-          <span>{label}</span>
-          <span>{value}%</span>
-        </div>
-      )}
+      <span className="text-right">{display}</span>
     </div>
   );
 }

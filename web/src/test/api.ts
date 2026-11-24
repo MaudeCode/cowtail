@@ -18,7 +18,8 @@ function isReply(value: unknown): value is StubReply {
 }
 
 // Replaces `fetch` until the test ends. Keys are "METHOD /path", with the query string when the
-// page sends one; a value is the JSON body of a 200, or a `{ status, body }` pair.
+// page sends one; a value is the JSON body of a 200, or a `{ status, body }` pair, or a promise
+// of either that the test settles to hold the reply.
 export function stubApi(routes: Record<string, unknown>) {
   const calls: ApiCall[] = [];
 
@@ -31,7 +32,7 @@ export function stubApi(routes: Record<string, unknown>) {
     calls.push({ method, path, body: raw ? JSON.parse(raw) : undefined });
 
     const key = `${method} ${path}`;
-    const route = routes[key];
+    const route = await routes[key];
     const reply: StubReply =
       route === undefined
         ? { status: 404, body: { error: `No stub for ${key}` } }

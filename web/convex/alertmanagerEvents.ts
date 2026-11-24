@@ -1,4 +1,4 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 export const insertStored = internalMutation({
@@ -71,7 +71,7 @@ export const markFailed = internalMutation({
   },
 });
 
-export const getByTimeRange = query({
+export const getByTimeRange = internalQuery({
   args: {
     from: v.number(),
     to: v.number(),
@@ -84,7 +84,7 @@ export const getByTimeRange = query({
   },
 });
 
-export const getById = query({
+export const getById = internalQuery({
   args: {
     id: v.id("alertmanagerEvents"),
   },

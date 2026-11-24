@@ -762,7 +762,7 @@ describe("alert items", () => {
     expect((await listItems(t)).map((item) => item.links)).toEqual([[]]);
   });
 
-  test("an alert's item carries the fixes recorded against the alert, newest first", async () => {
+  test("an alert's item carries the fixes recorded against the alert, newest first, and lists the newest", async () => {
     const t = await newBackendWithSources("cron");
     const [alertId, otherId] = await t.run(async (ctx) => [
       await ctx.db.insert("alerts", alertFields({})),
@@ -790,6 +790,7 @@ describe("alert items", () => {
       "Pinned the image",
       "Raised the memory limit",
     ]);
+    expect(item.fix?.description).toBe("Pinned the image");
   });
 
   test("the backfill creates one item per alert and is safe to run again", async () => {

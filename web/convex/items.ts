@@ -31,6 +31,7 @@ import {
   itemStateValidator,
   itemUrgencyValidator,
 } from "./itemValidators";
+import { fixesForAlert } from "./fixes";
 import { effectivePreferences, preferencesRow } from "./notificationPreferences";
 import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
@@ -414,6 +415,7 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     outcome: resolvedAt === undefined ? undefined : itemOutcome(item, alert ?? null),
     resolvedAfterMs:
       resolvedAt === undefined ? undefined : Math.max(0, resolvedAt - item.createdAt),
+    fix: alertId ? (await fixesForAlert(ctx, alertId))[0] : undefined,
   };
 }
 
@@ -793,19 +795,7 @@ export const get = internalQuery({
       .query("itemEvents")
       .withIndex("by_item_at", (q) => q.eq("itemId", item._id))
       .collect();
-    // ponytail: scans every fix, as fixes.getByAlertIds does; index fixes by alert if they
-    // number thousands.
-    const alertId = item.alertId;
-    const fixes = alertId
-      ? (await ctx.db.query("fixes").collect())
-          .filter((fix) => fix.alertIds.includes(alertId))
-          .sort((a, b) => b.timestamp - a.timestamp)
-          .map(({ _id, _creationTime, alertIds, ...fix }) => ({
-            ...fix,
-            id: String(_id),
-            alertIds: alertIds.map(String),
-          }))
-      : [];
+    const fixes = item.alertId ? await fixesForAlert(ctx, item.alertId) : [];
     return {
       item: await itemRecord(ctx, item),
       events: events.map(({ _id, _creationTime, itemId, ...event }) => ({

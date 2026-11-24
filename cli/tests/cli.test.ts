@@ -559,6 +559,75 @@ describe("built binary authenticated write commands", () => {
       });
     }
   });
+  test("alert and fix reads send service authorization", async () => {
+    const alert = {
+      id: "alert-123",
+      timestamp: 1,
+      alertname: "TargetDown",
+      severity: "warning",
+      namespace: "monitoring",
+      status: "firing",
+      outcome: "pending",
+      summary: "Down",
+      action: "None",
+      messaged: false,
+    };
+    const fix = {
+      id: "fix-123",
+      timestamp: 1,
+      alertIds: ["alert-123"],
+      description: "Raised the limit",
+      rootCause: "OOM",
+      scope: "reactive",
+    };
+    const replies: Record<string, unknown> = {
+      "/actions/api/alerts": { ok: true, count: 0, alerts: [] },
+      "/actions/api/alerts/alert-123": { ok: true, alert },
+      "/actions/api/fixes": { ok: true, count: 0, fixes: [] },
+      "/actions/api/fixes/fix-123": { ok: true, fix },
+    };
+    const authorizations: Record<string, string | undefined> = {};
+    const server = createServer((request, response) => {
+      authorizations[request.url ?? ""] = request.headers.authorization;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify(replies[request.url ?? ""]));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const configPath = writeTempConfig(tempDir, {
+        baseUrl: `http://127.0.0.1:${port}/actions`,
+        pushBearerToken: "secret-token",
+        timeoutMs: 5000,
+      });
+
+      const statuses = [];
+      for (const args of [
+        ["alert", "list"],
+        ["alert", "show", "--id", "alert-123"],
+        ["fix", "list"],
+        ["fix", "show", "--id", "fix-123"],
+      ]) {
+        const result = await runCliBinaryAsync(binaryPath, [...args, "--json"], {
+          env: { COWTAIL_CONFIG_PATH: configPath },
+        });
+        statuses.push(result.status);
+      }
+
+      expect(statuses).toEqual([0, 0, 0, 0]);
+      expect(authorizations).toEqual(
+        Object.fromEntries(Object.keys(replies).map((url) => [url, "Bearer secret-token"])),
+      );
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
 });
 
 describe("built binary user device commands", () => {

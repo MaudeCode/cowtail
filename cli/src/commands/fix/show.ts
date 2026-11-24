@@ -24,7 +24,7 @@ export class FixShowCommand extends JsonCommand {
   async execute(): Promise<void> {
     const id = requireNonEmptyString(this.id, "id");
     const response = fixGetResponseSchema.parse(
-      await getJson(`/api/fixes/${encodeURIComponent(id)}`),
+      await getJson(`/api/fixes/${encodeURIComponent(id)}`, { requireServiceAuth: true }),
     );
 
     if (this.json) {

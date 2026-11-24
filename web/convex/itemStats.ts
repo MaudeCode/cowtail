@@ -179,13 +179,18 @@ export const stats = internalQuery({
       day.bySource.set(item.source, (day.bySource.get(item.source) ?? 0) + 1);
     }
 
-    const namespaces = new Map<string, string[]>();
+    const namespaces = new Map<string, Doc<"items">[]>();
     for (const item of firing) {
       const namespace = (await alertFor(item))?.namespace ?? item.context.namespace ?? "";
-      namespaces.set(namespace, [...(namespaces.get(namespace) ?? []), String(item._id)]);
+      namespaces.set(namespace, [...(namespaces.get(namespace) ?? []), item]);
     }
     const firingByNamespace = [...namespaces]
-      .map(([namespace, itemIds]) => ({ namespace, count: itemIds.length, itemIds }))
+      .map(([namespace, items]) => ({
+        namespace,
+        count: items.length,
+        itemIds: items.map((item) => String(item._id)),
+        titles: [...new Set(items.map((item) => item.title))],
+      }))
       .sort((a, b) => b.count - a.count || a.namespace.localeCompare(b.namespace));
 
     return {

@@ -1,26 +1,30 @@
-import type { Outcome } from "../../types";
+import type { ReactNode } from "react";
 
-const outcomeStyles: Record<Outcome, string> = {
-  pending: "bg-gray-500",
-  recorded: "bg-gray-400",
-  fixed: "bg-fixed",
-  "self-resolved": "bg-self-resolved",
-  noise: "bg-noise",
-  escalated: "bg-escalated",
+import { toneText, type Tone } from "../../lib/itemPresentation";
+
+const toneBorder: Record<Tone, string> = {
+  now: "border-[#b8242c99]",
+  today: "border-[#d4880a80]",
+  ok: "border-[#2d9b5280]",
+  info: "border-gray-200",
+  muted: "border-gray-200",
 };
 
-interface BadgeProps {
-  outcome: Outcome;
+// A small pill: an outcome, a state, a count or a filter.
+export default function Badge({
+  children,
+  tone = "muted",
+  className = "",
+}: {
+  children: ReactNode;
+  tone?: Tone;
   className?: string;
-}
-
-export default function Badge({ outcome, className = "" }: BadgeProps) {
-  const label = outcome === "self-resolved" ? "self resolved" : outcome;
+}) {
   return (
     <span
-      className={`inline-block font-mono text-[0.65rem] uppercase tracking-[0.08em] px-2 py-[3px] font-medium text-white ${outcomeStyles[outcome]} ${className}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-1.5 font-mono text-[0.65rem] leading-4 ${toneText[tone]} ${toneBorder[tone]} ${className}`}
     >
-      {label}
+      {children}
     </span>
   );
 }

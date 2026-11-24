@@ -248,26 +248,34 @@ describe("item stats", () => {
     expect(result.volumeSources).toEqual(["alertmanager", "constructor", "cron", "hermes"]);
   });
 
-  test("groups alerts still firing by namespace, acked and snoozed included", async () => {
+  test("groups alerts still firing by namespace, acked and snoozed included, naming each alert once", async () => {
     const t = newBackend();
     const media = await seedAlert(t, { namespace: "media" });
     const mediaAgain = await seedAlert(t, { namespace: "media" });
+    const mediaThird = await seedAlert(t, { namespace: "media" });
     const storage = await seedAlert(t, { namespace: "storage" });
     const closed = await seedAlert(t, { namespace: "edge", status: "resolved" });
-    const [first, second, third] = await seedItems(t, [
-      { kind: "alert", alertId: media, createdAt: NOW - 30 * 24 * 60 * MINUTE },
-      { kind: "alert", alertId: mediaAgain, state: "acked" },
-      { kind: "alert", alertId: storage, state: "snoozed" },
+    const crashLoop = { kind: "alert", title: "KubePodCrashLooping" } as const;
+    const [first, second, third, fourth] = await seedItems(t, [
+      { ...crashLoop, alertId: media, createdAt: NOW - 30 * 24 * 60 * MINUTE },
+      { ...crashLoop, alertId: mediaAgain, state: "acked" },
+      { kind: "alert", title: "KubeJobFailed", alertId: mediaThird },
+      { kind: "alert", title: "CephHealthWarn", alertId: storage, state: "snoozed" },
       { kind: "alert", alertId: closed, state: "resolved", resolvedAt: NOW - MINUTE },
       { kind: "failure" },
     ]);
 
     const result = await stats(t, range);
 
-    expect(result.firingCount).toBe(3);
+    expect(result.firingCount).toBe(4);
     expect(result.firingByNamespace).toEqual([
-      { namespace: "media", count: 2, itemIds: [first, second] },
-      { namespace: "storage", count: 1, itemIds: [third] },
+      {
+        namespace: "media",
+        count: 3,
+        itemIds: [first, third, second],
+        titles: ["KubePodCrashLooping", "KubeJobFailed"],
+      },
+      { namespace: "storage", count: 1, itemIds: [fourth], titles: ["CephHealthWarn"] },
     ]);
   });
 

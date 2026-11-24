@@ -62,13 +62,6 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
         )
     }
 
-    private var queryClient: Client {
-        Client(
-            serverURL: AppConfig.baseURL(for: AppConfig.convexQueryURL, droppingLastPathComponents: 1),
-            transport: transport
-        )
-    }
-
     private var healthClient: Client {
         Client(
             serverURL: AppConfig.baseURL(for: AppConfig.healthSummaryURL, droppingLastPathComponents: 1),
@@ -102,88 +95,47 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
         )
     }
 
-    func fetchAlerts(from: Date, to: Date) async throws -> [AlertItem] {
-        logger.info("fetchAlerts baseURL=\(AppConfig.baseURL(for: AppConfig.convexQueryURL, droppingLastPathComponents: 1).absoluteString, privacy: .public)")
-        let output = try await queryClient.query(
-            body: .json(
-                .init(
-                    value1: .init(
-                        path: .alerts_colon_getByTimeRange,
-                        args: .init(
-                            from: milliseconds(from),
-                            to: milliseconds(to)
-                        ),
-                        format: .convexEncodedJson
-                    )
-                )
-            )
+    /// The roundup's alerts: the owner's session reads them from `/api/alerts`.
+    func fetchAlerts(from: Date, to: Date, sessionToken: String) async throws -> [AlertItem] {
+        let query = Operations.ListAlerts.Input.Query(
+            from: Self.milliseconds(from),
+            to: Self.milliseconds(to)
         )
-
-        switch output {
-        case let .ok(response):
-            let payload = try response.body.json
-            guard let envelope = payload.value1 else {
-                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for alerts.")
-            }
-
-            switch envelope.status {
-            case .success:
-                return (envelope.value ?? [])
-                    .map(makeAlertItem)
-                    .sorted { $0.timestamp > $1.timestamp }
-            case .error:
-                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
-            }
-        case let .undocumented(statusCode, payload):
-            await logUndocumentedResponse(
-                operation: "query.fetchAlerts",
-                statusCode: statusCode,
-                payload: payload
-            )
-            let body = await redactedResponseBodyString(from: payload.body)
-            throw CowtailAPIError.requestFailed("Alert list request failed with status \(statusCode): \(body)")
+        switch try await sessionClient(sessionToken: sessionToken).listAlerts(query: query) {
+        case .ok(let response):
+            return try response.body.json.alerts
+                .map(makeAlertItem)
+                .sorted { $0.timestamp > $1.timestamp }
+        case .badRequest(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Alert list request failed with HTTP \(statusCode).")
         }
     }
 
-    func fetchFixes(from: Date, to: Date) async throws -> [AlertFix] {
-        let output = try await queryClient.query(
-            body: .json(
-                .init(
-                    value4: .init(
-                        path: .fixes_colon_getByTimeRange,
-                        args: .init(
-                            from: milliseconds(from),
-                            to: milliseconds(to)
-                        ),
-                        format: .convexEncodedJson
-                    )
-                )
-            )
+    /// The roundup's fixes: the owner's session reads them from `/api/fixes`.
+    func fetchFixes(from: Date, to: Date, sessionToken: String) async throws -> [AlertFix] {
+        let query = Operations.ListFixes.Input.Query(
+            from: Self.milliseconds(from),
+            to: Self.milliseconds(to)
         )
-
-        switch output {
-        case let .ok(response):
-            let payload = try response.body.json
-            guard let envelope = payload.value3 else {
-                throw CowtailAPIError.requestFailed("Query returned the wrong response shape for fixes.")
-            }
-
-            switch envelope.status {
-            case .success:
-                return (envelope.value ?? [])
-                    .map(makeAlertFix)
-                    .sorted { $0.timestamp > $1.timestamp }
-            case .error:
-                throw CowtailAPIError.requestFailed(envelope.errorMessage ?? "Unknown Convex error")
-            }
-        case let .undocumented(statusCode, payload):
-            await logUndocumentedResponse(
-                operation: "query.fetchFixesByTimeRange",
-                statusCode: statusCode,
-                payload: payload
-            )
-            let body = await redactedResponseBodyString(from: payload.body)
-            throw CowtailAPIError.requestFailed("Fix range request failed with status \(statusCode): \(body)")
+        switch try await sessionClient(sessionToken: sessionToken).listFixes(query: query) {
+        case .ok(let response):
+            return try response.body.json.fixes
+                .map(Self.makeAlertFix)
+                .sorted { $0.timestamp > $1.timestamp }
+        case .badRequest(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .unauthorized(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .forbidden(let response):
+            throw CowtailAPIError.requestFailed(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Fix list request failed with HTTP \(statusCode).")
         }
     }
 
@@ -401,15 +353,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             return ItemDetail(
                 item: Self.makeItem(detail.item),
                 events: detail.events.map(Self.makeEvent),
-                fixes: (detail.fixes ?? []).map {
-                    AlertFix(
-                        id: $0.id,
-                        description: $0.description,
-                        rootCause: $0.rootCause,
-                        scope: FixScope(rawValue: $0.scope.rawValue) ?? .unknown,
-                        timestamp: Self.date($0.timestamp)
-                    )
-                }
+                fixes: (detail.fixes ?? []).map(Self.makeAlertFix)
             )
         case .notFound:
             return nil
@@ -543,21 +487,21 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
         }
     }
 
-    private func makeAlertItem(_ record: Components.Schemas.ConvexAlertRecord) -> AlertItem {
+    private func makeAlertItem(_ record: Components.Schemas.AlertRecord) -> AlertItem {
         AlertItem(
-            id: record._id,
-            timestamp: Date(timeIntervalSince1970: record.timestamp / 1000),
+            id: record.id,
+            timestamp: Self.date(record.timestamp),
             alertName: record.alertname,
             severity: AlertSeverity(rawValue: record.severity) ?? .unknown,
             namespace: record.namespace,
             node: record.node ?? "",
-            outcome: AlertOutcome(rawValue: record.outcome) ?? .unknown,
+            outcome: AlertOutcome(rawValue: record.outcome.rawValue) ?? .unknown,
             summary: record.summary,
             rootCause: record.rootCause ?? "",
-            actionTaken: record.action ?? "",
-            status: AlertLifecycleStatus(rawValue: record.status) ?? .unknown,
-            resolvedAt: record.resolvedAt.map { Date(timeIntervalSince1970: $0 / 1000) },
-            messaged: record.messaged ?? false,
+            actionTaken: record.action,
+            status: AlertLifecycleStatus(rawValue: record.status.rawValue) ?? .unknown,
+            resolvedAt: record.resolvedAt.map(Self.date),
+            messaged: record.messaged,
             investigation: record.investigation.map {
                 makeInvestigation(
                     id: $0.id,
@@ -621,13 +565,13 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
         Date(timeIntervalSince1970: value / 1000)
     }
 
-    private func makeAlertFix(_ record: Components.Schemas.ConvexFixRecord) -> AlertFix {
+    static func makeAlertFix(_ record: Components.Schemas.FixRecord) -> AlertFix {
         AlertFix(
-            id: record._id,
-            description: record.description ?? "",
-            rootCause: record.rootCause ?? "",
-            scope: FixScope(rawValue: record.scope ?? "") ?? .unknown,
-            timestamp: Date(timeIntervalSince1970: record.timestamp / 1000)
+            id: record.id,
+            description: record.description,
+            rootCause: record.rootCause,
+            scope: FixScope(rawValue: record.scope.rawValue) ?? .unknown,
+            timestamp: date(record.timestamp)
         )
     }
 
@@ -650,10 +594,6 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             pipelineState: payload.alertPipeline.flatMap { .init(rawValue: $0.state.rawValue) },
             lastWatchdogAt: payload.alertPipeline?.lastWatchdogAt.map { Date(timeIntervalSince1970: $0 / 1000) }
         )
-    }
-
-    private func milliseconds(_ date: Date) -> Double {
-        date.timeIntervalSince1970 * 1000
     }
 
     private func sendJSONRequest<ResponseBody: Decodable>(

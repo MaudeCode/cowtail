@@ -33,6 +33,8 @@ export const healthResponseSchema = z.object({
   storageUsed: z.number().finite().nonnegative(),
   storageTotal: z.number().finite().nonnegative(),
   storageUnit: nonEmptyStringSchema,
+  // How many of `nodes` are Ready. Optional so a client still decodes a server from before it.
+  readyNodes: z.number().int().nonnegative().optional(),
   // Optional so a client still decodes a server from before it.
   alertPipeline: alertPipelineStatusSchema.optional(),
 });
