@@ -40,9 +40,8 @@ jobs:
     name: iOS Verify
     runs-on: xcode-27
     env:
+      # setup-ios sets COWTAIL_IOS_TEST_OS to the pinned Xcode's simulator SDK version.
       COWTAIL_IOS_TEST_DEVICE_NAME: iPhone 17
-      # The newest runtime on the hosted image that has this device.
-      COWTAIL_IOS_TEST_OS: latest
       # A hosted runner's first simulator boot can take minutes.
       COWTAIL_IOS_SIMULATOR_BOOT_TIMEOUT: "600"
     steps:
@@ -64,12 +63,25 @@ jobs:
         working-directory: ios
         run: swiftformat --lint .
 
+      - name: Test the iOS 26 import guard
+        working-directory: ios
+        run: scripts/test-check-ios26-imports.sh
+
       - name: Reset simulator before unit tests
         working-directory: ios
         run: scripts/reset-simulator.sh
 
       - name: Run iOS Unit Tests
         run: bun run test:ios:unit
+
+      # The hosted image has no iOS 26 simulator, so this static check is CI's proof the app still launches on iOS 26.
+      - name: Check the app has no strong iOS 27-only imports
+        working-directory: ios
+        run: |
+          app="$(xcodebuild -project Cowtail.xcodeproj -scheme Cowtail -configuration Debug -sdk iphonesimulator \
+            -showBuildSettings -json | jq -er '.[] | select(.target == "Cowtail") | .buildSettings
+            | .TARGET_BUILD_DIR + "/" + .WRAPPER_NAME')"
+          scripts/check-ios26-imports.sh "${app}"
 
       # The test script regenerates the OpenAPI sources with the pinned generator. A diff here means the protocol or
       # the generator pin changed without the regenerated sources being committed.

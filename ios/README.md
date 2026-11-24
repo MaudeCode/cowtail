@@ -48,7 +48,7 @@ cd ios
 xcodebuild test \
   -project Cowtail.xcodeproj \
   -scheme Cowtail \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.4.1' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.2' \
   -only-testing:CowtailUITests
 ```
 
@@ -62,5 +62,6 @@ See:
 
 ## Platform
 - Bundle ID: configured from `Config/project.env`
+- Built with Xcode 27.2 and the iOS 27.2 SDK; tests run on the iOS 27.2 simulator
 - Deployment target: iOS 26.0
 - App name: `Cowtail`
