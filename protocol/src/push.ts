@@ -4,8 +4,10 @@ import { jsonObjectSchema, nonEmptyStringSchema } from "./shared.ts";
 
 export const pushEnvironmentSchema = z.enum(["development", "production"]);
 
+// A push route takes the app session as `Authorization: Bearer`; without one, the
+// Apple `identityToken` names the user.
 export const pushRegisterRequestSchema = z.object({
-  identityToken: nonEmptyStringSchema,
+  identityToken: nonEmptyStringSchema.optional(),
   deviceToken: nonEmptyStringSchema,
   platform: nonEmptyStringSchema.optional(),
   environment: pushEnvironmentSchema.optional(),
@@ -19,7 +21,7 @@ export const pushRegisterResponseSchema = z.object({
 });
 
 export const pushUnregisterRequestSchema = z.object({
-  identityToken: nonEmptyStringSchema,
+  identityToken: nonEmptyStringSchema.optional(),
   deviceToken: nonEmptyStringSchema,
 });
 

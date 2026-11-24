@@ -2,6 +2,8 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
+import { evaluateSessionByIdValidation } from "./authSessions";
+
 async function getDeviceRegistrationByToken(ctx: MutationCtx | QueryCtx, deviceToken: string) {
   return await ctx.db
     .query("deviceRegistrations")
@@ -27,11 +29,25 @@ async function disableDeviceRegistrationForUser(
   return { ok: true, updated: true };
 }
 
+// A device a session registered gets pushes only while that session is live, so revoking a
+// stolen session, or its expiry, ends what that device receives.
 async function listEnabledDevices(ctx: MutationCtx | QueryCtx, userId: string) {
-  return await ctx.db
+  const devices = await ctx.db
     .query("deviceRegistrations")
     .withIndex("by_userId_enabled", (q) => q.eq("userId", userId).eq("enabled", true))
     .collect();
+  const now = Date.now();
+  const live = [];
+  for (const device of devices) {
+    if (
+      device.sessionId &&
+      !evaluateSessionByIdValidation(await ctx.db.get(device.sessionId), now).ok
+    ) {
+      continue;
+    }
+    live.push(device);
+  }
+  return live;
 }
 
 async function listCurrentUsersSummary(ctx: QueryCtx) {
@@ -65,6 +81,7 @@ export const upsertDeviceRegistration = internalMutation({
     environment: v.string(),
     enabled: v.boolean(),
     deviceName: v.optional(v.string()),
+    sessionId: v.optional(v.id("authSessions")),
     lastSeenAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -73,6 +90,8 @@ export const upsertDeviceRegistration = internalMutation({
 
     const document = {
       ...args,
+      // Re-registering rebinds the device: an Apple identity token leaves it bound to no session.
+      sessionId: args.sessionId,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };

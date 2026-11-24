@@ -858,7 +858,7 @@ extension Components {
         /// - Remark: Generated from `#/components/schemas/PushRegisterRequest`.
         internal struct PushRegisterRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/identityToken`.
-            internal var identityToken: Swift.String
+            internal var identityToken: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/deviceToken`.
             internal var deviceToken: Swift.String
             /// - Remark: Generated from `#/components/schemas/PushRegisterRequest/platform`.
@@ -881,7 +881,7 @@ extension Components {
             ///   - environment:
             ///   - deviceName:
             internal init(
-                identityToken: Swift.String,
+                identityToken: Swift.String? = nil,
                 deviceToken: Swift.String,
                 platform: Swift.String? = nil,
                 environment: Components.Schemas.PushRegisterRequest.EnvironmentPayload? = nil,
@@ -927,7 +927,7 @@ extension Components {
         /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest`.
         internal struct PushUnregisterRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest/identityToken`.
-            internal var identityToken: Swift.String
+            internal var identityToken: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PushUnregisterRequest/deviceToken`.
             internal var deviceToken: Swift.String
             /// Creates a new `PushUnregisterRequest`.
@@ -936,7 +936,7 @@ extension Components {
             ///   - identityToken:
             ///   - deviceToken:
             internal init(
-                identityToken: Swift.String,
+                identityToken: Swift.String? = nil,
                 deviceToken: Swift.String
             ) {
                 self.identityToken = identityToken

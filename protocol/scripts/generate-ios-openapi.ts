@@ -252,6 +252,8 @@ registry.registerPath({
   path: "/push/register",
   operationId: "registerPushDevice",
   tags: ["push"],
+  // The app session, or no bearer and an Apple `identityToken` in the body.
+  security: [{ appSession: [] }, {}],
   summary: "Register or refresh an iOS push device token",
   request: {
     body: {
@@ -269,6 +271,8 @@ registry.registerPath({
   path: "/push/unregister",
   operationId: "unregisterPushDevice",
   tags: ["push"],
+  // The app session, or no bearer and an Apple `identityToken` in the body.
+  security: [{ appSession: [] }, {}],
   summary: "Disable an existing push device token",
   request: {
     body: {

@@ -65,6 +65,8 @@ final class SettingsFlowTests: XCTestCase {
         XCTAssertEqual(row.label, "Signed in with Pocket ID")
         XCTAssertEqual(app.buttons["button.settings.sign-out"].label, "Sign out")
         XCTAssertFalse(app.buttons["button.settings.oidc-sign-in"].exists)
+        // The Pocket ID session registers pushes: Notifications asks for no Apple sign-in.
+        XCTAssertFalse(app.buttons["button.notifications.apple-sign-in"].exists)
     }
 
     func testNotificationsSyncErrorOffersRetry() {

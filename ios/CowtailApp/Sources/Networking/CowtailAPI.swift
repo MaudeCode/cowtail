@@ -70,17 +70,16 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
         )
     }
 
-    private var pushRegistrationClient: Client {
-        Client(
-            serverURL: AppConfig.baseURL(for: AppConfig.pushRegistrationURL, droppingLastPathComponents: 2),
-            transport: transport
-        )
-    }
-
-    private var pushUnregistrationClient: Client {
-        Client(
-            serverURL: AppConfig.baseURL(for: AppConfig.pushUnregistrationURL, droppingLastPathComponents: 2),
-            transport: transport
+    /// A push route's client: the app session rides as the bearer.
+    private func pushClient(for url: URL, credential: PushCredential) -> Client {
+        var middlewares: [any ClientMiddleware] = []
+        if case let .session(sessionToken) = credential {
+            middlewares.append(AppSessionAuthorizationMiddleware(sessionToken: sessionToken))
+        }
+        return Client(
+            serverURL: AppConfig.baseURL(for: url, droppingLastPathComponents: 2),
+            transport: transport,
+            middlewares: middlewares
         )
     }
 
@@ -158,7 +157,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
     }
 
     func registerPushDevice(
-        identityToken: String,
+        credential: PushCredential,
         deviceToken: String,
         environment: String,
         deviceName: String
@@ -167,10 +166,10 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.requestFailed("Invalid APNS environment: \(environment)")
         }
 
-        let output = try await pushRegistrationClient.registerPushDevice(
+        let output = try await pushClient(for: AppConfig.pushRegistrationURL, credential: credential).registerPushDevice(
             body: .json(
                 .init(
-                    identityToken: identityToken,
+                    identityToken: credential.identityToken,
                     deviceToken: deviceToken,
                     platform: "ios",
                     environment: pushEnvironment,
@@ -194,11 +193,11 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
     }
 
     func unregisterPushDevice(
-        identityToken: String,
+        credential: PushCredential,
         deviceToken: String
     ) async throws -> PushUnregistrationResponse {
-        let output = try await pushUnregistrationClient.unregisterPushDevice(
-            body: .json(.init(identityToken: identityToken, deviceToken: deviceToken))
+        let output = try await pushClient(for: AppConfig.pushUnregistrationURL, credential: credential).unregisterPushDevice(
+            body: .json(.init(identityToken: credential.identityToken, deviceToken: deviceToken))
         )
 
         switch output {
@@ -753,6 +752,20 @@ struct AppSessionAuthorizationMiddleware: ClientMiddleware {
         var request = request
         request.headerFields[.authorization] = "Bearer \(sessionToken)"
         return try await next(request, body, baseURL)
+    }
+}
+
+/// How a push route learns the device's user: the app session, or an Apple identity token
+/// when there is no session.
+enum PushCredential: Sendable {
+    case session(String)
+    case appleIdentity(String)
+
+    var identityToken: String? {
+        if case let .appleIdentity(identityToken) = self {
+            return identityToken
+        }
+        return nil
     }
 }
 

@@ -79,6 +79,7 @@ struct SettingsView: View {
                     Button("Sign in with \(providerName)") {
                         Task {
                             await oidcSignIn.signIn()
+                            await notificationManager.syncDeviceRegistration()
                             await notificationManager.loadDailyRoundupPreference()
                             await store.loadDevices()
                         }
@@ -453,17 +454,11 @@ struct SettingsView: View {
         appSessionManager.provider ?? AppSessionManager.appleProvider
     }
 
-    /// Push registration still proves the device's owner with an Apple identity.
-    private var needsAppleAccountConnection: Bool {
-        appleAccountManager.userID == nil
-    }
-
-    /// Offers Sign in with Apple under Notifications when push needs it and Account does not show it.
+    /// Offers Sign in with Apple under Notifications when an Apple account has neither a session
+    /// nor a fresh identity token to register the device with. Any session registers it.
     private var requiresAppleConfirmationForPushSetup: Bool {
-        if needsAppleAccountConnection {
-            return isSignedIn
-        }
-        return appleAccountManager.needsFreshIdentityToken()
+        appleAccountManager.userID != nil
+            && appleAccountManager.needsFreshIdentityToken()
             && notificationManager.serverRegistrationState == .waitingForIdentity
     }
 
@@ -477,7 +472,7 @@ struct SettingsView: View {
 
     private var showsSetupAction: Bool {
         !notificationManager.isReadyForRemotePush
-            && !needsAppleAccountConnection
+            && isSignedIn
             && !requiresAppleConfirmationForPushSetup
             && notificationManager.authorizationStatus != .denied
     }
@@ -486,8 +481,8 @@ struct SettingsView: View {
         if notificationManager.isReadyForRemotePush {
             return "Push alerts ready"
         }
-        if needsAppleAccountConnection {
-            return "Connect Apple account"
+        if !isSignedIn {
+            return "Sign in for push alerts"
         }
         if requiresAppleConfirmationForPushSetup {
             return "Confirm Apple sign-in"
@@ -511,10 +506,8 @@ struct SettingsView: View {
         if notificationManager.isReadyForRemotePush {
             return nil
         }
-        if needsAppleAccountConnection {
-            return isSignedIn
-                ? "Pushes still need Sign in with Apple to verify this device."
-                : "Sign in once so Cowtail can bind alerts to this device."
+        if !isSignedIn {
+            return "Sign in once so Cowtail can bind alerts to this device."
         }
         if requiresAppleConfirmationForPushSetup {
             return "Apple needs a fresh confirmation before Cowtail can verify this device."
