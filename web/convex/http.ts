@@ -20,6 +20,14 @@ import {
   fixListResponseSchema,
   fixCreateRequestSchema,
   healthResponseSchema,
+  itemActionRequestSchema,
+  itemCreateRequestSchema,
+  itemCreateResponseSchema,
+  itemEventAppendRequestSchema,
+  itemGetResponseSchema,
+  itemListQuerySchema,
+  itemListResponseSchema,
+  itemResponseSchema,
   notificationPreferencesResponseSchema,
   notificationPreferencesUpdateRequestSchema,
   openclawDisplayPreferencesResponseSchema,
@@ -49,6 +57,7 @@ import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appl
 import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
 import { previewDeviceToken } from "./deviceTokenPreview";
+import { itemErrorCode } from "./items";
 import { validateOpenClawLimit } from "./openclawModel";
 import { sendPushToUser } from "./pushDelivery";
 
@@ -1298,6 +1307,134 @@ app.post("/api/me/alerts/:id/actions", async (c) => {
       alert: mapAlertRecord(updated as Record<string, unknown> & { _id: string }),
     }),
   );
+});
+
+// --- Items ----------------------------------------------------------------------------
+
+const ITEM_LIST_DEFAULT_LIMIT = 100;
+const itemErrorStatus: Record<string, [number, string]> = {
+  ITEM_NOT_FOUND: [404, "Item not found"],
+  ITEM_CLOSED: [409, "Item is already closed"],
+  ACTION_NOT_OFFERED: [409, "Item does not offer this action"],
+  INVALID_SNOOZE: [400, "Snooze must end in the future"],
+};
+
+function itemErrorResponse(error: unknown) {
+  const code = itemErrorCode(error);
+  const known = code ? itemErrorStatus[code] : undefined;
+  if (!known) throw error;
+  return jsonError(known[1], known[0], { code });
+}
+
+// Readers are trusted services (the CLI, Hermes) or the owner's app session.
+async function requireItemReader(c: RouteContext) {
+  const serviceTokens = [process.env.PUSH_API_BEARER_TOKEN, process.env.COWTAIL_WORKER_TOKEN];
+  if (isBearerTokenAuthorized(c.req.header("authorization"), serviceTokens)) return null;
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+  return requireCowtailOwner(auth);
+}
+
+async function itemResponse(c: RouteContext, id: string) {
+  const result = await c.env.runQuery((internal as any).items.get, { id });
+  if (!result) return jsonError("Item not found", 404);
+  return c.json(itemResponseSchema.parse({ ok: true, item: result.item }));
+}
+
+// POST /api/items — create an item, or count a repeat into the open item with its dedupeKey
+app.post("/api/items", async (c) => {
+  const authError = requireServiceOrWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = itemCreateRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const result = await c.env.runMutation((internal as any).items.create, {
+    ...parsed.data,
+    now: Date.now(),
+  });
+  return c.json(itemCreateResponseSchema.parse({ ok: true, ...result }));
+});
+
+// POST /api/items/:id/events — a producer's progress note, or its resolution or expiry
+app.post("/api/items/:id/events", async (c) => {
+  const authError = requireServiceOrWorkerAuth(c);
+  if (authError) return authError;
+
+  const parsed = itemEventAppendRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const { actor, ...event } = parsed.data;
+  const id = c.req.param("id");
+  try {
+    await c.env.runMutation((internal as any).items.appendEvent, {
+      id,
+      event,
+      actor: actor ?? "service",
+      now: Date.now(),
+    });
+  } catch (error) {
+    return itemErrorResponse(error);
+  }
+  return await itemResponse(c, id);
+});
+
+// GET /api/items — newest first, filtered by state, needsOwner, source and a createdAt range
+app.get("/api/items", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const needsOwner = c.req.query("needsOwner");
+  const limit = c.req.query("limit");
+  const parsedQuery = itemListQuerySchema.safeParse({
+    state: nonEmptyString(c.req.query("state")),
+    needsOwner: needsOwner === "true" ? true : needsOwner === "false" ? false : needsOwner,
+    source: nonEmptyString(c.req.query("source")),
+    from: parseOptionalQueryTimestamp(c.req.query("from")),
+    to: parseOptionalQueryTimestamp(c.req.query("to")),
+    limit: limit === undefined ? undefined : Number(limit),
+  });
+  if (!parsedQuery.success) return jsonError(formatIssues(parsedQuery.error.issues));
+
+  const items = await c.env.runQuery((internal as any).items.list, {
+    ...parsedQuery.data,
+    limit: parsedQuery.data.limit ?? ITEM_LIST_DEFAULT_LIMIT,
+  });
+  return c.json(itemListResponseSchema.parse({ ok: true, count: items.length, items }));
+});
+
+// GET /api/items/:id — the item and its timeline
+app.get("/api/items/:id", async (c) => {
+  const authError = await requireItemReader(c);
+  if (authError) return authError;
+
+  const result = await c.env.runQuery((internal as any).items.get, { id: c.req.param("id") });
+  if (!result) return jsonError("Item not found", 404);
+  return c.json(itemGetResponseSchema.parse({ ok: true, ...result }));
+});
+
+// POST /api/me/items/:id/actions — the owner acks, snoozes or answers an item
+app.post("/api/me/items/:id/actions", async (c) => {
+  const auth = await requireAppSession(c);
+  if ("error" in auth) return auth.error;
+  const ownerError = requireCowtailOwner(auth);
+  if (ownerError) return ownerError;
+
+  const parsed = itemActionRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+
+  const id = c.req.param("id");
+  try {
+    await c.env.runMutation((internal as any).items.applyAction, {
+      id,
+      action: parsed.data,
+      actor: auth.userId,
+      now: Date.now(),
+    });
+  } catch (error) {
+    return itemErrorResponse(error);
+  }
+  return await itemResponse(c, id);
 });
 
 // POST /api/auth/session — exchange a fresh Apple identity token for an app session

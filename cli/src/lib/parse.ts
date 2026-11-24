@@ -110,3 +110,19 @@ export function parseCommaSeparatedStrings(value: string | undefined): string[] 
     .map((item) => item.trim())
     .filter(Boolean);
 }
+
+// Splits repeated `key=value` options at the first `=`.
+export function parseKeyValuePairs(
+  values: string[] | undefined,
+  label: string,
+): [string, string][] {
+  return (values ?? []).map((value) => {
+    const separator = value.indexOf("=");
+    const key = value.slice(0, separator).trim();
+    const entry = value.slice(separator + 1).trim();
+    if (separator < 1 || !key || !entry) {
+      throw validationError(`${label} must look like key=value`);
+    }
+    return [key, entry];
+  });
+}

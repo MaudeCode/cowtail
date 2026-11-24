@@ -2,6 +2,7 @@ import { alertCommandGroup } from "./alert/index.ts";
 import { configCommandGroup } from "./config/index.ts";
 import { fixCommandGroup } from "./fix/index.ts";
 import { healthCommandGroup } from "./health/index.ts";
+import { itemsCommandGroup, NotifyCommand, NOTIFY_DESCRIPTION } from "./items/index.ts";
 import { pushCommandGroup } from "./push/index.ts";
 import { roundupCommandGroup } from "./roundup/index.ts";
 import { usersCommandGroup } from "./users/index.ts";
@@ -15,6 +16,7 @@ export const commandGroups: CommandGroupDefinition[] = [
   roundupCommandGroup,
   fixCommandGroup,
   healthCommandGroup,
+  itemsCommandGroup,
   pushCommandGroup,
   usersCommandGroup,
 ];
@@ -32,6 +34,11 @@ export const leafCommandTargets = new Map(
 );
 
 export const standaloneCommands = [
+  {
+    path: `notify`,
+    description: NOTIFY_DESCRIPTION,
+    commandClass: NotifyCommand,
+  },
   {
     path: `update`,
     description: UPDATE_DESCRIPTION,

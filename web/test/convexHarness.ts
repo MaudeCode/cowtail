@@ -51,7 +51,13 @@ export async function request(
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return { status: response.status, json: await response.json() };
+  // Convex answers an unhandled error with plain text; keep it so the status assertion fails.
+  const text = await response.text();
+  try {
+    return { status: response.status, json: JSON.parse(text) };
+  } catch {
+    return { status: response.status, json: text };
+  }
 }
 
 type CronSpec = {

@@ -24,6 +24,9 @@ Phase 1 is implemented:
 - `cowtail fix delete`
 - `cowtail roundup test`
 - `cowtail health show`
+- `cowtail notify`
+- `cowtail items list`
+- `cowtail items show`
 - `cowtail push send`
 - `cowtail push test`
 - `cowtail users devices`

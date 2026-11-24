@@ -1,14 +1,42 @@
 import { v } from "convex/values";
+import type { WithoutSystemFields } from "convex/server";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
   alertLifecycleDedupeKey,
+  newestInvestigationJob,
   preservesInvestigationOutcome,
   resolveAlertLifecyclePatch,
 } from "./alertLifecycle";
 import { resolveInitialAlertDisposition } from "./alertDisposition";
+import { deleteItemsForAlert, syncAlertItem } from "./items";
+
+type AlertWriter = { actor: string; now: number };
+type AlertFields = WithoutSystemFields<Doc<"alerts">>;
+
+// Every alert write goes through these three, so the alert's item always follows it.
+export async function insertAlert(ctx: MutationCtx, fields: AlertFields, writer: AlertWriter) {
+  const id = await ctx.db.insert("alerts", fields);
+  await syncAlertItem(ctx, id, writer);
+  return id;
+}
+
+export async function patchAlert(
+  ctx: MutationCtx,
+  id: Id<"alerts">,
+  patch: Partial<AlertFields>,
+  writer: AlertWriter,
+) {
+  await ctx.db.patch(id, patch);
+  await syncAlertItem(ctx, id, writer);
+}
+
+async function deleteAlert(ctx: MutationCtx, id: Id<"alerts">) {
+  await deleteItemsForAlert(ctx, id);
+  await ctx.db.delete(id);
+}
 
 const alertSourceValidator = v.union(
   v.literal("alertmanager"),
@@ -27,18 +55,6 @@ function newestAlert(alerts: Doc<"alerts">[]): Doc<"alerts"> {
 
 function uniqueAlertIds(ids: Id<"alerts">[]): Id<"alerts">[] {
   return [...new Map(ids.map((id) => [String(id), id])).values()];
-}
-
-function newestInvestigationJob(
-  jobs: Doc<"investigationJobs">[],
-): Doc<"investigationJobs"> | undefined {
-  return jobs.reduce<Doc<"investigationJobs"> | undefined>((current, job) => {
-    if (!current || job.updatedAt > current.updatedAt) return job;
-    if (job.updatedAt < current.updatedAt) return current;
-    if (job._creationTime > current._creationTime) return job;
-    if (job._creationTime < current._creationTime) return current;
-    return String(job._id) > String(current._id) ? job : current;
-  }, undefined);
 }
 
 async function latestInvestigationForAlert(ctx: QueryCtx, alertId: Id<"alerts">) {
@@ -88,6 +104,7 @@ async function mergeLifecycleDocuments(
   ctx: MutationCtx,
   alerts: Doc<"alerts">[],
   dedupeKey: string,
+  writer: AlertWriter,
 ) {
   const ordered = [...alerts].sort((left, right) => left._creationTime - right._creationTime);
   const survivor = ordered[0];
@@ -153,34 +170,39 @@ async function mergeLifecycleDocuments(
   const mergedOutcome = outcomeSource.outcome;
   const occurrenceCount = ordered.reduce((total, alert) => total + (alert.occurrenceCount ?? 1), 0);
 
-  await ctx.db.patch(survivor._id, {
-    timestamp: survivor.startsAt ?? survivor.timestamp,
-    alertname: latest.alertname,
-    severity: latest.severity,
-    namespace: latest.namespace,
-    node: latest.node,
-    status,
-    outcome: mergedOutcome,
-    summary: outcomeSource.summary,
-    action: outcomeSource.action,
-    rootCause: outcomeSource.rootCause,
-    messaged: ordered.some((alert) => alert.messaged),
-    resolvedAt: latestResolved?.resolvedAt ?? latestResolved?.endsAt,
-    source: "alertmanager",
-    sourceEventId: latest.sourceEventId,
-    alertmanagerFingerprint: survivor.alertmanagerFingerprint,
-    dedupeKey,
-    startsAt: survivor.startsAt,
-    endsAt: latestResolved?.endsAt,
-    generatorURL: latest.generatorURL,
-    labels: latest.labels,
-    annotations: latest.annotations,
-    lastReceivedAt: latest.lastReceivedAt,
-    occurrenceCount,
-  });
+  await patchAlert(
+    ctx,
+    survivor._id,
+    {
+      timestamp: survivor.startsAt ?? survivor.timestamp,
+      alertname: latest.alertname,
+      severity: latest.severity,
+      namespace: latest.namespace,
+      node: latest.node,
+      status,
+      outcome: mergedOutcome,
+      summary: outcomeSource.summary,
+      action: outcomeSource.action,
+      rootCause: outcomeSource.rootCause,
+      messaged: ordered.some((alert) => alert.messaged),
+      resolvedAt: latestResolved?.resolvedAt ?? latestResolved?.endsAt,
+      source: "alertmanager",
+      sourceEventId: latest.sourceEventId,
+      alertmanagerFingerprint: survivor.alertmanagerFingerprint,
+      dedupeKey,
+      startsAt: survivor.startsAt,
+      endsAt: latestResolved?.endsAt,
+      generatorURL: latest.generatorURL,
+      labels: latest.labels,
+      annotations: latest.annotations,
+      lastReceivedAt: latest.lastReceivedAt,
+      occurrenceCount,
+    },
+    writer,
+  );
 
   for (const duplicate of ordered.slice(1)) {
-    await ctx.db.delete(duplicate._id);
+    await deleteAlert(ctx, duplicate._id);
   }
 
   return {
@@ -218,7 +240,8 @@ export const insert = internalMutation({
     lastReceivedAt: v.optional(v.number()),
     occurrenceCount: v.optional(v.number()),
   },
-  handler: async (ctx, args) => await ctx.db.insert("alerts", args),
+  handler: async (ctx, args) =>
+    await insertAlert(ctx, args, { actor: args.source ?? "service", now: Date.now() }),
 });
 
 export const upsertFromAlertmanager = internalMutation({
@@ -250,8 +273,11 @@ export const upsertFromAlertmanager = internalMutation({
       )
       .collect();
 
+    const writer = { actor: "alertmanager", now };
     const lifecycle =
-      matches.length > 0 ? await mergeLifecycleDocuments(ctx, matches, args.dedupeKey) : undefined;
+      matches.length > 0
+        ? await mergeLifecycleDocuments(ctx, matches, args.dedupeKey, writer)
+        : undefined;
     const existing = lifecycle ? await ctx.db.get(lifecycle.id) : null;
 
     const receivedPatch = {
@@ -272,25 +298,34 @@ export const upsertFromAlertmanager = internalMutation({
     };
 
     if (existing && lifecycle) {
-      await ctx.db.patch(existing._id, {
-        ...receivedPatch,
-        ...resolveAlertLifecyclePatch(existing, args, disposition),
-        occurrenceCount: lifecycle.occurrenceCount + 1,
-      });
+      await patchAlert(
+        ctx,
+        existing._id,
+        {
+          ...receivedPatch,
+          ...resolveAlertLifecyclePatch(existing, args, disposition),
+          occurrenceCount: lifecycle.occurrenceCount + 1,
+        },
+        writer,
+      );
       return existing._id;
     }
 
-    return await ctx.db.insert("alerts", {
-      ...receivedPatch,
-      status: args.status,
-      outcome: disposition.outcome,
-      summary: args.summary,
-      action: disposition.action,
-      messaged: false,
-      resolvedAt: args.status === "resolved" ? args.endsAt : undefined,
-      endsAt: args.endsAt,
-      occurrenceCount: 1,
-    });
+    return await insertAlert(
+      ctx,
+      {
+        ...receivedPatch,
+        status: args.status,
+        outcome: disposition.outcome,
+        summary: args.summary,
+        action: disposition.action,
+        messaged: false,
+        resolvedAt: args.status === "resolved" ? args.endsAt : undefined,
+        endsAt: args.endsAt,
+        occurrenceCount: 1,
+      },
+      writer,
+    );
   },
 });
 
@@ -354,7 +389,10 @@ export const mergeLifecycleDuplicateGroup = internalMutation({
       )
       .collect();
     const dedupeKey = alertLifecycleDedupeKey(args.fingerprint, args.startsAt);
-    const result = await mergeLifecycleDocuments(ctx, alerts, dedupeKey);
+    const result = await mergeLifecycleDocuments(ctx, alerts, dedupeKey, {
+      actor: "migration",
+      now: Date.now(),
+    });
     return { ok: true, survivorId: result.id, merged: result.merged };
   },
 });
@@ -375,13 +413,18 @@ export const updateOutcome = internalMutation({
       return { ok: true, updated: false, reason: "owner-disposition" };
     }
 
-    await ctx.db.patch(args.id, {
-      outcome: args.outcome,
-      summary: args.summary,
-      action: args.action,
-      rootCause: args.rootCause,
-      messaged: args.messaged,
-    });
+    await patchAlert(
+      ctx,
+      args.id,
+      {
+        outcome: args.outcome,
+        summary: args.summary,
+        action: args.action,
+        rootCause: args.rootCause,
+        messaged: args.messaged,
+      },
+      { actor: "worker", now: Date.now() },
+    );
     return { ok: true, updated: true };
   },
 });
@@ -414,13 +457,18 @@ export const applyOwnerAction = internalMutation({
         throw new Error("this investigation is already in progress");
       }
 
-      await ctx.db.patch(args.id, {
-        outcome: "pending",
-        action: "Investigation retried by owner.",
-        ownerDisposition: undefined,
-        ownerNote: undefined,
-        ownerUpdatedAt: undefined,
-      });
+      await patchAlert(
+        ctx,
+        args.id,
+        {
+          outcome: "pending",
+          action: "Investigation retried by owner.",
+          ownerDisposition: undefined,
+          ownerNote: undefined,
+          ownerUpdatedAt: undefined,
+        },
+        { actor: "owner", now: args.now },
+      );
       await ctx.db.patch(job._id, {
         status: "queued",
         nextAttemptAt: args.now,
@@ -477,14 +525,19 @@ export const applyOwnerAction = internalMutation({
     for (const memberId of memberIds) {
       const member = await ctx.db.get(memberId as Id<"alerts">);
       if (!member) continue;
-      await ctx.db.patch(member._id, {
-        outcome: disposition,
-        action: `${label}.`,
-        messaged: true,
-        ownerDisposition: disposition,
-        ownerNote: args.note,
-        ownerUpdatedAt: args.now,
-      });
+      await patchAlert(
+        ctx,
+        member._id,
+        {
+          outcome: disposition,
+          action: `${label}.`,
+          messaged: true,
+          ownerDisposition: disposition,
+          ownerNote: args.note,
+          ownerUpdatedAt: args.now,
+        },
+        { actor: "owner", now: args.now },
+      );
     }
     for (const candidate of jobs) {
       if (candidate.status !== "done") {
@@ -547,7 +600,7 @@ export const deleteAll = internalMutation({
   args: {},
   handler: async (ctx) => {
     const alerts = await ctx.db.query("alerts").collect();
-    for (const alert of alerts) await ctx.db.delete(alert._id);
+    for (const alert of alerts) await deleteAlert(ctx, alert._id);
     return { deleted: alerts.length };
   },
 });
@@ -555,7 +608,7 @@ export const deleteAll = internalMutation({
 export const deleteById = internalMutation({
   args: { id: v.id("alerts") },
   handler: async (ctx, args) => {
-    await ctx.db.delete(args.id);
+    await deleteAlert(ctx, args.id);
     return { ok: true };
   },
 });
