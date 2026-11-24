@@ -210,19 +210,6 @@ async function joinTodayBatch(ctx: MutationCtx, itemId: Id<"items">, now: number
   return batchId;
 }
 
-// Drops the item from the `today` batch still waiting to send, which a snooze outlasted.
-async function leaveTodayBatch(ctx: MutationCtx, itemId: Id<"items">) {
-  const pending = await ctx.db
-    .query("itemPushBatches")
-    .withIndex("by_sentAt", (q) => q.eq("sentAt", undefined))
-    .collect();
-  for (const batch of pending) {
-    if (batch.itemIds.includes(itemId)) {
-      await ctx.db.patch(batch._id, { itemIds: batch.itemIds.filter((id) => id !== itemId) });
-    }
-  }
-}
-
 async function snoozedSince(ctx: QueryCtx, itemId: Id<"items">, since: number) {
   const events = await ctx.db
     .query("itemEvents")
@@ -256,9 +243,8 @@ export const planDelivery = internalMutation({
     if (!userId) return await skip("no_owner");
     if (item.state !== "open") return await skip("not_open");
     // The owner asked to be reminded at this time: one push now, at least as loud as `today`.
-    // Pushes planned before the snooze give way to it.
+    // The owner asked to be reminded at this time; the snooze took it out of its batch.
     if (reason === "reminder") {
-      await leaveTodayBatch(ctx, itemId);
       const urgency = item.urgency === "now" ? "now" : "today";
       return {
         userId,

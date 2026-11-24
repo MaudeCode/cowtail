@@ -283,6 +283,24 @@ describe("reminders", () => {
     ]);
   });
 
+  test("a today item snoozed and unsnoozed by hand before its batch sends pushes nothing", async () => {
+    const t = await newBackendWithSources("cron");
+    const id = await createItem(t, { urgency: "today", title: "Cert renews in 9 days" });
+    const act = async (body: Record<string, unknown>) =>
+      request(t, `/api/me/items/${id}/actions`, {
+        method: "POST",
+        bearer: await ownerSession(t),
+        body,
+      });
+    await act({ type: "snooze", until: NOW + 60 * MINUTE });
+    await advance(t, MINUTE);
+    await act({ type: "unsnooze" });
+
+    await advance(t, 30 * MINUTE);
+
+    expect(sendPushToUser).not.toHaveBeenCalled();
+  });
+
   test("a now item snoozed between its re-sends pushes its reminder and no older re-send", async () => {
     const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "now", title: "Restart ingress in edge?" });

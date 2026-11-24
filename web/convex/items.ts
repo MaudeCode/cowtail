@@ -148,6 +148,7 @@ export async function transitionItem(
   const item = target;
   if (item.state === to && item.snoozedUntil === timing.snoozedUntil) return item._id;
   await ctx.db.patch(item._id, { state: to, ...timing });
+  if (to === "snoozed") await leaveTodayBatch(ctx, item._id);
   if (notify && to === "open") await scheduleDelivery(ctx, item._id, delivery);
   await appendItemEvent(
     ctx,
@@ -162,6 +163,20 @@ export async function transitionItem(
     },
   );
   return item._id;
+}
+
+// A snooze takes the item out of the `today` batch still waiting to send: whether it returns
+// on time or by hand, nothing from before the snooze pushes it.
+async function leaveTodayBatch(ctx: MutationCtx, itemId: Id<"items">) {
+  const pending = await ctx.db
+    .query("itemPushBatches")
+    .withIndex("by_sentAt", (q) => q.eq("sentAt", undefined))
+    .collect();
+  for (const batch of pending) {
+    if (batch.itemIds.includes(itemId)) {
+      await ctx.db.patch(batch._id, { itemIds: batch.itemIds.filter((id) => id !== itemId) });
+    }
+  }
 }
 
 async function requireItem(ctx: QueryCtx, rawId: string): Promise<Doc<"items">> {
