@@ -70,6 +70,9 @@ export async function appendItemEvent(
   payload: Record<string, unknown> = {},
 ) {
   await ctx.db.insert("itemEvents", { itemId, at, type, actor, payload });
+  if (type === "hermes_update" && typeof payload.text === "string") {
+    await ctx.db.patch(itemId, { latestUpdate: { text: payload.text, at } });
+  }
 }
 
 async function patchItemContent(ctx: MutationCtx, id: Id<"items">, patch: ItemContentPatch) {
@@ -376,19 +379,6 @@ export async function ownerBadgeCount(ctx: QueryCtx) {
   return count;
 }
 
-async function latestHermesUpdate(ctx: QueryCtx, itemId: Id<"items">) {
-  const events = ctx.db
-    .query("itemEvents")
-    .withIndex("by_item_at", (q) => q.eq("itemId", itemId))
-    .order("desc");
-  for await (const event of events) {
-    if (event.type === "hermes_update" && typeof event.payload.text === "string") {
-      return { text: event.payload.text, at: event.at };
-    }
-  }
-  return undefined;
-}
-
 async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
   const { _id, _creationTime, alertId, investigationJobId, ...fields } = item;
   const { alert, jobs, workflow } = await alertContext(ctx, item);
@@ -405,7 +395,6 @@ async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
     alertActions: jobs ? alertOwnerActions(jobs) : undefined,
     investigationResult: alert ? investigationResult(alert) : undefined,
     subtitle: itemSubtitle(item),
-    latestUpdate: await latestHermesUpdate(ctx, _id),
     investigationStep: terminalItemStates.has(item.state)
       ? undefined
       : itemInvestigationStep(workflow),

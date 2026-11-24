@@ -55,4 +55,6 @@ export const itemFields = {
   updatedAt: v.number(),
   resolvedAt: v.optional(v.number()),
   answeredAt: v.optional(v.number()),
+  // The newest hermes_update, kept as it is written so no reader scans the timeline.
+  latestUpdate: v.optional(v.object({ text: v.string(), at: v.number() })),
 };
