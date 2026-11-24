@@ -4,7 +4,8 @@ Outbound, every Hermes message becomes a Cowtail item: plain sends and cron resu
 notices, cron failures are failure items keyed by their incident, and approval and clarify
 prompts are items the owner answers. Inbound, the adapter pulls the owner's answers from
 Cowtail every few seconds, applies each to the waiting Hermes request and confirms it, so
-no port opens on the Hermes host. A heartbeat tells Cowtail what Hermes is doing.
+no port opens on the Hermes host. A heartbeat tells Cowtail what Hermes is doing. With
+MaudeUtils configured, the adapter also pulls the runbook runs the owner starts (see runbook).
 
 Env: COWTAIL_API_BASE, COWTAIL_WORKER_TOKEN and COWTAIL_WORKER_ID (shared with the tool),
 COWTAIL_PLATFORM_ENABLED=true to run the platform, COWTAIL_HOME_CHANNEL for cron delivery
@@ -23,6 +24,7 @@ from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 
 from .cowtail_client import CowtailClient, CowtailError, cowtail_available, cowtail_platform_enabled
+from .runbook import execute_run, maudeutils_configured, runbook_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +189,8 @@ def collect_snapshot() -> dict[str, Any]:
     }
     if kanban := _safe(_kanban_counts, None):
         snapshot["kanban"] = kanban
+    if maudeutils_configured() and (runbook := _safe(runbook_catalog, None)) is not None:
+        snapshot["runbook"] = runbook
     return snapshot
 
 
@@ -234,6 +238,8 @@ class CowtailAdapter(BasePlatformAdapter):
         # ponytail: in memory; after a restart Hermes no longer holds the request either, so a
         # replay finds nothing to resolve and reports the answer failed.
         self._applied: dict[str, str] = {}
+        # Runbook runs in progress; each one streams on its own thread until its script exits.
+        self._runs: set[asyncio.Task] = set()
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
         if not cowtail_available():
@@ -244,6 +250,8 @@ class CowtailAdapter(BasePlatformAdapter):
             asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.apply_responses)),
             asyncio.create_task(self._every(HEARTBEAT_SECONDS, self.send_heartbeat)),
         ]
+        if maudeutils_configured():
+            self._tasks.append(asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.start_runbook_runs)))
         return True
 
     async def disconnect(self) -> None:
@@ -286,6 +294,23 @@ class CowtailAdapter(BasePlatformAdapter):
                 await asyncio.to_thread(
                     self._client.fail_response, response_id, response["claimToken"], GONE
                 )
+
+    async def start_runbook_runs(self) -> None:
+        """Starts every runbook run waiting in Cowtail; each runs until its script exits."""
+        while True:
+            run = (await asyncio.to_thread(self._client.claim_runbook_run)).get("run")
+            if not run:
+                return
+            task = asyncio.create_task(self._execute_run(run))
+            self._runs.add(task)
+            task.add_done_callback(self._runs.discard)
+
+    async def _execute_run(self, run: dict[str, Any]) -> None:
+        try:
+            await asyncio.to_thread(execute_run, self._client, run)
+        except Exception:
+            # Cowtail leases the run again once this claim's lease runs out.
+            logger.warning("[cowtail] runbook run %s failed", run.get("id"), exc_info=True)
 
     async def send_heartbeat(self) -> None:
         snapshot = await asyncio.to_thread(collect_snapshot)

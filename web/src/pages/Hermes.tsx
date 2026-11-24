@@ -1,5 +1,6 @@
-import type { HermesStatusResponse } from "@maudecode/cowtail-protocol";
-import { useQuery } from "@tanstack/react-query";
+import type { HermesStatusResponse, RunbookRunRecord } from "@maudecode/cowtail-protocol";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -9,10 +10,20 @@ import {
   type Status,
 } from "../components/dashboard/HermesSummary";
 import { itemPath } from "../components/items/ItemRow";
-import { Badge, DataTable, Empty, Icon, KeyValue, QueryError, Section } from "../components/ui";
-import { formatAge, formatClock, formatUntil, formatWhen } from "../lib/format";
-import { answerResult, hermesLevelTone, toneText } from "../lib/itemPresentation";
-import { hermesStatusQuery } from "../lib/queries";
+import RunScriptButton from "../components/items/RunScriptButton";
+import {
+  Badge,
+  DataTable,
+  Empty,
+  Icon,
+  KeyValue,
+  outputBlock,
+  QueryError,
+  Section,
+} from "../components/ui";
+import { formatAge, formatClock, formatElapsed, formatUntil, formatWhen } from "../lib/format";
+import { answerResult, hermesLevelTone, runStatusTone, toneText } from "../lib/itemPresentation";
+import { hermesStatusQuery, runbookRunQuery } from "../lib/queries";
 import { useNow } from "../lib/useNow";
 
 function Cron({ status, now }: { status: Status; now: number }) {
@@ -106,6 +117,100 @@ function Limits({ values, order }: { values?: Record<string, unknown>; order?: s
   });
 }
 
+// One section per category, in the server's order. A script that asks to confirm says so and
+// has a red Run button; a script's button waits while a run of it is queued or running.
+function Runbook({ status, onStarted }: { status: Status; onStarted: (id: string) => void }) {
+  return (status.runbook ?? []).map((section) => (
+    <Section key={section.category} label={`Runbook · ${section.category}`}>
+      {section.scripts.map((script) => (
+        <KeyValue
+          key={script.id}
+          label={
+            <>
+              {script.name}
+              {script.confirmText !== undefined && (
+                <div className="text-[0.7rem] text-gray-600">Asks to confirm</div>
+              )}
+            </>
+          }
+        >
+          <RunScriptButton
+            script={script}
+            disabled={script.running}
+            onStarted={(run) => onStarted(run.id)}
+          />
+        </KeyValue>
+      ))}
+    </Section>
+  ));
+}
+
+function runResult(run: RunbookRunRecord, now: number) {
+  if (run.exitCode !== undefined) return `exit ${run.exitCode}`;
+  const from = run.startedAt ?? run.createdAt;
+  return `${run.status} · ${formatElapsed((run.finishedAt ?? now) - from)}`;
+}
+
+// The run the owner started or picked, newest first otherwise: its status and time, its output
+// as it arrives, then the recent runs.
+function RunView({
+  runs,
+  selected,
+  onSelect,
+}: {
+  runs: RunbookRunRecord[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const id = selected ?? runs[0]?.id;
+  const reply = useQuery({ ...runbookRunQuery(id ?? ""), enabled: id !== undefined });
+  const client = useQueryClient();
+  const run = reply.data?.run ?? runs.find((entry) => entry.id === id);
+  const now = useNow(run?.active ? 1_000 : 15_000);
+  const ended = run?.active === false;
+  // A run that ends frees its script's button and moves into the recent runs.
+  useEffect(() => {
+    if (ended) void client.invalidateQueries({ queryKey: hermesStatusQuery.queryKey });
+  }, [ended, client]);
+  if (!run) return null;
+
+  const from = run.startedAt ?? run.createdAt;
+  return (
+    <Section
+      label={`Run · ${run.scriptName}`}
+      detail={
+        <span className={toneText[runStatusTone[run.status]]}>
+          {run.status} · {formatElapsed((run.finishedAt ?? now) - from)}
+          {run.exitCode !== undefined && ` · exit ${run.exitCode}`}
+        </span>
+      }
+    >
+      {reply.error && <QueryError error={reply.error} />}
+      <pre aria-label="Run output" className={`my-2 ${outputBlock}`}>
+        {reply.data?.output || (run.active ? "Waiting for output…" : "No output.")}
+      </pre>
+      {runs.map((entry) => (
+        <KeyValue
+          key={entry.id}
+          label={
+            <button
+              type="button"
+              aria-current={entry.id === id}
+              className="cursor-pointer text-left hover:underline aria-[current=true]:font-medium"
+              onClick={() => onSelect(entry.id)}
+            >
+              {entry.scriptName}
+            </button>
+          }
+        >
+          <span className={toneText[runStatusTone[entry.status]]}>{runResult(entry, now)}</span>·
+          <span className="font-mono text-[0.7rem]">{formatWhen(entry.createdAt, now)}</span>
+        </KeyValue>
+      ))}
+    </Section>
+  );
+}
+
 function StatusSection({ status, now }: { status: Status | null; now: number }) {
   if (!status) {
     return (
@@ -154,6 +259,7 @@ export default function Hermes() {
   const { data, error } = useQuery(hermesStatusQuery);
   const now = useNow();
   const status = data?.status ?? null;
+  const [selectedRun, setSelectedRun] = useState<string | null>(null);
 
   return (
     <div className="grid gap-x-[30px] min-[960px]:grid-cols-[1.5fr_1fr]">
@@ -171,8 +277,12 @@ export default function Hermes() {
         <Section label="Recent approvals and answers">
           {data && <RecentAnswers reply={data} now={now} />}
         </Section>
+        <RunView runs={data?.recentRuns ?? []} selected={selectedRun} onSelect={setSelectedRun} />
       </div>
-      <div>{data && <StatusSection status={status} now={now} />}</div>
+      <div>
+        {data && <StatusSection status={status} now={now} />}
+        {status && <Runbook status={status} onStarted={setSelectedRun} />}
+      </div>
     </div>
   );
 }

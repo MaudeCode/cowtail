@@ -17,6 +17,7 @@ import {
   Icon,
   KeyValue,
   MetricGraph,
+  outputBlock,
   QueryError,
   Section,
 } from "../components/ui";
@@ -44,11 +45,7 @@ function Evidence({ steps }: { steps: NonNullable<ItemEventRecord["evidence"]> }
         return (
           <div key={index}>
             <div className="mt-1.5 text-[0.7rem] text-gray-600">{`${index + 1} · ${step.step}`}</div>
-            {block.length > 0 && (
-              <pre className="mt-1 border-l-2 border-gray-200 bg-surface px-2 py-1.5 font-mono text-[0.68rem] leading-[1.45] whitespace-pre-wrap text-[#c9c9cf] [overflow-wrap:anywhere]">
-                {block.join("\n")}
-              </pre>
-            )}
+            {block.length > 0 && <pre className={`mt-1 ${outputBlock}`}>{block.join("\n")}</pre>}
           </div>
         );
       })}

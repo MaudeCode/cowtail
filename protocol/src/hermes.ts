@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { fieldNameSchema, itemAnswerSchema, itemReplyToSchema } from "./items.ts";
+import { runbookRunRecordSchema, runbookScriptSchema, runbookSectionSchema } from "./runbook.ts";
 import { nonEmptyStringSchema, timestampSchema } from "./shared.ts";
 
 // --- Answers flowing back to Hermes ------------------------------------------------------
@@ -75,6 +76,8 @@ export const hermesSnapshotSchema = z.object({
     .optional(),
   budget: z.record(fieldNameSchema, limitValueSchema).optional(),
   rateLimits: z.record(fieldNameSchema, limitValueSchema).optional(),
+  // The MaudeUtils scripts the owner can run through Hermes, in MaudeUtils's order.
+  runbook: z.array(runbookScriptSchema).max(500).optional(),
 });
 
 // How alive Hermes looks: green under 2 minutes since the last heartbeat, amber from 2 to 5
@@ -125,10 +128,14 @@ export const hermesStatusResponseSchema = z.object({
       // The snapshot's budget and rate-limit keys in the order to show them.
       budgetOrder: z.array(z.string()).optional(),
       rateLimitOrder: z.array(z.string()).optional(),
+      // The snapshot's runbook, one section per category.
+      runbook: z.array(runbookSectionSchema).optional(),
     })
     .nullable(),
   // Newest answer first, at most 20.
   recentAnswers: z.array(hermesRecentAnswerSchema).optional(),
+  // Newest runbook run first, at most 10.
+  recentRuns: z.array(runbookRunRecordSchema).optional(),
 });
 
 export type HermesResponseClaimRequest = z.infer<typeof hermesResponseClaimRequestSchema>;

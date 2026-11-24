@@ -10,6 +10,8 @@ COWTAIL_WORKER_TOKEN=<secret>
 COWTAIL_WORKER_ID=hermes-default-gateway
 COWTAIL_PLATFORM_ENABLED=true   # run the platform; the tool works without it
 COWTAIL_HOME_CHANNEL=owner      # optional; the name cron delivery uses for the Cowtail inbox
+MAUDEUTILS_URL=http://127.0.0.1:3847  # optional; runbook runs from Cowtail
+MAUDEUTILS_TOKEN=<secret>
 ```
 
 ## Platform
@@ -21,6 +23,7 @@ With `COWTAIL_PLATFORM_ENABLED=true` the gateway runs the `cowtail` platform bes
 - A dangerous-command approval becomes an `approval` item with Approve and Deny that expires at Hermes's approval deadline. The item binds to the Hermes request id and shows the whole command; an approval that cannot be shown whole or bound is refused, and Hermes falls back to its text prompt. A `clarify` question becomes a `question` item with Reply, plus Choose when Hermes offers choices, that expires at the clarify timeout.
 - Every 3 seconds the platform claims the owner's answers from `POST /api/hermes/responses/claim` and applies each one: Approve resolves the approval once, Deny denies it, a reply or choice answers the question, Ack acknowledges the cron incident. It confirms with `/complete`, or `/fail` when Hermes no longer holds the request. Cowtail then resolves or expires the item. Answers are pulled, so no port opens on the Hermes host, and a lease brings an answer back after a Hermes restart. An approval answer targets the exact Hermes request it was shown for, and an answer Hermes already applied is confirmed again on its next lease, never applied twice.
 - Every 60 seconds the platform posts `POST /api/hermes/heartbeat` with the connected platforms, model and provider, cron jobs, open cron incidents and kanban counts. Cowtail raises a `hermes:heartbeat-missing` failure item after 5 minutes of silence and resolves it on the next heartbeat.
+- With `MAUDEUTILS_URL` set, the heartbeat also carries the MaudeUtils script catalog as `runbook`, and every 3 seconds the platform claims the runbook runs the owner starts from Cowtail (`POST /api/hermes/runbook-runs/claim`). It tells Cowtail the run is starting, then starts it on the local MaudeUtils with `POST /api/run-stream/:id`, forwards stdout and stderr in batches at most once a second to `/output`, and reports the exit code to `/complete`. A run MaudeUtils refuses (401, 404) or cannot reach reports exit code -1 with the reason as its output. Cowtail leases a run again only when Hermes stopped before it said the run was starting; a run that started and then went silent ends `unknown` and is never run again on its own. MaudeUtils stays unexposed: Cowtail never calls it.
 
 Approvals and questions reach the adapter of the platform the session runs on, so Cowtail receives those for sessions that run on Cowtail.
 

@@ -13,6 +13,8 @@ import {
   maintenanceWindowListResponseSchema,
   maintenanceWindowResponseSchema,
   notificationPreferencesResponseSchema,
+  runbookRunGetResponseSchema,
+  runbookRunResponseSchema,
   snoozeOptionsResponseSchema,
   type ItemActionRequest,
   type ItemInboxResponse,
@@ -21,6 +23,7 @@ import {
   type MaintenanceWindowStartRequest,
   type NotificationPreferences,
   type NotificationPreferencesUpdateRequest,
+  type RunbookRunRequest,
 } from "@maudecode/cowtail-protocol";
 import {
   type QueryClient,
@@ -36,6 +39,8 @@ import { api, ApiError, SESSION_KEY } from "./api";
 // Inbox, Home, Cluster, History's stats and an item's page show what is happening now.
 const LIVE_REFRESH_MS = 15_000;
 const HISTORY_PAGE_SIZE = 100;
+// A runbook run's output, while the run is queued or running.
+const RUN_REFRESH_MS = 1_000;
 
 export type Session = {
   preferences: NotificationPreferences;
@@ -204,6 +209,55 @@ export const snoozeOptionsQuery = () => {
     staleTime: 0,
   });
 };
+
+// A run and its output, followed every second until the run ends.
+export const runbookRunQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["runbookRun", id],
+    queryFn: () =>
+      api(`/api/me/runbook/runs/${encodeURIComponent(id)}`, runbookRunGetResponseSchema),
+    refetchInterval: (query) => (query.state.data?.run.active === false ? false : RUN_REFRESH_MS),
+  });
+
+// Run requests the server never answered, per query client, by script and item. The next tap
+// sends the same request again, so the server returns the run it may have queued and queues no
+// second one.
+const unansweredRuns = new WeakMap<QueryClient, Map<string, string>>();
+
+// The owner starts a runbook run. The run is the server's to create, so only the control that
+// started it shows busy; Hermes, and the item the run is for, reread once it settles.
+export function useRunbookRun() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: Omit<RunbookRunRequest, "requestId">) => {
+      const unanswered = unansweredRuns.get(client) ?? new Map<string, string>();
+      unansweredRuns.set(client, unanswered);
+      const key = `${request.scriptId}\n${request.itemId ?? ""}`;
+      const requestId = unanswered.get(key) ?? crypto.randomUUID();
+      unanswered.set(key, requestId);
+      try {
+        const reply = await api("/api/me/runbook/runs", runbookRunResponseSchema, {
+          method: "POST",
+          body: { requestId, ...request },
+        });
+        unanswered.delete(key);
+        return reply;
+      } catch (error) {
+        // A refusal is the server's answer; anything else leaves the outcome unknown.
+        if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+          unanswered.delete(key);
+        }
+        throw error;
+      }
+    },
+    onSettled: (_reply, _error, request) =>
+      Promise.all(
+        [["hermes"], ...(request.itemId ? [["item", request.itemId], ...lists] : [])].map(
+          (queryKey) => client.invalidateQueries({ queryKey }),
+        ),
+      ),
+  });
+}
 
 // An open item's page follows Hermes and the producer as they post to its timeline.
 export const itemQuery = (id: string) =>

@@ -6,8 +6,7 @@ import { formatDuration } from "../../lib/format";
 import { maintenanceScope } from "../../lib/itemPresentation";
 import { maintenanceQuery, useEndMaintenance, useStartMaintenance } from "../../lib/queries";
 import { useNow } from "../../lib/useNow";
-import { Icon, IconButton } from "../ui";
-import { ActionError } from "../items/ItemActions";
+import { ActionError, Icon, IconButton } from "../ui";
 
 const MINUTE = 60_000;
 const presets = [

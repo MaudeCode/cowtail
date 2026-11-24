@@ -33,6 +33,13 @@ crons.interval(
 );
 
 crons.interval(
+  "end runbook runs Hermes stopped reporting",
+  { minutes: 1 },
+  (internal as any).runbook.settleLapsed,
+  {},
+);
+
+crons.interval(
   "prune Hermes hook deliveries",
   { hours: 1 },
   (internal as any).hermesHooks.pruneDeliveries,

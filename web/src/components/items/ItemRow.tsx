@@ -5,8 +5,8 @@ import { formatAge, formatDuration, formatReturnTime } from "../../lib/format";
 import { investigationLabel, toneText, urgencyTone } from "../../lib/itemPresentation";
 import { useItemAction, useItemActionError } from "../../lib/queries";
 import { useNow } from "../../lib/useNow";
-import { Badge, IconButton } from "../ui";
-import ItemActions, { ActionError } from "./ItemActions";
+import { ActionError, Badge, IconButton } from "../ui";
+import ItemActions from "./ItemActions";
 import SourceIcon from "./SourceIcon";
 
 export function itemPath(id: string) {

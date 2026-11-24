@@ -10,6 +10,7 @@ export * from "./items.ts";
 export * from "./maintenance.ts";
 export * from "./push.ts";
 export * from "./responses.ts";
+export * from "./runbook.ts";
 export * from "./shared.ts";
 export * from "./sources.ts";
 export * from "./users.ts";

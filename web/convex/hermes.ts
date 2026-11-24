@@ -12,6 +12,8 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { terminalItemStates } from "./itemModel";
 import { appendItemEvent, createItem, openItemByDedupeKey, transitionItem } from "./items";
+import { recentRuns } from "./runbook";
+import { runbookSections } from "./runbookModel";
 
 const HERMES = "hermes";
 const COWTAIL = "cowtail";
@@ -224,8 +226,9 @@ export const getStatus = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
     const answers = await recentAnswers(ctx, now);
+    const runs = await recentRuns(ctx);
     const status = await ctx.db.query("hermesStatus").first();
-    if (!status) return { status: null, recentAnswers: answers };
+    if (!status) return { status: null, recentAnswers: answers, recentRuns: runs };
 
     const snapshot = status.snapshot as HermesSnapshot;
     const age = now - status.receivedAt;
@@ -246,8 +249,10 @@ export const getStatus = internalQuery({
         kanbanBlocked: (snapshot.kanban?.blocked ?? 0) > 0,
         budgetOrder: Object.keys(snapshot.budget ?? {}).sort(),
         rateLimitOrder: Object.keys(snapshot.rateLimits ?? {}).sort(),
+        runbook: await runbookSections(ctx, snapshot.runbook ?? []),
       },
       recentAnswers: answers,
+      recentRuns: runs,
     };
   },
 });

@@ -131,7 +131,7 @@ struct ItemDetailView: View {
             }
             .padding(.top, 4)
 
-            ItemChoiceButtons(item: item)
+            ItemTextButtons(item: item)
 
             if let error = store.actionErrors[item.id] {
                 Text(error)

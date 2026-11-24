@@ -57,6 +57,8 @@ struct HermesStatus: Equatable, Sendable {
         var kanbanBlocked = false
         var budget: [Limit] = []
         var rateLimits: [Limit] = []
+        /// The runbook, one section per category, in the server's order.
+        var runbook: [RunbookSection] = []
     }
 
     struct Answer: Identifiable, Equatable, Sendable {
@@ -70,4 +72,52 @@ struct HermesStatus: Equatable, Sendable {
     /// Nil until Hermes sends its first heartbeat.
     var heartbeat: Heartbeat?
     var recentAnswers: [Answer] = []
+    /// Newest first.
+    var recentRuns: [RunbookRun] = []
+}
+
+/// A MaudeUtils script Hermes can run, with the server's calls on it.
+struct RunbookScript: Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    /// The prompt to show before a run; nil when the script runs on a tap.
+    var confirmText: String?
+    /// Running it also needs Face ID, because the owner requires it for approvals.
+    var needsAuth = false
+    /// A run of it is queued or running.
+    var running = false
+
+    var asksToConfirm: Bool { confirmText != nil }
+}
+
+struct RunbookSection: Identifiable, Equatable, Sendable {
+    var id: String { category }
+    let category: String
+    let scripts: [RunbookScript]
+}
+
+struct RunbookRun: Identifiable, Equatable, Sendable {
+    enum Status: String, Sendable {
+        case queued, running, succeeded, failed
+        /// Hermes stopped reporting after the script started; it may or may not have run.
+        case unknown
+    }
+
+    let id: String
+    let scriptID: String
+    let scriptName: String
+    var itemID: String?
+    let status: Status
+    /// Queued or running.
+    let active: Bool
+    var exitCode: Int?
+    let createdAt: Date
+    var startedAt: Date?
+    var finishedAt: Date?
+}
+
+/// A run and its output so far.
+struct RunbookRunDetail: Equatable, Sendable {
+    let run: RunbookRun
+    let output: String
 }

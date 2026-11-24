@@ -2,6 +2,7 @@
 const paths = {
   check: <path d="M20 6 9 17l-5-5" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
+  play: <path d="M7 4v16l13-8z" />,
   reply: (
     <>
       <path d="M9 17 4 12l5-5" />

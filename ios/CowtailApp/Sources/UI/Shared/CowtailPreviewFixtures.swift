@@ -394,7 +394,16 @@ enum CowtailPreviewFixtures {
             kanban: HermesStatus.Kanban(blocked: 2, running: 1),
             kanbanBlocked: true,
             budget: [HermesStatus.Limit(key: "today", value: "62%")],
-            rateLimits: [HermesStatus.Limit(key: "anthropic", value: "ok")]
+            rateLimits: [HermesStatus.Limit(key: "anthropic", value: "ok")],
+            runbook: [
+                RunbookSection(category: "services", scripts: [
+                    RunbookScript(id: "gateway-restart", name: "Restart Hermes gateway", confirmText: "Restart the Hermes gateway?"),
+                    RunbookScript(id: "runner-restart", name: "Restart script runner"),
+                ]),
+                RunbookSection(category: "diagnostics", scripts: [
+                    RunbookScript(id: "disk-usage", name: "Disk usage"),
+                ]),
+            ]
         ),
         recentAnswers: [
             HermesStatus.Answer(
@@ -409,8 +418,38 @@ enum CowtailPreviewFixtures {
                 answer: .deny,
                 answeredAt: daysAgo(2, hour: 16)
             ),
+        ],
+        recentRuns: [
+            RunbookRun(
+                id: "run-2",
+                scriptID: "runner-restart",
+                scriptName: "Restart script runner",
+                status: .succeeded,
+                active: false,
+                exitCode: 0,
+                createdAt: minutesAgo(30),
+                startedAt: minutesAgo(30),
+                finishedAt: minutesAgo(29)
+            ),
+            RunbookRun(
+                id: "run-1",
+                scriptID: "gateway-log",
+                scriptName: "Tail gateway log",
+                status: .failed,
+                active: false,
+                exitCode: 1,
+                createdAt: minutesAgo(32),
+                startedAt: minutesAgo(32),
+                finishedAt: minutesAgo(32)
+            ),
         ]
     )
+
+    static let runOutput = """
+    $ df -h /var/lib
+    Filesystem      Size  Used Avail Use% Mounted on
+    /dev/nvme0n1p2  916G  604G  266G  70% /
+    """
 
     static let devices = [
         UserDevice(id: "device-1", name: "iPhone", lastSeenAt: minutesAgo(1)),

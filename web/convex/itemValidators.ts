@@ -23,6 +23,14 @@ export const itemActionValidator = v.union(
   v.object({ type: v.literal("snooze") }),
   v.object({ type: v.literal("ack") }),
   v.object({ type: v.literal("open"), url: v.string() }),
+  v.object({
+    type: v.literal("run"),
+    scriptId: v.string(),
+    label: v.string(),
+    // The server's calls; the item record replaces whatever a producer sent.
+    confirmText: v.optional(v.string()),
+    needsAuth: v.optional(v.boolean()),
+  }),
 );
 
 // The owner's answers; an item with a `replyTo` hands each one to its producer.

@@ -1,6 +1,6 @@
 name: cowtail
 label: Cowtail
-version: 0.2.0
+version: 0.3.0
 description: "Cowtail for Hermes: a typed tool for alerts, investigation jobs, outcomes and fixes, and a cowtail platform that turns messages, cron results, approvals and clarify questions into Cowtail items and brings the owner's answers back."
 author: MaudeCode
 kind: standalone
@@ -28,3 +28,11 @@ optional_env:
     description: "Name for the Cowtail inbox that cron jobs deliver to (default: owner)"
     prompt: "Cowtail home channel (or empty)"
     password: false
+  - name: MAUDEUTILS_URL
+    description: "MaudeUtils on this host, for runbook runs from Cowtail (for example http://127.0.0.1:3847); empty turns them off"
+    prompt: "MaudeUtils URL (or empty)"
+    password: false
+  - name: MAUDEUTILS_TOKEN
+    description: "MaudeUtils bearer token, for runbook runs"
+    prompt: "MaudeUtils token (or empty)"
+    password: true

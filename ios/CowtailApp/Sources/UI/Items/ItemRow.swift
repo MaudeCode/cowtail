@@ -34,7 +34,7 @@ struct ItemRow: View {
             }
 
             if style == .needsYou {
-                ItemChoiceButtons(item: item)
+                ItemTextButtons(item: item)
             }
 
             if let error = store.actionErrors[item.id] {
@@ -302,14 +302,16 @@ struct ItemActionButtons: View {
     }
 }
 
-/// A question's answers, as text buttons under its row.
-struct ItemChoiceButtons: View {
+/// The actions whose words carry what an icon cannot, as text buttons under the row: a
+/// question's answers, and a script action's play glyph and label.
+struct ItemTextButtons: View {
     let item: Item
 
     @EnvironmentObject private var store: CowtailStore
+    @State private var confirming: RunbookScript?
 
     var body: some View {
-        if let options {
+        if !options.isEmpty || !scripts.isEmpty {
             HStack(spacing: 6) {
                 ForEach(options, id: \.self) { option in
                     Button(option) {
@@ -318,14 +320,64 @@ struct ItemChoiceButtons: View {
                     .buttonStyle(CowtailTextButtonStyle())
                     .accessibilityIdentifier("button.item.choose.\(item.id).\(option)")
                 }
+                ForEach(scripts) { script in
+                    Button {
+                        if script.asksToConfirm {
+                            confirming = script
+                        } else {
+                            Task { await store.startRun(script, itemID: item.id) }
+                        }
+                    } label: {
+                        Label(script.name, systemImage: "play.fill")
+                    }
+                    .buttonStyle(CowtailTextButtonStyle())
+                    .disabled(store.scriptsStarting.contains(script.id))
+                    .accessibilityIdentifier("button.item.run.\(item.id).\(script.id)")
+                }
+            }
+            .runbookConfirmation($confirming) { script in
+                Task { await store.startRun(script, itemID: item.id) }
             }
         }
     }
 
-    private var options: [String]? {
+    private var options: [String] {
         for case .choose(let options) in item.availableActions {
             return options
         }
-        return nil
+        return []
+    }
+
+    private var scripts: [RunbookScript] {
+        item.availableActions.compactMap { action in
+            if case .run(let script) = action {
+                script
+            } else {
+                nil
+            }
+        }
+    }
+}
+
+extension View {
+    /// The script's prompt before it runs: Run, or Cancel.
+    func runbookConfirmation(
+        _ script: Binding<RunbookScript?>,
+        run: @escaping (RunbookScript) -> Void
+    ) -> some View {
+        alert(
+            script.wrappedValue?.name ?? "",
+            isPresented: Binding(get: { script.wrappedValue != nil }, set: {
+                if !$0 {
+                    script.wrappedValue = nil
+                }
+            }),
+            presenting: script.wrappedValue
+        ) { shown in
+            Button("Run", role: .destructive) { run(shown) }
+            Button("Cancel", role: .cancel) {}
+        } message: { shown in
+            Text(shown.confirmText ?? "")
+        }
     }
 }

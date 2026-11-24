@@ -5,6 +5,7 @@ import type { Doc } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { itemUrgencyValidator, quietHoursValidator } from "./itemValidators";
+import { cowtailOwnerUserId } from "./owner";
 
 const ROUNDUP_CLAIM_TTL_MS = 15 * 60 * 1000;
 
@@ -25,6 +26,14 @@ export async function preferencesRow(ctx: QueryCtx, userId: string) {
     .query("userNotificationPreferences")
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .unique();
+}
+
+// Whether the owner requires Face ID for approvals, and for runbook scripts that ask to confirm.
+export async function approvalsNeedAuth(ctx: QueryCtx) {
+  const owner = cowtailOwnerUserId();
+  return owner
+    ? effectivePreferences(await preferencesRow(ctx, owner)).requireAuthForApprovals
+    : false;
 }
 
 export const getByUserId = internalQuery({

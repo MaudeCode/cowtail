@@ -1247,6 +1247,38 @@
               "type",
               "url"
             ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "run"
+                ]
+              },
+              "scriptId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "confirmText": {
+                "type": "string"
+              },
+              "needsAuth": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "scriptId",
+              "label"
+            ]
           }
         ]
       },
@@ -1838,7 +1870,9 @@
               "notified",
               "action_taken",
               "state_changed",
-              "resolved"
+              "resolved",
+              "run_started",
+              "run_finished"
             ]
           },
           "actor": {
@@ -2275,6 +2309,50 @@
                         }
                       ]
                     }
+                  },
+                  "runbook": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "category": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "icon": {
+                          "type": "string",
+                          "maxLength": 50
+                        },
+                        "confirm": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "danger": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "category"
+                      ]
+                    },
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -2329,6 +2407,12 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "runbook": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RunbookSection"
+                }
               }
             },
             "required": [
@@ -2341,6 +2425,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HermesRecentAnswer"
+            }
+          },
+          "recentRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunbookRun"
             }
           }
         },
@@ -2442,6 +2532,76 @@
           "id",
           "jobId",
           "state"
+        ]
+      },
+      "RunbookSection": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scripts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunbookScript"
+            }
+          }
+        },
+        "required": [
+          "category",
+          "scripts"
+        ]
+      },
+      "RunbookScript": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "icon": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "confirm": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "danger": {
+            "type": "boolean"
+          },
+          "confirmText": {
+            "type": "string"
+          },
+          "needsAuth": {
+            "type": "boolean"
+          },
+          "running": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "category",
+          "needsAuth",
+          "running"
         ]
       },
       "HermesRecentAnswer": {
@@ -2550,6 +2710,132 @@
           "title",
           "answer",
           "answeredAt"
+        ]
+      },
+      "RunbookRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scriptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scriptName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "unknown"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "exitCode": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "finishedAt": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "scriptId",
+          "scriptName",
+          "status",
+          "active",
+          "createdAt"
+        ]
+      },
+      "RunbookRunResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunbookRun"
+          }
+        },
+        "required": [
+          "ok",
+          "run"
+        ]
+      },
+      "RunbookRunRequest": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "scriptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "authenticated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requestId",
+          "scriptId"
+        ]
+      },
+      "RunbookRunGetResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunbookRun"
+          },
+          "output": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "run",
+          "output"
         ]
       },
       "UserDevicesResponse": {
@@ -4210,6 +4496,149 @@
           },
           "403": {
             "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/runbook/runs": {
+      "post": {
+        "operationId": "startRunbookRun",
+        "tags": [
+          "hermes"
+        ],
+        "summary": "Ask Hermes to run a runbook script, optionally for an item",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunbookRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The queued run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunbookRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, or the script asks to confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner access, or Face ID for this script, required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown script or item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/runbook/runs/{id}": {
+      "get": {
+        "operationId": "getRunbookRun",
+        "tags": [
+          "hermes"
+        ],
+        "summary": "A runbook run and its output so far",
+        "security": [
+          {
+            "appSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run and its output.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunbookRunGetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "App session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cowtail owner access required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found.",
             "content": {
               "application/json": {
                 "schema": {

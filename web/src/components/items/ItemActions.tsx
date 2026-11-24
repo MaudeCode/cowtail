@@ -2,17 +2,14 @@ import type { ItemActionRequest, ItemRecord } from "@maudecode/cowtail-protocol"
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
-import { errorMessage } from "../../lib/api";
 import { formatReturnTime } from "../../lib/format";
 import { snoozePresetLabel } from "../../lib/itemPresentation";
 import { snoozeOptionsQuery, useItemAction, useItemActionError } from "../../lib/queries";
-import { Icon, IconButton } from "../ui";
+import { ActionError, Icon, IconButton } from "../ui";
+import RunScriptButton, { textButton } from "./RunScriptButton";
 
-const optionButton =
-  "h-[26px] cursor-pointer rounded-[7px] border border-gray-200 bg-surface-2 px-2 text-[0.7rem] text-txt disabled:cursor-default disabled:opacity-50";
-
-// The controls for what an item still offers. A `choose` action shows its options as text;
-// every other action is an icon button.
+// The controls for what an item still offers. A `choose` action shows its options as text, and
+// a `run` action its label; every other action is an icon button.
 export default function ItemActions({ item }: { item: ItemRecord }) {
   const action = useItemAction(item.id);
   const actionError = useItemActionError(item.id);
@@ -47,7 +44,7 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
                 <button
                   key={`choose-${option}`}
                   type="button"
-                  className={optionButton}
+                  className={textButton}
                   disabled={busy !== null}
                   onClick={() => send(`choose-${option}`, { type: "choose", option })}
                 >
@@ -94,6 +91,15 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
                   onClick={() => setPanel(panel === offered.type ? null : offered.type)}
                 />
               );
+            case "run":
+              return (
+                <RunScriptButton
+                  key={`run-${offered.scriptId}`}
+                  script={{ ...offered, id: offered.scriptId, name: offered.label }}
+                  itemId={item.id}
+                  label={offered.label}
+                />
+              );
             case "open":
               return (
                 <a
@@ -137,15 +143,6 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
       )}
       <ActionError error={actionError} />
     </div>
-  );
-}
-
-export function ActionError({ error }: { error: unknown }) {
-  if (!error) return null;
-  return (
-    <p role="alert" className="text-[0.7rem] text-accent-text">
-      {errorMessage(error)}
-    </p>
   );
 }
 

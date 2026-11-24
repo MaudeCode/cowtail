@@ -6,6 +6,8 @@ import type {
   ItemStatsResponse,
   MaintenanceWindowRecord,
   NotificationPreferences,
+  RunbookRunGetResponse,
+  RunbookRunRecord,
 } from "@maudecode/cowtail-protocol";
 
 // Synthetic replies shaped by the protocol schemas the app parses every reply with.
@@ -116,6 +118,49 @@ export const stats: ItemStatsResponse = {
   ],
 };
 
+// The newest run is in progress; the two before it ended.
+export const runningRun: RunbookRunRecord = {
+  id: "run-3",
+  scriptId: "disk-usage",
+  scriptName: "Disk usage",
+  status: "running",
+  active: true,
+  createdAt: NOW - 8_000,
+  startedAt: NOW - 7_000,
+};
+
+export const recentRuns: RunbookRunRecord[] = [
+  runningRun,
+  {
+    id: "run-2",
+    scriptId: "runner-restart",
+    scriptName: "Restart script runner",
+    status: "succeeded",
+    active: false,
+    exitCode: 0,
+    createdAt: NOW - 30 * MINUTE,
+    startedAt: NOW - 30 * MINUTE,
+    finishedAt: NOW - 29 * MINUTE,
+  },
+  {
+    id: "run-1",
+    scriptId: "gateway-log",
+    scriptName: "Tail gateway log",
+    status: "failed",
+    active: false,
+    exitCode: 1,
+    createdAt: NOW - 32 * MINUTE,
+    startedAt: NOW - 32 * MINUTE,
+    finishedAt: NOW - 32 * MINUTE,
+  },
+];
+
+export const runningRunReply: RunbookRunGetResponse = {
+  ok: true,
+  run: runningRun,
+  output: "$ df -h /var/lib\n/dev/nvme0n1p2  916G  604G  266G  70% /\n",
+};
+
 export const hermesStatus: HermesStatusResponse = {
   ok: true,
   status: {
@@ -155,6 +200,41 @@ export const hermesStatus: HermesStatusResponse = {
     kanbanBlocked: true,
     budgetOrder: ["today"],
     rateLimitOrder: ["anthropic"],
+    runbook: [
+      {
+        category: "services",
+        scripts: [
+          {
+            id: "gateway-restart",
+            name: "Restart Hermes gateway",
+            category: "services",
+            confirm: "Restart the Hermes gateway?",
+            confirmText: "Restart the Hermes gateway?",
+            needsAuth: false,
+            running: false,
+          },
+          {
+            id: "runner-restart",
+            name: "Restart script runner",
+            category: "services",
+            needsAuth: false,
+            running: false,
+          },
+        ],
+      },
+      {
+        category: "diagnostics",
+        scripts: [
+          {
+            id: "disk-usage",
+            name: "Disk usage",
+            category: "diagnostics",
+            needsAuth: false,
+            running: true,
+          },
+        ],
+      },
+    ],
     incidents: [
       {
         id: "inc-1",
@@ -181,6 +261,7 @@ export const hermesStatus: HermesStatusResponse = {
     },
     { itemId: "item-5", title: "Delete 14 stale PVCs?", answer: { type: "deny" }, answeredAt: NOW },
   ],
+  recentRuns,
 };
 
 export const preferences: NotificationPreferences = {
@@ -200,6 +281,7 @@ export function signedIn(routes: Record<string, unknown> = {}) {
     "GET /actions/api/health": health,
     "GET /actions/api/hermes/status": hermesStatus,
     [MAINTENANCE]: { ok: true, active: [], recent: [], sourceChoices: [] },
+    "GET /actions/api/me/runbook/runs/run-3": runningRunReply,
     ...routes,
   };
 }

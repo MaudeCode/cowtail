@@ -143,6 +143,53 @@ export default defineSchema({
     .index("by_status_availableAt", ["status", "availableAt"])
     .index("by_itemId_status", ["itemId", "status"]),
 
+  // A runbook script the owner asked Hermes to run. Queued until Hermes claims it; a claim
+  // whose lease ran out goes back to whichever Hermes claims next.
+  runbookRuns: defineTable({
+    scriptId: v.string(),
+    scriptName: v.string(),
+    itemId: v.optional(v.id("items")),
+    requestedBy: v.string(),
+    // The client's name for the request, so one sent again queues nothing.
+    requestId: v.optional(v.string()),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("unknown"),
+    ),
+    // When Hermes said it was starting the script; from then on the run is never run again.
+    executingAt: v.optional(v.number()),
+    // When the row can next be claimed: its creation, then the end of each lease.
+    availableAt: v.number(),
+    claimToken: v.optional(v.string()),
+    claimedBy: v.optional(v.string()),
+    leaseMs: v.optional(v.number()),
+    attempts: v.number(),
+    // The next output batch the current claim may send.
+    nextSeq: v.number(),
+    outputChunks: v.number(),
+    outputBytes: v.number(),
+    truncated: v.boolean(),
+    exitCode: v.optional(v.number()),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_status_availableAt", ["status", "availableAt"])
+    .index("by_scriptId_status", ["scriptId", "status"])
+    .index("by_requestId", ["requestId"])
+    .index("by_createdAt", ["createdAt"]),
+
+  // A run's output, in the order it arrived.
+  runbookRunOutput: defineTable({
+    runId: v.id("runbookRuns"),
+    seq: v.number(),
+    text: v.string(),
+  }).index("by_run_seq", ["runId", "seq"]),
+
   // One row: the latest Hermes heartbeat.
   hermesStatus: defineTable({
     receivedAt: v.number(),
