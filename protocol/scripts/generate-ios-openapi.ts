@@ -351,7 +351,10 @@ registry.registerPath({
     401: jsonResponse("App session required.", ErrorResponse),
     403: jsonResponse("Cowtail owner access required.", ErrorResponse),
     404: jsonResponse("Item not found.", ErrorResponse),
-    409: jsonResponse("The item is closed, does not offer the action, or is not snoozed.", ErrorResponse),
+    409: jsonResponse(
+      "The item is closed, does not offer the action, or is not snoozed.",
+      ErrorResponse,
+    ),
   },
 });
 
