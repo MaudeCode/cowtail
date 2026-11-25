@@ -461,7 +461,7 @@ registry.registerPath({
   path: "/items/inbox",
   operationId: "getItemInbox",
   tags: ["items"],
-  summary: "The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours",
+  summary: "The owner's inbox: needs you, with Hermes, and upcoming",
   security: [{ appSession: [] }],
   responses: {
     200: jsonResponse("The inbox sections.", ItemInboxResponse),

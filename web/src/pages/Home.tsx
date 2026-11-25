@@ -4,7 +4,6 @@ import { MaintenanceBanners } from "../components/app/Maintenance";
 import ClusterHealth from "../components/dashboard/ClusterHealth";
 import HermesSummary from "../components/dashboard/HermesSummary";
 import ItemRow from "../components/items/ItemRow";
-import ItemTable from "../components/items/ItemTable";
 import { Empty, QueryError, Section } from "../components/ui";
 import { healthQuery, hermesStatusQuery, inboxQuery } from "../lib/queries";
 import { useNow } from "../lib/useNow";
@@ -17,47 +16,41 @@ export default function Home() {
   const data = inbox.data;
 
   return (
-    <>
-      <div className="grid gap-x-[30px] min-[960px]:grid-cols-[1.65fr_1fr]">
-        <div>
-          <MaintenanceBanners />
-          <Section label="Needs you" detail={data?.counts.needsYou}>
-            {inbox.error && <QueryError error={inbox.error} />}
-            {data?.needsYou.map((item) => (
-              <ItemRow key={item.id} item={item} variant="needsYou" />
-            ))}
-            {data?.needsYou.length === 0 && <Empty>Nothing needs you.</Empty>}
-          </Section>
-          <Section label="Hermes is on it" detail={data?.counts.withHermes}>
-            {data?.withHermes.map((item) => (
-              <ItemRow key={item.id} item={item} variant="withHermes" />
-            ))}
-            {data?.withHermes.length === 0 && <Empty>Hermes has nothing open.</Empty>}
-          </Section>
-          <Section label="Upcoming" detail={data?.counts.upcoming ?? data?.upcoming?.length}>
-            {data?.upcoming?.map((item) => (
-              <ItemRow key={item.id} item={item} variant="upcoming" />
-            ))}
-            {data?.upcoming?.length === 0 && <Empty>Nothing snoozed.</Empty>}
-          </Section>
-        </div>
-        <div>
-          {health.data ? (
-            <ClusterHealth health={health.data} layout="home" />
-          ) : (
-            <Section label="Cluster">{health.error && <QueryError error={health.error} />}</Section>
-          )}
-          {hermes.data ? (
-            <HermesSummary reply={hermes.data} now={now} />
-          ) : (
-            <Section label="Hermes">{hermes.error && <QueryError error={hermes.error} />}</Section>
-          )}
-        </div>
+    <div className="grid gap-x-[30px] min-[960px]:grid-cols-[1.65fr_1fr]">
+      <div>
+        <MaintenanceBanners />
+        <Section label="Needs you" detail={data?.counts.needsYou}>
+          {inbox.error && <QueryError error={inbox.error} />}
+          {data?.needsYou.map((item) => (
+            <ItemRow key={item.id} item={item} variant="needsYou" />
+          ))}
+          {data?.needsYou.length === 0 && <Empty>Nothing needs you.</Empty>}
+        </Section>
+        <Section label="Hermes is on it" detail={data?.counts.withHermes}>
+          {data?.withHermes.map((item) => (
+            <ItemRow key={item.id} item={item} variant="withHermes" />
+          ))}
+          {data?.withHermes.length === 0 && <Empty>Hermes has nothing open.</Empty>}
+        </Section>
+        <Section label="Upcoming" detail={data?.counts.upcoming ?? data?.upcoming?.length}>
+          {data?.upcoming?.map((item) => (
+            <ItemRow key={item.id} item={item} variant="upcoming" />
+          ))}
+          {data?.upcoming?.length === 0 && <Empty>Nothing snoozed.</Empty>}
+        </Section>
       </div>
-      <Section label="Handled · 24h" detail={data?.counts.handled}>
-        {data && data.handled.length > 0 && <ItemTable items={data.handled} />}
-        {data?.handled.length === 0 && <Empty>Nothing handled in the last 24 hours.</Empty>}
-      </Section>
-    </>
+      <div>
+        {health.data ? (
+          <ClusterHealth health={health.data} layout="home" />
+        ) : (
+          <Section label="Cluster">{health.error && <QueryError error={health.error} />}</Section>
+        )}
+        {hermes.data ? (
+          <HermesSummary reply={hermes.data} now={now} />
+        ) : (
+          <Section label="Hermes">{hermes.error && <QueryError error={hermes.error} />}</Section>
+        )}
+      </div>
+    </div>
   );
 }

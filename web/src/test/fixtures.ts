@@ -131,19 +131,16 @@ export function inbox(
   const needsYou = lists.needsYou ?? [];
   const withHermes = lists.withHermes ?? [];
   const upcoming = lists.upcoming ?? [];
-  const handled = lists.handled ?? [];
   return {
     ok: true as const,
     counts: {
       needsYou: needsYou.length,
       withHermes: withHermes.length,
       upcoming: upcoming.length,
-      handled: handled.length,
     },
     needsYou,
     withHermes,
     upcoming,
-    handled,
     badge: lists.badge ?? needsYou.length,
     // Needs-you items are always live; a test that reads the rest names them.
     liveItemIds: lists.liveItemIds ?? needsYou.map((item) => item.id),

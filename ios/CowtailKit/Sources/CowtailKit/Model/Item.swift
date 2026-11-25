@@ -306,7 +306,6 @@ struct ItemInbox: Equatable, Sendable {
         var needsYou: Int
         var withHermes: Int
         var upcoming: Int
-        var handled: Int
     }
 
     /// The server's totals, moved only by the owner's own optimistic writes.
@@ -315,33 +314,30 @@ struct ItemInbox: Equatable, Sendable {
     var withHermes: [Item]
     /// Snoozed items, the soonest return first.
     var upcoming: [Item]
-    var handled: [Item]
     /// The app badge, as the server counts it.
     var badge = 0
     /// The items whose delivered notification stays, as the server decides it.
     var liveItemIDs: Set<String> = []
 
-    static let empty = ItemInbox(needsYou: [], withHermes: [], handled: [])
+    static let empty = ItemInbox(needsYou: [], withHermes: [])
 
     func item(withID id: String) -> Item? {
-        (needsYou + withHermes + upcoming + handled).first { $0.id == id }
+        (needsYou + withHermes + upcoming).first { $0.id == id }
     }
 }
 
 extension ItemInbox {
     /// An inbox whose totals are its lists, as a stand-in server builds it.
-    init(needsYou: [Item], withHermes: [Item], upcoming: [Item] = [], handled: [Item]) {
+    init(needsYou: [Item], withHermes: [Item], upcoming: [Item] = []) {
         self.init(
             counts: Counts(
                 needsYou: needsYou.count,
                 withHermes: withHermes.count,
-                upcoming: upcoming.count,
-                handled: handled.count
+                upcoming: upcoming.count
             ),
             needsYou: needsYou,
             withHermes: withHermes,
-            upcoming: upcoming,
-            handled: handled
+            upcoming: upcoming
         )
     }
 }
@@ -392,11 +388,24 @@ struct ItemListQuery: Hashable, Sendable {
     var kind: ItemKind?
     var outcome: ItemOutcome?
     var search: String?
+    var range: HistoryFilter.Range?
     var from: Date?
     var to: Date?
     var alertID: String?
     var cursor: String?
     var limit = 100
+
+    /// The query for the page after `page`. The start the server resolved replaces the range,
+    /// so every page shares the first page's bounds.
+    func continuing(_ page: ItemPage) -> ItemListQuery {
+        var next = self
+        if let from = page.from {
+            next.from = from
+            next.range = nil
+        }
+        next.cursor = page.nextCursor
+        return next
+    }
 }
 
 struct ItemPage: Equatable, Sendable {
@@ -409,6 +418,8 @@ struct ItemPage: Equatable, Sendable {
     let nextCursor: String?
     /// The page's days, in page order, each counted across the whole filtered list.
     var days: [Day] = []
+    /// The lower bound the server applied, its range resolved.
+    var from: Date?
 }
 
 struct ItemStats: Equatable, Sendable {

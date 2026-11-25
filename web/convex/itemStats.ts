@@ -1,6 +1,7 @@
 import {
   itemKinds,
   itemOutcomes,
+  type ItemListRange,
   type ItemOutcome,
   type ItemStatsResponse,
 } from "@maudecode/cowtail-protocol";
@@ -12,6 +13,22 @@ import { itemOutcome } from "./itemModel";
 import { addDaysToDateOnly, dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 
 const REPEAT_OFFENDER_LIMIT = 10;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RANGE_MS: Record<ItemListRange, number> = {
+  "24h": DAY_MS,
+  "7d": 7 * DAY_MS,
+  "30d": 30 * DAY_MS,
+  "90d": 90 * DAY_MS,
+};
+
+// History's relative window, measured on the server's clock; an explicit `from` replaces it.
+export function resolveRangeStart(
+  { from, range }: { from?: number; range?: ItemListRange },
+  now: number,
+) {
+  return from ?? (range === undefined ? undefined : now - RANGE_MS[range]);
+}
 
 // Without a start, the range opens at local midnight six days before its end's day.
 export function resolveItemStatsRange(

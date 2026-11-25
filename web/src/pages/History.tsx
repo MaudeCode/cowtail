@@ -1,4 +1,10 @@
-import { itemKinds, itemOutcomes, type ItemStatsResponse } from "@maudecode/cowtail-protocol";
+import {
+  itemKinds,
+  itemListRanges,
+  itemOutcomes,
+  type ItemListRange,
+  type ItemStatsResponse,
+} from "@maudecode/cowtail-protocol";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -10,11 +16,23 @@ import { formatDuration, formatPercent, formatShortDate } from "../lib/format";
 import { outcomeColor } from "../lib/itemPresentation";
 import { itemsQuery, sourcesQuery, statsQuery, type ItemFilter } from "../lib/queries";
 
-// The filter lives in the address: ?q=&source=&kind=&outcome=&from=&to=
-const FILTER_KEYS = ["q", "source", "kind", "outcome", "from", "to"] as const;
+// The filter lives in the address: ?q=&source=&kind=&outcome=&range=&from=&to=
+const FILTER_KEYS = ["q", "source", "kind", "outcome", "range", "from", "to"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
+// History opens on the last 24 hours, which the server measures. `range=all` is all time, and
+// a From or To date replaces the range.
+const DEFAULT_RANGE: ItemListRange = "24h";
+
+function rangeOf(params: URLSearchParams): ItemListRange | undefined {
+  if (params.get("from") || params.get("to")) return undefined;
+  const range = params.get("range");
+  if (range === "all") return undefined;
+  return itemListRanges.find((key) => key === range) ?? DEFAULT_RANGE;
+}
+
 function chipText(key: FilterKey, value: string) {
+  if (key === "range") return `last ${value}`;
   if (key === "from" || key === "to")
     return `${key} ${formatShortDate(parseLocalDate(value).getTime())}`;
   if (key === "q") return `“${value}”`;
@@ -140,6 +158,12 @@ function FilterPopup({
         options={itemOutcomes}
         onChange={(v) => set("outcome", v)}
       />
+      <Picker
+        label="Range"
+        value={rangeOf(params) ?? ""}
+        options={itemListRanges}
+        onChange={(v) => set("range", v || "all")}
+      />
       <div className="grid grid-cols-2 gap-2">
         <DateField label="From" value={value("from")} onChange={(v) => set("from", v)} />
         <DateField label="To" value={value("to")} onChange={(v) => set("to", v)} />
@@ -156,8 +180,10 @@ export default function History() {
     setParams(
       (current) => {
         const next = new URLSearchParams(current);
-        if (value) next.set(key, value);
+        // The default range stays out of the address; choosing a range clears the dates.
+        if (value && !(key === "range" && value === DEFAULT_RANGE)) next.set(key, value);
         else next.delete(key);
+        if (key === "range") ["from", "to"].forEach((date) => next.delete(date));
         return next;
       },
       { replace: true },
@@ -165,11 +191,13 @@ export default function History() {
 
   const from = params.get("from");
   const to = params.get("to");
+  const range = rangeOf(params);
   const filter: ItemFilter = {
     q: params.get("q") ?? undefined,
     source: params.get("source") ?? undefined,
     kind: params.get("kind") ?? undefined,
     outcome: params.get("outcome") ?? undefined,
+    range,
     from: from ? parseLocalDate(from).getTime() : undefined,
     to: to ? parseLocalDateEnd(to).getTime() : undefined,
   };
@@ -182,7 +210,7 @@ export default function History() {
     ...new Map(pages.flatMap((page) => page.days ?? []).map((day) => [day.date, day])).values(),
   ];
   const active = FILTER_KEYS.flatMap((key) => {
-    const value = params.get(key);
+    const value = key === "range" ? range : params.get(key);
     return value ? [[key, value] as const] : [];
   });
 
@@ -228,7 +256,7 @@ export default function History() {
               type="button"
               title={`Remove ${key} filter`}
               aria-label={`Remove ${key} filter`}
-              onClick={() => set(key, "")}
+              onClick={() => set(key, key === "range" ? "all" : "")}
               className="cursor-pointer"
             >
               <Icon name="x" className="size-2.5" />

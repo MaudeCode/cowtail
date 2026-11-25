@@ -6,7 +6,6 @@ struct ItemRow: View {
         case needsYou
         case withHermes
         case upcoming
-        case handled
         case history
     }
 
@@ -64,7 +63,7 @@ struct ItemRow: View {
                 if item.occurrenceCount > 1 {
                     CowtailStatusBadge(title: "×\(item.occurrenceCount)")
                 }
-                if item.maintenanceWindowID != nil, style == .handled || style == .history {
+                if item.maintenanceWindowID != nil, style == .history {
                     Image(systemName: "wrench.adjustable")
                         .font(.system(size: 11))
                         .foregroundStyle(palette.mutedInk)
@@ -100,8 +99,6 @@ struct ItemRow: View {
             }
         case .upcoming:
             Text(item.snoozedUntil.map { ItemFormat.returnTime($0) } ?? item.state.rawValue)
-        case .handled:
-            Text([item.subtitle ?? item.sourceName, item.resolvedAt.map(ItemFormat.time)].compactMap { $0 }.joined(separator: " · "))
         case .history:
             Text(
                 [
@@ -134,7 +131,7 @@ struct ItemRow: View {
             EmptyView()
         case .upcoming:
             ItemActionButtons(item: item, isUpcoming: true)
-        case .handled, .history:
+        case .history:
             if let outcome = item.outcome {
                 CowtailStatusBadge(title: outcome.label, tint: outcome.tint(palette))
             } else {

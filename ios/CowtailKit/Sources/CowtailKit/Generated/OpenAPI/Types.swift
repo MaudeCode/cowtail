@@ -78,7 +78,7 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /me/snooze-options`.
     /// - Remark: Generated from `#/paths//me/snooze-options/get(getSnoozeOptions)`.
     func getSnoozeOptions(_ input: Operations.GetSnoozeOptions.Input) async throws -> Operations.GetSnoozeOptions.Output
-    /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
+    /// The owner's inbox: needs you, with Hermes, and upcoming
     ///
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.
@@ -349,7 +349,7 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
+    /// The owner's inbox: needs you, with Hermes, and upcoming
     ///
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.

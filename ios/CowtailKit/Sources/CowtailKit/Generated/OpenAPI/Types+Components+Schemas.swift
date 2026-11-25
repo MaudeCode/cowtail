@@ -2324,6 +2324,8 @@ extension Components {
             internal var items: [Components.Schemas.ItemRecord]
             /// - Remark: Generated from `#/components/schemas/ItemListResponse/nextCursor`.
             internal var nextCursor: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemListResponse/from`.
+            internal var from: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/ItemListResponse/DaysPayload`.
             internal struct DaysPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/ItemListResponse/DaysPayload/date`.
@@ -2358,18 +2360,21 @@ extension Components {
             ///   - count:
             ///   - items:
             ///   - nextCursor:
+            ///   - from:
             ///   - days:
             internal init(
                 ok: Swift.Bool,
                 count: Swift.Int,
                 items: [Components.Schemas.ItemRecord],
                 nextCursor: Swift.String? = nil,
+                from: Swift.Int? = nil,
                 days: Components.Schemas.ItemListResponse.DaysPayload? = nil
             ) {
                 self.ok = ok
                 self.count = count
                 self.items = items
                 self.nextCursor = nextCursor
+                self.from = from
                 self.days = days
             }
             internal enum CodingKeys: String, CodingKey {
@@ -2377,6 +2382,7 @@ extension Components {
                 case count
                 case items
                 case nextCursor
+                case from
                 case days
             }
         }
@@ -2447,31 +2453,25 @@ extension Components {
                 internal var withHermes: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/upcoming`.
                 internal var upcoming: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts/handled`.
-                internal var handled: Swift.Int
                 /// Creates a new `CountsPayload`.
                 ///
                 /// - Parameters:
                 ///   - needsYou:
                 ///   - withHermes:
                 ///   - upcoming:
-                ///   - handled:
                 internal init(
                     needsYou: Swift.Int,
                     withHermes: Swift.Int,
-                    upcoming: Swift.Int? = nil,
-                    handled: Swift.Int
+                    upcoming: Swift.Int? = nil
                 ) {
                     self.needsYou = needsYou
                     self.withHermes = withHermes
                     self.upcoming = upcoming
-                    self.handled = handled
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case needsYou
                     case withHermes
                     case upcoming
-                    case handled
                 }
             }
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/counts`.
@@ -2482,8 +2482,6 @@ extension Components {
             internal var withHermes: [Components.Schemas.ItemRecord]
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/upcoming`.
             internal var upcoming: [Components.Schemas.ItemRecord]?
-            /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/handled`.
-            internal var handled: [Components.Schemas.ItemRecord]
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/badge`.
             internal var badge: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/liveItemIds`.
@@ -2496,7 +2494,6 @@ extension Components {
             ///   - needsYou:
             ///   - withHermes:
             ///   - upcoming:
-            ///   - handled:
             ///   - badge:
             ///   - liveItemIds:
             internal init(
@@ -2505,7 +2502,6 @@ extension Components {
                 needsYou: [Components.Schemas.ItemRecord],
                 withHermes: [Components.Schemas.ItemRecord],
                 upcoming: [Components.Schemas.ItemRecord]? = nil,
-                handled: [Components.Schemas.ItemRecord],
                 badge: Swift.Int,
                 liveItemIds: [Swift.String]
             ) {
@@ -2514,7 +2510,6 @@ extension Components {
                 self.needsYou = needsYou
                 self.withHermes = withHermes
                 self.upcoming = upcoming
-                self.handled = handled
                 self.badge = badge
                 self.liveItemIds = liveItemIds
             }
@@ -2524,7 +2519,6 @@ extension Components {
                 case needsYou
                 case withHermes
                 case upcoming
-                case handled
                 case badge
                 case liveItemIds
             }

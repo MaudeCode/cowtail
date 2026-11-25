@@ -1472,6 +1472,13 @@ internal struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "range",
+                    value: input.query.range
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "from",
                     value: input.query.from
                 )
@@ -1737,7 +1744,7 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
+    /// The owner's inbox: needs you, with Hermes, and upcoming
     ///
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.
@@ -1963,6 +1970,13 @@ internal struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "range",
+                    value: input.query.range
+                )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,

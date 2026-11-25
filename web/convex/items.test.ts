@@ -3,6 +3,7 @@ import {
   itemGetResponseSchema,
   itemInboxResponseSchema,
   itemListResponseSchema,
+  itemStatsResponseSchema,
   itemResponseSchema,
   itemSourcesResponseSchema,
   snoozeOptionsResponseSchema,
@@ -514,6 +515,34 @@ describe("item list", () => {
     expect(all.map((item) => item.createdAt)).toEqual([NOW, NOW - 86_400_000]);
   });
 
+  test("a range lists what was created within it on the server's clock and names its start", async () => {
+    const t = await newBackendWithSources("cron");
+    const day = 24 * 60 * 60 * 1000;
+    await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Two days old",
+    });
+    vi.advanceTimersByTime(2 * day);
+    const fresh = await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Today",
+    });
+    const read = async (path: string) => (await request(t, path, { bearer: SERVICE })).json;
+
+    const page = itemListResponseSchema.parse(await read("/api/items?range=24h"));
+    const stats = itemStatsResponseSchema.parse(await read("/api/items/stats?range=24h"));
+
+    expect(page.items.map((item) => item.id)).toEqual([fresh.id]);
+    // The clock moved two days past NOW, so the last 24 hours start one day past it.
+    expect([page.from, stats.from]).toEqual([NOW + day, NOW + day]);
+    expect((await request(t, "/api/items?range=1y", { bearer: SERVICE })).status).toBe(400);
+    expect((await request(t, "/api/items/stats?range=1y", { bearer: SERVICE })).status).toBe(400);
+  });
+
   test("a page reads at most limit items and nextCursor continues it", async () => {
     const t = await newBackendWithSources("cron");
     for (const title of ["first", "second", "third"]) {
@@ -539,7 +568,7 @@ describe("item list", () => {
 });
 
 describe("inbox", () => {
-  test("splits open items by whether they need the owner, lists snoozed items soonest first and the day's resolved", async () => {
+  test("splits open items by whether they need the owner, lists snoozed items soonest first and leaves out what was handled", async () => {
     const t = await newBackendWithSources("cron");
     const bearer = await seedSession(t, OWNER);
     const resolve = (id: string) =>
@@ -551,9 +580,6 @@ describe("inbox", () => {
     const item = (title: string, kind: string, urgency = "today") =>
       createItem(t, { source: "hermes", kind, urgency, title });
 
-    const yesterday = await item("Resolved yesterday", "fyi");
-    await resolve(yesterday.id);
-    vi.advanceTimersByTime(25 * 60 * 60 * 1000);
     const approval = await item("Restart ingress in edge?", "approval");
     const working = await item("Nightly backup verify failed", "failure");
     const acked = await item("Disk at 90%", "failure", "now");
@@ -584,15 +610,18 @@ describe("inbox", () => {
     const response = await request(t, "/api/items/inbox", { bearer });
 
     expect(response.status).toBe(200);
+    // Live work only: the item resolved today is in History, not here.
+    expect(Object.keys(response.json as object).toSorted()).toEqual(
+      ["ok", "counts", "needsYou", "withHermes", "upcoming", "badge", "liveItemIds"].toSorted(),
+    );
     const inbox = itemInboxResponseSchema.parse(response.json);
-    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, upcoming: 2, handled: 1 });
+    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, upcoming: 2 });
     const ids = (items: { id: string }[] = []) => items.map((entry) => entry.id);
-    expect([
-      ids(inbox.needsYou),
-      ids(inbox.withHermes),
-      ids(inbox.upcoming),
-      ids(inbox.handled),
-    ]).toEqual([[approval.id], [acked.id, working.id], [reminder.id, monday.id], [today.id]]);
+    expect([ids(inbox.needsYou), ids(inbox.withHermes), ids(inbox.upcoming)]).toEqual([
+      [approval.id],
+      [acked.id, working.id],
+      [reminder.id, monday.id],
+    ]);
     // The badge counts what needs the owner; every open item keeps its notification, the
     // `today` failure that does not need the owner included.
     expect(inbox.badge).toBe(1);

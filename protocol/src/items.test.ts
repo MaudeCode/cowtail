@@ -87,10 +87,9 @@ describe("the inbox", () => {
   test("carries the badge and the live item ids the app applies to its notifications", () => {
     const inbox = {
       ok: true,
-      counts: { needsYou: 0, withHermes: 0, handled: 0 },
+      counts: { needsYou: 0, withHermes: 0 },
       needsYou: [],
       withHermes: [],
-      handled: [],
     };
     expect(itemInboxResponseSchema.safeParse(inbox).success).toBe(false);
     expect(
@@ -99,6 +98,21 @@ describe("the inbox", () => {
     expect(
       itemInboxResponseSchema.safeParse({ ...inbox, badge: -1, liveItemIds: [] }).success,
     ).toBe(false);
+  });
+
+  test("holds only live work, with no handled list or count", () => {
+    const parsed = itemInboxResponseSchema.parse({
+      ok: true,
+      counts: { needsYou: 0, withHermes: 0, upcoming: 0, handled: 1 },
+      needsYou: [],
+      withHermes: [],
+      upcoming: [],
+      handled: [],
+      badge: 0,
+      liveItemIds: [],
+    });
+    expect(parsed).not.toHaveProperty("handled");
+    expect(parsed.counts).not.toHaveProperty("handled");
   });
 });
 

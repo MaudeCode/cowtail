@@ -326,13 +326,11 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
                     needsYou: inbox.counts.needsYou,
                     withHermes: inbox.counts.withHermes,
                     // Absent from a server that predates Upcoming.
-                    upcoming: inbox.counts.upcoming ?? 0,
-                    handled: inbox.counts.handled
+                    upcoming: inbox.counts.upcoming ?? 0
                 ),
                 needsYou: inbox.needsYou.map(Self.makeItem),
                 withHermes: inbox.withHermes.map(Self.makeItem),
                 upcoming: (inbox.upcoming ?? []).map(Self.makeItem),
-                handled: inbox.handled.map(Self.makeItem),
                 badge: inbox.badge,
                 liveItemIDs: Set(inbox.liveItemIds)
             )
@@ -352,6 +350,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             outcome: query.outcome.flatMap { .init(rawValue: $0.rawValue) },
             alertId: query.alertID,
             q: query.search,
+            range: query.range.flatMap { .init(rawValue: $0.rawValue) },
             from: query.from.map(Self.milliseconds),
             to: query.to.map(Self.milliseconds),
             limit: query.limit,
@@ -363,7 +362,8 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             return ItemPage(
                 items: page.items.map(Self.makeItem),
                 nextCursor: page.nextCursor,
-                days: (page.days ?? []).map { ItemPage.Day(date: $0.date, count: $0.count) }
+                days: (page.days ?? []).map { ItemPage.Day(date: $0.date, count: $0.count) },
+                from: page.from.map(Self.date)
             )
         case .badRequest(let response):
             throw CowtailAPIError.requestFailed(try response.body.json.error)
@@ -420,6 +420,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
 
     func fetchItemStats(_ scope: ItemListQuery, sessionToken: String) async throws -> ItemStats {
         let query = Operations.GetItemStats.Input.Query(
+            range: scope.range.flatMap { .init(rawValue: $0.rawValue) },
             from: scope.from.map(Self.milliseconds),
             to: scope.to.map(Self.milliseconds),
             source: scope.source,

@@ -32,11 +32,10 @@ final class IncidentFlowTests: XCTestCase {
     }
 
     func testAResolvedIncidentShowsHermessPostmortem() {
-        let app = launchIncidents()
+        let app = AppLaunching.configuredApp(scenario: "inbox_incidents", startTab: "history")
+        app.launch()
 
-        let row = app.element("row.incident.incident-media")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.tap()
+        app.openFromHistory("row.incident.incident-media", searching: "OOMKilled")
 
         let postmortem = app.element("text.incident.postmortem")
         XCTAssertTrue(postmortem.waitForExistence(timeout: 10))

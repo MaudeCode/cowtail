@@ -42,7 +42,6 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
     func fetchInbox(sessionToken _: String) async throws -> ItemInbox {
         try requireItems()
         let byUpdate = seed.items.sorted { $0.updatedAt > $1.updatedAt }
-        let dayAgo = Date.now.addingTimeInterval(-24 * 60 * 60)
         // Like the server, an incident is one row, in the first section one of its members is in.
         var seen: Set<String> = []
         let oncePerIncident = { (items: [Item]) in
@@ -55,19 +54,20 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
                 .filter { $0.state == .snoozed }
                 .sorted { ($0.snoozedUntil ?? .distantFuture) < ($1.snoozedUntil ?? .distantFuture) }
         )
-        let handled = oncePerIncident(byUpdate.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) >= dayAgo })
-        return ItemInbox(needsYou: needsYou, withHermes: withHermes, upcoming: upcoming, handled: handled)
+        return ItemInbox(needsYou: needsYou, withHermes: withHermes, upcoming: upcoming)
     }
 
     func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {
         try requireItems()
+        // Like the server, a range is a window ending now on this stand-in's clock.
+        let from = query.from ?? query.range.map { Date.now.addingTimeInterval(-Self.duration(of: $0)) }
         let items = seed.items
             .filter { item in
                 (query.source == nil || item.source == query.source)
                     && (query.kind == nil || item.kind == query.kind)
                     && (query.outcome == nil || item.outcome == query.outcome)
                     && (query.alertID == nil || item.alertID == query.alertID)
-                    && (query.from == nil || item.createdAt >= query.from!)
+                    && (from == nil || item.createdAt >= from!)
                     && (query.search == nil || item.title.localizedCaseInsensitiveContains(query.search!))
             }
             .sorted { $0.createdAt > $1.createdAt }
@@ -86,7 +86,17 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
             let date = item.createdDate ?? ""
             days.append(ItemPage.Day(date: date, count: items.count { $0.createdDate == date }))
         }
-        return ItemPage(items: items, nextCursor: nil, days: days)
+        return ItemPage(items: items, nextCursor: nil, days: days, from: from)
+    }
+
+    private static func duration(of range: HistoryFilter.Range) -> TimeInterval {
+        let day: TimeInterval = 24 * 60 * 60
+        switch range {
+        case .day: return day
+        case .week: return 7 * day
+        case .month: return 30 * day
+        case .quarter: return 90 * day
+        }
     }
 
     private static func day(_ date: Date) -> String {
