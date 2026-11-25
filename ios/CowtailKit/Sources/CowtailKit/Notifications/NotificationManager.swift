@@ -776,7 +776,7 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 }
 
-extension NotificationManager: UNUserNotificationCenterDelegate {
+extension NotificationManager: @MainActor UNUserNotificationCenterDelegate {
     nonisolated private static func notificationOpenPayload(from response: UNNotificationResponse) -> NotificationOpenPayload {
         let userInfo = response.notification.request.content.userInfo
 
@@ -800,17 +800,17 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         }
     }
 
-    nonisolated func userNotificationCenter(
+    /// Main-actor isolated: iOS asserts that the completion handler the compiler's Objective-C
+    /// thunk calls runs on the main thread, and the thunk calls it where the body finished.
+    func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        await MainActor.run {
-            NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)
-        }
+        NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)
         return [.banner, .badge, .sound]
     }
 
-    nonisolated func userNotificationCenter(
+    func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
@@ -825,7 +825,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         if let action = ItemNotifications.Action(rawValue: response.actionIdentifier),
            let request,
            let itemID = payload.userInfo["itemId"] {
-            await NotificationManager.shared.answer(
+            await answer(
                 action,
                 request: request,
                 authenticated: request.isApproval
@@ -835,15 +835,11 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 itemTitle: payload.title,
                 threadIdentifier: content.threadIdentifier
             )
-            await MainActor.run {
-                NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)
-            }
+            NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)
             return
         }
 
-        await MainActor.run {
-            NotificationManager.shared.didOpenNotification(payload)
-        }
+        didOpenNotification(payload)
     }
 }
 
