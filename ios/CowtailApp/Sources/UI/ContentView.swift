@@ -17,6 +17,12 @@ struct RootView: View {
                 NotificationStepView { asksForNotifications = false }
             } else {
                 ContentView()
+                    .background {
+                        TextInputServicesWarmupView()
+                            .frame(width: 0, height: 0)
+                            .accessibilityHidden(true)
+                            .allowsHitTesting(false)
+                    }
             }
         }
         .onChange(of: appSessionManager.isSignedIn) { _, isSignedIn in
@@ -84,12 +90,6 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .cowtailPushReceived)) { _ in
             Task { await store.refresh() }
-        }
-        .background {
-            TextInputServicesWarmupView()
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
-                .allowsHitTesting(false)
         }
     }
 
