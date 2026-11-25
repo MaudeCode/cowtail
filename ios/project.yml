@@ -64,6 +64,11 @@ targets:
     sources:
       - path: CowtailApp/Sources
       - path: CowtailApp/Resources
+      # The app's logic, which the CowtailKit package also builds and tests on macOS. The app compiles the same
+      # sources into its own module, so they need no public API.
+      - path: CowtailKit/Sources/CowtailKit
+        excludes:
+          - NotificationService
     dependencies:
       - target: CowtailNotificationService
       - package: SwiftOpenAPIRuntime
@@ -122,6 +127,7 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
     sources:
       - path: CowtailNotificationService
+      - path: CowtailKit/Sources/CowtailKit/NotificationService
     settings:
       base:
         PRODUCT_NAME: CowtailNotificationService
@@ -139,10 +145,9 @@ targets:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "26.0"
+    # Only the tests that need the app host; the rest run in the CowtailKit package on macOS.
     sources:
       - path: CowtailTests
-      # The extension's push logic, tested without the network or a notification center.
-      - path: CowtailNotificationService/SourceNotificationContent.swift
     dependencies:
       - target: Cowtail
     settings:

@@ -106,8 +106,8 @@ struct RoundupView: View {
         formatter.timeStyle = .none
 
         guard
-            let fromDate = Self.date(from: roundupRoute.from, in: timeZone),
-            let toDate = Self.date(from: roundupRoute.to, in: timeZone)
+            let fromDate = RoundupRoute.noon(of: roundupRoute.from, in: timeZone),
+            let toDate = RoundupRoute.noon(of: roundupRoute.to, in: timeZone)
         else {
             return "\(roundupRoute.from) – \(roundupRoute.to)"
         }
@@ -124,78 +124,15 @@ struct RoundupView: View {
             isLoading = false
         }
 
-        guard
-            let fromDate = Self.startOfDay(for: roundupRoute.from, in: timeZone),
-            let toDate = Self.endOfDay(for: roundupRoute.to, in: timeZone)
-        else {
-            errorMessage = CowtailCopy.roundupInvalidRangeMessage
-            return
-        }
-
-        if fromDate > toDate {
-            errorMessage = CowtailCopy.roundupInvalidRangeMessage
-            return
-        }
-
-        do {
-            async let alertsTask = roundupDataClient.fetchRoundupAlerts(from: fromDate, to: toDate)
-            async let fixesTask = roundupDataClient.fetchRoundupFixes(from: fromDate, to: toDate)
-            let fetchedAlerts = try await alertsTask
-            alerts = fetchedAlerts
-            fixes = try await fixesTask
-        } catch {
+        switch await roundupDataClient.loadRoundup(roundupRoute, in: timeZone) {
+        case let .loaded(alerts, fixes):
+            self.alerts = alerts
+            self.fixes = fixes
+        case let .failed(message):
             alerts = []
             fixes = []
-            errorMessage = error.localizedDescription
+            errorMessage = message
         }
-    }
-
-    private static func date(from dateOnly: String, in timeZone: TimeZone) -> Date? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-
-        let components = dateOnly.split(separator: "-").map(String.init)
-        guard components.count == 3,
-              let year = Int(components[0]),
-              let month = Int(components[1]),
-              let day = Int(components[2]) else {
-            return nil
-        }
-
-        return calendar.date(from: DateComponents(
-            timeZone: timeZone,
-            year: year,
-            month: month,
-            day: day,
-            hour: 12,
-            minute: 0,
-            second: 0
-        ))
-    }
-
-    private static func startOfDay(for dateOnly: String, in timeZone: TimeZone) -> Date? {
-        guard let midpoint = date(from: dateOnly, in: timeZone) else {
-            return nil
-        }
-
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        return calendar.startOfDay(for: midpoint)
-    }
-
-    private static func endOfDay(for dateOnly: String, in timeZone: TimeZone) -> Date? {
-        guard let startOfDay = startOfDay(for: dateOnly, in: timeZone) else {
-            return nil
-        }
-
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-
-        guard let nextDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return nil
-        }
-
-        return nextDay.addingTimeInterval(-1)
     }
 }
 

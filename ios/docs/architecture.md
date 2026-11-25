@@ -3,7 +3,7 @@
 ## Current Cowtail endpoints
 The native app consumes deployment-specific endpoint values from `Config/project.env` during project generation.
 
-Runtime lookup is centralized in `CowtailApp/Sources/App/AppConfig.swift`.
+Runtime lookup is centralized in `CowtailKit/Sources/CowtailKit/App/AppConfig.swift`.
 
 ## Native app shape
 The iPhone app should stay thin and sit on top of the existing Cowtail backend and data model, not replace it.

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { matchesGlob, resolve } from "node:path";
 
 import suites from "@maudecode/ci/lib/suites.js";
 import { describe, expect, test } from "vitest";
@@ -29,11 +29,42 @@ describe(".github/ci-suites.json", () => {
 
   // The global suite runs the test-rules scan, so every scanned test file must reach it.
   test("an iOS test change runs the global suite's test-rules scan", () => {
-    expect(selected("ios/CowtailTests/Shared/InboxRefreshBehaviorTests.swift")).toEqual([
+    expect(selected("ios/CowtailKit/Tests/CowtailKitTests/App/CowtailStoreTests.swift")).toEqual([
       "global",
       "ios",
     ]);
     expect(selected("ios/CowtailUITests/Support/AppLaunching.swift")).toEqual(["global", "ios"]);
+  });
+
+  // ios-sim boots a simulator, about 7 minutes on a hosted Mac, for the tests that need the app host. Its rule is
+  // the one list of what those tests cover; this reads that rule rather than a copy of it.
+  describe("ios-sim", () => {
+    const rule = config.rules.find((candidate: { paths: string[] }) =>
+      candidate.paths.includes("ios/CowtailTests/**"),
+    );
+    const tracked = execFileSync("git", ["ls-files", "-z", "ios"], { cwd: root, encoding: "utf8" })
+      .split("\0")
+      .filter(Boolean);
+
+    test("every path its rule lists runs ios-sim, and the rest of a change still runs ios", () => {
+      for (const glob of rule.paths) {
+        const covered = tracked.filter((path) => matchesGlob(path, glob));
+        expect(covered, `${glob} matches no tracked file`).not.toEqual([]);
+        for (const path of covered)
+          expect(selected(path), path).toEqual(["global", "ios", "ios-sim"]);
+      }
+    });
+
+    test("every app-hosted test is in its rule", () => {
+      for (const path of tracked.filter((candidate) => candidate.startsWith("ios/CowtailTests/"))) {
+        expect(selected(path), path).toContain("ios-sim");
+      }
+    });
+
+    test("a package or view change runs ios without a simulator", () => {
+      expect(selected("ios/CowtailKit/Sources/CowtailKit/App/CowtailStore.swift")).toEqual(["ios"]);
+      expect(selected("ios/CowtailApp/Sources/UI/Items/InboxView.swift")).toEqual(["ios"]);
+    });
   });
 
   // This file's own test is in the global suite; a routing change builds no app.

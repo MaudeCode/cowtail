@@ -1,7 +1,15 @@
 {
   "extends": "@maudecode/ci/rules/test-rules.base.json",
   "root": "../..",
-  "roots": ["web", "cli/tests", "protocol/src", "script", "ios/CowtailTests", "ios/CowtailUITests"],
+  "roots": [
+    "web",
+    "cli/tests",
+    "protocol/src",
+    "script",
+    "ios/CowtailKit/Tests",
+    "ios/CowtailTests",
+    "ios/CowtailUITests"
+  ],
   "filePattern": "(?:\\.test\\.tsx?|/(?:tests?|\\w+Tests)/.+\\.(?:tsx?|swift)|(?:^|/)vitest\\.config\\.ts)$",
   "excludeFilePattern": "/node_modules/|^web/dist/",
   "baseline": "script/ci/test-rules-baseline.json"

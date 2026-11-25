@@ -1,6 +1,8 @@
 name: iOS Verify
 
-# Called by ci.yml when a change reaches the ios suite, and by the release.
+# Called by ci.yml when a change reaches the ios suite, and by the release. Nothing here boots a simulator: the
+# logic's tests run in the CowtailKit package on macOS, and the app is only built. ios-sim-verify.yml runs the tests
+# that need the app host.
 on:
   workflow_call:
     inputs:
@@ -38,7 +40,7 @@ jobs:
           path: |
             ~/Library/Caches/org.swift.swiftpm
             ios/OpenAPITools/.build
-          key: swiftpm-${{ runner.os }}-${{ hashFiles('ios/OpenAPITools/Package.resolved', 'ios/project.yml') }}
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('ios/OpenAPITools/Package.resolved', 'ios/CowtailKit/Package.resolved', 'ios/project.yml') }}
 
       - name: Write iOS verify project env
         run: install -m 600 ios/Config/project.env.example ios/Config/project.env
@@ -55,16 +57,22 @@ jobs:
         working-directory: ios
         run: scripts/test-check-ios26-imports.sh
 
-      # Unit tests only: a UI test launches the app, 15 to 27 s each on a hosted runner. UI tests
-      # run locally with `pnpm run test:ios:ui`.
-      - name: Run iOS Unit Tests
-        working-directory: ios
-        run: scripts/test.sh CowtailTests
+      - name: Run the CowtailKit tests on macOS
+        working-directory: ios/CowtailKit
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee "${RUNNER_TEMP}/ios-package-tests.log"
 
       - name: Check iOS test run times
+        run: pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/ios-package-tests.log"
+
+      # Compiles the app and its extension for the simulator; nothing is installed or booted.
+      - name: Build the app for the iOS simulator
+        working-directory: ios
         run: |
-          xcrun xcresulttool get test-results tests --path ios/build/TestResults.xcresult > "${RUNNER_TEMP}/ios-tests.json"
-          pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/ios-tests.json"
+          ./generate.sh
+          xcodebuild build -project Cowtail.xcodeproj -scheme Cowtail -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' ARCHS=arm64
 
       # The hosted image has no iOS 26 simulator, so this static check is CI's proof the app still launches on iOS 26.
       - name: Check the app has no strong iOS 27-only imports
@@ -75,11 +83,11 @@ jobs:
             | .TARGET_BUILD_DIR + "/" + .WRAPPER_NAME')"
           scripts/check-ios26-imports.sh "${app}"
 
-      # The test script regenerates the OpenAPI sources with the pinned generator. A diff here means the protocol or
+      # generate.sh regenerates the OpenAPI sources with the pinned generator. A diff here means the protocol or
       # the generator pin changed without the regenerated sources being committed.
       - name: Check the generated OpenAPI sources are committed
         run: |
-          changed="$(git status --porcelain -- ios/CowtailApp/Sources/Generated ios/OpenAPITools)"
+          changed="$(git status --porcelain -- ios/CowtailKit/Sources/CowtailKit/Generated ios/OpenAPITools)"
           if [ -n "$changed" ]; then
             echo "$changed"
             echo "::error::Run 'cd ios && ./generate.sh' and commit the result."

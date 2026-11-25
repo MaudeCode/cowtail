@@ -43,7 +43,7 @@ xcrun --sdk macosx swift package \
   --target CowtailGeneratedAPI
 
 GENERATED_SOURCE_DIR="${REPO_ROOT}/ios/OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources"
-APP_GENERATED_DIR="${REPO_ROOT}/ios/CowtailApp/Sources/Generated/OpenAPI"
+APP_GENERATED_DIR="${REPO_ROOT}/ios/CowtailKit/Sources/CowtailKit/Generated/OpenAPI"
 
 mkdir -p "${APP_GENERATED_DIR}"
 find "${APP_GENERATED_DIR}" -type f -name '*.swift' -delete

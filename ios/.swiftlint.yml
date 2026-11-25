@@ -1,6 +1,7 @@
 excluded:
   - .build
-  - CowtailApp/Sources/Generated
+  - CowtailKit/.build
+  - CowtailKit/Sources/CowtailKit/Generated
   - OpenAPITools/.build
   - OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources
 

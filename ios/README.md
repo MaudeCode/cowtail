@@ -20,7 +20,7 @@ Use:
 - `Config/project.env.example` as the template
 - `Config/project.env` for your real local values
 
-The generated app reads those values through the project definition and `Info.plist`. Runtime access is centralized in `CowtailApp/Sources/App/AppConfig.swift`.
+The generated app reads those values through the project definition and `Info.plist`. Runtime access is centralized in `CowtailKit/Sources/CowtailKit/App/AppConfig.swift`.
 
 ## Generate the project
 Install the workspace dependencies once from the repository root with `pnpm install`; the OpenAPI generator runs on Node.
@@ -36,7 +36,17 @@ The project generation step also refreshes `OpenAPITools/Sources/CowtailGenerate
 When building in Xcode, a pre-build script refreshes the OpenAPI spec from the shared protocol package and then regenerates Swift client/types into `OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources` automatically.
 
 ## Tests
-Run the unit and UI suites on the `iPhone 17` simulator, the device CI tests on:
+The app's logic and its tests live in the `CowtailKit` package, which builds and tests on macOS with no simulator:
+
+```bash
+cd ios/CowtailKit
+swift test
+```
+
+The app compiles the package's sources into its own module, so they need no public API. Put new logic there.
+
+`CowtailTests` holds only the tests that need the installed app, and `CowtailUITests` the UI tests. Both run on the
+`iPhone 17` simulator, the device CI tests on:
 
 ```bash
 cd ios
@@ -47,8 +57,9 @@ scripts/test.sh CowtailTests CowtailUITests
 `COWTAIL_IOS_TEST_DESTINATION` to an `xcodebuild -destination` value to test on another simulator.
 
 The UI test suite launches the app in deterministic test mode using seeded scenarios.
-It should pass on repeated runs without manually resetting the simulator. CI runs the unit tests
-only; run the UI tests locally before publishing a change to a flow they cover.
+It should pass on repeated runs without manually resetting the simulator. CI runs the package tests on every iOS
+change and `CowtailTests` only when a path they cover changes; run the UI tests locally before publishing a change to
+a flow they cover.
 
 See:
 - `docs/apple-setup.md`
