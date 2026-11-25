@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// The Inbox tab.
 struct InboxView: View {
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette

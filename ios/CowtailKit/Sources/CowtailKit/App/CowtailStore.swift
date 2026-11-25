@@ -36,7 +36,7 @@ private func fetchHealthSummaryWithRetry(
     }
 }
 
-/// The History tab's filter. Everything but `search` shows as a removable chip.
+/// The History tab's filter. Everything but `search` shows as a removable chip on the History screen.
 struct HistoryFilter: Hashable, Sendable {
     enum Range: Int, CaseIterable, Identifiable, Sendable {
         case day = 1
