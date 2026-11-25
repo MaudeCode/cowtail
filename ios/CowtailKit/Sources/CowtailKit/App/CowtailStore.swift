@@ -106,6 +106,9 @@ final class CowtailStore: ObservableObject {
         let request: ItemActionRequest
     }
     @Published private(set) var alertActionsInFlight: Set<String> = []
+    /// Each item with an action sent and not yet answered, as the action shows it. Every read of
+    /// History or an incident shows it over the server's copy, so a poll cannot undo it.
+    private var itemsInFlight: [String: Item] = [:]
 
     /// The running maintenance windows, the soonest end first.
     @Published private(set) var maintenanceWindows: [MaintenanceWindow] = []
@@ -389,7 +392,7 @@ final class CowtailStore: ObservableObject {
             if let detail = read {
                 // The read says whether each change whose reply was lost landed.
                 pendingIncidentChanges[id]?.removeAll(where: \.unconfirmed)
-                confirm(detail, incidentID: id)
+                confirm(overlaid(detail), incidentID: id)
                 incidentErrors[id] = nil
             } else {
                 incidentErrors[id] = "This incident could not be found."
@@ -528,7 +531,10 @@ final class CowtailStore: ObservableObject {
 
         do {
             // A failed reply ends the write's claim on later reads too.
-            defer { pendingSnoozes.removeAll { $0.id == pending.id } }
+            defer {
+                pendingSnoozes.removeAll { $0.id == pending.id }
+                itemsInFlight[item.id] = nil
+            }
             let updated = try await api.performItemAction(
                 itemID: item.id,
                 request: request,
@@ -593,7 +599,19 @@ final class CowtailStore: ObservableObject {
         inbox = inbox?.showing(request, on: item)
         let shown = ItemInbox.item(item, showing: request)
         details[item.id]?.item = shown
+        itemsInFlight[item.id] = shown
         showEverywhere(shown)
+    }
+
+    /// The server's copy, or the item as an action still on its way shows it.
+    private func overlaid(_ item: Item) -> Item {
+        itemsInFlight[item.id] ?? item
+    }
+
+    private func overlaid(_ detail: IncidentDetail) -> IncidentDetail {
+        var shown = detail
+        shown.members = detail.members.map(overlaid)
+        return shown
     }
 
     /// One list's copy of an item: History's when `incidentID` is nil, else that incident's member.
@@ -617,8 +635,6 @@ final class CowtailStore: ObservableObject {
             if let id = copy.incidentID {
                 guard let index = confirmedIncidents[id]?.members.firstIndex(where: { $0.id == copy.item.id }) else { continue }
                 confirmedIncidents[id]?.members[index] = copy.item
-                // A read that started before this is older than what the write shows.
-                incidentWriteGenerations[id, default: 0] += 1
                 confirm(nil, incidentID: id)
             } else if let index = historyItems.firstIndex(where: { $0.id == copy.item.id }) {
                 historyItems[index] = copy.item
@@ -800,7 +816,7 @@ final class CowtailStore: ObservableObject {
             guard filter == historyFilter else { return }
             historySources = loadedSources
             historyQuery = query.continuing(loadedPage)
-            historyItems = loadedPage.items
+            historyItems = loadedPage.items.map(overlaid)
             historyDayCounts = Self.dayCounts(loadedPage.days)
             historyCursor = loadedPage.nextCursor
             historyStats = loadedStats
@@ -824,7 +840,7 @@ final class CowtailStore: ObservableObject {
         do {
             let page = try await fetchHistoryPage(query, sessionToken: token)
             guard filter == historyFilter else { return }
-            historyItems += page.items
+            historyItems += page.items.map(overlaid)
             historyDayCounts.merge(Self.dayCounts(page.days)) { _, newer in newer }
             historyCursor = page.nextCursor
         } catch {

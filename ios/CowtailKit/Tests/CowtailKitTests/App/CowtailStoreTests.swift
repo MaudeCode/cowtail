@@ -629,6 +629,9 @@ final class CowtailStoreTests: XCTestCase {
         await api.waitUntilHeld()
         XCTAssertEqual(store.historyItems.first?.state, .acked)
         XCTAssertEqual(store.historyItems.first?.availableActions, [.snooze])
+        // A poll while the action is on its way keeps it shown.
+        await store.loadHistory(HistoryFilter())
+        XCTAssertEqual(store.historyItems.first?.state, .acked)
         await api.releaseHeld(with: CowtailAPIError.refused("The item is closed"))
         await ack.value
 
@@ -662,6 +665,9 @@ final class CowtailStoreTests: XCTestCase {
 
         let snoozing = Task { await store.perform(.snooze(until: Date(timeIntervalSince1970: 1_800_003_600)), on: member) }
         await api.waitUntilHeld()
+        XCTAssertEqual(store.incidents["incident-1"]?.members.first?.state, .snoozed)
+        // A poll while the action is on its way keeps it shown.
+        await store.loadIncident(id: "incident-1")
         XCTAssertEqual(store.incidents["incident-1"]?.members.first?.state, .snoozed)
         await api.releaseHeld(with: CowtailAPIError.refused("The item is closed"))
         await snoozing.value
