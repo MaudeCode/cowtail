@@ -154,7 +154,7 @@ Releases are tag-last: the release workflow is dispatched with a version, publis
   - every job reads the commit from preflight's `sha` output and the version from its `tag` or `version` output, never from `github.ref_name` or the inputs; the reusable workflows take them as `ref` and `version`
   - builds the image from [`web/Dockerfile`](./web/Dockerfile) with the repo root as context, labelled with the commit as `org.opencontainers.image.revision`
   - builds the CLI npm package from [`cli/`](./cli)
-  - builds the iOS app with the commit time as its build number, so every build of a commit has the same number
+  - builds the iOS app with the build number the shared `ios-build-number` action reads from App Store Connect: builds are numbered per marketing version, and a re-run for the same version and commit reuses the number it already uploaded
   - publishes the iOS app to TestFlight, the npm package, and the multi-architecture container images
   - deploys Convex from [`web/`](./web) after those publish
   - last, `publish-github-release` creates the tag with the shared `release-tag` action and then the GitHub Release with the CLI npm package attached
