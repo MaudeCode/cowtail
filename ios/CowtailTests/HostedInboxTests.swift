@@ -36,27 +36,38 @@ final class HostedInboxTests: XCTestCase {
     }
 
     func testAcknowledgeMovesAlertToHermes() async throws {
-        let store = UITestScenario.fixtureStore(.inboxPopulated)
-        await store.refresh()
-        let alert = try XCTUnwrap(store.inbox?.needsYou.first { $0.id == "alert-crashloop" })
-        await store.perform(.ack, on: alert)
-        XCTAssertTrue(store.inbox?.withHermes.contains { $0.id == alert.id } == true)
+        try await assertAction(.ack, itemID: "alert-crashloop", startsIn: \.needsYou, endsIn: "Hermes is on it")
     }
 
     func testApproveMovesApprovalToHermes() async throws {
-        let store = UITestScenario.fixtureStore(.inboxPopulated)
-        await store.refresh()
-        let approval = try XCTUnwrap(store.inbox?.needsYou.first { $0.id == "approval-ingress" })
-        await store.perform(.approve, on: approval)
-        XCTAssertTrue(store.inbox?.withHermes.contains { $0.id == approval.id } == true)
+        try await assertAction(.approve, itemID: "approval-ingress", startsIn: \.needsYou, endsIn: "Hermes is on it")
     }
 
     func testUnsnoozeMovesAlertBackToNeedsYou() async throws {
+        try await assertAction(.unsnooze, itemID: "alert-osdfull", startsIn: \.upcoming, endsIn: "Needs you")
+    }
+
+    private func assertAction(
+        _ action: ItemActionRequest,
+        itemID: String,
+        startsIn source: KeyPath<ItemInbox, [Item]>,
+        endsIn destination: String
+    ) async throws {
         let store = UITestScenario.fixtureStore(.inboxPopulated)
         await store.refresh()
-        let alert = try XCTUnwrap(store.inbox?.upcoming.first { $0.id == "alert-osdfull" })
-        await store.perform(.unsnooze, on: alert)
-        XCTAssertTrue(store.inbox?.needsYou.contains { $0.id == alert.id } == true)
+        let item = try XCTUnwrap(store.inbox?[keyPath: source].first { $0.id == itemID })
+        let screen = try hostInbox(store)
+        defer { screen.close() }
+
+        await store.perform(action, on: item)
+
+        let row = "row.item.\(itemID)"
+        let section = "section.\(destination)"
+        let order = destination == "Needs you"
+            ? [section, row, "section.Hermes is on it"]
+            : [section, row, "section.Upcoming"]
+        screen.assertVisible(order)
+        screen.assertVerticalOrder(order)
     }
 
     func testEndingMaintenanceRemovesBanner() throws {
@@ -107,8 +118,11 @@ final class HostedInboxTests: XCTestCase {
     }
 
     private func hostInbox(_ scenario: UITestScenario.Name) throws -> HostedScreen {
-        let store = UITestScenario.fixtureStore(scenario)
-        return try HostedScreen(NavigationStack { InboxView() }
+        try hostInbox(UITestScenario.fixtureStore(scenario))
+    }
+
+    private func hostInbox(_ store: CowtailStore) throws -> HostedScreen {
+        try HostedScreen(NavigationStack { InboxView() }
             .environmentObject(store)
             .environmentObject(UniversalLinkRouter.shared))
     }
