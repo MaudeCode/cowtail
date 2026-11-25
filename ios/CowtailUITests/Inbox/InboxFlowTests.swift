@@ -1,8 +1,10 @@
+import UIKit
 import XCTest
 
 @MainActor
 final class InboxFlowTests: XCTestCase {
-    func testSelectingAnItemKeepsTheInboxBesideItsDetail() {
+    func testSelectingAnItemKeepsTheInboxBesideItsDetail() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "The iPad CI destination owns this check")
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 

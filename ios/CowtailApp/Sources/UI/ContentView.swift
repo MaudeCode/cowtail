@@ -107,67 +107,62 @@ struct ContentView: View {
     }
 }
 
-/// The router owns the route across presentations. A wide layout reads it as the
-/// selected detail; the compact stack also uses its ancestry for the Back gesture.
+/// Keep one split view alive so the system can collapse it without rebuilding the
+/// list, its filters, or any state owned by the presented detail.
 private struct TabNavigation<Root: View, Destination: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var visibility = NavigationSplitViewVisibility.all
+    @State private var compactColumn = NavigationSplitViewColumn.sidebar
     @Binding var path: [AppRoute]
     @ViewBuilder let destination: (AppRoute) -> Destination
     @ViewBuilder let root: () -> Root
 
     var body: some View {
-        Group {
-            if sizeClass == .regular {
-                splitView
-            } else {
-                NavigationStack(path: $path) {
-                    root()
-                        .navigationDestination(for: AppRoute.self, destination: destination)
+        NavigationSplitView(columnVisibility: $visibility, preferredCompactColumn: $compactColumn) {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 400)
+        } detail: {
+            NavigationStack(path: detailPath) {
+                Group {
+                    if let selection = path.first {
+                        destination(selection)
+                            .id(selection)
+                    } else {
+                        CowtailCanvas {
+                            ContentUnavailableView("Select an item", systemImage: "rectangle.split.2x1")
+                        }
+                    }
                 }
+                .navigationDestination(for: AppRoute.self, destination: destination)
+            }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onChange(of: path.first, initial: true) { _, selection in
+            compactColumn = selection == nil ? .sidebar : .detail
+        }
+        .onChange(of: compactColumn) { _, column in
+            if sizeClass == .compact, column == .sidebar {
+                path.removeAll()
             }
         }
         .onChange(of: sizeClass) { _, size in
             if size == .regular {
                 visibility = .all
+            } else if !path.isEmpty {
+                compactColumn = .detail
             }
         }
     }
 
-    private var splitView: some View {
-        NavigationSplitView(columnVisibility: $visibility) {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 400)
-        } detail: {
-            Group {
-                if let selection = path.last {
-                    destination(selection)
-                        .id(selection)
-                } else {
-                    CowtailCanvas {
-                        ContentUnavailableView("Select an item", systemImage: "rectangle.split.2x1")
-                    }
+    private var detailPath: Binding<[AppRoute]> {
+        Binding(
+            get: { Array(path.dropFirst()) },
+            set: { routes in
+                if let selection = path.first {
+                    path = [selection] + routes
                 }
             }
-            .environment(\.splitRouteSelection, Binding(
-                get: { nil },
-                set: {
-                    if let route = $0 {
-                        path.append(route)
-                    }
-                }
-            ))
-            .toolbar {
-                if path.count > 1 {
-                    ToolbarItem(placement: .topBarLeading) {
-                        CowtailIconButton(title: "Back", systemImage: "chevron.backward", style: .borderless) {
-                            path.removeLast()
-                        }
-                    }
-                }
-            }
-        }
-        .navigationSplitViewStyle(.balanced)
+        )
     }
 
     @ViewBuilder
