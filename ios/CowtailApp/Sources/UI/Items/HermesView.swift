@@ -220,7 +220,7 @@ struct HermesView: View {
             }
         }
         if let itemID = incident.itemID {
-            NavigationLink(value: AppRoute.item(itemID)) {
+            CowtailRouteLink(value: AppRoute.item(itemID)) {
                 HStack {
                     label
                     Spacer()

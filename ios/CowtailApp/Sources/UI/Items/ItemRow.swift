@@ -72,7 +72,7 @@ struct ItemRow: View {
     }
 
     private var link: some View {
-        NavigationLink(value: AppRoute.item(item.id)) {
+        CowtailRouteLink(value: AppRoute.item(item.id)) {
             HStack(alignment: .top, spacing: 10) {
                 ItemSourceIcon(item: item)
                 VStack(alignment: .leading, spacing: 3) {
@@ -181,7 +181,7 @@ struct IncidentRow: View {
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
-        NavigationLink(value: AppRoute.incident(incident.id)) {
+        CowtailRouteLink(value: AppRoute.incident(incident.id)) {
             HStack(alignment: .top, spacing: 10) {
                 ItemSourceIcon(symbol: "square.3.layers.3d", name: "Incident")
                 VStack(alignment: .leading, spacing: 3) {

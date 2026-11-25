@@ -14,7 +14,7 @@ struct RoundupOutcomeSectionCard: View {
             CowtailSectionHeader(title: section.title, detail: "\(alerts.count)")
 
             ForEach(Array(alerts.sorted(by: { $0.timestamp < $1.timestamp }).enumerated()), id: \.element.id) { index, alert in
-                NavigationLink(value: AppRoute.alert(alert.id)) {
+                CowtailRouteLink(value: AppRoute.alert(alert.id)) {
                     row(alert)
                 }
                 .buttonStyle(.plain)

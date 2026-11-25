@@ -8,7 +8,8 @@ fi
 
 IOS_ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 # CI's device, which the hosted image provides; setup-ios exports the OS of the pinned Xcode's simulator SDK.
-DESTINATION="${COWTAIL_IOS_TEST_DESTINATION:-platform=iOS Simulator,name=iPhone 17,OS=${COWTAIL_IOS_TEST_OS:-latest}}"
+DEVICE="${COWTAIL_IOS_TEST_DEVICE:-iPhone 17}"
+DESTINATION="${COWTAIL_IOS_TEST_DESTINATION:-platform=iOS Simulator,name=${DEVICE},OS=${COWTAIL_IOS_TEST_OS:-latest}}"
 
 count="$#"
 for target in "$@"; do

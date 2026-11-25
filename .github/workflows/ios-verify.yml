@@ -1,8 +1,7 @@
 name: iOS Verify
 
-# Called by ci.yml when a change reaches the ios suite, and by the release. Nothing here boots a simulator: the
-# logic's tests run in the CowtailKit package on macOS, and the app is only built. ios-sim-verify.yml runs the tests
-# that need the app host.
+# Called by ci.yml for iOS changes and by the release. Logic tests run on macOS.
+# The iPad navigation check uses a simulator; ios-sim-verify.yml owns the app-hosted tests.
 on:
   workflow_call:
     inputs:
@@ -69,13 +68,10 @@ jobs:
       - name: Check iOS test run times
         run: pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/ios-package-tests.log"
 
-      # Compiles the app and its extension for the simulator; nothing is installed or booted.
-      - name: Build the app for the iOS simulator
-        working-directory: ios
-        run: |
-          ./generate.sh
-          xcodebuild build -project Cowtail.xcodeproj -scheme Cowtail -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' ARCHS=arm64
+      - name: Verify side-by-side Inbox navigation on iPad
+        env:
+          COWTAIL_IOS_TEST_DEVICE: iPad Pro 11-inch (M5)
+        run: ios/scripts/test.sh CowtailUITests/InboxFlowTests/testSelectingAnItemKeepsTheInboxBesideItsDetail
 
       # The hosted image has no iOS 26 simulator, so this static check is CI's proof the app still launches on iOS 26.
       - name: Check the app has no strong iOS 27-only imports

@@ -149,7 +149,7 @@ struct ItemDetailView: View {
                     CowtailStatusBadge(title: "×\(item.occurrenceCount)")
                 }
                 if let incident = item.incident {
-                    NavigationLink(value: AppRoute.incident(incident.id)) {
+                    CowtailRouteLink(value: AppRoute.incident(incident.id)) {
                         CowtailStatusBadge(title: incident.title, systemImage: "square.3.layers.3d")
                     }
                     .buttonStyle(.plain)

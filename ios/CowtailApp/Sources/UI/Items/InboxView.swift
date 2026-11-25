@@ -134,6 +134,7 @@ struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
     let identifier: String
     var titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large
     var isList = false
+    var contentMaxWidth: CGFloat = .infinity
     @ViewBuilder let header: () -> Header
     @ViewBuilder let actions: () -> Actions
     @ViewBuilder let content: () -> Content
@@ -143,6 +144,7 @@ struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
         identifier: String,
         titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large,
         isList: Bool = false,
+        contentMaxWidth: CGFloat = .infinity,
         @ViewBuilder header: @escaping () -> Header = { EmptyView() },
         @ViewBuilder actions: @escaping () -> Actions = { EmptyView() },
         @ViewBuilder content: @escaping () -> Content
@@ -151,6 +153,7 @@ struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
         self.identifier = identifier
         self.titleDisplayMode = titleDisplayMode
         self.isList = isList
+        self.contentMaxWidth = contentMaxWidth
         self.header = header
         self.actions = actions
         self.content = content
@@ -178,6 +181,8 @@ struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
                     }
                     .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
                     .padding(.bottom, 28)
+                    .frame(maxWidth: contentMaxWidth)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }

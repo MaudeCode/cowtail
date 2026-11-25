@@ -35,11 +35,12 @@ struct ContentView: View {
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
     @EnvironmentObject private var store: CowtailStore
 
+    @State private var hermesPath: [AppRoute] = []
+
     var body: some View {
         TabView(selection: $universalLinkRouter.selectedTab) {
-            NavigationStack(path: $universalLinkRouter.inboxPath) {
+            TabNavigation(path: $universalLinkRouter.inboxPath, destination: destination) {
                 InboxView()
-                    .navigationDestination(for: AppRoute.self, destination: destination)
             }
             .tag(AppTab.inbox)
             .tabItem { Label("Inbox", systemImage: "tray") }
@@ -52,17 +53,15 @@ struct ContentView: View {
             .tabItem { Label("Cluster", systemImage: "server.rack") }
             .accessibilityIdentifier("tab.cluster")
 
-            NavigationStack {
+            TabNavigation(path: $hermesPath, destination: destination) {
                 HermesView()
-                    .navigationDestination(for: AppRoute.self, destination: destination)
             }
             .tag(AppTab.hermes)
             .tabItem { Label("Hermes", systemImage: "sparkles") }
             .accessibilityIdentifier("tab.hermes")
 
-            NavigationStack(path: $universalLinkRouter.historyPath) {
+            TabNavigation(path: $universalLinkRouter.historyPath, destination: destination) {
                 HistoryView()
-                    .navigationDestination(for: AppRoute.self, destination: destination)
             }
             .tag(AppTab.history)
             .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
@@ -104,6 +103,114 @@ struct ContentView: View {
             RoundupView(roundupRoute: roundupRoute)
         case .settings:
             SettingsView()
+        }
+    }
+}
+
+/// Keep one split view alive so the system can collapse it without rebuilding the
+/// list, its filters, or any state owned by the presented detail.
+private struct TabNavigation<Root: View, Destination: View>: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var visibility = NavigationSplitViewVisibility.all
+    @State private var compactColumn = NavigationSplitViewColumn.sidebar
+    @Binding var path: [AppRoute]
+    @ViewBuilder let destination: (AppRoute) -> Destination
+    @ViewBuilder let root: () -> Root
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $visibility, preferredCompactColumn: $compactColumn) {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 400)
+        } detail: {
+            NavigationStack(path: detailPath) {
+                Group {
+                    if let selection = path.first {
+                        destination(selection)
+                            .id(selection)
+                    } else {
+                        CowtailCanvas {
+                            ContentUnavailableView("Select an item", systemImage: "rectangle.split.2x1")
+                        }
+                    }
+                }
+                .navigationDestination(for: AppRoute.self, destination: destination)
+            }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onChange(of: path.first, initial: true) { _, selection in
+            compactColumn = selection == nil ? .sidebar : .detail
+        }
+        .onChange(of: compactColumn) { _, column in
+            if sizeClass == .compact, column == .sidebar {
+                path.removeAll()
+            }
+        }
+        .onChange(of: sizeClass) { _, size in
+            if size == .regular {
+                visibility = .all
+            } else if !path.isEmpty {
+                compactColumn = .detail
+            }
+        }
+    }
+
+    private var detailPath: Binding<[AppRoute]> {
+        Binding(
+            get: { Array(path.dropFirst()) },
+            set: { routes in
+                if let selection = path.first {
+                    path = [selection] + routes
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var sidebar: some View {
+        if case .incident(let id)? = path.dropLast().last {
+            IncidentDestinationView(id: id)
+                .environment(\.splitRouteSelection, Binding(
+                    get: { path.last },
+                    set: {
+                        if let route = $0 {
+                            path = Array(path.dropLast()) + [route]
+                        }
+                    }
+                ))
+        } else {
+            root()
+                .environment(\.splitRouteSelection, Binding(
+                    get: { path.first },
+                    set: { path = $0.map { [$0] } ?? [] }
+                ))
+        }
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var splitRouteSelection: Binding<AppRoute?>?
+}
+
+/// Keeps the row's existing label and actions while selecting a column on wide layouts.
+struct CowtailRouteLink<Label: View>: View {
+    @Environment(\.splitRouteSelection) private var selection
+    @Environment(\.cowtailPalette) private var palette
+    let value: AppRoute
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        if let selection {
+            let isSelected = selection.wrappedValue == value
+            Button { selection.wrappedValue = value } label: {
+                label()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(isSelected ? palette.accentSoft : nil)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+        } else {
+            NavigationLink(value: value, label: label)
         }
     }
 }

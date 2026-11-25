@@ -6,7 +6,7 @@ struct ClusterView: View {
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
-        CowtailScreen(title: "Cluster", identifier: "screen.cluster") {
+        CowtailScreen(title: "Cluster", identifier: "screen.cluster", contentMaxWidth: 720) {
             if let state = store.health?.pipelineState {
                 CowtailStatusBadge(title: state.label, tint: state.tint(palette), showsDot: true)
                     .accessibilityIdentifier("chip.cluster.pipeline")
