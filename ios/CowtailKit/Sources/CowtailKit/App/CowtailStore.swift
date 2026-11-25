@@ -159,7 +159,7 @@ final class CowtailStore: ObservableObject {
         category: "store"
     )
 
-    static let signInMessage = "Sign in from Settings to load your items."
+    static let signInMessage = "Sign in again to load your items."
     static let unconfirmedMessage = "Cowtail has not confirmed your last answer yet. Pull to refresh."
 
     init(

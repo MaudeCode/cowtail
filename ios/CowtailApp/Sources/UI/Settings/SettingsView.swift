@@ -1,16 +1,14 @@
-import AuthenticationServices
 import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("developerModeEnabled") private var developerModeEnabled = false
     @Environment(\.cowtailPalette) private var palette
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var themeSettings: ThemeSettings
     @EnvironmentObject private var store: CowtailStore
-    @EnvironmentObject private var oidcSignIn: OIDCSignIn
+    @EnvironmentObject private var router: UniversalLinkRouter
 
     @State private var isAddingOverride = false
 
@@ -33,9 +31,6 @@ struct SettingsView: View {
             .presentationDetents([.medium])
         }
         .task {
-            await oidcSignIn.loadProviders()
-        }
-        .task {
             await appleAccountManager.refreshCredentialState()
             await notificationManager.refreshAuthorizationStatus()
             notificationManager.resumeNotificationSetupIfNeeded()
@@ -51,54 +46,29 @@ struct SettingsView: View {
     @ViewBuilder
     private var account: some View {
         CowtailSectionHeader(title: "Account")
-        if isSignedIn {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Signed in with \(signInProvider)")
-                        .font(.cowtailSans(14, relativeTo: .body))
-                        .accessibilityIdentifier("text.settings.signed-in")
-                    if signInProvider == AppSessionManager.appleProvider,
-                       let name = appleAccountManager.displayName ?? appleAccountManager.email, !name.isEmpty {
-                        Text(name)
-                            .font(.cowtailSans(12, relativeTo: .caption))
-                            .foregroundStyle(palette.mutedInk)
-                    }
-                }
-                Spacer()
-                CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                    appSessionManager.signOut()
-                    appleAccountManager.clearIdentity()
-                }
-                .accessibilityIdentifier("button.settings.sign-out")
-            }
-            .cowtailRow()
-        } else {
-            VStack(spacing: 8) {
-                appleSignInButton
-                if let providerName = oidcSignIn.providerName {
-                    Button {
-                        Task {
-                            await oidcSignIn.signIn()
-                            await notificationManager.syncDeviceRegistration()
-                            await notificationManager.loadDailyRoundupPreference()
-                            await store.loadDevices()
-                        }
-                    } label: {
-                        Text("Sign in with \(providerName)").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .tint(palette.ink)
-                    .disabled(oidcSignIn.isSigningIn)
-                    .accessibilityIdentifier("button.settings.oidc-sign-in")
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Signed in with \(signInProvider)")
+                    .font(.cowtailSans(14, relativeTo: .body))
+                    .accessibilityIdentifier("text.settings.signed-in")
+                if signInProvider == AppSessionManager.appleProvider,
+                   let name = appleAccountManager.displayName ?? appleAccountManager.email, !name.isEmpty {
+                    Text(name)
+                        .font(.cowtailSans(12, relativeTo: .caption))
+                        .foregroundStyle(palette.mutedInk)
                 }
             }
-            .cowtailRow()
+            Spacer()
+            CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                // The next sign-in opens on the Inbox, not on this page.
+                router.openInbox()
+                appSessionManager.signOut()
+                appleAccountManager.clearIdentity()
+            }
+            .accessibilityIdentifier("button.settings.sign-out")
         }
+        .cowtailRow()
         if let error = appleAccountManager.lastError, appleAccountManager.signInState == .failed {
-            note(error, tint: palette.accent)
-        }
-        if !isSignedIn, let error = oidcSignIn.lastError {
             note(error, tint: palette.accent)
         }
     }
@@ -110,7 +80,7 @@ struct SettingsView: View {
         CowtailSectionHeader(title: "Notifications")
         pushStatus
         if requiresAppleConfirmationForPushSetup {
-            appleSignInButton.cowtailRow()
+            AppleSignInButton().cowtailRow()
         }
         let preferences = notificationManager.preferences
         toggleRow(
@@ -397,26 +367,6 @@ struct SettingsView: View {
             .padding(.vertical, 4)
     }
 
-    private var appleSignInButton: some View {
-        SignInWithAppleButton(.signIn) { request in
-            appleAccountManager.configure(request)
-        } onCompletion: { result in
-            appleAccountManager.handleCompletion(result)
-            Task {
-                await appleAccountManager.refreshCredentialState()
-                _ = await appSessionManager.refreshSessionIfPossible()
-                await notificationManager.refreshAuthorizationStatus()
-                notificationManager.resumeNotificationSetupIfNeeded()
-                await notificationManager.syncDeviceRegistration()
-                await notificationManager.loadDailyRoundupPreference()
-            }
-        }
-        // Black on a light screen and white on a dark one, as Apple's guidelines and the figure draw it.
-        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-        .frame(height: 44)
-        .accessibilityIdentifier("button.notifications.apple-sign-in")
-    }
-
     // MARK: Clock times
 
     private static func date(fromClock clock: String) -> Date {
@@ -443,7 +393,7 @@ struct SettingsView: View {
     }
 
     private var isSignedIn: Bool {
-        appleAccountManager.userID != nil || appSessionManager.hasValidPersistedSession
+        appSessionManager.isSignedIn
     }
 
     private var signInProvider: String {

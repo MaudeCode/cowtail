@@ -81,6 +81,12 @@ final class AppSessionManager: ObservableObject {
         return true
     }
 
+    /// Signed in while an Apple identity or a session from any provider exists; the app's root
+    /// shows the tabs only then.
+    var isSignedIn: Bool {
+        AppleAccountManager.shared.userID != nil || hasValidPersistedSession
+    }
+
     /// Sessions stored before providers were recorded came from Apple.
     private var isAppleSession: Bool {
         (provider ?? Self.appleProvider) == Self.appleProvider

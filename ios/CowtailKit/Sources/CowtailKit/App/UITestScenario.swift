@@ -13,7 +13,7 @@ struct UITestScenario {
         case roundupEmpty = "roundup_empty"
         case alertDeepLinkKnown = "alert_deep_link_known"
         case alertDeepLinkMissing = "alert_deep_link_missing"
-        case notificationsNeedsApple = "notifications_needs_apple"
+        case signedOut = "signed_out"
         case notificationsPermissionDenied = "notifications_permission_denied"
         case notificationsReady = "notifications_ready"
         case notificationsSyncError = "notifications_sync_error"
@@ -177,7 +177,7 @@ private enum SeedFactory {
         case .alertDeepLinkKnown, .alertDeepLinkMissing:
             return scenarioDefaults
 
-        case .notificationsNeedsApple:
+        case .signedOut:
             return seed(apple: signedOutApple, session: idleSession, notification: signedOutNotification)
 
         case .notificationsPermissionDenied:

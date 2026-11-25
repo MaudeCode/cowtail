@@ -1,6 +1,6 @@
 import XCTest
 
-/// Apple's accessibility audit on Inbox, an item page and Settings: every control's hit region
+/// Apple's accessibility audit on Inbox, an item page, Settings and sign-in: every control's hit region
 /// is at least 44 × 44 pt, and all text follows Dynamic Type.
 @MainActor
 final class AccessibilityAuditTests: XCTestCase {
@@ -43,6 +43,14 @@ final class AccessibilityAuditTests: XCTestCase {
         let app = AppLaunching.configuredApp(scenario: "notifications_ready", startTab: "settings")
         app.launch()
         XCTAssertTrue(app.element("section.Account").waitForExistence(timeout: 10))
+
+        try app.auditHitRegionsAndDynamicType()
+    }
+
+    func testSignInPassesTheHitRegionAndDynamicTypeAudit() throws {
+        let app = AppLaunching.configuredApp(scenario: "signed_out_with_oidc")
+        app.launch()
+        XCTAssertTrue(app.buttons["button.sign-in.oidc"].waitForExistence(timeout: 10))
 
         try app.auditHitRegionsAndDynamicType()
     }

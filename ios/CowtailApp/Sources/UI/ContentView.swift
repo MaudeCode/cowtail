@@ -1,5 +1,30 @@
 import SwiftUI
 
+/// Sign-in while no session or Apple identity exists, the notification step after a sign-in, then the tabs.
+struct RootView: View {
+    // Observed so an Apple sign-in or sign-out redraws the root.
+    @EnvironmentObject private var appleAccountManager: AppleAccountManager
+    @EnvironmentObject private var appSessionManager: AppSessionManager
+    @EnvironmentObject private var notificationManager: NotificationManager
+    @State private var asksForNotifications = false
+
+    var body: some View {
+        Group {
+            if !appSessionManager.isSignedIn {
+                SignInView()
+            } else if asksForNotifications {
+                NotificationStepView { asksForNotifications = false }
+            } else {
+                ContentView()
+            }
+        }
+        .onChange(of: appSessionManager.isSignedIn) { _, isSignedIn in
+            // Only a sign-in asks, and only while the system has not asked yet.
+            asksForNotifications = isSignedIn && notificationManager.authorizationStatus == .notDetermined
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(\.cowtailPalette) private var palette
     @Environment(\.scenePhase) private var scenePhase
