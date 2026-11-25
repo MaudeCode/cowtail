@@ -34,6 +34,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
     @EnvironmentObject private var store: CowtailStore
+    @State private var historyFilter = HistoryFilter()
 
     @State private var hermesPath: [AppRoute] = []
 
@@ -61,7 +62,7 @@ struct ContentView: View {
             .accessibilityIdentifier("tab.hermes")
 
             TabNavigation(path: $universalLinkRouter.historyPath, destination: destination) {
-                HistoryView()
+                HistoryView(filter: $historyFilter)
             }
             .tag(AppTab.history)
             .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }

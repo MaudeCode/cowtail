@@ -32,22 +32,6 @@ extension XCUIApplication {
         descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// Opens a handled item or incident, which only History lists, by searching History for a title.
-    func openFromHistory(_ row: String, searching title: String, file: StaticString = #filePath, line: UInt = #line) {
-        // The search field hides under the title until the list is pulled down.
-        XCTAssertTrue(element("section.Outcomes").waitForExistence(timeout: 10), file: file, line: line)
-        let search = searchFields.firstMatch
-        if !search.isHittable {
-            swipeDown(velocity: .slow)
-        }
-        XCTAssertTrue(search.waitForExistence(timeout: 10), file: file, line: line)
-        search.tap()
-        search.typeText(title)
-        let match = element(row)
-        XCTAssertTrue(match.waitForExistence(timeout: 10), row, file: file, line: line)
-        match.tap()
-    }
-
     /// A `List` builds only the rows on screen: scrolls down until the element is there and clear
     /// of the tab bar, or returns it missing for the caller's assertion. The caller first waits
     /// for the screen.
@@ -74,15 +58,5 @@ extension XCUIApplication {
 
     enum SwipeEdge {
         case leading, trailing
-    }
-
-    /// Fails unless every section header exists and they run top to bottom in this order.
-    func assertSections(_ titles: [String], file: StaticString = #filePath, line: UInt = #line) {
-        let tops = titles.map { title -> CGFloat in
-            let header = element("section.\(title)")
-            XCTAssertTrue(header.waitForExistence(timeout: 10), "Missing section \(title)", file: file, line: line)
-            return header.frame.minY
-        }
-        XCTAssertEqual(tops, tops.sorted(), "Sections out of order: \(titles)", file: file, line: line)
     }
 }

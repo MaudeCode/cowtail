@@ -5,7 +5,7 @@ struct HistoryView: View {
     @EnvironmentObject private var router: UniversalLinkRouter
     @Environment(\.cowtailPalette) private var palette
 
-    @State private var filter = HistoryFilter()
+    @Binding var filter: HistoryFilter
     @State private var isFiltering = false
 
     var body: some View {

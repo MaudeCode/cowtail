@@ -54,9 +54,15 @@
     {
       "paths": [
         "ios/CowtailTests/**",
+        "ios/CowtailKit/Tests/CowtailKitTests/Shared/FakeNotificationCenter.swift",
+        "ios/CowtailApp/Sources/UI/**",
+        "ios/CowtailKit/Sources/CowtailKit/App/**",
+        "ios/CowtailKit/Sources/CowtailKit/Auth/**",
+        "ios/CowtailKit/Sources/CowtailKit/Model/**",
+        "ios/CowtailKit/Sources/CowtailKit/Notifications/**",
+        "ios/CowtailKit/Sources/CowtailKit/UI/**",
         "ios/CowtailApp/Resources/Fonts/**",
         "ios/CowtailApp/Resources/Info.plist",
-        "ios/CowtailKit/Sources/CowtailKit/UI/Shared/CowtailTypography.swift",
         "ios/project.yml",
         "ios/scripts/test.sh"
       ],

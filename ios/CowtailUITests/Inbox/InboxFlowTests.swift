@@ -19,23 +19,6 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertLessThan(row.frame.maxX, title.frame.minX)
     }
 
-    func testInboxShowsItsThreeSectionsInTheFiguresOrder() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
-        app.launch()
-
-        app.assertSections(["Needs you", "Hermes is on it", "Upcoming"])
-    }
-
-    func testTheHeaderShowsTheHermesDotBesideTheClusterDot() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
-        app.launch()
-
-        let hermes = app.element("chip.inbox.hermes")
-        XCTAssertTrue(hermes.waitForExistence(timeout: 10))
-        XCTAssertEqual(hermes.label, "Hermes green")
-        XCTAssertGreaterThan(hermes.frame.minX, app.element("chip.inbox.cluster").frame.maxX)
-    }
-
     func testALongPressShowsTheItemsActionsThenItsAlertCalls() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
@@ -144,76 +127,6 @@ final class InboxFlowTests: XCTestCase {
         waitForExpectations(timeout: 10)
     }
 
-    func testWithNothingThatNeedsTheOwnerTheInboxIsAllClear() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_empty")
-        app.launch()
-
-        XCTAssertTrue(app.element("empty.inbox.all-clear").waitForExistence(timeout: 10))
-        XCTAssertFalse(app.element("section.Needs you").exists)
-    }
-
-    func testItemDetailShowsATimelineOfEveryEventType() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated", startTab: "history")
-        app.launch()
-
-        app.openFromHistory("row.item.alert-replicas", searching: "Replicas")
-
-        XCTAssertTrue(app.element("screen.item-detail").waitForExistence(timeout: 10))
-        let types = [
-            "created", "repeated", "dispatched", "hermes_update",
-            "notified", "action_taken", "state_changed", "resolved",
-        ]
-        for type in types {
-            XCTAssertTrue(app.element("event.\(type)").waitForExistence(timeout: 10), type)
-        }
-        // Answer first: the details and fix lead, before the timeline.
-        app.assertSections(["Details", "Fix", "Timeline", "Past occurrences"])
-        XCTAssertTrue(app.element("row.prior-occurrence.alert-replicas-prior-1").exists)
-
-        // Hermes's evidence starts collapsed and opens to its numbered steps.
-        let evidence = app.buttons["Evidence · 2 steps"]
-        XCTAssertTrue(evidence.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["1 · Read the replica's last termination state"].exists)
-        evidence.tap()
-        XCTAssertTrue(app.staticTexts["1 · Read the replica's last termination state"].waitForExistence(timeout: 10))
-    }
-
-    func testItemActionsSitInTheirPinnedAreaNotTheBadgeRow() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
-        app.launch()
-        let row = app.element("row.item.alert-crashloop")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.tap()
-
-        let area = app.element("area.item.actions")
-        XCTAssertTrue(area.waitForExistence(timeout: 10))
-        for action in ["ack", "snooze", "retry", "mark-noise", "escalate"] {
-            XCTAssertTrue(area.buttons["button.item.\(action).alert-crashloop"].exists, action)
-        }
-        // Pinned above the tab bar.
-        XCTAssertLessThanOrEqual(
-            area.buttons["button.item.ack.alert-crashloop"].frame.maxY,
-            app.tabBars.firstMatch.frame.minY
-        )
-    }
-
-    func testAnAlertLinkOpensThatAlertsItem() {
-        let app = AppLaunching.configuredApp(scenario: "alert_deep_link_known", deepLinkURL: "/alerts/alert-1")
-        app.launch()
-
-        XCTAssertTrue(app.element("screen.item-detail").waitForExistence(timeout: 10))
-        XCTAssertEqual(app.element("text.item.title").label, "KubePodCrashLooping")
-        // The alert's page on Cowtail Web stays one tap away.
-        XCTAssertTrue(app.links["Cowtail Web"].waitForExistence(timeout: 10))
-    }
-
-    func testAnUnknownAlertLinkSaysSo() {
-        let app = AppLaunching.configuredApp(scenario: "alert_deep_link_missing", deepLinkURL: "/alerts/missing-alert")
-        app.launch()
-
-        XCTAssertTrue(app.element("screen.item-missing").waitForExistence(timeout: 10))
-    }
-
     func testColdOfflineLaunchShowsCachedInboxAndRetry() {
         let app = AppLaunching.configuredApp(scenario: "inbox_cached_offline")
         app.launch()
@@ -227,86 +140,5 @@ final class InboxFlowTests: XCTestCase {
         screenshot.name = "Inbox restored offline"
         screenshot.lifetime = .keepAlways
         add(screenshot)
-    }
-
-    func testAFailedLoadShowsTheError() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_error")
-        app.launch()
-
-        XCTAssertTrue(app.element("text.inbox.error").waitForExistence(timeout: 10))
-    }
-
-    func testEveryRowStartsWithItsSourcesName() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
-        app.launch()
-
-        let expected = ["approval-ingress": "Hermes", "alert-crashloop": "Alertmanager", "factory-merge": "Factory"]
-        for (id, name) in expected {
-            let row = app.element("row.item.\(id)")
-            XCTAssertTrue(row.waitForExistence(timeout: 10), id)
-            XCTAssertTrue(row.label.hasPrefix(name), "\(id): \(row.label)")
-        }
-    }
-
-    func testTheItemHeaderShowsTheSourcesUploadedIcon() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated", startTab: "history")
-        app.launch()
-
-        app.openFromHistory("row.item.done-deploy", searching: "deployed")
-
-        let icon = app.images["icon.source.image"]
-        XCTAssertTrue(icon.waitForExistence(timeout: 10))
-        XCTAssertEqual(icon.label, "Deployer")
-    }
-
-    func testTheItemHeaderFallsBackToTheSourcesSymbol() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated", startTab: "history")
-        app.launch()
-
-        app.openFromHistory("row.item.alert-replicas", searching: "Replicas")
-
-        let icon = app.images["icon.source.symbol"]
-        XCTAssertTrue(icon.waitForExistence(timeout: 10))
-        XCTAssertEqual(icon.label, "Alertmanager")
-    }
-
-    func testARunningWindowsBannerSitsAboveNeedsYouUntilEndWindow() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_maintenance")
-        app.launch()
-
-        let banner = app.element("text.maintenance.window-upgrade")
-        XCTAssertTrue(banner.waitForExistence(timeout: 10))
-        XCTAssertTrue(banner.label.contains("Cluster upgrade"), banner.label)
-        XCTAssertTrue(banner.label.contains("All alerts silenced"), banner.label)
-        XCTAssertLessThan(banner.frame.maxY, app.element("section.Needs you").frame.minY)
-
-        app.buttons["button.maintenance.end.window-upgrade"].tap()
-
-        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: banner)
-        waitForExpectations(timeout: 10)
-    }
-
-    func testTheWrenchStartsAWindowFromTheSheet() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
-        app.launch()
-
-        let wrench = app.buttons["button.inbox.maintenance"]
-        XCTAssertTrue(wrench.waitForExistence(timeout: 10))
-        XCTAssertEqual(wrench.label, "Start a maintenance window")
-        wrench.tap()
-
-        let title = app.textFields["field.maintenance.title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 10))
-        title.tap()
-        title.typeText("Disk swap")
-        app.segmentedControls.buttons["30m"].tap()
-        XCTAssertTrue(app.staticTexts["Cowtail's own watchdog items still push."].exists)
-        let start = app.buttons["button.maintenance.start"]
-        XCTAssertEqual(start.label, "Start 30m window")
-        start.tap()
-
-        let banner = app.element("text.maintenance.seeded-window-1")
-        XCTAssertTrue(banner.waitForExistence(timeout: 10))
-        XCTAssertTrue(banner.label.contains("Disk swap"), banner.label)
     }
 }

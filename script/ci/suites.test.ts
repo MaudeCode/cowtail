@@ -61,9 +61,17 @@ describe(".github/ci-suites.json", () => {
       }
     });
 
-    test("a package or view change runs ios without a simulator", () => {
-      expect(selected("ios/CowtailKit/Sources/CowtailKit/App/CowtailStore.swift")).toEqual(["ios"]);
-      expect(selected("ios/CowtailApp/Sources/UI/Items/InboxView.swift")).toEqual(["ios"]);
+    test("store and screen changes run their hosted app checks", () => {
+      expect(selected("ios/CowtailKit/Sources/CowtailKit/App/CowtailStore.swift")).toContain(
+        "ios-sim",
+      );
+      expect(selected("ios/CowtailApp/Sources/UI/Items/InboxView.swift")).toContain("ios-sim");
+    });
+
+    test("uncovered generated sources run ios without a simulator", () => {
+      expect(
+        selected("ios/CowtailKit/Sources/CowtailKit/Generated/OpenAPI/Types+Components.swift"),
+      ).toEqual(["ios"]);
     });
   });
 
