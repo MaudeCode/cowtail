@@ -8,7 +8,8 @@ extension UITestScenario {
         return CowtailStore(
             api: api, sessionToken: { "fixture-session" },
             authenticator: SeededApprovalAuthenticator(),
-            requiresApprovalAuthentication: { false }
+            requiresApprovalAuthentication: { false },
+            notificationCenter: FakeNotificationCenter()
         )
     }
 }

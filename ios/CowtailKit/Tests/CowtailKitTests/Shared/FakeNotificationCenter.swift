@@ -1,4 +1,8 @@
+#if SWIFT_PACKAGE
 @testable import CowtailKit
+#else
+@testable import Cowtail
+#endif
 
 /// Records what the app asks of the notification center, starting from the notifications given.
 actor FakeNotificationCenter: DeliveredNotificationCenter {

@@ -54,6 +54,7 @@
     {
       "paths": [
         "ios/CowtailTests/**",
+        "ios/CowtailKit/Tests/CowtailKitTests/Shared/FakeNotificationCenter.swift",
         "ios/CowtailApp/Sources/UI/**",
         "ios/CowtailKit/Sources/CowtailKit/App/**",
         "ios/CowtailKit/Sources/CowtailKit/Auth/**",

@@ -156,6 +156,7 @@ targets:
     # Only the tests that need the app host; the rest run in the CowtailKit package on macOS.
     sources:
       - path: CowtailTests
+      - path: CowtailKit/Tests/CowtailKitTests/Shared/FakeNotificationCenter.swift
     dependencies:
       - target: Cowtail
     settings:
