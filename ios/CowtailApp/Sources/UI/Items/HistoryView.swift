@@ -66,7 +66,7 @@ struct HistoryView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Text(chip.title)
-                            Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+                            Image(systemName: "xmark").font(.system(.caption2, weight: .bold))
                         }
                         .font(.cowtailMono(11, weight: .medium, relativeTo: .caption))
                         .foregroundStyle(palette.ink)

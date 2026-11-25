@@ -219,7 +219,7 @@ struct ItemSourceIcon: View {
 
     @Environment(\.cowtailPalette) private var palette
 
-    private static let size: CGFloat = 22
+    @ScaledMetric(relativeTo: .caption2) private var size = 22.0
 
     var body: some View {
         AsyncImage(url: iconURL) { phase in
@@ -228,13 +228,13 @@ struct ItemSourceIcon: View {
             } else {
                 labeled(
                     Image(systemName: symbol)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(.caption2, weight: .medium))
                         .foregroundStyle(palette.mutedInk),
                     identifier: "icon.source.symbol"
                 )
             }
         }
-        .frame(width: Self.size, height: Self.size)
+        .frame(width: size, height: size)
         .background(palette.surfaceRaised)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(palette.border, lineWidth: 1))

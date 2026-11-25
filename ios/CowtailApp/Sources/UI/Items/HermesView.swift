@@ -225,7 +225,7 @@ struct HermesView: View {
                     label
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(.subheadline, weight: .semibold))
                         .foregroundStyle(palette.mutedInk)
                 }
                 .cowtailRow()

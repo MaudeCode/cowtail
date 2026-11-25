@@ -19,7 +19,7 @@ struct CowtailStatusBadge: View {
             }
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(.caption2, weight: .semibold))
                     .accessibilityHidden(true)
             }
             Text(title)

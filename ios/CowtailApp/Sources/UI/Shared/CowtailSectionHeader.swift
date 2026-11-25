@@ -96,11 +96,20 @@ struct CowtailLinkRow: View {
 
     let title: String
     let url: URL
+    var isInForm = false
 
     var body: some View {
+        if isInForm {
+            link
+        } else {
+            link.cowtailRow()
+        }
+    }
+
+    private var link: some View {
         Link(destination: url) {
             HStack {
-                Text(title).font(.cowtailSans(14, relativeTo: .body))
+                Text(title).font(isInForm ? .body : .cowtailSans(14, relativeTo: .body))
                 Spacer()
                 Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold))
             }
@@ -108,7 +117,6 @@ struct CowtailLinkRow: View {
             .frame(minHeight: 44)
             .contentShape(.rect)
         }
-        .cowtailRow()
     }
 }
 
