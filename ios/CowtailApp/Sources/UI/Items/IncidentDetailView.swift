@@ -47,13 +47,17 @@ struct IncidentDetailView: View {
     private var summary: IncidentSummary { incident.summary }
 
     var body: some View {
-        CowtailScreen(title: "", identifier: "screen.incident-detail", titleDisplayMode: .inline) {
+        CowtailScreen(title: "", identifier: "screen.incident-detail", titleDisplayMode: .inline, isList: true) {
             EmptyView()
         } actions: {
             actions
         } content: {
             header
-            ItemTimeline(events: detail.events)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+            Section("Timeline") {
+                ItemTimeline(events: detail.events, showsHeader: false)
+            }
             postmortem
             members
         }
@@ -124,48 +128,24 @@ struct IncidentDetailView: View {
 
     @ViewBuilder
     private var postmortem: some View {
-        CowtailSectionHeader(
-            title: "Postmortem",
-            detail: incident.postmortemAt.map { "Hermes · \(ItemFormat.time($0))" }
-        )
-        if let text = incident.postmortem {
-            PostmortemText(markdown: text)
-                .padding(.vertical, 8)
-                .accessibilityIdentifier("text.incident.postmortem")
-        } else {
-            Text(incident.postmortemState.waitingText)
-                .font(.cowtailSans(13, relativeTo: .footnote))
-                .foregroundStyle(palette.mutedInk)
-                .cowtailRow()
+        Section("Postmortem", detail: incident.postmortemAt.map { "Hermes · \(ItemFormat.time($0))" }) {
+            if let text = incident.postmortem {
+                PostmortemText(markdown: text)
+                    .accessibilityIdentifier("text.incident.postmortem")
+            } else {
+                Text(incident.postmortemState.waitingText)
+                    .font(.cowtailSans(13, relativeTo: .footnote))
+                    .foregroundStyle(palette.mutedInk)
+            }
         }
     }
 
-    @ViewBuilder
+    /// Each member swipes and long-presses like an inbox row; its menu can take it out.
     private var members: some View {
-        CowtailSectionHeader(title: "Members", detail: "\(summary.memberCount)")
-        ForEach(detail.members) { member in
-            HStack(spacing: 10) {
-                NavigationLink(value: AppRoute.item(member.id)) {
-                    Text(member.subtitle.map { "\(member.title) · \($0)" } ?? member.title)
-                        .font(.cowtailSans(14, relativeTo: .body))
-                        .foregroundStyle(palette.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("link.member.\(member.id)")
-                if let outcome = member.outcome {
-                    CowtailStatusBadge(title: outcome.label, tint: outcome.tint(palette))
-                } else {
-                    CowtailStatusBadge(title: member.state.rawValue, tint: member.state.tint(palette))
-                }
-                CowtailIconButton(title: "Remove from incident", systemImage: "xmark", role: .destructive) {
-                    Task { await store.change(.remove(itemID: member.id), incidentID: summary.id) }
-                }
-                .accessibilityIdentifier("button.incident.remove.\(member.id)")
+        Section("Members", detail: "\(summary.memberCount)") {
+            ForEach(detail.members) { member in
+                ItemRow(item: member, style: .member(incidentID: summary.id))
             }
-            .cowtailRow()
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("row.member.\(member.id)")
         }
     }
 }

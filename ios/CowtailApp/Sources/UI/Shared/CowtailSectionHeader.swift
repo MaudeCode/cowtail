@@ -6,11 +6,14 @@ struct CowtailSectionHeader<Accessory: View>: View {
 
     let title: String
     var detail: String?
+    /// A `List` section's header, which the list spaces itself.
+    var isInList = false
     let accessory: Accessory
 
-    init(title: String, detail: String? = nil, @ViewBuilder accessory: () -> Accessory) {
+    init(title: String, detail: String? = nil, isInList: Bool = false, @ViewBuilder accessory: () -> Accessory) {
         self.title = title
         self.detail = detail
+        self.isInList = isInList
         self.accessory = accessory()
     }
 
@@ -25,14 +28,23 @@ struct CowtailSectionHeader<Accessory: View>: View {
             }
             accessory
         }
-        .padding(.top, 18)
-        .padding(.bottom, 4)
+        .padding(.top, isInList ? 0 : 18)
+        .padding(.bottom, isInList ? 0 : 4)
     }
 }
 
 extension CowtailSectionHeader where Accessory == EmptyView {
-    init(title: String, detail: String? = nil) {
-        self.init(title: title, detail: detail) { EmptyView() }
+    init(title: String, detail: String? = nil, isInList: Bool = false) {
+        self.init(title: title, detail: detail, isInList: isInList) { EmptyView() }
+    }
+}
+
+extension Section where Parent == CowtailSectionHeader<EmptyView>, Footer == EmptyView, Content: View {
+    /// A system section under Cowtail's header, its count or detail at the trailing edge.
+    init(_ title: String, detail: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(content: content) {
+            CowtailSectionHeader(title: title, detail: detail, isInList: true)
+        }
     }
 }
 

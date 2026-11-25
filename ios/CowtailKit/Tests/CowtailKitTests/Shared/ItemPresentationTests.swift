@@ -2,17 +2,39 @@ import XCTest
 @testable import CowtailKit
 
 final class ItemPresentationTests: XCTestCase {
-    func testAnUpcomingRowOffersUnsnoozeOnlyWhenTheServerDoes() {
-        let snoozed = { (offered: [ItemAction]) in
-            Item(
-                id: "item", source: "cron", kind: .fyi, urgency: .today, state: .snoozed, title: "Disk",
-                availableActions: offered, createdAt: .now
-            )
-        }
+    private func item(_ offered: [ItemAction], calls: [AlertHumanAction] = []) -> Item {
+        Item(
+            id: "item", source: "alertmanager", kind: .alert, urgency: .today, title: "Disk",
+            availableActions: offered, alertActions: calls, createdAt: .now
+        )
+    }
 
-        XCTAssertEqual(ItemButton.buttons(for: snoozed([.ack, .unsnooze])), [.ack, .unsnooze])
-        XCTAssertEqual(ItemButton.buttons(for: snoozed([.ack, .unsnooze]), isUpcoming: true), [.unsnooze])
-        XCTAssertEqual(ItemButton.buttons(for: snoozed([.ack]), isUpcoming: true), [])
+    /// The item page and a row's context menu show this list; the swipes pick from it.
+    func testAnItemsButtonsAreExactlyTheServersActionsThenItsAlertCalls() {
+        let url = URL(string: "https://grafana.example/d/disk")!
+        let script = RunbookScript(id: "prune", name: "Prune images")
+        let offered = item([.ack, .snooze, .open(url), .choose(["Rebalance now", "Wait"]), .run(script)], calls: [.retryInvestigation, .markNoise])
+
+        let buttons = ItemButton.buttons(for: offered)
+
+        XCTAssertEqual(
+            buttons,
+            [.ack, .snooze, .open(url), .choose("Rebalance now"), .choose("Wait"), .run(script), .retryInvestigation, .markNoise]
+        )
+        XCTAssertEqual(ItemButton.trailingSwipe(buttons), [.ack, .snooze])
+        XCTAssertEqual(ItemButton.leadingSwipe(buttons), [])
+    }
+
+    func testWithoutAcknowledgeTheTrailingSwipeLeadsWithSnooze() {
+        let buttons = ItemButton.buttons(for: item([.approve, .deny, .snooze]))
+
+        XCTAssertEqual(ItemButton.trailingSwipe(buttons), [.snooze])
+        XCTAssertEqual(ItemButton.leadingSwipe(buttons), [.approve])
+    }
+
+    func testUnsnoozeSwipesOnlyWhenTheServerListsIt() {
+        XCTAssertEqual(ItemButton.leadingSwipe(ItemButton.buttons(for: item([.ack, .snooze, .unsnooze]))), [.unsnooze])
+        XCTAssertEqual(ItemButton.leadingSwipe(ItemButton.buttons(for: item([.ack, .snooze]))), [])
     }
 
     func testANotifiedEventNamesTheDecisionTheServerRecorded() {

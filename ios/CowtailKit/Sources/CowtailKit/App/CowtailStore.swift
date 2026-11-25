@@ -67,6 +67,12 @@ struct HistoryFilter: Hashable, Sendable {
     }
 }
 
+/// One ended action: each is new, so the same outcome twice plays twice.
+struct ActionFeedback: Equatable {
+    let id = UUID()
+    let succeeded: Bool
+}
+
 @MainActor
 final class CowtailStore: ObservableObject {
     @Published private(set) var inbox: ItemInbox?
@@ -85,6 +91,8 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var graphs: [String: ItemGraph] = [:]
     @Published private(set) var itemIDsByAlertID: [String: String] = [:]
     @Published private(set) var actionErrors: [String: String] = [:]
+    /// How the owner's last item action ended, for the haptic the app plays.
+    @Published private(set) var actionFeedback: ActionFeedback?
     /// Writes whose outcome the server has not confirmed yet; their items take no new action.
     @Published private(set) var unconfirmedItemIDs: Set<String> = []
     /// Items with a write on its way; a second tap waits for the first to settle.
@@ -98,6 +106,11 @@ final class CowtailStore: ObservableObject {
         let request: ItemActionRequest
     }
     @Published private(set) var alertActionsInFlight: Set<String> = []
+    /// Each item with an action sent and not yet answered, as the action shows it. Every read of
+    /// History or an incident shows it over the server's copy, so a poll cannot undo it.
+    private var itemsInFlight: [String: Item] = [:]
+    /// Bumped each time an item action settles, so a History read taken before is discarded.
+    private var historyWriteGeneration = 0
 
     /// The running maintenance windows, the soonest end first.
     @Published private(set) var maintenanceWindows: [MaintenanceWindow] = []
@@ -381,7 +394,7 @@ final class CowtailStore: ObservableObject {
             if let detail = read {
                 // The read says whether each change whose reply was lost landed.
                 pendingIncidentChanges[id]?.removeAll(where: \.unconfirmed)
-                confirm(detail, incidentID: id)
+                confirm(overlaid(detail), incidentID: id)
                 incidentErrors[id] = nil
             } else {
                 incidentErrors[id] = "This incident could not be found."
@@ -478,11 +491,16 @@ final class CowtailStore: ObservableObject {
     func perform(_ request: ItemActionRequest, on item: Item) async {
         guard !unconfirmedItemIDs.contains(item.id) else {
             actionErrors[item.id] = Self.unconfirmedMessage
+            actionFeedback = ActionFeedback(succeeded: false)
             return
         }
         // Held from before the first suspension, so a second tap cannot overtake this write.
         guard itemIDsInFlight.insert(item.id).inserted else { return }
-        defer { itemIDsInFlight.remove(item.id) }
+        var succeeded = false
+        defer {
+            itemIDsInFlight.remove(item.id)
+            actionFeedback = ActionFeedback(succeeded: succeeded)
+        }
         actionErrors[item.id] = nil
         // The server's word on the item and this device's setting both count; the server
         // refuses an approval sent without Face ID while the owner requires it.
@@ -505,6 +523,7 @@ final class CowtailStore: ObservableObject {
 
         let inboxBefore = inbox
         let detailBefore = details[item.id]
+        let listsBefore = shownInLists(item.id)
         showOptimistically(request, on: item)
         let pending = PendingSnooze(itemID: item.id, request: request)
         switch request {
@@ -514,7 +533,15 @@ final class CowtailStore: ObservableObject {
 
         do {
             // A failed reply ends the write's claim on later reads too.
-            defer { pendingSnoozes.removeAll { $0.id == pending.id } }
+            defer {
+                pendingSnoozes.removeAll { $0.id == pending.id }
+                itemsInFlight[item.id] = nil
+                // Whatever the outcome, a list read that started before it is out of date.
+                historyWriteGeneration += 1
+                for id in listsBefore.compactMap(\.incidentID) {
+                    incidentWriteGenerations[id, default: 0] += 1
+                }
+            }
             let updated = try await api.performItemAction(
                 itemID: item.id,
                 request: request,
@@ -522,6 +549,8 @@ final class CowtailStore: ObservableObject {
                 sessionToken: token
             )
             pendingSnoozes.removeAll { $0.id == pending.id }
+            succeeded = true
+            showEverywhere(updated)
             if details[item.id] != nil {
                 details[item.id]?.item = updated
                 await loadDetail(itemID: item.id)
@@ -530,6 +559,7 @@ final class CowtailStore: ObservableObject {
         } catch CowtailAPIError.refused(let message) {
             restore(item.id, from: inboxBefore)
             details[item.id] = detailBefore
+            showInLists(listsBefore)
             actionErrors[item.id] = message
         } catch {
             // The write may or may not have landed. Keep showing it, and take no new action on
@@ -543,6 +573,13 @@ final class CowtailStore: ObservableObject {
             }
             if detailBefore != nil {
                 await loadDetail(itemID: item.id)
+            }
+            // History and the incidents show the write too; only the server's lists say whether it landed.
+            if historyItems.contains(where: { $0.id == item.id }) {
+                await loadHistory(historyFilter)
+            }
+            for id in listsBefore.compactMap(\.incidentID) {
+                await loadIncident(id: id)
             }
         }
     }
@@ -567,7 +604,54 @@ final class CowtailStore: ObservableObject {
 
     private func showOptimistically(_ request: ItemActionRequest, on item: Item) {
         inbox = inbox?.showing(request, on: item)
-        details[item.id]?.item = ItemInbox.item(item, showing: request)
+        let shown = ItemInbox.item(item, showing: request)
+        details[item.id]?.item = shown
+        itemsInFlight[item.id] = shown
+        showEverywhere(shown)
+    }
+
+    /// The server's copy, or the item as an action still on its way shows it.
+    private func overlaid(_ item: Item) -> Item {
+        itemsInFlight[item.id] ?? item
+    }
+
+    private func overlaid(_ detail: IncidentDetail) -> IncidentDetail {
+        var shown = detail
+        shown.members = detail.members.map(overlaid)
+        return shown
+    }
+
+    /// One list's copy of an item: History's when `incidentID` is nil, else that incident's member.
+    private struct ShownItem {
+        let item: Item
+        let incidentID: String?
+    }
+
+    /// Each copy of the item that History and the loaded incidents show.
+    private func shownInLists(_ itemID: String) -> [ShownItem] {
+        let history = historyItems.first { $0.id == itemID }.map { ShownItem(item: $0, incidentID: nil) }
+        let members = confirmedIncidents.compactMap { id, detail in
+            detail.members.first { $0.id == itemID }.map { ShownItem(item: $0, incidentID: id) }
+        }
+        return [history].compactMap { $0 } + members
+    }
+
+    /// Puts each copy back in its own list.
+    private func showInLists(_ copies: [ShownItem]) {
+        for copy in copies {
+            if let id = copy.incidentID {
+                guard let index = confirmedIncidents[id]?.members.firstIndex(where: { $0.id == copy.item.id }) else { continue }
+                confirmedIncidents[id]?.members[index] = copy.item
+                confirm(nil, incidentID: id)
+            } else if let index = historyItems.firstIndex(where: { $0.id == copy.item.id }) {
+                historyItems[index] = copy.item
+            }
+        }
+    }
+
+    /// Shows the item in every list that holds a copy of it.
+    private func showEverywhere(_ item: Item) {
+        showInLists(shownInLists(item.id).map { ShownItem(item: item, incidentID: $0.incidentID) })
     }
 
     /// The snooze picker's presets, worked out by the server in this device's zone.
@@ -593,13 +677,19 @@ final class CowtailStore: ObservableObject {
         actionErrors[item.id] = nil
         guard let token = await sessionToken() else {
             actionErrors[item.id] = Self.signInMessage
+            actionFeedback = ActionFeedback(succeeded: false)
             return
         }
         alertActionsInFlight.insert(item.id)
-        defer { alertActionsInFlight.remove(item.id) }
+        var succeeded = false
+        defer {
+            alertActionsInFlight.remove(item.id)
+            actionFeedback = ActionFeedback(succeeded: succeeded)
+        }
 
         do {
             try await api.performAlertAction(alertID: alertID, action: action, note: note, sessionToken: token)
+            succeeded = true
             await loadDetail(itemID: item.id)
             await reloadInbox(sessionToken: token)
         } catch {
@@ -622,6 +712,9 @@ final class CowtailStore: ObservableObject {
         guard scriptsStarting.insert(script.id).inserted else { return }
         defer { scriptsStarting.remove(script.id) }
         let report: (String?) -> Void = { message in
+            if message != nil {
+                self.actionFeedback = ActionFeedback(succeeded: false)
+            }
             if let itemID {
                 self.actionErrors[itemID] = message
             } else {
@@ -656,6 +749,7 @@ final class CowtailStore: ObservableObject {
                 sessionToken: token
             )
             unansweredRunRequests[key] = nil
+            actionFeedback = ActionFeedback(succeeded: true)
             selectedRunID = run.id
             runDetail = RunbookRunDetail(run: run, output: "")
             if let itemID {
@@ -721,15 +815,16 @@ final class CowtailStore: ObservableObject {
         var firstPage = filter.query()
         firstPage.limit = min(500, max(firstPage.limit, shown))
         let query = firstPage
+        let generation = historyWriteGeneration
         do {
             async let page = fetchHistoryPage(query, sessionToken: token)
             async let stats = api.fetchItemStats(query, sessionToken: token)
             async let sources = api.fetchItemSources(sessionToken: token)
             let (loadedPage, loadedStats, loadedSources) = try await (page, stats, sources)
-            guard filter == historyFilter else { return }
+            guard filter == historyFilter, generation == historyWriteGeneration else { return }
             historySources = loadedSources
             historyQuery = query.continuing(loadedPage)
-            historyItems = loadedPage.items
+            historyItems = loadedPage.items.map(overlaid)
             historyDayCounts = Self.dayCounts(loadedPage.days)
             historyCursor = loadedPage.nextCursor
             historyStats = loadedStats
@@ -749,11 +844,12 @@ final class CowtailStore: ObservableObject {
         defer { isLoadingHistory = false }
         guard let token = await sessionToken() else { return }
         let filter = historyFilter
+        let generation = historyWriteGeneration
         query.cursor = cursor
         do {
             let page = try await fetchHistoryPage(query, sessionToken: token)
-            guard filter == historyFilter else { return }
-            historyItems += page.items
+            guard filter == historyFilter, generation == historyWriteGeneration else { return }
+            historyItems += page.items.map(overlaid)
             historyDayCounts.merge(Self.dayCounts(page.days)) { _, newer in newer }
             historyCursor = page.nextCursor
         } catch {
@@ -815,6 +911,7 @@ extension ItemInbox {
         moved.availableActions.removeAll { $0 == .unsnooze }
         switch request {
         case .ack:
+            moved.availableActions.removeAll { $0 == .ack }
             moved.state = .acked
             moved.needsOwner = false
         case .snooze(let until):

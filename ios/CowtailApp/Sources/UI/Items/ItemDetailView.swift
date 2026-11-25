@@ -100,8 +100,7 @@ struct ItemDetailView: View {
     /// alert calls, wrapping to the next line rather than clipping.
     private var actionArea: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ItemTextButtons(item: item)
-            ItemActionButtons(item: item, isActionArea: true)
+            ItemActionButtons(item: item)
             if let error = store.actionErrors[item.id] {
                 Text(error)
                     .font(.cowtailSans(12, relativeTo: .footnote))
@@ -317,12 +316,16 @@ struct FlowLayout: Layout {
 /// An item's timeline, or an incident's merged one, whose events name the member they concern.
 struct ItemTimeline: View {
     let events: [ItemEvent]
+    /// A `List` section gives the timeline its header instead.
+    var showsHeader = true
 
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CowtailSectionHeader(title: "Timeline")
+            if showsHeader {
+                CowtailSectionHeader(title: "Timeline")
+            }
             ForEach(events) { event in
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .top, spacing: 10) {

@@ -69,6 +69,10 @@ struct ContentView: View {
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarBackground(palette.surfaceRaised, for: .tabBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        // Every owner action ends in a success or an error haptic, wherever it started.
+        .sensoryFeedback(trigger: store.actionFeedback) { _, feedback in
+            feedback.map { $0.succeeded ? .success : .error }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await store.refresh() }

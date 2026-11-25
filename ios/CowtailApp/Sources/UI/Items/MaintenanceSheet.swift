@@ -248,7 +248,7 @@ struct MaintenanceSheet: View {
     }
 }
 
-/// A running window above Needs you: what it silences, the time left, any silence error, and an
+/// A running window's row above Needs you: what it silences, the time left, any silence error, and an
 /// End window button.
 struct MaintenanceBanner: View {
     let window: MaintenanceWindow
@@ -282,11 +282,7 @@ struct MaintenanceBanner: View {
             }
             .accessibilityIdentifier("button.maintenance.end.\(window.id)")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(palette.warning.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(palette.warning.opacity(0.5), lineWidth: 1))
-        .padding(.top, 10)
+        .listRowBackground(palette.warning.opacity(0.15))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("banner.maintenance.\(window.id)")
     }

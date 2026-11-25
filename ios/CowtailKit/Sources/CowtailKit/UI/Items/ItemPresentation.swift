@@ -140,31 +140,58 @@ extension SnoozeOption.Preset {
     }
 }
 
-/// A button an item row or the item header shows: one per action the item offers, and the
-/// owner's alert dispositions.
+/// One thing the owner can do on an item: an action the server lists, one of a question's
+/// answers, or an alert call.
 enum ItemButton: Hashable, Identifiable {
     case approve, deny, reply, ack, snooze, unsnooze
+    case choose(String)
     case open(URL)
+    case run(RunbookScript)
     case markNoise, escalate, retryInvestigation
 
-    var id: String { identifier }
+    var id: String {
+        switch self {
+        case .choose(let option): "choose.\(option)"
+        case .run(let script): "run.\(script.id)"
+        default: identifier
+        }
+    }
 
-    /// The buttons for what the server offers on an item; `choose` shows its options as text
-    /// instead. An Upcoming row offers only Unsnooze.
-    static func buttons(for item: Item, isUpcoming: Bool = false) -> [ItemButton] {
-        let buttons: [ItemButton] = item.availableActions.compactMap { action in
+    /// Everything the owner can do on an item: its `availableActions` in the server's order,
+    /// a question's answers one by one, then its alert calls. The item page, a row's context
+    /// menu and its swipe actions all take theirs from this list.
+    static func buttons(for item: Item) -> [ItemButton] {
+        let actions: [ItemButton] = item.availableActions.flatMap { action -> [ItemButton] in
             switch action {
-            case .approve: .approve
-            case .deny: .deny
-            case .reply: .reply
-            case .ack: .ack
-            case .snooze: .snooze
-            case .unsnooze: .unsnooze
-            case .open(let url): .open(url)
-            case .choose, .run: nil
+            case .approve: [.approve]
+            case .deny: [.deny]
+            case .reply: [.reply]
+            case .ack: [.ack]
+            case .snooze: [.snooze]
+            case .unsnooze: [.unsnooze]
+            case .open(let url): [.open(url)]
+            case .choose(let options): options.map(ItemButton.choose)
+            case .run(let script): [.run(script)]
             }
         }
-        return isUpcoming ? buttons.filter { $0 == .unsnooze } : buttons
+        let calls: [ItemButton] = item.alertActions.map { action in
+            switch action {
+            case .retryInvestigation: .retryInvestigation
+            case .markNoise: .markNoise
+            case .escalate: .escalate
+            }
+        }
+        return actions + calls
+    }
+
+    /// A row's trailing swipe, from `buttons`: Acknowledge, which a full swipe takes, then Snooze.
+    static func trailingSwipe(_ buttons: [ItemButton]) -> [ItemButton] {
+        [.ack, .snooze].filter(buttons.contains)
+    }
+
+    /// A row's leading swipe, from `buttons`: Approve and Unsnooze.
+    static func leadingSwipe(_ buttons: [ItemButton]) -> [ItemButton] {
+        [.approve, .unsnooze].filter(buttons.contains)
     }
 
     var title: String {
@@ -175,7 +202,9 @@ enum ItemButton: Hashable, Identifiable {
         case .ack: "Acknowledge"
         case .snooze: "Snooze"
         case .unsnooze: "Unsnooze"
+        case .choose(let option): option
         case .open: "Open link"
+        case .run(let script): script.name
         case .markNoise: "Mark as noise"
         case .escalate: "Escalate"
         case .retryInvestigation: "Retry investigation"
@@ -190,7 +219,9 @@ enum ItemButton: Hashable, Identifiable {
         case .ack: "checkmark.circle"
         case .snooze: "clock"
         case .unsnooze: "arrow.clockwise"
+        case .choose: "text.bubble"
         case .open: "link"
+        case .run: "play.fill"
         case .markNoise: "speaker.slash"
         case .escalate: "arrow.up.circle"
         case .retryInvestigation: "arrow.clockwise"
@@ -207,6 +238,32 @@ enum ItemButton: Hashable, Identifiable {
         self == .approve
     }
 
+    /// A question's answer and a script's name are words an icon cannot carry.
+    var isText: Bool {
+        switch self {
+        case .choose, .run: true
+        default: false
+        }
+    }
+
+    /// The owner's call on the linked alert, whose result the server decides.
+    var isAlertCall: Bool {
+        switch self {
+        case .markNoise, .escalate, .retryInvestigation: true
+        default: false
+        }
+    }
+
+    /// A swipe action's fill.
+    func swipeTint(_ palette: ThemePalette) -> Color {
+        switch self {
+        case .ack, .approve: palette.success
+        case .snooze: palette.warning
+        case .unsnooze: palette.info
+        default: palette.ink
+        }
+    }
+
     var identifier: String {
         switch self {
         case .approve: "approve"
@@ -215,10 +272,20 @@ enum ItemButton: Hashable, Identifiable {
         case .ack: "ack"
         case .snooze: "snooze"
         case .unsnooze: "unsnooze"
+        case .choose: "choose"
         case .open: "open"
+        case .run: "run"
         case .markNoise: "mark-noise"
         case .escalate: "escalate"
         case .retryInvestigation: "retry"
+        }
+    }
+
+    func accessibilityIdentifier(itemID: String) -> String {
+        switch self {
+        case .choose(let option): "button.item.choose.\(itemID).\(option)"
+        case .run(let script): "button.item.run.\(itemID).\(script.id)"
+        default: "button.item.\(identifier).\(itemID)"
         }
     }
 }
