@@ -1737,7 +1737,7 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours
+    /// The owner's inbox: needs you, with Hermes, and upcoming
     ///
     /// - Remark: HTTP `GET /items/inbox`.
     /// - Remark: Generated from `#/paths//items/inbox/get(getItemInbox)`.

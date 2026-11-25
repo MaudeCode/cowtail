@@ -42,7 +42,6 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
     func fetchInbox(sessionToken _: String) async throws -> ItemInbox {
         try requireItems()
         let byUpdate = seed.items.sorted { $0.updatedAt > $1.updatedAt }
-        let dayAgo = Date.now.addingTimeInterval(-24 * 60 * 60)
         // Like the server, an incident is one row, in the first section one of its members is in.
         var seen: Set<String> = []
         let oncePerIncident = { (items: [Item]) in
@@ -55,8 +54,7 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
                 .filter { $0.state == .snoozed }
                 .sorted { ($0.snoozedUntil ?? .distantFuture) < ($1.snoozedUntil ?? .distantFuture) }
         )
-        let handled = oncePerIncident(byUpdate.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) >= dayAgo })
-        return ItemInbox(needsYou: needsYou, withHermes: withHermes, upcoming: upcoming, handled: handled)
+        return ItemInbox(needsYou: needsYou, withHermes: withHermes, upcoming: upcoming)
     }
 
     func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {

@@ -145,6 +145,8 @@ const priorOccurrence = {
 };
 
 const HOUR = 60 * 60_000;
+// History's default range, as the server query carries it.
+const LAST_DAY = `from=${NOW - 24 * HOUR}`;
 
 // The alert item's metric: one series crossing its threshold while it fired.
 const graph = {
@@ -170,7 +172,7 @@ const graph = {
 
 describe("each area's sections, in its figure's order", () => {
   test.each([
-    ["/", ["Needs you", "Hermes is on it", "Upcoming", "Cluster", "Hermes", "Handled · 24h"]],
+    ["/", ["Needs you", "Hermes is on it", "Upcoming", "Cluster", "Hermes"]],
     [
       "/cluster",
       ["Alert pipeline", "Nodes", "Ceph", "Firing by namespace", "Volume · 7 days", "Noisiest"],
@@ -196,9 +198,15 @@ describe("each area's sections, in its figure's order", () => {
   ])("%s", async (route, labels) => {
     stubApi(
       signedIn({
-        "GET /actions/api/items/inbox": inbox({ handled: [fixed] }),
+        "GET /actions/api/items/inbox": inbox(),
         "GET /actions/api/items/stats": stats,
-        "GET /actions/api/items?limit=100": { ok: true, count: 1, items: [fixed], days: [] },
+        [`GET /actions/api/items/stats?${LAST_DAY}`]: stats,
+        [`GET /actions/api/items?${LAST_DAY}&limit=100`]: {
+          ok: true,
+          count: 1,
+          items: [fixed],
+          days: [],
+        },
         "GET /actions/api/items/item-9": {
           ok: true,
           item: fixed,
@@ -761,8 +769,8 @@ describe("maintenance windows", () => {
     const plain = item({ id: "plain-1", title: "Plain alert" });
     stubApi(
       signedIn({
-        "GET /actions/api/items/stats": stats,
-        "GET /actions/api/items?limit=100": {
+        [`GET /actions/api/items/stats?${LAST_DAY}`]: stats,
+        [`GET /actions/api/items?${LAST_DAY}&limit=100`]: {
           ok: true,
           count: 2,
           items: [held, plain],
@@ -797,7 +805,10 @@ describe("History's filter", () => {
   const address = () => screen.getByTestId("address").textContent;
 
   test("choosing a source adds its chip and its parameter, and removing the chip removes both", async () => {
-    const { calls } = stubApi({ ...historyRoutes(""), ...historyRoutes("source=alertmanager") });
+    const { calls } = stubApi({
+      ...historyRoutes(LAST_DAY),
+      ...historyRoutes(`source=alertmanager&${LAST_DAY}`),
+    });
     renderApp("/history");
 
     await userEvent.click(await screen.findByRole("button", { name: "Filter" }));
@@ -810,7 +821,7 @@ describe("History's filter", () => {
     expect(address()).toBe("/history?source=alertmanager");
     await waitFor(() =>
       expect(calls.map((call) => call.path)).toContain(
-        "/actions/api/items?source=alertmanager&limit=100",
+        `/actions/api/items?source=alertmanager&${LAST_DAY}&limit=100`,
       ),
     );
 
@@ -818,6 +829,24 @@ describe("History's filter", () => {
 
     expect(screen.queryByText("source: alertmanager")).not.toBeInTheDocument();
     expect(address()).toBe("/history");
+  });
+
+  test("History opens on the last 24 hours and lists what was handled in them; removing the range lists all time", async () => {
+    const { calls } = stubApi({ ...historyRoutes(LAST_DAY), ...historyRoutes("") });
+    renderApp("/history");
+
+    expect(await screen.findByRole("link", { name: "KubePodCrashLooping" })).toBeInTheDocument();
+    expect(screen.getByText("last 24h")).toBeInTheDocument();
+    expect(address()).toBe("/history");
+    expect(calls.map((call) => call.path)).toContain(`/actions/api/items?${LAST_DAY}&limit=100`);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove range filter" }));
+
+    expect(screen.queryByText("last 24h")).not.toBeInTheDocument();
+    expect(address()).toBe("/history?range=all");
+    await waitFor(() =>
+      expect(calls.map((call) => call.path)).toContain("/actions/api/items?limit=100"),
+    );
   });
 
   test("an address with filters restores their chips and lists what they match", async () => {
@@ -1595,7 +1624,7 @@ describe("incidents", () => {
   test("History shows an incident as one row that opens it", async () => {
     stubApi(
       signedIn({
-        "GET /actions/api/items?limit=100": {
+        [`GET /actions/api/items?${LAST_DAY}&limit=100`]: {
           ok: true,
           count: 1,
           items: [

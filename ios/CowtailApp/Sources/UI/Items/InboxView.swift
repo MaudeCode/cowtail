@@ -49,7 +49,6 @@ struct InboxView: View {
             section("Needs you", inbox.needsYou, count: inbox.counts.needsYou, style: .needsYou)
             section("Hermes is on it", inbox.withHermes, count: inbox.counts.withHermes, style: .withHermes)
             section("Upcoming", inbox.upcoming, count: inbox.counts.upcoming, style: .upcoming)
-            section("Handled · 24h", inbox.handled, count: inbox.counts.handled, style: .handled)
         }
         .polling { await store.refresh() }
         .sheet(isPresented: $isStartingMaintenance) {
@@ -61,7 +60,6 @@ struct InboxView: View {
         HStack(spacing: 18) {
             count(inbox.counts.needsYou, "need you")
             count(inbox.counts.withHermes, "with Hermes")
-            count(inbox.counts.handled, "handled")
             Spacer()
         }
         .padding(.top, 6)

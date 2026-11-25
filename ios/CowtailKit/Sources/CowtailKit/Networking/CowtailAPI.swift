@@ -326,13 +326,11 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
                     needsYou: inbox.counts.needsYou,
                     withHermes: inbox.counts.withHermes,
                     // Absent from a server that predates Upcoming.
-                    upcoming: inbox.counts.upcoming ?? 0,
-                    handled: inbox.counts.handled
+                    upcoming: inbox.counts.upcoming ?? 0
                 ),
                 needsYou: inbox.needsYou.map(Self.makeItem),
                 withHermes: inbox.withHermes.map(Self.makeItem),
                 upcoming: (inbox.upcoming ?? []).map(Self.makeItem),
-                handled: inbox.handled.map(Self.makeItem),
                 badge: inbox.badge,
                 liveItemIDs: Set(inbox.liveItemIds)
             )

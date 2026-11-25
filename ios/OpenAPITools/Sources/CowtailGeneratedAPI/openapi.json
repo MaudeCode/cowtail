@@ -1593,16 +1593,11 @@
               "upcoming": {
                 "type": "integer",
                 "minimum": 0
-              },
-              "handled": {
-                "type": "integer",
-                "minimum": 0
               }
             },
             "required": [
               "needsYou",
-              "withHermes",
-              "handled"
+              "withHermes"
             ]
           },
           "needsYou": {
@@ -1618,12 +1613,6 @@
             }
           },
           "upcoming": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ItemRecord"
-            }
-          },
-          "handled": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ItemRecord"
@@ -1646,7 +1635,6 @@
           "counts",
           "needsYou",
           "withHermes",
-          "handled",
           "badge",
           "liveItemIds"
         ]
@@ -4414,7 +4402,7 @@
         "tags": [
           "items"
         ],
-        "summary": "The owner's inbox: needs you, with Hermes, upcoming, and handled in the last 24 hours",
+        "summary": "The owner's inbox: needs you, with Hermes, and upcoming",
         "security": [
           {
             "appSession": []

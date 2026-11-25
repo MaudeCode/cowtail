@@ -68,7 +68,7 @@ final class CowtailStoreTests: XCTestCase {
     }
 
     func testAnInboxLoadSetsTheServersBadgeAndKeepsOnlyLiveItemsNotifications() async {
-        var inbox = ItemInbox(needsYou: [approval], withHermes: [], handled: [])
+        var inbox = ItemInbox(needsYou: [approval], withHermes: [])
         inbox.badge = 1
         // The open `today` fyi does not need the owner, and is still live.
         inbox.liveItemIDs = ["approval-1", "fyi-today"]
@@ -239,7 +239,7 @@ final class CowtailStoreTests: XCTestCase {
 
     func testApproveWaitsForLocalAuthenticationWhenTheOwnerRequiresIt() async {
         for allows in [false, true] {
-            let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []))
+            let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: []))
             let authenticator = FakeAuthenticator(allows: allows)
             let store = store(api: api, authenticator: authenticator, requiresAuthentication: true)
             await store.refresh()
@@ -258,7 +258,7 @@ final class CowtailStoreTests: XCTestCase {
     }
 
     func testApproveSkipsLocalAuthenticationWhenTheOwnerDoesNotRequireIt() async {
-        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []))
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: []))
         let authenticator = FakeAuthenticator(allows: false)
         let store = store(api: api, authenticator: authenticator)
         await store.refresh()
@@ -286,7 +286,7 @@ final class CowtailStoreTests: XCTestCase {
             approvalNeedsAuth: true,
             createdAt: approval.createdAt
         )
-        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [guarded], withHermes: [], handled: []))
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [guarded], withHermes: []))
         let authenticator = FakeAuthenticator(allows: true)
         let store = store(api: api, authenticator: authenticator)
         await store.refresh()
@@ -307,7 +307,7 @@ final class CowtailStoreTests: XCTestCase {
 
     func testAScriptThatAsksToConfirmWaitsForFaceIDWhileTheOwnerRequiresIt() async {
         for allows in [false, true] {
-            let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+            let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: []))
             let authenticator = FakeAuthenticator(allows: allows)
             let store = store(api: api, authenticator: authenticator, requiresAuthentication: true)
 
@@ -326,7 +326,7 @@ final class CowtailStoreTests: XCTestCase {
     }
 
     func testAScriptAsksForFaceIDWhenTheServerSaysItNeedsIt() async {
-        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: []))
         let authenticator = FakeAuthenticator(allows: true)
         let store = store(api: api, authenticator: authenticator)
         var guarded = restartGateway
@@ -341,7 +341,7 @@ final class CowtailStoreTests: XCTestCase {
     }
 
     func testAScriptThatRunsOnATapNeverAsksForFaceID() async {
-        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: []))
         let authenticator = FakeAuthenticator(allows: false)
         let store = store(api: api, authenticator: authenticator, requiresAuthentication: true)
 
@@ -355,7 +355,7 @@ final class CowtailStoreTests: XCTestCase {
     }
 
     func testARunWhoseReplyWasLostIsSentAgainUnderTheSameRequest() async {
-        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: [], handled: []))
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [], withHermes: []))
         let store = store(api: api)
         let script = RunbookScript(id: "disk-usage", name: "Disk usage")
         await api.loseNextRunReply()
@@ -372,7 +372,7 @@ final class CowtailStoreTests: XCTestCase {
 
     func testARefusedActionRollsTheInboxBackAndShowsTheServersError() async {
         let api = FakeItemAPI(
-            inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []),
+            inbox: ItemInbox(needsYou: [approval], withHermes: []),
             actionError: CowtailAPIError.refused("The item is closed")
         )
         let store = store(api: api)
@@ -396,7 +396,7 @@ final class CowtailStoreTests: XCTestCase {
             actions: [.reply],
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
-        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval, question], withHermes: [], handled: []))
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval, question], withHermes: []))
         let store = store(api: api)
         await store.refresh()
         await api.hold(itemID: approval.id)
@@ -409,12 +409,12 @@ final class CowtailStoreTests: XCTestCase {
 
         XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
         XCTAssertEqual(store.inbox?.withHermes.map(\.id), [question.id])
-        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 1, upcoming: 0, handled: 0))
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 1, upcoming: 0))
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
     }
 
     func testASecondTapWhileTheFirstIsOnItsWaySendsNothing() async {
-        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []))
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: []))
         let store = store(api: api)
         await store.refresh()
         await api.hold(itemID: approval.id)
@@ -431,7 +431,7 @@ final class CowtailStoreTests: XCTestCase {
 
     func testAnUnconfirmedWriteStaysShownAndTakesNoSecondAnswerUntilTheServerAnswers() async {
         let api = FakeItemAPI(
-            inbox: ItemInbox(needsYou: [approval], withHermes: [], handled: []),
+            inbox: ItemInbox(needsYou: [approval], withHermes: []),
             actionError: URLError(.timedOut)
         )
         let store = store(api: api)
@@ -469,8 +469,7 @@ final class CowtailStoreTests: XCTestCase {
         ItemInbox(
             needsYou: [approval],
             withHermes: [],
-            upcoming: [soon ?? snoozed("soon", hours: 1), snoozed("later", hours: 72)],
-            handled: []
+            upcoming: [soon ?? snoozed("soon", hours: 1), snoozed("later", hours: 72)]
         )
     }
 
@@ -486,7 +485,7 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["soon", approval.id, "later"])
         XCTAssertEqual(store.inbox?.item(withID: approval.id)?.availableActions.last, .unsnooze)
         XCTAssertEqual(store.inbox?.needsYou, [])
-        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 0, withHermes: 0, upcoming: 3, handled: 0))
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 0, withHermes: 0, upcoming: 3))
         await api.releaseHeld(with: CowtailAPIError.refused("done"))
         await snooze.value
     }
@@ -500,7 +499,7 @@ final class CowtailStoreTests: XCTestCase {
 
         XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["soon", "later"])
         XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
-        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 0, upcoming: 2, handled: 0))
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 0, upcoming: 2))
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
     }
 
@@ -521,7 +520,7 @@ final class CowtailStoreTests: XCTestCase {
             XCTAssertEqual(inbox?.withHermes.map(\.id), needsOwner ? [] : [soon.id], "needsOwner=\(needsOwner)")
             XCTAssertEqual(
                 inbox?.counts,
-                ItemInbox.Counts(needsYou: needsOwner ? 2 : 1, withHermes: needsOwner ? 0 : 1, upcoming: 1, handled: 0),
+                ItemInbox.Counts(needsYou: needsOwner ? 2 : 1, withHermes: needsOwner ? 0 : 1, upcoming: 1),
                 "needsOwner=\(needsOwner)"
             )
             let shown = inbox?.item(withID: soon.id)
@@ -554,7 +553,7 @@ final class CowtailStoreTests: XCTestCase {
         let until = Self.start.addingTimeInterval(3_600)
         let snoozedRead = snoozeInbox(snoozed("soon", hours: 1, needsOwnerWhenOpen: true))
         let reopened = Item(id: "soon", source: "hermes", kind: .approval, urgency: .now, needsOwner: true, title: "soon", createdAt: Self.start)
-        let reopenedRead = ItemInbox(needsYou: [reopened], withHermes: [], handled: [])
+        let reopenedRead = ItemInbox(needsYou: [reopened], withHermes: [])
 
         XCTAssertEqual(snoozedRead.showingPending(.snooze(until: until), on: "soon"), snoozedRead)
         XCTAssertEqual(reopenedRead.showingPending(.unsnooze, on: "soon"), reopenedRead)
@@ -570,7 +569,7 @@ final class CowtailStoreTests: XCTestCase {
 
         XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["soon", "later"])
         XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
-        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 0, upcoming: 2, handled: 0))
+        XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 1, withHermes: 0, upcoming: 2))
         XCTAssertEqual(store.actionErrors[soon.id], "The item is not snoozed")
     }
 
@@ -596,6 +595,12 @@ final class CowtailStoreTests: XCTestCase {
         await store.loadHistory(HistoryFilter(kind: .approval))
 
         XCTAssertEqual(store.historyItems.map(\.id), ["older"])
+    }
+
+    func testHistoryOpensOnTheLast24Hours() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        XCTAssertEqual(HistoryFilter().query(now: now).from, now.addingTimeInterval(-86_400))
     }
 
     func testAHistoryContinuationKeepsTheFirstPagesDateBounds() async {
@@ -762,7 +767,7 @@ private actor FakeItemAPI: CowtailAPIClient {
             throw inboxError
         }
         // Totals follow the lists, as the server counts them.
-        var read = ItemInbox(needsYou: inbox.needsYou, withHermes: inbox.withHermes, upcoming: inbox.upcoming, handled: inbox.handled)
+        var read = ItemInbox(needsYou: inbox.needsYou, withHermes: inbox.withHermes, upcoming: inbox.upcoming)
         read.badge = inbox.badge
         read.liveItemIDs = inbox.liveItemIDs
         return read

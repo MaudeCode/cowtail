@@ -250,8 +250,8 @@ final class CowtailAPITests: XCTestCase {
 
     func testTheInboxKeepsTheServersUpcomingOrderAndReturnTimes() async throws {
         let reply = """
-        {"ok":true,"counts":{"needsYou":0,"withHermes":0,"upcoming":7,"handled":0},\
-        "needsYou":[],"withHermes":[],"handled":[],"badge":0,"liveItemIds":[],\
+        {"ok":true,"counts":{"needsYou":0,"withHermes":0,"upcoming":7},\
+        "needsYou":[],"withHermes":[],"badge":0,"liveItemIds":[],\
         "upcoming":[\(Self.itemRecord("later", snoozedUntil: 1_800_000_000_000)),\
         \(Self.itemRecord("sooner", snoozedUntil: 1_700_000_000_000))]}
         """
@@ -267,8 +267,8 @@ final class CowtailAPITests: XCTestCase {
 
     func testAnInboxFromAServerBeforeUpcomingHasNoUpcomingItems() async throws {
         let reply = """
-        {"ok":true,"counts":{"needsYou":1,"withHermes":0,"handled":0},\
-        "needsYou":[\(Self.itemRecord("open"))],"withHermes":[],"handled":[],"badge":1,"liveItemIds":["open"]}
+        {"ok":true,"counts":{"needsYou":1,"withHermes":0},\
+        "needsYou":[\(Self.itemRecord("open"))],"withHermes":[],"badge":1,"liveItemIds":["open"]}
         """
         let transport = RecordingTransport(routes: ["GET /api/items/inbox": .init(json: reply)])
 
@@ -281,8 +281,8 @@ final class CowtailAPITests: XCTestCase {
 
     func testTheInboxCarriesTheServersBadgeAndLiveItems() async throws {
         let reply = """
-        {"ok":true,"counts":{"needsYou":0,"withHermes":1,"upcoming":0,"handled":0},\
-        "needsYou":[],"withHermes":[\(Self.itemRecord("today-fyi"))],"upcoming":[],"handled":[],\
+        {"ok":true,"counts":{"needsYou":0,"withHermes":1,"upcoming":0},\
+        "needsYou":[],"withHermes":[\(Self.itemRecord("today-fyi"))],"upcoming":[],\
         "badge":3,"liveItemIds":["today-fyi","incident-member"]}
         """
         let transport = RecordingTransport(routes: ["GET /api/items/inbox": .init(json: reply)])

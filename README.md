@@ -21,9 +21,9 @@ This repo contains five projects:
 ## Features
 
 - **Signed-in web app** — the owner signs in with Pocket ID; without a session every page shows the login page, and item, alert and fix reads answer only the owner's session or a service token
-- **Home** — what needs the owner, with Approve, Deny, Reply, Acknowledge and Snooze, what Hermes is on, cluster health, and what was handled in the last 24 hours
+- **Home** — what needs the owner, with Approve, Deny, Reply, Acknowledge and Snooze, what Hermes is on, what is snoozed, and cluster health; handled items are in History, which opens on the last 24 hours
 - **Cluster** — the alert pipeline's Watchdog state, node CPU/memory and readiness, Ceph storage, firing alerts by namespace, 7-day volume and the noisiest alerts
-- **History** — outcome mix, time to resolve and noise rate over an item log grouped by day, with each item's fix; the filter lives in the address (`/history?q=&source=&kind=&outcome=&from=&to=`)
+- **History** — outcome mix, time to resolve and noise rate over an item log grouped by day, with each item's fix; the filter lives in the address (`/history?q=&source=&kind=&outcome=&range=&from=&to=`) and opens on the last 24 hours
 - **Item detail** — the item's timeline, details, links and linked fix at `/items/:id`
 - **Settings** — quiet hours, urgency overrides, approval and roundup preferences, and Sign out
 - **Roundup page** — shareable summary view at `/roundup?from=...&to=...`

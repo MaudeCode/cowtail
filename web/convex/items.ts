@@ -1,5 +1,4 @@
 import {
-  itemInboxHandledWindowMs,
   type InvestigationEvidenceStep,
   type ItemEventType,
   type ItemKind,
@@ -943,8 +942,8 @@ export const sources = internalQuery({
 const INBOX_READ_LIMIT = 500;
 
 export const inbox = internalQuery({
-  args: { now: v.number() },
-  handler: async (ctx, { now }) => {
+  args: {},
+  handler: async (ctx) => {
     const byState = (state: ItemState) =>
       ctx.db
         .query("items")
@@ -961,20 +960,6 @@ export const inbox = internalQuery({
       (record.needsOwner ? needsYou : withHermes).push(record);
     }
 
-    // A resolved item was last updated no earlier than it resolved.
-    const since = now - itemInboxHandledWindowMs;
-    const recent = await ctx.db
-      .query("items")
-      .withIndex("by_state_updatedAt", (q) => q.eq("state", "resolved").gte("updatedAt", since))
-      .order("desc")
-      .take(INBOX_READ_LIMIT);
-    const handled: ItemRecord[] = [];
-    for (const item of recent) {
-      if (item.resolvedAt !== undefined && item.resolvedAt >= since) {
-        handled.push(await itemRecord(ctx, item));
-      }
-    }
-
     const snoozed = await ctx.db
       .query("items")
       .withIndex("by_state_snoozedUntil", (q) => q.eq("state", "snoozed"))
@@ -987,7 +972,6 @@ export const inbox = internalQuery({
       needsYou: oneRecordPerIncident(needsYou, seen),
       withHermes: oneRecordPerIncident(withHermes, seen),
       upcoming: oneRecordPerIncident(upcoming, seen),
-      handled: oneRecordPerIncident(handled, seen),
       ...(await ownerNotificationState(ctx)),
     };
   },

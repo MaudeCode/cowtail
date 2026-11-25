@@ -50,7 +50,8 @@ struct HistoryFilter: Hashable, Sendable {
     var source: String?
     var kind: ItemKind?
     var outcome: ItemOutcome?
-    var range: Range?
+    /// History opens on the last 24 hours; nil is all time.
+    var range: Range? = .day
     var search = ""
 
     func query(now: Date) -> ItemListQuery {
@@ -553,7 +554,7 @@ final class CowtailStore: ObservableObject {
     /// Puts one refused item back where it was, leaving every other item as it is now.
     private func restore(_ itemID: String, from before: ItemInbox?) {
         guard let before else { return }
-        let sections: [WritableKeyPath<ItemInbox, [Item]>] = [\.needsYou, \.withHermes, \.upcoming, \.handled]
+        let sections: [WritableKeyPath<ItemInbox, [Item]>] = [\.needsYou, \.withHermes, \.upcoming]
         adjustInbox { current in
             for section in sections {
                 current[keyPath: section].removeAll { $0.id == itemID }
@@ -800,7 +801,6 @@ extension ItemInbox {
         current.counts.needsYou += current.needsYou.count - needsYou.count
         current.counts.withHermes += current.withHermes.count - withHermes.count
         current.counts.upcoming += current.upcoming.count - upcoming.count
-        current.counts.handled += current.handled.count - handled.count
         return current
     }
 

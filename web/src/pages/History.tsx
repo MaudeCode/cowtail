@@ -10,11 +10,27 @@ import { formatDuration, formatPercent, formatShortDate } from "../lib/format";
 import { outcomeColor } from "../lib/itemPresentation";
 import { itemsQuery, sourcesQuery, statsQuery, type ItemFilter } from "../lib/queries";
 
-// The filter lives in the address: ?q=&source=&kind=&outcome=&from=&to=
-const FILTER_KEYS = ["q", "source", "kind", "outcome", "from", "to"] as const;
+// The filter lives in the address: ?q=&source=&kind=&outcome=&range=&from=&to=
+const FILTER_KEYS = ["q", "source", "kind", "outcome", "range", "from", "to"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
+// History opens on the last 24 hours. `range=all` is all time, and a From or To date replaces
+// the range.
+const RANGE_DAYS = { "24h": 1, "7d": 7, "30d": 30, "90d": 90 } as const;
+type RangeKey = keyof typeof RANGE_DAYS;
+const DEFAULT_RANGE: RangeKey = "24h";
+const RANGE_KEYS = Object.keys(RANGE_DAYS) as RangeKey[];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function rangeOf(params: URLSearchParams): RangeKey | undefined {
+  if (params.get("from") || params.get("to")) return undefined;
+  const range = params.get("range");
+  if (range === "all") return undefined;
+  return RANGE_KEYS.find((key) => key === range) ?? DEFAULT_RANGE;
+}
+
 function chipText(key: FilterKey, value: string) {
+  if (key === "range") return `last ${value}`;
   if (key === "from" || key === "to")
     return `${key} ${formatShortDate(parseLocalDate(value).getTime())}`;
   if (key === "q") return `“${value}”`;
@@ -140,6 +156,12 @@ function FilterPopup({
         options={itemOutcomes}
         onChange={(v) => set("outcome", v)}
       />
+      <Picker
+        label="Range"
+        value={rangeOf(params) ?? ""}
+        options={RANGE_KEYS}
+        onChange={(v) => set("range", v || "all")}
+      />
       <div className="grid grid-cols-2 gap-2">
         <DateField label="From" value={value("from")} onChange={(v) => set("from", v)} />
         <DateField label="To" value={value("to")} onChange={(v) => set("to", v)} />
@@ -152,12 +174,17 @@ export default function History() {
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState(false);
 
+  // Read once, so the last 24 hours stay one query while the page is open.
+  const [openedAt] = useState(Date.now);
+
   const set = (key: FilterKey, value: string) =>
     setParams(
       (current) => {
         const next = new URLSearchParams(current);
-        if (value) next.set(key, value);
+        // The default range stays out of the address; choosing a range clears the dates.
+        if (value && !(key === "range" && value === DEFAULT_RANGE)) next.set(key, value);
         else next.delete(key);
+        if (key === "range") ["from", "to"].forEach((date) => next.delete(date));
         return next;
       },
       { replace: true },
@@ -165,12 +192,13 @@ export default function History() {
 
   const from = params.get("from");
   const to = params.get("to");
+  const range = rangeOf(params);
   const filter: ItemFilter = {
     q: params.get("q") ?? undefined,
     source: params.get("source") ?? undefined,
     kind: params.get("kind") ?? undefined,
     outcome: params.get("outcome") ?? undefined,
-    from: from ? parseLocalDate(from).getTime() : undefined,
+    from: from ? parseLocalDate(from).getTime() : range && openedAt - RANGE_DAYS[range] * DAY_MS,
     to: to ? parseLocalDateEnd(to).getTime() : undefined,
   };
   const items = useInfiniteQuery({ ...itemsQuery(filter), placeholderData: keepPreviousData });
@@ -182,7 +210,7 @@ export default function History() {
     ...new Map(pages.flatMap((page) => page.days ?? []).map((day) => [day.date, day])).values(),
   ];
   const active = FILTER_KEYS.flatMap((key) => {
-    const value = params.get(key);
+    const value = key === "range" ? range : params.get(key);
     return value ? [[key, value] as const] : [];
   });
 
@@ -228,7 +256,7 @@ export default function History() {
               type="button"
               title={`Remove ${key} filter`}
               aria-label={`Remove ${key} filter`}
-              onClick={() => set(key, "")}
+              onClick={() => set(key, key === "range" ? "all" : "")}
               className="cursor-pointer"
             >
               <Icon name="x" className="size-2.5" />

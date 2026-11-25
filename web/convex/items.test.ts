@@ -539,7 +539,7 @@ describe("item list", () => {
 });
 
 describe("inbox", () => {
-  test("splits open items by whether they need the owner, lists snoozed items soonest first and the day's resolved", async () => {
+  test("splits open items by whether they need the owner, lists snoozed items soonest first and leaves out what was handled", async () => {
     const t = await newBackendWithSources("cron");
     const bearer = await seedSession(t, OWNER);
     const resolve = (id: string) =>
@@ -551,9 +551,6 @@ describe("inbox", () => {
     const item = (title: string, kind: string, urgency = "today") =>
       createItem(t, { source: "hermes", kind, urgency, title });
 
-    const yesterday = await item("Resolved yesterday", "fyi");
-    await resolve(yesterday.id);
-    vi.advanceTimersByTime(25 * 60 * 60 * 1000);
     const approval = await item("Restart ingress in edge?", "approval");
     const working = await item("Nightly backup verify failed", "failure");
     const acked = await item("Disk at 90%", "failure", "now");
@@ -584,15 +581,18 @@ describe("inbox", () => {
     const response = await request(t, "/api/items/inbox", { bearer });
 
     expect(response.status).toBe(200);
+    // Live work only: the item resolved today is in History, not here.
+    expect(Object.keys(response.json as object).toSorted()).toEqual(
+      ["ok", "counts", "needsYou", "withHermes", "upcoming", "badge", "liveItemIds"].toSorted(),
+    );
     const inbox = itemInboxResponseSchema.parse(response.json);
-    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, upcoming: 2, handled: 1 });
+    expect(inbox.counts).toEqual({ needsYou: 1, withHermes: 2, upcoming: 2 });
     const ids = (items: { id: string }[] = []) => items.map((entry) => entry.id);
-    expect([
-      ids(inbox.needsYou),
-      ids(inbox.withHermes),
-      ids(inbox.upcoming),
-      ids(inbox.handled),
-    ]).toEqual([[approval.id], [acked.id, working.id], [reminder.id, monday.id], [today.id]]);
+    expect([ids(inbox.needsYou), ids(inbox.withHermes), ids(inbox.upcoming)]).toEqual([
+      [approval.id],
+      [acked.id, working.id],
+      [reminder.id, monday.id],
+    ]);
     // The badge counts what needs the owner; every open item keeps its notification, the
     // `today` failure that does not need the owner included.
     expect(inbox.badge).toBe(1);

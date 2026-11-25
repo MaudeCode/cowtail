@@ -1783,12 +1783,12 @@ app.get("/api/items/stats", async (c) => {
   return c.json(itemStatsResponseSchema.parse({ ok: true, ...stats }));
 });
 
-// GET /api/items/inbox — what needs the owner, what Hermes is on, and what resolved today
+// GET /api/items/inbox — what needs the owner, what Hermes is on, and what is snoozed
 app.get("/api/items/inbox", async (c) => {
   const authError = await requireItemReader(c);
   if (authError) return authError;
 
-  const inbox = await c.env.runQuery((internal as any).items.inbox, { now: Date.now() });
+  const inbox = await c.env.runQuery((internal as any).items.inbox, {});
   return c.json(
     itemInboxResponseSchema.parse({
       ok: true,
@@ -1796,7 +1796,6 @@ app.get("/api/items/inbox", async (c) => {
         needsYou: inbox.needsYou.length,
         withHermes: inbox.withHermes.length,
         upcoming: inbox.upcoming.length,
-        handled: inbox.handled.length,
       },
       ...inbox,
     }),

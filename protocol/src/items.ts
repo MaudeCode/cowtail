@@ -296,11 +296,10 @@ export const itemSourcesResponseSchema = z.object({
   sources: z.array(nonEmptyStringSchema),
 });
 
-// The owner's inbox. Needs you: open items that need the owner. With Hermes: open and acked
-// items that do not. Upcoming: snoozed items, the soonest `snoozedUntil` first. Handled: items
-// resolved in the last 24 hours. Every other list is the most recently updated first. Each
+// The owner's inbox: live work only; handled items are in History. Needs you: open items that
+// need the owner. With Hermes: open and acked items that do not. Upcoming: snoozed items, the
+// soonest `snoozedUntil` first. Every other list is the most recently updated first. Each
 // reads at most 500 items of its states, and counts are of what it read.
-export const itemInboxHandledWindowMs = 24 * 60 * 60 * 1000;
 export const itemInboxResponseSchema = z.object({
   ok: z.literal(true),
   counts: z.object({
@@ -308,12 +307,10 @@ export const itemInboxResponseSchema = z.object({
     withHermes: z.number().int().nonnegative(),
     // Optional so a client still decodes a server from before it.
     upcoming: z.number().int().nonnegative().optional(),
-    handled: z.number().int().nonnegative(),
   }),
   needsYou: z.array(itemRecordSchema),
   withHermes: z.array(itemRecordSchema),
   upcoming: z.array(itemRecordSchema).optional(),
-  handled: z.array(itemRecordSchema),
   // The app badge, the same count every item push carries.
   badge: z.number().int().nonnegative(),
   // Every open item the owner has not answered, incidents' members included: the items whose

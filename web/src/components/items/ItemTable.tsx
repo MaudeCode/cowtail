@@ -8,12 +8,12 @@ import { Badge, Icon } from "../ui";
 import { IncidentLine, incidentPath, itemPath } from "./ItemRow";
 
 // A member that stands for its incident: the incident's title, line, state and duration.
-function IncidentRow({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
+function IncidentRow({ item }: { item: ItemRecord }) {
   const incident = item.incident!;
   return (
     <tr>
       <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
-        {formatClock(withFix ? incident.startedAt : (incident.resolvedAt ?? item.updatedAt))}
+        {formatClock(incident.startedAt)}
       </td>
       <td className="max-[599px]:hidden">Incident</td>
       <td className="font-medium">
@@ -30,18 +30,18 @@ function IncidentRow({ item, withFix }: { item: ItemRecord; withFix: boolean }) 
       <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
         {formatDuration(incident.durationMs)}
       </td>
-      {withFix && <td className="font-mono text-[0.7rem] text-gray-600">–</td>}
+      <td className="font-mono text-[0.7rem] text-gray-600">–</td>
     </tr>
   );
 }
 
-function Row({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
-  if (item.incident) return <IncidentRow item={item} withFix={withFix} />;
+function Row({ item }: { item: ItemRecord }) {
+  if (item.incident) return <IncidentRow item={item} />;
   const result = itemResult(item);
   return (
     <tr>
       <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
-        {formatClock(withFix ? item.createdAt : (item.resolvedAt ?? item.updatedAt))}
+        {formatClock(item.createdAt)}
       </td>
       <td className="max-[599px]:hidden">{item.sourceInfo.displayName}</td>
       <td className="font-medium">
@@ -65,28 +65,24 @@ function Row({ item, withFix }: { item: ItemRecord; withFix: boolean }) {
       <td className="font-mono text-[0.7rem] whitespace-nowrap text-gray-600">
         {item.resolvedAfterMs === undefined ? "–" : formatDuration(item.resolvedAfterMs)}
       </td>
-      {withFix && (
-        <td className="font-mono text-[0.7rem] text-gray-600" title={item.fix?.description}>
-          {item.fix ? (item.fix.commit?.slice(0, 7) ?? item.fix.scope) : "–"}
-        </td>
-      )}
+      <td className="font-mono text-[0.7rem] text-gray-600" title={item.fix?.description}>
+        {item.fix ? (item.fix.commit?.slice(0, 7) ?? item.fix.scope) : "–"}
+      </td>
     </tr>
   );
 }
 
-const headers = ["Time", "Source", "Item", "Outcome", "Took"];
+const columns = ["Time", "Source", "Item", "Outcome", "Took", "Fix"];
 
-// Handled items on Home, or the History log grouped by the server's day with each day's count.
+// The History log, grouped by the server's day with each day's count.
 export default function ItemTable({
   items,
   days,
 }: {
   items: ItemRecord[];
-  days?: NonNullable<ItemListResponse["days"]>;
+  days: NonNullable<ItemListResponse["days"]>;
 }) {
-  const withFix = days !== undefined;
-  const columns = withFix ? [...headers, "Fix"] : headers;
-  const dayCount = new Map(days?.map((day) => [day.date, day.count]));
+  const dayCount = new Map(days.map((day) => [day.date, day.count]));
   return (
     <table className="data-table">
       <thead>
@@ -104,7 +100,7 @@ export default function ItemTable({
       </thead>
       <tbody>
         {items.map((item, index) => {
-          const day = withFix ? item.createdDate : undefined;
+          const day = item.createdDate;
           const startsDay = day !== undefined && day !== items[index - 1]?.createdDate;
           return (
             <Fragment key={item.id}>
@@ -120,7 +116,7 @@ export default function ItemTable({
                   </th>
                 </tr>
               )}
-              <Row item={item} withFix={withFix} />
+              <Row item={item} />
             </Fragment>
           );
         })}

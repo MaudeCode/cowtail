@@ -2,11 +2,11 @@ import XCTest
 
 @MainActor
 final class InboxFlowTests: XCTestCase {
-    func testInboxShowsItsFourSectionsInTheFiguresOrder() {
+    func testInboxShowsItsThreeSectionsInTheFiguresOrder() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 
-        app.assertSections(["Needs you", "Hermes is on it", "Upcoming", "Handled · 24h"])
+        app.assertSections(["Needs you", "Hermes is on it", "Upcoming"])
     }
 
     func testTheHeaderShowsTheHermesDotBesideTheClusterDot() {
@@ -66,10 +66,8 @@ final class InboxFlowTests: XCTestCase {
 
         let row = app.element("row.item.alert-crashloop")
         let upcoming = app.element("section.Upcoming")
-        let handled = app.element("section.Handled · 24h")
         let inUpcoming = NSPredicate { _, _ in
-            row.exists && upcoming.exists && handled.exists
-                && row.frame.minY > upcoming.frame.minY && row.frame.minY < handled.frame.minY
+            row.exists && upcoming.exists && row.frame.minY > upcoming.frame.minY
         }
         expectation(for: inUpcoming, evaluatedWith: nil)
         waitForExpectations(timeout: 10)
@@ -95,12 +93,10 @@ final class InboxFlowTests: XCTestCase {
     }
 
     func testItemDetailShowsATimelineOfEveryEventType() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated", startTab: "history")
         app.launch()
 
-        let row = app.element("row.item.alert-replicas")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.tap()
+        app.openFromHistory("row.item.alert-replicas", searching: "Replicas")
 
         XCTAssertTrue(app.element("screen.item-detail").waitForExistence(timeout: 10))
         let types = [
@@ -149,7 +145,7 @@ final class InboxFlowTests: XCTestCase {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 
-        let expected = ["approval-ingress": "Hermes", "alert-crashloop": "Alertmanager", "done-deploy": "Deployer"]
+        let expected = ["approval-ingress": "Hermes", "alert-crashloop": "Alertmanager", "factory-merge": "Factory"]
         for (id, name) in expected {
             let row = app.element("row.item.\(id)")
             XCTAssertTrue(row.waitForExistence(timeout: 10), id)
@@ -158,12 +154,10 @@ final class InboxFlowTests: XCTestCase {
     }
 
     func testTheItemHeaderShowsTheSourcesUploadedIcon() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated", startTab: "history")
         app.launch()
 
-        let row = app.element("row.item.done-deploy")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.tap()
+        app.openFromHistory("row.item.done-deploy", searching: "deployed")
 
         let icon = app.images["icon.source.image"]
         XCTAssertTrue(icon.waitForExistence(timeout: 10))
@@ -171,12 +165,10 @@ final class InboxFlowTests: XCTestCase {
     }
 
     func testTheItemHeaderFallsBackToTheSourcesSymbol() {
-        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated", startTab: "history")
         app.launch()
 
-        let row = app.element("row.item.alert-replicas")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.tap()
+        app.openFromHistory("row.item.alert-replicas", searching: "Replicas")
 
         let icon = app.images["icon.source.symbol"]
         XCTAssertTrue(icon.waitForExistence(timeout: 10))
