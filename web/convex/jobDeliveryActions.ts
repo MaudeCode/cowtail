@@ -116,7 +116,7 @@ async function attemptHermesJobDelivery(
     return await recordAttempt(ctx, delivery._id, false, "Investigation job not found");
   }
 
-  if (job.status !== "queued") {
+  if (job.status !== "queued" || (delivery.jobAttempts ?? 0) !== job.attempts) {
     const result = await recordAttempt(ctx, delivery._id, true, undefined, 204);
     return { ...result, skipped: true };
   }

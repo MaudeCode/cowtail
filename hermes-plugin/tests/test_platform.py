@@ -247,13 +247,15 @@ class PlatformTest(unittest.TestCase):
 
 class RegistrationTest(PlatformTest):
     def test_register_adds_the_platform_beside_the_tool(self):
-        ctx = SimpleNamespace(tools=[], platforms=[])
+        ctx = SimpleNamespace(tools=[], platforms=[], hooks=[])
+        ctx.register_hook = lambda name, handler: ctx.hooks.append(name)
         ctx.register_tool = lambda **kwargs: ctx.tools.append(kwargs["name"])
         ctx.register_platform = lambda **kwargs: ctx.platforms.append(kwargs)
 
         sys.modules["hermes_plugins.cowtail"].register(ctx)
 
         self.assertEqual(ctx.tools, ["cowtail"])
+        self.assertEqual(ctx.hooks, ["pre_tool_call", "on_session_end"])
         [entry] = ctx.platforms
         self.assertEqual(entry["name"], "cowtail")
         self.assertEqual(entry["cron_deliver_env_var"], "COWTAIL_HOME_CHANNEL")

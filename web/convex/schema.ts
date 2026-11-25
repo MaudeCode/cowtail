@@ -288,6 +288,26 @@ export default defineSchema({
     claimToken: v.optional(v.string()),
     claimedAt: v.optional(v.number()),
     leaseUntil: v.optional(v.number()),
+    execution: v.optional(
+      v.object({
+        deliveryId: v.id("jobDeliveries"),
+        admissionId: v.string(),
+        sessionId: v.string(),
+        generation: v.number(),
+      }),
+    ),
+    recoveryPending: v.optional(v.boolean()),
+    reconciliation: v.optional(
+      v.object({ priorEffects: v.string(), resourceOwnership: v.string(), at: v.number() }),
+    ),
+    recoveryFrom: v.optional(
+      v.object({
+        deliveryId: v.id("jobDeliveries"),
+        admissionId: v.string(),
+        sessionId: v.string(),
+        generation: v.number(),
+      }),
+    ),
     lastError: v.optional(v.string()),
     errorHistory: v.array(
       v.object({
@@ -306,6 +326,7 @@ export default defineSchema({
     .index("by_status_nextAttemptAt", ["status", "nextAttemptAt"])
     .index("by_alertId", ["alertId"])
     .index("by_fingerprint_status", ["fingerprint", "status"])
+    .index("by_status_leaseUntil", ["status", "leaseUntil"])
     .index("by_claimToken", ["claimToken"]),
 
   jobDeliveries: defineTable({

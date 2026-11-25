@@ -9,6 +9,25 @@ import { nonEmptyStringSchema, timestampSchema } from "./shared.ts";
 // platform sets `replyTo` to {type: "approval", sessionKey}, {type: "clarify", clarifyId} or
 // {type: "cron_incident", incidentId}; Cowtail returns it untouched.
 
+// Binds an investigation claim to one durable Hermes webhook admission.
+export const investigationExecutionSchema = z.object({
+  deliveryId: z.string().min(1).max(200),
+  admissionId: z.string().min(1).max(200),
+  sessionId: z.string().min(1).max(200),
+  generation: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+});
+
+export const investigationReconciliationSchema = z.object({
+  claimToken: z.string().min(1).max(200),
+  priorEffects: z.string().trim().min(1).max(2000),
+  resourceOwnership: z.string().trim().min(1).max(2000),
+});
+
+export const investigationStoppedExecutionSchema = z.object({
+  execution: investigationExecutionSchema,
+  outcome: z.enum(["completed", "failed"]),
+});
+
 export const hermesResponseClaimRequestSchema = z.object({
   workerId: nonEmptyStringSchema.max(200).optional(),
   leaseSeconds: z.number().int().min(5).max(3_600).optional(),

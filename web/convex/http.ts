@@ -48,6 +48,9 @@ import {
   runbookRunRequestSchema,
   runbookRunResponseSchema,
   investigationEvidenceSchema,
+  investigationExecutionSchema,
+  investigationReconciliationSchema,
+  investigationStoppedExecutionSchema,
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
@@ -1249,7 +1252,13 @@ app.post("/api/investigation-jobs/claim", async (c) => {
 
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
   const now = Date.now();
+  const execution = investigationExecutionSchema.optional().safeParse(body.execution);
+  if (!execution.success) return jsonError("Invalid investigation execution identity");
   const job = await c.env.runMutation((internal as any).investigationJobs.claim, {
+    execution: execution.data && {
+      ...execution.data,
+      deliveryId: execution.data.deliveryId as Id<"jobDeliveries">,
+    },
     jobId: nonEmptyString(body.jobId) as any,
     workerId: nonEmptyString(body.workerId) ?? "hermes-default-gateway",
     claimToken: generateClaimToken(),
@@ -1262,6 +1271,52 @@ app.post("/api/investigation-jobs/claim", async (c) => {
   }
 
   return c.json({ ok: true, claimed: true, ...(await loadInvestigationJobContext(c, job)) });
+});
+
+app.get("/api/investigation-jobs/expired-executions", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+  const page = await c.env.runQuery((internal as any).investigationJobs.expiredExecutions, {
+    cursor: c.req.query("cursor") ?? null,
+    now: Date.now(),
+  });
+  return c.json({ ok: true, ...page });
+});
+
+app.post("/api/investigation-jobs/:id/execution-stopped", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+  const parsed = investigationStoppedExecutionSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) return jsonError("Invalid stopped execution evidence");
+  const result = await c.env.runMutation(
+    (internal as any).investigationJobs.recoverStoppedExecution,
+    {
+      id: c.req.param("id") as Id<"investigationJobs">,
+      outcome: parsed.data.outcome,
+      execution: {
+        ...parsed.data.execution,
+        deliveryId: parsed.data.execution.deliveryId as Id<"jobDeliveries">,
+      },
+      now: Date.now(),
+    },
+  );
+  return c.json({ ok: true, ...result });
+});
+
+app.post("/api/investigation-jobs/:id/reconcile-recovery", async (c) => {
+  const authError = requireWorkerAuth(c);
+  if (authError) return authError;
+  const parsed = investigationReconciliationSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success)
+    return jsonError("Prior effects and resource ownership evidence are required");
+  const result = await c.env.runMutation((internal as any).investigationJobs.reconcileRecovery, {
+    id: c.req.param("id") as Id<"investigationJobs">,
+    ...parsed.data,
+    now: Date.now(),
+  });
+  return c.json({ ok: true, ...result });
 });
 
 app.get("/api/investigation-jobs/deadletters", async (c) => {
