@@ -675,6 +675,24 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.incidents["incident-1"], storageOutage)
     }
 
+    func testAnIncidentReadFromBeforeAMemberActionSettledIsDiscarded() async {
+        let member = storageOutage.members[0]
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [member], withHermes: []))
+        await api.seedIncident(storageOutage)
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+
+        await api.holdIncidentRead()
+        let poll = Task { await store.loadIncident(id: "incident-1") }
+        await api.waitUntilIncidentReadHeld()
+        await store.perform(.approve, on: member)
+        await api.releaseIncidentRead()
+        await poll.value
+
+        // The poll read the member before the approval; it cannot bring the question back.
+        XCTAssertEqual(store.incidents["incident-1"]?.members.first?.needsOwner, false)
+    }
+
     func testHistoryOpensOnTheLast24Hours() {
         XCTAssertEqual(HistoryFilter().query().range, .day)
     }

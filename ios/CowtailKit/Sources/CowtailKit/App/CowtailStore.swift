@@ -109,6 +109,8 @@ final class CowtailStore: ObservableObject {
     /// Each item with an action sent and not yet answered, as the action shows it. Every read of
     /// History or an incident shows it over the server's copy, so a poll cannot undo it.
     private var itemsInFlight: [String: Item] = [:]
+    /// Bumped each time an item action settles, so a History read taken before is discarded.
+    private var historyWriteGeneration = 0
 
     /// The running maintenance windows, the soonest end first.
     @Published private(set) var maintenanceWindows: [MaintenanceWindow] = []
@@ -534,6 +536,11 @@ final class CowtailStore: ObservableObject {
             defer {
                 pendingSnoozes.removeAll { $0.id == pending.id }
                 itemsInFlight[item.id] = nil
+                // Whatever the outcome, a list read that started before it is out of date.
+                historyWriteGeneration += 1
+                for id in listsBefore.compactMap(\.incidentID) {
+                    incidentWriteGenerations[id, default: 0] += 1
+                }
             }
             let updated = try await api.performItemAction(
                 itemID: item.id,
@@ -808,12 +815,13 @@ final class CowtailStore: ObservableObject {
         var firstPage = filter.query()
         firstPage.limit = min(500, max(firstPage.limit, shown))
         let query = firstPage
+        let generation = historyWriteGeneration
         do {
             async let page = fetchHistoryPage(query, sessionToken: token)
             async let stats = api.fetchItemStats(query, sessionToken: token)
             async let sources = api.fetchItemSources(sessionToken: token)
             let (loadedPage, loadedStats, loadedSources) = try await (page, stats, sources)
-            guard filter == historyFilter else { return }
+            guard filter == historyFilter, generation == historyWriteGeneration else { return }
             historySources = loadedSources
             historyQuery = query.continuing(loadedPage)
             historyItems = loadedPage.items.map(overlaid)
@@ -836,10 +844,11 @@ final class CowtailStore: ObservableObject {
         defer { isLoadingHistory = false }
         guard let token = await sessionToken() else { return }
         let filter = historyFilter
+        let generation = historyWriteGeneration
         query.cursor = cursor
         do {
             let page = try await fetchHistoryPage(query, sessionToken: token)
-            guard filter == historyFilter else { return }
+            guard filter == historyFilter, generation == historyWriteGeneration else { return }
             historyItems += page.items.map(overlaid)
             historyDayCounts.merge(Self.dayCounts(page.days)) { _, newer in newer }
             historyCursor = page.nextCursor
