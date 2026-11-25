@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import OSLog
 import SwiftUI
@@ -82,18 +81,30 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published private(set) var isSavingDailyRoundupPreference = false
     @Published private(set) var dailyRoundupPreferenceError: String?
     @Published private(set) var dailyRoundupPreferenceRequiresSignIn = false
-    private let deviceTokenKey = "notifications.deviceToken"
-    /// What the device last registered with: the session (by digest) or Apple user, the APNs
-    /// token and environment. A new session registers the device again.
-    private let syncedRegistrationKey = "notifications.syncedRegistration"
+    /// Earlier versions kept the APNs token and the last server registration in the keychain,
+    /// which outlives a reinstall, and trusted them over APNs and the server.
+    private let legacyRegistrationKeys = ["notifications.deviceToken", "notifications.syncedRegistration"]
     private let requireAuthForApprovalsKey = "notifications.requireAuthForApprovals"
     private var isUITesting = false
+    private let readAuthorizationStatus: @MainActor () async -> UNAuthorizationStatus
+    private let registerWithAPNs: @MainActor () -> Void
 
-    /// Unit tests make their own manager against a recording server, from a device token APNs
-    /// already returned.
-    init(api: CowtailAPI = CowtailAPI(), deviceToken: String? = nil) {
+    /// Unit tests make their own manager against a recording server, with the system's
+    /// notification permission and APNs registration faked.
+    init(
+        api: CowtailAPI = CowtailAPI(),
+        deviceToken: String? = nil,
+        authorizationStatus: @escaping @MainActor () async -> UNAuthorizationStatus = {
+            await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        },
+        registerWithAPNs: @escaping @MainActor () -> Void = {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+    ) {
         self.api = api
         self.deviceToken = deviceToken
+        self.readAuthorizationStatus = authorizationStatus
+        self.registerWithAPNs = registerWithAPNs
         super.init()
     }
 
@@ -103,17 +114,19 @@ final class NotificationManager: NSObject, ObservableObject {
         // The last setting the server sent holds until it answers again.
         preferences.requireAuthForApprovals = defaults.bool(forKey: requireAuthForApprovalsKey)
         UNUserNotificationCenter.current().setNotificationCategories(ItemNotifications.categories())
-        deviceToken = persistedString(for: deviceTokenKey)
-        if deviceToken != nil {
-            registrationState = .registered
-        }
 
         Task {
-            await refreshAuthorizationStatus()
-            resumeNotificationSetupIfNeeded()
-            await syncDeviceRegistration()
+            await registerAtLaunch()
             await loadDailyRoundupPreference()
         }
+    }
+
+    /// Asks APNs for this run's token and registers it with Cowtail, as every launch does.
+    func registerAtLaunch() async {
+        clearPersistedNotificationState()
+        await refreshAuthorizationStatus()
+        resumeNotificationSetupIfNeeded()
+        await syncDeviceRegistration()
     }
 
     var dailyRoundupEnabled: Bool {
@@ -167,8 +180,7 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        authorizationStatus = settings.authorizationStatus
+        authorizationStatus = await readAuthorizationStatus()
     }
 
     func requestAuthorization() {
@@ -206,7 +218,7 @@ final class NotificationManager: NSObject, ObservableObject {
     func registerForRemoteNotifications() {
         registrationState = .registering
         registrationError = nil
-        UIApplication.shared.registerForRemoteNotifications()
+        registerWithAPNs()
     }
 
     func scheduleLocalTestNotification() {
@@ -231,15 +243,11 @@ final class NotificationManager: NSObject, ObservableObject {
         }
     }
 
-    func didRegister(deviceToken data: Data) {
+    func didRegister(deviceToken data: Data) async {
         deviceToken = data.map { String(format: "%02x", $0) }.joined()
-        persist(deviceToken, for: deviceTokenKey)
         registrationState = .registered
         registrationError = nil
-
-        Task {
-            await syncDeviceRegistration()
-        }
+        await syncDeviceRegistration()
     }
 
     func didFailToRegister(error: Error) {
@@ -406,13 +414,7 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        let registrationKey = "\(Self.registrationScope(of: credential))|\(deviceToken)|\(pushEnvironment)"
-        if persistedString(for: syncedRegistrationKey) == registrationKey {
-            serverRegistrationState = .registered
-            serverRegistrationMessage = "Cowtail can send alert notifications to this device."
-            return
-        }
-
+        // Every sync registers: the server upserts, and may have deleted or disabled the device.
         serverRegistrationState = .syncing
         serverRegistrationMessage = nil
 
@@ -424,7 +426,6 @@ final class NotificationManager: NSObject, ObservableObject {
                 deviceName: UIDevice.current.name
             )
 
-            persist(registrationKey, for: syncedRegistrationKey)
             serverRegistrationState = .registered
             serverRegistrationMessage = response.created
                 ? "Created Cowtail device registration."
@@ -453,7 +454,6 @@ final class NotificationManager: NSObject, ObservableObject {
         }
 
         if isUITesting {
-            clearPersistedServerRegistration()
             serverRegistrationState = .idle
             serverRegistrationMessage = "Disabled the Cowtail device registration."
             return
@@ -467,7 +467,6 @@ final class NotificationManager: NSObject, ObservableObject {
                 credential: credential,
                 deviceToken: deviceToken
             )
-            clearPersistedServerRegistration()
             serverRegistrationState = .idle
             serverRegistrationMessage = response.updated
                 ? "Disabled the Cowtail device registration."
@@ -502,7 +501,6 @@ final class NotificationManager: NSObject, ObservableObject {
 
     func appleIdentityDidChange() {
         if AppleAccountManager.shared.userID == nil {
-            clearPersistedServerRegistration()
             preferences = AppNotificationPreferences()
             dailyRoundupPreferenceRequiresSignIn = true
             dailyRoundupPreferenceError = nil
@@ -678,49 +676,6 @@ final class NotificationManager: NSObject, ObservableObject {
 #endif
     }
 
-    /// A session by its SHA-256 digest, so the token itself is never stored here.
-    private static func registrationScope(of credential: PushCredential) -> String {
-        switch credential {
-        case let .session(sessionToken):
-            let digest = SHA256.hash(data: Data(sessionToken.utf8))
-            return "session:" + digest.map { String(format: "%02x", $0) }.joined()
-        case .appleIdentity:
-            return "apple:\(AppleAccountManager.shared.userID ?? "")"
-        }
-    }
-
-    private func clearPersistedServerRegistration() {
-        removePersistedValue(for: syncedRegistrationKey)
-    }
-
-    private func persistedString(for key: String) -> String? {
-        if let value = keychain.string(for: key) {
-            return value
-        }
-
-        guard let value = defaults.string(forKey: key), !value.isEmpty else {
-            return nil
-        }
-
-        keychain.set(value, for: key)
-        return value
-    }
-
-    private func persist(_ value: String?, for key: String) {
-        guard let value, !value.isEmpty else {
-            removePersistedValue(for: key)
-            return
-        }
-
-        keychain.set(value, for: key)
-        defaults.set(value, forKey: key)
-    }
-
-    private func removePersistedValue(for key: String) {
-        keychain.remove(key)
-        defaults.removeObject(forKey: key)
-    }
-
     /// The current settings with only the fields this change touched put back.
     private static func reverting(
         _ change: NotificationPreferencesChange,
@@ -759,8 +714,10 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     private func clearPersistedNotificationState() {
-        removePersistedValue(for: deviceTokenKey)
-        clearPersistedServerRegistration()
+        for key in legacyRegistrationKeys {
+            keychain.remove(key)
+            defaults.removeObject(forKey: key)
+        }
     }
 
     private func applyUITestState(
