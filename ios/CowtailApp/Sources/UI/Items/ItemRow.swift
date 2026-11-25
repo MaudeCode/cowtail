@@ -116,26 +116,43 @@ struct ItemRow: View {
                     .lineLimit(1)
             }
 
-            meta
-                .font(.cowtailSans(12, relativeTo: .caption))
-                .foregroundStyle(palette.mutedInk)
-                .lineLimit(2)
+            Group {
+                if showsRelativeTime {
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        meta(now: context.date)
+                    }
+                } else {
+                    meta(now: .now)
+                }
+            }
+            .font(.cowtailSans(12, relativeTo: .caption))
+            .foregroundStyle(palette.mutedInk)
+            .lineLimit(2)
+        }
+    }
+
+    private var showsRelativeTime: Bool {
+        switch style {
+        case .needsYou: item.investigationStep == nil && item.expiresAt != nil
+        case .withHermes: item.latestUpdate != nil
+        case .upcoming: item.snoozedUntil != nil
+        case .history, .member: false
         }
     }
 
     @ViewBuilder
-    private var meta: some View {
+    private func meta(now: Date) -> some View {
         switch style {
         case .needsYou:
-            Text("\(item.sourceName) · \(item.kind.rawValue) · \(Text(needsYouStatus).foregroundStyle(item.urgency.tint(palette)))")
+            Text("\(item.sourceName) · \(item.kind.rawValue) · \(Text(needsYouStatus(now: now)).foregroundStyle(item.urgency.tint(palette)))")
         case .withHermes:
             if let update = item.latestUpdate {
-                Text("\(Text("Hermes").foregroundStyle(palette.info)) \(update.text) · \(ItemFormat.age(of: update.at))")
+                Text("\(Text("Hermes").foregroundStyle(palette.info)) \(update.text) · \(ItemFormat.age(of: update.at, now: now))")
             } else {
                 Text("\(item.sourceName) · \(item.kind.rawValue) · \(item.investigationStep?.label ?? item.state.rawValue)")
             }
         case .upcoming:
-            Text(item.snoozedUntil.map { ItemFormat.returnTime($0) } ?? item.state.rawValue)
+            Text(item.snoozedUntil.map { ItemFormat.returnTime($0, now: now) } ?? item.state.rawValue)
         case .history:
             Text(
                 [
@@ -151,12 +168,12 @@ struct ItemRow: View {
         }
     }
 
-    private var needsYouStatus: String {
+    private func needsYouStatus(now: Date) -> String {
         if let step = item.investigationStep {
             return step.label
         }
         if let expiresAt = item.expiresAt {
-            return "expires in \(ItemFormat.age(of: .now, now: expiresAt))"
+            return "expires in \(ItemFormat.age(of: now, now: expiresAt))"
         }
         return item.urgency.rawValue
     }
