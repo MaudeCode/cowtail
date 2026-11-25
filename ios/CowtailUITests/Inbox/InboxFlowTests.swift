@@ -106,7 +106,8 @@ final class InboxFlowTests: XCTestCase {
         for type in types {
             XCTAssertTrue(app.element("event.\(type)").waitForExistence(timeout: 10), type)
         }
-        app.assertSections(["Timeline", "Details", "Fix", "Past occurrences"])
+        // Answer first: the details and fix lead, before the timeline.
+        app.assertSections(["Details", "Fix", "Timeline", "Past occurrences"])
         XCTAssertTrue(app.element("row.prior-occurrence.alert-replicas-prior-1").exists)
 
         // Hermes's evidence starts collapsed and opens to its numbered steps.
@@ -115,6 +116,25 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["1 · Read the replica's last termination state"].exists)
         evidence.tap()
         XCTAssertTrue(app.staticTexts["1 · Read the replica's last termination state"].waitForExistence(timeout: 10))
+    }
+
+    func testItemActionsSitInTheirPinnedAreaNotTheBadgeRow() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+        let row = app.element("row.item.alert-crashloop")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        let area = app.element("area.item.actions")
+        XCTAssertTrue(area.waitForExistence(timeout: 10))
+        for action in ["ack", "snooze", "retry", "mark-noise", "escalate"] {
+            XCTAssertTrue(area.buttons["button.item.\(action).alert-crashloop"].exists, action)
+        }
+        // Pinned above the tab bar.
+        XCTAssertLessThanOrEqual(
+            area.buttons["button.item.ack.alert-crashloop"].frame.maxY,
+            app.tabBars.firstMatch.frame.minY
+        )
     }
 
     func testAnAlertLinkOpensThatAlertsItem() {

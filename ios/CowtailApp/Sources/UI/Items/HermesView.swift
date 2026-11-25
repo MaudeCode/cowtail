@@ -62,7 +62,7 @@ struct HermesView: View {
                     CowtailIconButton(
                         title: "Run \(script.name)",
                         systemImage: "play.fill",
-                        tint: script.asksToConfirm ? palette.accent : nil,
+                        role: script.asksToConfirm ? .destructive : nil,
                         isBusy: store.scriptsStarting.contains(script.id)
                     ) {
                         if script.asksToConfirm {
@@ -92,13 +92,13 @@ struct HermesView: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 CowtailSectionHeader(title: "Run · \(run.scriptName)") {
                     Text([run.status.rawValue, run.elapsed(now: context.date)].joined(separator: " · "))
-                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .font(.cowtailMono(11, relativeTo: .caption))
                         .foregroundStyle(run.tint(palette))
                         .accessibilityIdentifier("text.run.status")
                 }
             }
             Text(output(detail, run: run))
-                .font(.cowtailMono(11, relativeTo: .caption2))
+                .font(.cowtailMono(11, relativeTo: .caption))
                 .foregroundStyle(palette.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
@@ -200,7 +200,7 @@ struct HermesView: View {
                 }
             }
             Text([job.schedule, lastRun, nextRun].compactMap(\.self).joined(separator: " · "))
-                .font(.cowtailMono(11, relativeTo: .caption2))
+                .font(.cowtailMono(11, relativeTo: .caption))
                 .foregroundStyle(palette.mutedInk)
         }
         .cowtailRow()

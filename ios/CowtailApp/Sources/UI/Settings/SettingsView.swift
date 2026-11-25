@@ -15,7 +15,7 @@ struct SettingsView: View {
     @State private var isAddingOverride = false
 
     var body: some View {
-        CowtailScreen(title: "Settings", identifier: "screen.settings") {
+        CowtailScreen(title: "Settings", identifier: "screen.settings", titleDisplayMode: .inline) {
             account
             notifications
             urgencyOverrides
@@ -65,7 +65,7 @@ struct SettingsView: View {
                     }
                 }
                 Spacer()
-                CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right") {
+                CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                     appSessionManager.signOut()
                     appleAccountManager.clearIdentity()
                 }
@@ -76,15 +76,19 @@ struct SettingsView: View {
             VStack(spacing: 8) {
                 appleSignInButton
                 if let providerName = oidcSignIn.providerName {
-                    Button("Sign in with \(providerName)") {
+                    Button {
                         Task {
                             await oidcSignIn.signIn()
                             await notificationManager.syncDeviceRegistration()
                             await notificationManager.loadDailyRoundupPreference()
                             await store.loadDevices()
                         }
+                    } label: {
+                        Text("Sign in with \(providerName)").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(CowtailTextButtonStyle(fullWidth: true))
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .tint(palette.ink)
                     .disabled(oidcSignIn.isSigningIn)
                     .accessibilityIdentifier("button.settings.oidc-sign-in")
                 }
@@ -189,7 +193,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var urgencyOverrides: some View {
         CowtailSectionHeader(title: "Urgency overrides") {
-            CowtailIconButton(title: "Add override", systemImage: "plus") {
+            CowtailIconButton(title: "Add override", systemImage: "plus", style: .borderless) {
                 isAddingOverride = true
             }
             .accessibilityIdentifier("button.settings.add-override")
@@ -383,15 +387,7 @@ struct SettingsView: View {
     }
 
     private func link(_ title: String, url: URL) -> some View {
-        Link(destination: url) {
-            HStack {
-                Text(title).font(.cowtailSans(14, relativeTo: .body))
-                Spacer()
-                Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold))
-            }
-            .foregroundStyle(palette.ink)
-        }
-        .cowtailRow()
+        CowtailLinkRow(title: title, url: url)
     }
 
     private func note(_ text: String, tint: Color) -> some View {

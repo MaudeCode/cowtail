@@ -12,7 +12,7 @@ struct IncidentDestinationView: View {
             if let detail = store.incidents[id] {
                 IncidentDetailView(detail: detail)
             } else if let error = store.incidentErrors[id] {
-                CowtailScreen(title: "Incident", identifier: "screen.incident-missing") {
+                CowtailScreen(title: "Incident", identifier: "screen.incident-missing", titleDisplayMode: .inline) {
                     Text(error)
                         .font(.cowtailSans(15, relativeTo: .body))
                         .foregroundStyle(palette.mutedInk)
@@ -47,21 +47,16 @@ struct IncidentDetailView: View {
     private var summary: IncidentSummary { incident.summary }
 
     var body: some View {
-        CowtailCanvas {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    ItemTimeline(events: detail.events)
-                    postmortem
-                    members
-                }
-                .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
-                .padding(.bottom, 28)
-            }
+        CowtailScreen(title: "", identifier: "screen.incident-detail", titleDisplayMode: .inline) {
+            EmptyView()
+        } actions: {
+            actions
+        } content: {
+            header
+            ItemTimeline(events: detail.events)
+            postmortem
+            members
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("screen.incident-detail")
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isAdding) {
             AddIncidentItemSheet(incidentID: summary.id)
         }
@@ -89,25 +84,6 @@ struct IncidentDetailView: View {
                     CowtailStatusBadge(title: worst.rawValue, tint: worst.tint(palette))
                 }
                 CowtailStatusBadge(title: ItemFormat.duration(summary.duration))
-                CowtailIconButton(
-                    title: "Add an item",
-                    systemImage: "plus",
-                    isBusy: store.isAddingItem(to: summary.id)
-                ) {
-                    isAdding = true
-                }
-                .accessibilityIdentifier("button.incident.add")
-                CowtailIconButton(title: "Request postmortem again", systemImage: "arrow.clockwise") {
-                    Task { await store.change(.requestPostmortem, incidentID: summary.id) }
-                }
-                .disabled(!incident.availableActions.contains(.requestPostmortem))
-                .accessibilityIdentifier("button.incident.postmortem")
-                if incident.availableActions.contains(.resolve) {
-                    CowtailIconButton(title: "Resolve", systemImage: "checkmark") {
-                        Task { await store.change(.resolve, incidentID: summary.id) }
-                    }
-                    .accessibilityIdentifier("button.incident.resolve")
-                }
             }
             .padding(.top, 4)
 
@@ -119,6 +95,31 @@ struct IncidentDetailView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    /// The page's actions, in the navigation bar.
+    @ViewBuilder
+    private var actions: some View {
+        CowtailIconButton(
+            title: "Add an item",
+            systemImage: "plus",
+            style: .borderless,
+            isBusy: store.isAddingItem(to: summary.id)
+        ) {
+            isAdding = true
+        }
+        .accessibilityIdentifier("button.incident.add")
+        CowtailIconButton(title: "Request postmortem again", systemImage: "arrow.clockwise", style: .borderless) {
+            Task { await store.change(.requestPostmortem, incidentID: summary.id) }
+        }
+        .disabled(!incident.availableActions.contains(.requestPostmortem))
+        .accessibilityIdentifier("button.incident.postmortem")
+        if incident.availableActions.contains(.resolve) {
+            CowtailIconButton(title: "Resolve", systemImage: "checkmark", style: .borderless) {
+                Task { await store.change(.resolve, incidentID: summary.id) }
+            }
+            .accessibilityIdentifier("button.incident.resolve")
+        }
     }
 
     @ViewBuilder
@@ -157,7 +158,7 @@ struct IncidentDetailView: View {
                 } else {
                     CowtailStatusBadge(title: member.state.rawValue, tint: member.state.tint(palette))
                 }
-                CowtailIconButton(title: "Remove from incident", systemImage: "xmark") {
+                CowtailIconButton(title: "Remove from incident", systemImage: "xmark", role: .destructive) {
                     Task { await store.change(.remove(itemID: member.id), incidentID: summary.id) }
                 }
                 .accessibilityIdentifier("button.incident.remove.\(member.id)")
@@ -284,7 +285,7 @@ struct AddIncidentItemSheet: View {
                                         .foregroundStyle(palette.ink)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     Text(ItemFormat.time(item.createdAt))
-                                        .font(.cowtailMono(11, relativeTo: .caption2))
+                                        .font(.cowtailMono(11, relativeTo: .caption))
                                         .foregroundStyle(palette.mutedInk)
                                 }
                                 .contentShape(Rectangle())
@@ -299,7 +300,7 @@ struct AddIncidentItemSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    CowtailIconButton(title: "Close", systemImage: "xmark") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
             }
         }

@@ -94,13 +94,26 @@ struct MaintenanceSheet: View {
     }
 
     var body: some View {
+        NavigationStack {
+            form
+                .navigationTitle("Maintenance window")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                            .accessibilityIdentifier("button.maintenance.cancel")
+                    }
+                }
+        }
+        .presentationDetents([.large])
+        .presentationBackground(palette.canvas)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sheet.maintenance")
+    }
+
+    private var form: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Maintenance window")
-                    .font(.cowtailSans(17, weight: .bold, relativeTo: .headline))
-                    .foregroundStyle(palette.ink)
-                    .accessibilityAddTraits(.isHeader)
-
                 TextField("Cluster upgrade", text: $title)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Title")
@@ -144,22 +157,22 @@ struct MaintenanceSheet: View {
                 Button {
                     start()
                 } label: {
-                    if isStarting {
-                        ProgressView()
-                    } else {
-                        Text("Start \(duration.map { ItemFormat.duration($0) } ?? "") window")
+                    Group {
+                        if isStarting {
+                            ProgressView()
+                        } else {
+                            Text("Start \(duration.map { ItemFormat.duration($0) } ?? "") window")
+                        }
                     }
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(CowtailTextButtonStyle(fullWidth: true))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(request == nil || isStarting)
                 .accessibilityIdentifier("button.maintenance.start")
             }
             .padding(20)
         }
-        .presentationDetents([.large])
-        .presentationBackground(palette.canvas)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("sheet.maintenance")
     }
 
     /// One alert scope at a time; choosing it again clears it.

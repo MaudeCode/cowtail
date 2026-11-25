@@ -13,7 +13,7 @@ struct ItemDestinationView: View {
             if let itemID, let detail = store.details[itemID] {
                 ItemDetailView(detail: detail)
             } else if let error = store.detailErrors[routeKey] ?? itemID.flatMap({ store.detailErrors[$0] }) {
-                CowtailScreen(title: "Item", identifier: "screen.item-missing") {
+                CowtailScreen(title: "Item", identifier: "screen.item-missing", titleDisplayMode: .inline) {
                     Text(error)
                         .font(.cowtailSans(15, relativeTo: .body))
                         .foregroundStyle(palette.mutedInk)
@@ -49,7 +49,7 @@ struct ItemDestinationView: View {
     private var routeKey: String {
         switch route {
         case .item(let id), .alert(let id): id
-        case .incident, .roundup: ""
+        case .incident, .roundup, .settings: ""
         }
     }
 
@@ -57,7 +57,7 @@ struct ItemDestinationView: View {
         switch route {
         case .item(let id): id
         case .alert(let alertID): store.itemIDsByAlertID[alertID]
-        case .incident, .roundup: nil
+        case .incident, .roundup, .settings: nil
         }
     }
 
@@ -65,7 +65,7 @@ struct ItemDestinationView: View {
         switch route {
         case .item(let id): await store.loadDetail(itemID: id)
         case .alert(let alertID): await store.loadDetail(alertID: alertID)
-        case .incident, .roundup: break
+        case .incident, .roundup, .settings: break
         }
     }
 }
@@ -78,24 +78,43 @@ struct ItemDetailView: View {
 
     private var item: Item { detail.item }
 
+    /// Answer first: the header, the details and fix, then the timeline, graph and past
+    /// occurrences. The actions are pinned above the tab bar and never scroll away.
     var body: some View {
-        CowtailCanvas {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    ItemTimeline(events: detail.events)
-                    ItemGraphSection(itemID: item.id)
-                    details
-                    fixes
-                    priorOccurrences
-                }
-                .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
-                .padding(.bottom, 28)
+        CowtailScreen(title: "", identifier: "screen.item-detail", titleDisplayMode: .inline) {
+            header
+            details
+            fixes
+            ItemTimeline(events: detail.events)
+            ItemGraphSection(itemID: item.id)
+            priorOccurrences
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !item.availableActions.isEmpty || !item.alertActions.isEmpty || store.actionErrors[item.id] != nil {
+                actionArea
             }
         }
+    }
+
+    /// The text actions (a question's answers, a script), then the icon actions and the owner's
+    /// alert calls, wrapping to the next line rather than clipping.
+    private var actionArea: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ItemTextButtons(item: item)
+            ItemActionButtons(item: item, isActionArea: true)
+            if let error = store.actionErrors[item.id] {
+                Text(error)
+                    .font(.cowtailSans(12, relativeTo: .footnote))
+                    .foregroundStyle(palette.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("screen.item-detail")
-        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("area.item.actions")
     }
 
     private var header: some View {
@@ -135,17 +154,8 @@ struct ItemDetailView: View {
                     .accessibilityLabel("Open incident \(incident.title)")
                     .accessibilityIdentifier("chip.item.incident")
                 }
-                ItemActionButtons(item: item, includesAlertActions: true)
             }
             .padding(.top, 4)
-
-            ItemTextButtons(item: item)
-
-            if let error = store.actionErrors[item.id] {
-                Text(error)
-                    .font(.cowtailSans(12, relativeTo: .footnote))
-                    .foregroundStyle(palette.accent)
-            }
         }
         .padding(.top, 8)
     }
@@ -177,17 +187,7 @@ struct ItemDetailView: View {
             .padding(.vertical, 6)
         }
         ForEach(links, id: \.self) { link in
-            Link(destination: link.url) {
-                HStack {
-                    Text(link.label)
-                        .font(.cowtailSans(14, relativeTo: .body))
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .font(.footnote.weight(.semibold))
-                }
-                .foregroundStyle(palette.ink)
-            }
-            .cowtailRow()
+            CowtailLinkRow(title: link.label, url: link.url)
         }
     }
 
@@ -208,7 +208,7 @@ struct ItemDetailView: View {
                         CowtailStatusBadge(title: fix.scope.rawValue, tint: fix.scope.tint)
                         Spacer()
                         Text(fix.timestamp.formatted(date: .abbreviated, time: .shortened))
-                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .font(.cowtailMono(11, relativeTo: .caption))
                             .foregroundStyle(palette.mutedInk)
                     }
                     Text(fix.description)
@@ -232,7 +232,7 @@ struct ItemDetailView: View {
             ForEach(detail.priorOccurrences) { prior in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(ItemFormat.day(prior.firedAt))
-                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .font(.cowtailMono(11, relativeTo: .caption))
                         .foregroundStyle(palette.mutedInk)
                     CowtailStatusBadge(title: prior.outcome.label, tint: prior.outcome.tint(palette))
                     Text(prior.cause)
@@ -240,7 +240,7 @@ struct ItemDetailView: View {
                         .foregroundStyle(palette.ink)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(prior.fixCommitText)
-                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .font(.cowtailMono(11, relativeTo: .caption))
                         .foregroundStyle(palette.mutedInk)
                 }
                 .cowtailRow()
@@ -332,7 +332,7 @@ struct ItemTimeline: View {
                             .padding(.top, 5)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(event.heading)
-                                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
+                                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption))
                                 .foregroundStyle(event.tint(palette))
                             if !event.text.isEmpty {
                                 Text(event.text)
@@ -342,7 +342,7 @@ struct ItemTimeline: View {
                         }
                         Spacer(minLength: 8)
                         Text(ItemFormat.time(event.at))
-                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .font(.cowtailMono(11, relativeTo: .caption))
                             .foregroundStyle(palette.mutedInk)
                     }
                     .accessibilityElement(children: .combine)
@@ -369,7 +369,7 @@ struct ItemTimeline: View {
                             .foregroundStyle(palette.mutedInk)
                         if let block = step.block {
                             Text(block)
-                                .font(.cowtailMono(11, relativeTo: .caption2))
+                                .font(.cowtailMono(11, relativeTo: .caption))
                                 .foregroundStyle(palette.ink)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 9)

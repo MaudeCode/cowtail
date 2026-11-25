@@ -14,6 +14,7 @@ struct ItemRow: View {
 
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         if let incident = item.incident {
@@ -24,8 +25,12 @@ struct ItemRow: View {
     }
 
     private var itemRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 10) {
+        // At accessibility text sizes the row's buttons go under its summary, which keeps the width.
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+        return VStack(alignment: .leading, spacing: 6) {
+            layout {
                 NavigationLink(value: AppRoute.item(item.id)) {
                     HStack(alignment: .top, spacing: 10) {
                         ItemSourceIcon(item: item)
@@ -227,10 +232,11 @@ struct ItemSourceIcon: View {
     }
 }
 
-/// The icon buttons for what an item offers. The item header adds the owner's alert calls.
+/// The icon buttons for what an item offers. The item page's action area adds the owner's alert
+/// calls and wraps them to the next line.
 struct ItemActionButtons: View {
     let item: Item
-    var includesAlertActions = false
+    var isActionArea = false
     /// An Upcoming row offers only Unsnooze.
     var isUpcoming = false
 
@@ -244,12 +250,14 @@ struct ItemActionButtons: View {
     @State private var noteText = ""
 
     var body: some View {
-        HStack(spacing: 6) {
+        let layout = isActionArea ? AnyLayout(FlowLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 6))
+        layout {
             ForEach(buttons) { button in
                 CowtailIconButton(
                     title: button.title,
                     systemImage: button.systemImage,
-                    tint: button.tint(palette),
+                    role: button.role,
+                    style: button.isProminent ? .prominent : .bordered,
                     isBusy: isAlertAction(button) && store.isPerformingAlertAction(on: item)
                 ) {
                     run(button)
@@ -306,7 +314,7 @@ struct ItemActionButtons: View {
 
     private var buttons: [ItemButton] {
         var buttons = ItemButton.buttons(for: item, isUpcoming: isUpcoming)
-        if includesAlertActions {
+        if isActionArea {
             buttons += item.alertActions.map { action in
                 switch action {
                 case .retryInvestigation: .retryInvestigation
@@ -358,6 +366,7 @@ struct ItemTextButtons: View {
     let item: Item
 
     @EnvironmentObject private var store: CowtailStore
+    @Environment(\.cowtailPalette) private var palette
     @State private var confirming: RunbookScript?
 
     var body: some View {
@@ -367,7 +376,6 @@ struct ItemTextButtons: View {
                     Button(option) {
                         Task { await store.perform(.choose(option), on: item) }
                     }
-                    .buttonStyle(CowtailTextButtonStyle())
                     .accessibilityIdentifier("button.item.choose.\(item.id).\(option)")
                 }
                 ForEach(scripts) { script in
@@ -380,11 +388,13 @@ struct ItemTextButtons: View {
                     } label: {
                         Label(script.name, systemImage: "play.fill")
                     }
-                    .buttonStyle(CowtailTextButtonStyle())
                     .disabled(store.scriptsStarting.contains(script.id))
                     .accessibilityIdentifier("button.item.run.\(item.id).\(script.id)")
                 }
             }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .tint(palette.ink)
             .runbookConfirmation($confirming) { script in
                 Task { await store.startRun(script, itemID: item.id) }
             }

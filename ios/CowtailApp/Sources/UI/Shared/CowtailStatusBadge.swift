@@ -23,7 +23,7 @@ struct CowtailStatusBadge: View {
                     .accessibilityHidden(true)
             }
             Text(title)
-                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
+                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption))
                 .lineLimit(1)
         }
         .foregroundStyle(color)

@@ -99,7 +99,7 @@ struct ClusterView: View {
                     .symbolSize(0)
                     .annotation(position: .top) {
                         Text("\(day.total)")
-                            .font(.cowtailMono(10, relativeTo: .caption2))
+                            .font(.cowtailMono(10, relativeTo: .caption))
                             .foregroundStyle(palette.mutedInk)
                     }
             }
@@ -145,7 +145,7 @@ struct UsageBar: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(label)
-                .font(.cowtailMono(11, relativeTo: .caption2))
+                .font(.cowtailMono(11, relativeTo: .caption))
                 .foregroundStyle(palette.mutedInk)
                 .frame(width: 54, alignment: .leading)
             GeometryReader { geometry in
@@ -158,7 +158,7 @@ struct UsageBar: View {
             }
             .frame(height: 5)
             Text(value)
-                .font(.cowtailMono(11, relativeTo: .caption2))
+                .font(.cowtailMono(11, relativeTo: .caption))
                 .foregroundStyle(palette.ink)
                 .lineLimit(1)
         }

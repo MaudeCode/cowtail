@@ -78,53 +78,101 @@ struct CowtailKeyValueRow: View {
     }
 }
 
-/// A text button, for the actions whose words carry what an icon cannot: sign-in, a question's answers.
-struct CowtailTextButtonStyle: ButtonStyle {
-    /// A full-width button, as tall as Sign in with Apple beside it.
-    var fullWidth = false
-
+/// A row that opens a page outside the app, its whole 44 pt height tappable.
+struct CowtailLinkRow: View {
     @Environment(\.cowtailPalette) private var palette
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.cowtailSans(fullWidth ? 15 : 13, weight: fullWidth ? .semibold : .medium, relativeTo: .footnote))
+    let title: String
+    let url: URL
+
+    var body: some View {
+        Link(destination: url) {
+            HStack {
+                Text(title).font(.cowtailSans(14, relativeTo: .body))
+                Spacer()
+                Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold))
+            }
             .foregroundStyle(palette.ink)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: fullWidth ? 44 : nil)
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(palette.border, lineWidth: 1))
-            .opacity(configuration.isPressed ? 0.6 : 1)
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .cowtailRow()
     }
 }
 
-/// Every action is an icon with an accessible name.
+/// Every in-content action is an icon with an accessible name, in a system button style with a hit
+/// area of at least 44 × 44 pt. The glyph follows the body text style, so Dynamic Type scales it.
 struct CowtailIconButton: View {
+    enum Style {
+        /// A filled circle: the item action area, a row's control.
+        case bordered
+        /// The accent-filled circle, for the one answer a screen leads with, such as Approve.
+        case prominent
+        /// A bare glyph, inline with a header or in a navigation bar.
+        case borderless
+    }
+
     @Environment(\.cowtailPalette) private var palette
 
     let title: String
     let systemImage: String
-    var tint: Color?
+    var role: ButtonRole?
+    var style = Style.bordered
     var isBusy = false
     let action: () -> Void
 
+    /// Apple's minimum hit target.
+    private static let minimumSide: CGFloat = 44
+    /// The glyph's square inside a bordered circle; the style's padding brings the circle to 44 pt.
+    @ScaledMetric(relativeTo: .body) private var glyphSide: CGFloat = 30
+
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                if isBusy {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 13, weight: .semibold))
-                }
+        styled(
+            Button(role: role, action: action) {
+                // The glyph stays laid out under the spinner, so busy keeps the button's size.
+                Image(systemName: systemImage)
+                    .font(.body.weight(.semibold))
+                    .opacity(isBusy ? 0 : 1)
+                    .overlay {
+                        if isBusy {
+                            ProgressView()
+                        }
+                    }
+                    .frame(
+                        minWidth: style == .borderless ? Self.minimumSide : glyphSide,
+                        minHeight: style == .borderless ? Self.minimumSide : glyphSide
+                    )
+                    .contentShape(.rect)
             }
-            .frame(width: 30, height: 30)
-            .foregroundStyle(tint ?? palette.ink)
-            .background((tint ?? palette.mutedInk).opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
+        )
+        .frame(minWidth: Self.minimumSide, minHeight: Self.minimumSide)
+        .contentShape(.rect)
+        // A crowded row never squeezes the circle into its neighbour.
+        .fixedSize()
         .disabled(isBusy)
         .accessibilityLabel(title)
         .help(title)
+    }
+
+    /// A prominent control fills with the app's accent. A bordered or bare one draws in ink, or in
+    /// the system red for a destructive role, which these styles do not colour on their own.
+    @ViewBuilder
+    private func styled(_ button: Button<some View>) -> some View {
+        let tint = role == .destructive ? Color.red : palette.ink
+        switch style {
+        case .bordered:
+            button
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
+                .tint(tint)
+        case .prominent:
+            button
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+        case .borderless:
+            button
+                .buttonStyle(.borderless)
+                .tint(tint)
+        }
     }
 }

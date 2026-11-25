@@ -59,8 +59,9 @@ final class UITestScenarioTests: XCTestCase {
         XCTAssertEqual(runtime.notificationManager.serverRegistrationState, .registered)
         XCTAssertEqual(runtime.notificationManager.deviceToken, "ui-test-device-token")
         XCTAssertTrue(runtime.notificationManager.dailyRoundupEnabled)
-        XCTAssertEqual(runtime.universalLinkRouter.selectedTab, .settings)
-        XCTAssertTrue(runtime.universalLinkRouter.inboxPath.isEmpty)
+        // Settings is no tab: its launch value opens it on Inbox.
+        XCTAssertEqual(runtime.universalLinkRouter.selectedTab, .inbox)
+        XCTAssertEqual(runtime.universalLinkRouter.inboxPath, [.settings])
     }
 
     @MainActor
