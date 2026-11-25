@@ -23,6 +23,22 @@ final class AccessibilityAuditTests: XCTestCase {
         try app.auditHitRegionsAndDynamicType()
     }
 
+    /// The audit lets a 30 pt control through, so the item's icon actions hold Apple's 44 pt minimum here.
+    func testItemIconActionsAreAtLeast44PointsSquare() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+        let row = app.element("row.item.alert-crashloop")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        for action in ["ack", "snooze", "retry", "mark-noise", "escalate"] {
+            let button = app.buttons["button.item.\(action).alert-crashloop"]
+            XCTAssertTrue(button.waitForExistence(timeout: 10), action)
+            XCTAssertGreaterThanOrEqual(button.frame.width, 44, action)
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44, action)
+        }
+    }
+
     func testSettingsPassesTheHitRegionAndDynamicTypeAudit() throws {
         let app = AppLaunching.configuredApp(scenario: "notifications_ready", startTab: "settings")
         app.launch()
