@@ -13,15 +13,31 @@ struct SettingsView: View {
     @State private var isAddingOverride = false
 
     var body: some View {
-        CowtailScreen(title: "Settings", identifier: "screen.settings", titleDisplayMode: .inline) {
-            account
-            notifications
-            urgencyOverrides
-            appearance
-            devices
-            developer
-            links
+        Form {
+            Section { account } header: { sectionTitle("Account") }
+            Section { notifications } header: { sectionTitle("Notifications") }
+            Section { urgencyOverrides } header: {
+                HStack {
+                    sectionTitle("Urgency overrides")
+                    Spacer()
+                    CowtailIconButton(title: "Add override", systemImage: "plus", style: .borderless) {
+                        isAddingOverride = true
+                    }
+                    .accessibilityIdentifier("button.settings.add-override")
+                }
+            }
+            Section { appearance } header: { sectionTitle("Appearance") }
+            Section { devices } header: { sectionTitle("Devices") }
+            Section {
+                NavigationLink("Developer") { developer }
+            } header: { sectionTitle("Developer") }
+            Section { links } header: { sectionTitle("Links") }
         }
+        .formStyle(.grouped)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.settings")
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isAddingOverride) {
             UrgencyOverrideSheet { key, urgency in
                 var overrides = notificationManager.preferences.urgencyOverrides
@@ -45,29 +61,22 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var account: some View {
-        CowtailSectionHeader(title: "Account")
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Signed in with \(signInProvider)")
-                    .font(.cowtailSans(14, relativeTo: .body))
-                    .accessibilityIdentifier("text.settings.signed-in")
-                if signInProvider == AppSessionManager.appleProvider,
-                   let name = appleAccountManager.displayName ?? appleAccountManager.email, !name.isEmpty {
-                    Text(name)
-                        .font(.cowtailSans(12, relativeTo: .caption))
-                        .foregroundStyle(palette.mutedInk)
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Signed in with \(signInProvider)")
+                .accessibilityIdentifier("text.settings.signed-in")
+            if signInProvider == AppSessionManager.appleProvider,
+               let name = appleAccountManager.displayName ?? appleAccountManager.email, !name.isEmpty {
+                Text(name)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            Spacer()
-            CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                // The next sign-in opens on the Inbox, not on this page.
-                router.openInbox()
-                appSessionManager.signOut()
-                appleAccountManager.clearIdentity()
-            }
-            .accessibilityIdentifier("button.settings.sign-out")
         }
-        .cowtailRow()
+        Button("Sign out", role: .destructive) {
+            router.openInbox()
+            appSessionManager.signOut()
+            appleAccountManager.clearIdentity()
+        }
+        .accessibilityIdentifier("button.settings.sign-out")
         if let error = appleAccountManager.lastError, appleAccountManager.signInState == .failed {
             note(error, tint: palette.accent)
         }
@@ -77,10 +86,10 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var notifications: some View {
-        CowtailSectionHeader(title: "Notifications")
         pushStatus
+        pushAction
         if requiresAppleConfirmationForPushSetup {
-            AppleSignInButton().cowtailRow()
+            AppleSignInButton()
         }
         let preferences = notificationManager.preferences
         toggleRow(
@@ -129,50 +138,46 @@ struct SettingsView: View {
     }
 
     private var pushStatus: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
+            LabeledContent("Push alerts") {
                 Text(summaryTitle)
-                    .font(.cowtailSans(14, weight: .medium, relativeTo: .body))
                     .accessibilityIdentifier("text.notifications.summary-title")
-                if let summaryMessage {
-                    Text(summaryMessage)
-                        .font(.cowtailSans(12, relativeTo: .caption))
-                        .foregroundStyle(palette.mutedInk)
-                        .accessibilityIdentifier("text.notifications.summary-message")
-                }
             }
-            Spacer()
-            if notificationManager.authorizationStatus == .denied {
-                CowtailIconButton(title: "Open System Settings", systemImage: "gearshape") {
-                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                    UIApplication.shared.open(url)
-                }
-                .accessibilityIdentifier("button.notifications.open-settings")
-            } else if showsSetupAction {
-                CowtailIconButton(title: primaryActionTitle, systemImage: "arrow.clockwise") {
-                    notificationManager.completeSetup()
-                }
-                .accessibilityIdentifier("button.notifications.primary-action")
+            if let summaryMessage {
+                Text(summaryMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("text.notifications.summary-message")
             }
         }
-        .cowtailRow()
+    }
+
+    @ViewBuilder
+    private var pushAction: some View {
+        if notificationManager.authorizationStatus == .denied {
+            CowtailIconButton(title: "Open System Settings", systemImage: "gearshape") {
+                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                UIApplication.shared.open(url)
+            }
+            .accessibilityIdentifier("button.notifications.open-settings")
+        } else if showsSetupAction {
+            CowtailIconButton(title: primaryActionTitle, systemImage: "arrow.clockwise") {
+                notificationManager.completeSetup()
+            }
+            .accessibilityIdentifier("button.notifications.primary-action")
+        }
     }
 
     // MARK: Urgency overrides
 
     @ViewBuilder
     private var urgencyOverrides: some View {
-        CowtailSectionHeader(title: "Urgency overrides") {
-            CowtailIconButton(title: "Add override", systemImage: "plus", style: .borderless) {
-                isAddingOverride = true
-            }
-            .accessibilityIdentifier("button.settings.add-override")
-        }
         let overrides = notificationManager.preferences.urgencyOverrides
+        if overrides.isEmpty {
+            Text("No urgency overrides").foregroundStyle(.secondary)
+        }
         ForEach(notificationManager.preferences.urgencyOverrideOrder, id: \.self) { key in
-            HStack {
-                Text(key).font(.cowtailMono(13, relativeTo: .footnote))
-                Spacer()
+            LabeledContent {
                 Menu {
                     ForEach(ItemUrgency.allCases) { urgency in
                         Button(urgency.rawValue) {
@@ -188,12 +193,14 @@ struct SettingsView: View {
                     }
                 } label: {
                     if let urgency = overrides[key] {
-                        CowtailStatusBadge(title: urgency.rawValue, tint: urgency.tint(palette))
+                        Label(urgency.rawValue, systemImage: "chevron.up.chevron.down")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .accessibilityLabel("Urgency for \(key)")
+            } label: {
+                Text(key).font(.system(.body, design: .monospaced))
             }
-            .cowtailRow()
         }
     }
 
@@ -201,54 +208,38 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var appearance: some View {
-        CowtailSectionHeader(title: "Appearance")
-        HStack {
-            Text("Theme").font(.cowtailSans(14, relativeTo: .body))
-            Spacer()
-            Picker("Theme", selection: $themeSettings.themeStyle) {
-                ForEach(ThemeStyle.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.menu)
-            .tint(palette.ink)
+        Picker("Theme", selection: $themeSettings.themeStyle) {
+            ForEach(ThemeStyle.allCases) { Text($0.title).tag($0) }
         }
-        .cowtailRow()
-        HStack {
-            Text("Mode").font(.cowtailSans(14, relativeTo: .body))
-            Spacer()
-            Picker("Mode", selection: $themeSettings.appearancePreference) {
-                ForEach(ThemeAppearance.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.menu)
-            .tint(palette.ink)
+        Picker("Mode", selection: $themeSettings.appearancePreference) {
+            ForEach(ThemeAppearance.allCases) { Text($0.title).tag($0) }
         }
-        .cowtailRow()
     }
-
-    // MARK: Devices
 
     @ViewBuilder
     private var devices: some View {
-        CowtailSectionHeader(title: "Devices")
+        if store.devices.isEmpty {
+            Text("No registered devices").foregroundStyle(.secondary)
+        }
         ForEach(store.devices) { device in
-            HStack {
-                Text(device.name).font(.cowtailSans(14, relativeTo: .body))
-                Spacer()
-                Text("seen \(ItemFormat.age(of: device.lastSeenAt)) ago")
-                    .font(.cowtailMono(12, relativeTo: .caption))
-                    .foregroundStyle(palette.mutedInk)
-            }
-            .cowtailRow()
+            LabeledContent(device.name, value: "seen \(ItemFormat.age(of: device.lastSeenAt)) ago")
         }
     }
 
     // MARK: Developer and links
 
-    @ViewBuilder
     private var developer: some View {
-        CowtailSectionHeader(title: "Developer")
+        Form {
+            developerControls
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Developer")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private var developerControls: some View {
         Toggle("Developer mode", isOn: $developerModeEnabled)
-            .font(.cowtailSans(14, relativeTo: .body))
-            .cowtailRow()
             .accessibilityIdentifier("toggle.settings.developer-mode")
         if developerModeEnabled {
             diagnostic("Authorization", notificationManager.authorizationLabel)
@@ -287,13 +278,11 @@ struct SettingsView: View {
                     Task { await notificationManager.unregisterCurrentDevice() }
                 }
             }
-            .cowtailRow()
         }
     }
 
     @ViewBuilder
     private var links: some View {
-        CowtailSectionHeader(title: "Links")
         link("Public site", url: AppConfig.publicSiteURL)
         link("Convex query endpoint", url: AppConfig.convexQueryURL)
         link("Alert write endpoint", url: AppConfig.alertWriteURL)
@@ -301,6 +290,12 @@ struct SettingsView: View {
     }
 
     // MARK: Rows
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.body.weight(.semibold))
+            .accessibilityIdentifier("section.\(title)")
+    }
 
     private func toggleRow(
         _ title: String,
@@ -311,17 +306,16 @@ struct SettingsView: View {
     ) -> some View {
         Toggle(isOn: Binding(get: { isOn }, set: set)) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.cowtailSans(14, relativeTo: .body))
+                Text(title).font(.body)
                 if let detail {
                     Text(detail)
-                        .font(.cowtailSans(12, relativeTo: .caption))
+                        .font(.footnote)
                         .foregroundStyle(palette.mutedInk)
                 }
             }
         }
         .disabled(preferencesLocked)
         .accessibilityIdentifier(identifier)
-        .cowtailRow()
     }
 
     private func clockRow(
@@ -331,7 +325,6 @@ struct SettingsView: View {
         hours: @escaping (String) -> QuietHours
     ) -> some View {
         DatePicker(
-            title,
             selection: Binding(
                 get: { Self.date(fromClock: time) },
                 set: { date in
@@ -339,25 +332,25 @@ struct SettingsView: View {
                 }
             ),
             displayedComponents: .hourAndMinute
-        )
-        .font(.cowtailSans(14, relativeTo: .body))
+        ) {
+            Text(title).font(.body)
+        }
         .disabled(preferencesLocked)
         .accessibilityIdentifier(identifier)
-        .cowtailRow()
     }
 
     private func diagnostic(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            CowtailMonoLabel(text: title)
+            Text(title)
+                .foregroundStyle(.secondary)
             Text(value)
                 .font(.cowtailMono(12, relativeTo: .footnote))
                 .textSelection(.enabled)
         }
-        .cowtailRow()
     }
 
     private func link(_ title: String, url: URL) -> some View {
-        CowtailLinkRow(title: title, url: url)
+        CowtailLinkRow(title: title, url: url, isInForm: true)
     }
 
     private func note(_ text: String, tint: Color) -> some View {
@@ -425,7 +418,7 @@ struct SettingsView: View {
 
     private var summaryTitle: String {
         if notificationManager.isReadyForRemotePush {
-            return "Push alerts ready"
+            return "Ready"
         }
         if !isSignedIn {
             return "Sign in for push alerts"
@@ -434,13 +427,13 @@ struct SettingsView: View {
             return "Confirm Apple sign-in"
         }
         if notificationManager.authorizationStatus == .denied {
-            return "Notifications are off"
+            return "Off"
         }
         if hasSetupError {
             return "Push setup needs attention"
         }
         if isSyncing {
-            return "Finishing push setup"
+            return "Syncing"
         }
         if notificationManager.authorizationStatus == .notDetermined {
             return "Allow notifications"

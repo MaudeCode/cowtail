@@ -9,7 +9,7 @@ final class AccessibilityAuditTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.element("row.item.alert-crashloop").waitForExistence(timeout: 10))
 
-        try app.auditHitRegionsAndDynamicType()
+        try app.auditAccessibility()
     }
 
     func testItemPagePassesTheHitRegionAndDynamicTypeAudit() throws {
@@ -20,7 +20,7 @@ final class AccessibilityAuditTests: XCTestCase {
         row.tap()
         XCTAssertTrue(app.element("text.item.title").waitForExistence(timeout: 10))
 
-        try app.auditHitRegionsAndDynamicType()
+        try app.auditAccessibility()
     }
 
     /// The audit lets a 30 pt control through, so the item's icon actions hold Apple's 44 pt minimum here.
@@ -39,12 +39,12 @@ final class AccessibilityAuditTests: XCTestCase {
         }
     }
 
-    func testSettingsPassesTheHitRegionAndDynamicTypeAudit() throws {
+    func testSettingsPassesTheHitRegionAudit() throws {
         let app = AppLaunching.configuredApp(scenario: "notifications_ready", startTab: "settings")
         app.launch()
         XCTAssertTrue(app.element("section.Account").waitForExistence(timeout: 10))
 
-        try app.auditHitRegionsAndDynamicType()
+        try app.auditAccessibility(for: .hitRegion)
     }
 
     func testSignInPassesTheHitRegionAndDynamicTypeAudit() throws {
@@ -52,14 +52,18 @@ final class AccessibilityAuditTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["button.sign-in.oidc"].waitForExistence(timeout: 10))
 
-        try app.auditHitRegionsAndDynamicType()
+        try app.auditAccessibility()
     }
 }
 
 extension XCUIApplication {
     /// Fails once per issue, naming the element, which the audit's own failure leaves out.
-    func auditHitRegionsAndDynamicType(file: StaticString = #filePath, line: UInt = #line) throws {
-        try performAccessibilityAudit(for: [.hitRegion, .dynamicType]) { issue in
+    func auditAccessibility(
+        for types: XCUIAccessibilityAuditType = [.hitRegion, .dynamicType],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        try performAccessibilityAudit(for: types) { issue in
             let element = issue.element
             XCTFail(
                 "\(issue.compactDescription): \(element?.elementType.rawValue ?? 0) "

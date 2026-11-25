@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import XCTest
 @testable import Cowtail
 
@@ -10,9 +11,28 @@ final class HostedSettingsTests: XCTestCase {
         try screen.activate("button.inbox.settings")
         let sections = ["Account", "Notifications", "Urgency overrides", "Appearance", "Devices", "Developer", "Links"]
             .map { "section.\($0)" }
-        screen.assertVisible(sections + ["button.settings.add-override"])
-        screen.assertVerticalOrder(sections)
+        screen.assertVisible(Array(sections.prefix(3)) + ["button.settings.add-override"])
         XCTAssertEqual(screen.element("button.settings.add-override")?.accessibilityLabel, "Add override")
+
+        let form = try XCTUnwrap(screen.firstView(ofType: UICollectionView.self))
+        var observed: [String] = []
+        let top = -form.adjustedContentInset.top
+        let bottom = max(top, form.contentSize.height - form.bounds.height + form.adjustedContentInset.bottom)
+        let step = form.bounds.height / 2
+        XCTAssertGreaterThan(step, 0)
+        guard step > 0 else { return }
+        for offset in Array(stride(from: top, to: bottom, by: step)) + [bottom] {
+            form.setContentOffset(CGPoint(x: form.contentOffset.x, y: offset), animated: false)
+            form.layoutIfNeeded()
+            let visible = sections.compactMap { identifier -> (String, CGFloat)? in
+                guard let element = screen.element(identifier) else { return nil }
+                return (identifier, element.accessibilityFrame.minY)
+            }
+            for (identifier, _) in visible.sorted(by: { $0.1 < $1.1 }) where !observed.contains(identifier) {
+                observed.append(identifier)
+            }
+        }
+        XCTAssertEqual(observed, sections)
     }
 
     func testDailyRoundupToggleChangesValue() throws {
