@@ -57,7 +57,7 @@ final class HostedItemsTests: XCTestCase {
         router.openItem("alert-crashloop")
         defer { router.openInbox() }
         let screen = try HostedScreen(ContentView()
-            .environmentObject(UITestScenario.fixtureStore(.inboxPopulated))
+            .environment(UITestScenario.fixtureStore(.inboxPopulated))
             .environmentObject(router))
         defer { screen.close() }
         let actions = ["ack", "snooze", "retry", "mark-noise", "escalate"]
@@ -77,7 +77,7 @@ final class HostedItemsTests: XCTestCase {
     func testPickingSnoozeMovesItemIntoUpcoming() throws {
         let store = UITestScenario.fixtureStore(.inboxPopulated)
         let screen = try HostedScreen(NavigationStack { ItemDestinationView(route: .item("alert-crashloop")) }
-            .environmentObject(store)
+            .environment(store)
             .task { await store.refresh() })
         defer { screen.close() }
         try screen.activate("button.item.snooze.alert-crashloop")
@@ -88,7 +88,7 @@ final class HostedItemsTests: XCTestCase {
 
     private func host(_ route: AppRoute, scenario: UITestScenario.Name = .inboxPopulated) throws -> HostedScreen {
         let store = UITestScenario.fixtureStore(scenario)
-        return try HostedScreen(NavigationStack { ItemDestinationView(route: route) }.environmentObject(store))
+        return try HostedScreen(NavigationStack { ItemDestinationView(route: route) }.environment(store))
     }
 
     private func alertLink(_ path: String, scenario: UITestScenario.Name) throws -> HostedScreen {

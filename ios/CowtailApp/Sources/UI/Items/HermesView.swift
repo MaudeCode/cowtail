@@ -4,7 +4,7 @@ import SwiftUI
 /// the runbook and its runs, and the owner's recent answers. The server decides every level,
 /// order and link.
 struct HermesView: View {
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
     @State private var confirming: RunbookScript?
 
@@ -63,7 +63,7 @@ struct HermesView: View {
                         title: "Run \(script.name)",
                         systemImage: "play.fill",
                         role: script.asksToConfirm ? .destructive : nil,
-                        isBusy: store.scriptsStarting.contains(script.id)
+                        isBusy: store.runbook.scriptsStarting.contains(script.id)
                     ) {
                         if script.asksToConfirm {
                             confirming = script
@@ -77,7 +77,7 @@ struct HermesView: View {
                 .cowtailRow()
             }
         }
-        if let error = store.runbookError {
+        if let error = store.runbook.error {
             note(error, tint: palette.accent)
         }
     }
@@ -87,7 +87,7 @@ struct HermesView: View {
     @ViewBuilder
     private func runView(_ runs: [RunbookRun]) -> some View {
         let id = store.shownRunID
-        let detail = store.runDetail?.run.id == id ? store.runDetail : nil
+        let detail = store.runbook.detail?.run.id == id ? store.runbook.detail : nil
         if let run = detail?.run ?? runs.first(where: { $0.id == id }) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 CowtailSectionHeader(title: "Run · \(run.scriptName)") {

@@ -36,7 +36,7 @@ final class HostedIncidentTests: XCTestCase {
         let store = UITestScenario.fixtureStore(.inboxIncidents)
         let id = "incident-storage"
         await store.loadIncident(id: id)
-        let screen = try HostedScreen(NavigationStack { IncidentDestinationView(id: id) }.environmentObject(store))
+        let screen = try HostedScreen(NavigationStack { IncidentDestinationView(id: id) }.environment(store))
         defer { screen.close() }
         screen.assertVisible(["row.item.alert-cephhealtherr", "row.item.alert-osddown"])
         await store.change(.remove(itemID: "alert-cephhealtherr"), incidentID: id)
@@ -59,7 +59,7 @@ final class HostedIncidentTests: XCTestCase {
             router.inboxPath = [route]
         }
         return try HostedScreen(ContentView()
-            .environmentObject(UITestScenario.fixtureStore(.inboxIncidents))
+            .environment(UITestScenario.fixtureStore(.inboxIncidents))
             .environmentObject(router))
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct InboxView: View {
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @EnvironmentObject private var router: UniversalLinkRouter
     @Environment(\.cowtailPalette) private var palette
     @State private var isStartingMaintenance = false

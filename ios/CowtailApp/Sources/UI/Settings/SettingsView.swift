@@ -7,7 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var themeSettings: ThemeSettings
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @EnvironmentObject private var router: UniversalLinkRouter
 
     @State private var isAddingOverride = false

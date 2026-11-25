@@ -6,7 +6,7 @@ struct RootView: View {
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @State private var asksForNotifications = false
 
     var body: some View {
@@ -17,6 +17,12 @@ struct RootView: View {
                 NotificationStepView { asksForNotifications = false }
             } else {
                 ContentView()
+                    .background {
+                        TextInputServicesWarmupView()
+                            .frame(width: 0, height: 0)
+                            .accessibilityHidden(true)
+                            .allowsHitTesting(false)
+                    }
             }
         }
         .onChange(of: appSessionManager.isSignedIn) { _, isSignedIn in
@@ -33,7 +39,7 @@ struct ContentView: View {
     @Environment(\.cowtailPalette) private var palette
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @State private var historyFilter = HistoryFilter()
 
     @State private var hermesPath: [AppRoute] = []
@@ -84,12 +90,6 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .cowtailPushReceived)) { _ in
             Task { await store.refresh() }
-        }
-        .background {
-            TextInputServicesWarmupView()
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
-                .allowsHitTesting(false)
         }
     }
 

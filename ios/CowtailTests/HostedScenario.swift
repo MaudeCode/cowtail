@@ -23,7 +23,7 @@ extension HostedScreen {
         return try HostedScreen(RootView()
             .environmentObject(runtime.appleAccountManager)
             .environmentObject(runtime.appSessionManager)
-            .environmentObject(runtime.cowtailStore)
+            .environment(runtime.cowtailStore)
             .environmentObject(runtime.oidcSignIn)
             .environmentObject(runtime.notificationManager)
             .environmentObject(runtime.themeSettings)

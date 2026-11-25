@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 
 struct ClusterView: View {
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {

@@ -402,7 +402,7 @@ final class CowtailStoreTests: XCTestCase {
             XCTAssertEqual(started.map(\.confirmed), allows ? [true] : [], "allows=\(allows)")
             XCTAssertEqual(started.map(\.authenticated), allows ? [true] : [], "allows=\(allows)")
             XCTAssertEqual(store.actionErrors["item-1"] != nil, !allows, "allows=\(allows)")
-            XCTAssertEqual(store.selectedRunID, allows ? "run-1" : nil, "allows=\(allows)")
+            XCTAssertEqual(store.runbook.selectedRunID, allows ? "run-1" : nil, "allows=\(allows)")
         }
     }
 
@@ -686,7 +686,7 @@ final class CowtailStoreTests: XCTestCase {
 
         await store.loadHistory(HistoryFilter(kind: .approval))
 
-        XCTAssertEqual(store.historyItems.map(\.id), ["older"])
+        XCTAssertEqual(store.history.items.map(\.id), ["older"])
     }
 
     private let failed = Item(
@@ -708,16 +708,16 @@ final class CowtailStoreTests: XCTestCase {
 
         let ack = Task { await store.perform(.ack, on: failed) }
         await api.waitUntilHeld()
-        XCTAssertEqual(store.historyItems.first?.state, .acked)
-        XCTAssertEqual(store.historyItems.first?.availableActions, [.snooze])
+        XCTAssertEqual(store.history.items.first?.state, .acked)
+        XCTAssertEqual(store.history.items.first?.availableActions, [.snooze])
         // A poll while the action is on its way keeps it shown.
         await store.loadHistory(HistoryFilter())
-        XCTAssertEqual(store.historyItems.first?.state, .acked)
+        XCTAssertEqual(store.history.items.first?.state, .acked)
         await api.releaseHeld(with: CowtailAPIError.refused("The item is closed"))
         await ack.value
 
-        XCTAssertEqual(store.historyItems.first?.state, .open)
-        XCTAssertEqual(store.historyItems.first?.availableActions, [.ack, .snooze])
+        XCTAssertEqual(store.history.items.first?.state, .open)
+        XCTAssertEqual(store.history.items.first?.availableActions, [.ack, .snooze])
     }
 
     func testAnActionWhoseReplyWasLostRereadsItsHistoryRow() async {
@@ -732,8 +732,8 @@ final class CowtailStoreTests: XCTestCase {
         await store.perform(.ack, on: failed)
 
         // The write never landed: History's read shows the item still open.
-        XCTAssertEqual(store.historyItems.first?.state, .open)
-        XCTAssertEqual(store.historyItems.first?.availableActions, [.ack, .snooze])
+        XCTAssertEqual(store.history.items.first?.state, .open)
+        XCTAssertEqual(store.history.items.first?.availableActions, [.ack, .snooze])
     }
 
     func testAnActionShowsOnItsIncidentMemberAtOnceAndARefusalPutsItBack() async {
@@ -797,7 +797,7 @@ final class CowtailStoreTests: XCTestCase {
 
         // The first page asks for the range; the next carries the start the server resolved.
         let queries = await api.listQueries
-        XCTAssertEqual(store.historyItems.map(\.id), ["first", "second"])
+        XCTAssertEqual(store.history.items.map(\.id), ["first", "second"])
         XCTAssertEqual(queries.map(\.cursor), [nil, "page-2"])
         XCTAssertEqual(queries.map(\.range), [.day, nil])
         XCTAssertEqual(queries.map(\.from), [nil, start])
@@ -815,7 +815,7 @@ final class CowtailStoreTests: XCTestCase {
 
         let limits = await api.listQueries.map(\.limit)
         XCTAssertEqual(limits, [100, 120])
-        XCTAssertEqual(store.historyItems.count, 120)
+        XCTAssertEqual(store.history.items.count, 120)
     }
 
     func testTwoLoadMoreTriggersReadTheNextPageOnce() async {
@@ -848,7 +848,7 @@ final class CowtailStoreTests: XCTestCase {
 
         let cursors = await api.listQueries.map(\.cursor)
         XCTAssertEqual(cursors, [nil, "page-2"])
-        XCTAssertEqual(store.historyItems.map(\.id), ["first", "second"])
+        XCTAssertEqual(store.history.items.map(\.id), ["first", "second"])
     }
 
     func testRefreshRetriesHealthAfterTransientFailure() async {

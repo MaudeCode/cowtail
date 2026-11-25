@@ -4,7 +4,7 @@ import SwiftUI
 struct IncidentDestinationView: View {
     let id: String
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
@@ -39,7 +39,7 @@ struct IncidentDestinationView: View {
 struct IncidentDetailView: View {
     let detail: IncidentDetail
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
     @State private var isAdding = false
 
@@ -230,7 +230,7 @@ struct PostmortemText: View {
 struct AddIncidentItemSheet: View {
     let incidentID: String
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
     @Environment(\.dismiss) private var dismiss
     @State private var candidates: [Item]?

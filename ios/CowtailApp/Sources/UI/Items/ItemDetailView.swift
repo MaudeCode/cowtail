@@ -5,7 +5,7 @@ struct ItemDestinationView: View {
     let route: AppRoute
 
     @Environment(\.scenePhase) private var scenePhase
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
@@ -73,7 +73,7 @@ struct ItemDestinationView: View {
 struct ItemDetailView: View {
     let detail: ItemDetail
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
 
     private var item: Item { detail.item }

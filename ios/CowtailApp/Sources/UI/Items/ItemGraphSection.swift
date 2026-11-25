@@ -6,7 +6,7 @@ import SwiftUI
 struct ItemGraphSection: View {
     let itemID: String
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
     @State private var range: ItemGraphRange = .sixHours
 
