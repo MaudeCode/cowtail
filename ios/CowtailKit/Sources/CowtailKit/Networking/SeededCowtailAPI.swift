@@ -127,35 +127,19 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         guard let index = seed.items.firstIndex(where: { $0.id == itemID }) else {
             throw CowtailAPIError.refused("Item not found")
         }
-        var item = seed.items[index]
-        let neededOwner = item.needsOwner
-        item.needsOwner = false
-        if request.isAnswer {
-            item.availableActions.removeAll(where: \.isAnswer)
+        if request == .unsnooze, seed.items[index].state != .snoozed {
+            throw CowtailAPIError.refused("Item is not snoozed")
         }
-        let payload: [String: String]
-        switch request {
-        case .ack:
-            item.state = .acked
-            payload = ["type": "ack"]
-        case .snooze(let until):
-            item.state = .snoozed
-            item.snoozedUntil = until
-            item.needsOwnerWhenOpen = neededOwner
-            payload = ["type": "snooze"]
-        case .unsnooze:
-            guard item.state == .snoozed else {
-                throw CowtailAPIError.refused("Item is not snoozed")
-            }
-            item.state = .open
-            item.snoozedUntil = nil
-            item.needsOwner = item.needsOwnerWhenOpen ?? false
-            item.needsOwnerWhenOpen = nil
-            payload = ["type": "unsnooze"]
-        case .approve: payload = ["type": "approve"]
-        case .deny: payload = ["type": "deny"]
-        case .choose(let option): payload = ["type": "choose", "option": option]
-        case .reply(let text): payload = ["type": "reply", "text": text]
+        // The server's result is what the app shows at once for the owner's own write.
+        let item = ItemInbox.item(seed.items[index], showing: request)
+        let payload: [String: String] = switch request {
+        case .ack: ["type": "ack"]
+        case .snooze: ["type": "snooze"]
+        case .unsnooze: ["type": "unsnooze"]
+        case .approve: ["type": "approve"]
+        case .deny: ["type": "deny"]
+        case .choose(let option): ["type": "choose", "option": option]
+        case .reply(let text): ["type": "reply", "text": text]
         }
         seed.items[index] = item
         events[itemID, default: []].append(

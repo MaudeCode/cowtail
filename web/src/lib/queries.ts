@@ -364,6 +364,8 @@ export function showSnoozeInInbox(
       : item.state !== "snoozed";
   if (applied) return undefined;
   const sections = sectionsWithout(inbox, itemId);
+  // Snoozed, it offers Unsnooze until the server's own list replaces this one.
+  const others = (item.availableActions ?? []).filter((offered) => offered.type !== "unsnooze");
   if (action.type === "snooze") {
     const { upcoming } = sections;
     const at = upcoming.findIndex((entry) => (entry.snoozedUntil ?? Infinity) > action.until);
@@ -374,10 +376,17 @@ export function showSnoozeInInbox(
       // Snoozed already, the server's answer stands.
       needsOwnerWhenOpen: item.state === "snoozed" ? item.needsOwnerWhenOpen : item.needsOwner,
       snoozedUntil: action.until,
+      availableActions: [...others, { type: "unsnooze" }],
     });
   } else {
     const needsOwner = item.needsOwnerWhenOpen ?? false;
-    const opened = { ...item, state: "open" as const, needsOwner, snoozedUntil: undefined };
+    const opened = {
+      ...item,
+      state: "open" as const,
+      needsOwner,
+      snoozedUntil: undefined,
+      availableActions: others,
+    };
     sections[needsOwner ? "needsYou" : "withHermes"].unshift(opened);
   }
   return withSections(inbox, sections);

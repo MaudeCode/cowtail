@@ -15,6 +15,7 @@ import { internalAction, internalMutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { ApsExtras } from "./apns";
 import { appendItemEvent, ownerBadgeCount, type ItemDeliveryReason } from "./items";
+import { itemKindTakesAck } from "./itemModel";
 import { coveringWindow } from "./maintenance";
 import { effectivePreferences, preferencesRow } from "./notificationPreferences";
 import { cowtailOwnerUserId } from "./owner";
@@ -34,9 +35,9 @@ const interruptionLevels = {
 } as const satisfies Record<ItemUrgency, ApsExtras["interruptionLevel"]>;
 
 export function itemCategory(kind: ItemKind, approvalNeedsAuth = false): ItemNotificationCategory {
+  if (itemKindTakesAck(kind)) return "ITEM_ACK";
   if (kind === "approval") return approvalNeedsAuth ? "ITEM_APPROVAL_AUTH" : "ITEM_APPROVAL";
-  if (kind === "question") return "ITEM_QUESTION";
-  return "ITEM_ACK";
+  return "ITEM_QUESTION";
 }
 
 export type Push = {

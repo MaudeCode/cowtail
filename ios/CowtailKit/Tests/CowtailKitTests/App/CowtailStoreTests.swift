@@ -437,6 +437,7 @@ final class CowtailStoreTests: XCTestCase {
             urgency: .today,
             state: .snoozed,
             title: id,
+            availableActions: [.unsnooze],
             snoozedUntil: Self.start.addingTimeInterval(hours * 3_600),
             needsOwnerWhenOpen: needsOwnerWhenOpen,
             createdAt: Self.start
@@ -462,6 +463,7 @@ final class CowtailStoreTests: XCTestCase {
         await api.waitUntilHeld()
 
         XCTAssertEqual(store.inbox?.upcoming.map(\.id), ["soon", approval.id, "later"])
+        XCTAssertEqual(store.inbox?.item(withID: approval.id)?.availableActions.last, .unsnooze)
         XCTAssertEqual(store.inbox?.needsYou, [])
         XCTAssertEqual(store.inbox?.counts, ItemInbox.Counts(needsYou: 0, withHermes: 0, upcoming: 3, handled: 0))
         await api.releaseHeld(with: CowtailAPIError.refused("done"))
@@ -504,6 +506,7 @@ final class CowtailStoreTests: XCTestCase {
             let shown = inbox?.item(withID: soon.id)
             XCTAssertEqual(shown?.state, .open, "needsOwner=\(needsOwner)")
             XCTAssertNil(shown?.snoozedUntil, "needsOwner=\(needsOwner)")
+            XCTAssertEqual(shown?.availableActions, [], "needsOwner=\(needsOwner)")
             await api.releaseHeld(with: CowtailAPIError.refused("done"))
             await unsnooze.value
         }

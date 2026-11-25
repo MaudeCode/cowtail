@@ -1399,7 +1399,7 @@ extension Components {
             /// - Remark: Generated from `#/components/schemas/ItemRecord/answeredAt`.
             internal var answeredAt: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/availableActions`.
-            internal var availableActions: [Components.Schemas.ItemAction]?
+            internal var availableActions: [Components.Schemas.ItemAvailableAction]?
             /// - Remark: Generated from `#/components/schemas/ItemRecord/latestUpdate`.
             internal struct LatestUpdatePayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/ItemRecord/latestUpdate/text`.
@@ -1565,7 +1565,7 @@ extension Components {
                 resolvedAt: Swift.Int? = nil,
                 subtitle: Swift.String? = nil,
                 answeredAt: Swift.Int? = nil,
-                availableActions: [Components.Schemas.ItemAction]? = nil,
+                availableActions: [Components.Schemas.ItemAvailableAction]? = nil,
                 latestUpdate: Components.Schemas.ItemRecord.LatestUpdatePayload? = nil,
                 investigationStep: Components.Schemas.ItemRecord.InvestigationStepPayload? = nil,
                 outcome: Components.Schemas.ItemRecord.OutcomePayload? = nil,
@@ -1944,6 +1944,60 @@ extension Components {
                 case let .case7(value):
                     try value.encode(to: encoder)
                 case let .case8(value):
+                    try value.encode(to: encoder)
+                }
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ItemAvailableAction`.
+        internal enum ItemAvailableAction: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ItemAvailableAction/case1`.
+            case ItemAction(Components.Schemas.ItemAction)
+            /// - Remark: Generated from `#/components/schemas/ItemAvailableAction/case2`.
+            internal struct Case2Payload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/ItemAvailableAction/case2/type`.
+                internal enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case unsnooze = "unsnooze"
+                }
+                /// - Remark: Generated from `#/components/schemas/ItemAvailableAction/case2/type`.
+                internal var _type: Components.Schemas.ItemAvailableAction.Case2Payload._TypePayload
+                /// Creates a new `Case2Payload`.
+                ///
+                /// - Parameters:
+                ///   - _type:
+                internal init(_type: Components.Schemas.ItemAvailableAction.Case2Payload._TypePayload) {
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case _type = "type"
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ItemAvailableAction/case2`.
+            case case2(Components.Schemas.ItemAvailableAction.Case2Payload)
+            internal init(from decoder: any Swift.Decoder) throws {
+                var errors: [any Swift.Error] = []
+                do {
+                    self = .ItemAction(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                do {
+                    self = .case2(try .init(from: decoder))
+                    return
+                } catch {
+                    errors.append(error)
+                }
+                throw Swift.DecodingError.failedToDecodeOneOfSchema(
+                    type: Self.self,
+                    codingPath: decoder.codingPath,
+                    errors: errors
+                )
+            }
+            internal func encode(to encoder: any Swift.Encoder) throws {
+                switch self {
+                case let .ItemAction(value):
+                    try value.encode(to: encoder)
+                case let .case2(value):
                     try value.encode(to: encoder)
                 }
             }

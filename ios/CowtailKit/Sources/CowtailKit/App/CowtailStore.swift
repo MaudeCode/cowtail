@@ -806,11 +806,14 @@ extension ItemInbox {
         if request.isAnswer {
             moved.availableActions.removeAll(where: \.isAnswer)
         }
+        // Snoozed, it offers Unsnooze until the server's own list replaces this one.
+        moved.availableActions.removeAll { $0 == .unsnooze }
         switch request {
         case .ack:
             moved.state = .acked
             moved.needsOwner = false
         case .snooze(let until):
+            moved.availableActions.append(.unsnooze)
             moved.state = .snoozed
             moved.snoozedUntil = until
             // Snoozed already, the server's answer stands.

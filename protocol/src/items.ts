@@ -76,6 +76,13 @@ export const itemActionSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+// What an item's `availableActions` can list: a producer's actions, and the server's
+// Unsnooze on a snoozed item, which no producer declares.
+export const itemAvailableActionSchema = z.discriminatedUnion("type", [
+  itemActionSchema,
+  z.object({ type: z.literal("unsnooze") }),
+]);
+
 // Producer-owned routing data, returned to the producer untouched.
 export const itemReplyToSchema = z.record(fieldNameSchema, z.unknown());
 
@@ -136,10 +143,12 @@ export const itemRecordSchema = z.object({
   // When the owner answered (approve, deny, choose or reply); an answered item no longer
   // needs them while its producer applies the answer.
   answeredAt: timestampSchema.optional(),
-  // The `actions` the owner can still take: none once the item is closed but its links, and
-  // no further answer once the owner answered. Always sent; optional so a client still decodes
-  // a server from before it, and offers nothing then.
-  availableActions: z.array(itemActionSchema).optional(),
+  // What the owner can do with the item now: the producer's `actions`, with Acknowledge and
+  // Snooze added while it is open and unanswered (no Acknowledge on an approval or question),
+  // Unsnooze while it is snoozed, and no Acknowledge once acked. None once the item is closed
+  // but its links, and no further answer once the owner answered. Always sent; optional so a
+  // client still decodes a server from before it, and offers nothing then.
+  availableActions: z.array(itemAvailableActionSchema).optional(),
   // The newest `hermes_update` on the timeline.
   latestUpdate: z.object({ text: z.string(), at: timestampSchema }).optional(),
   investigationStep: itemInvestigationStepSchema.optional(),
@@ -510,6 +519,7 @@ export type ItemState = z.infer<typeof itemStateSchema>;
 export type ItemEventType = z.infer<typeof itemEventTypeSchema>;
 export type ItemLink = z.infer<typeof itemLinkSchema>;
 export type ItemAction = z.infer<typeof itemActionSchema>;
+export type ItemAvailableAction = z.infer<typeof itemAvailableActionSchema>;
 export type ItemRecord = z.infer<typeof itemRecordSchema>;
 export type ItemEventRecord = z.infer<typeof itemEventRecordSchema>;
 export type PriorOccurrence = z.infer<typeof priorOccurrenceSchema>;

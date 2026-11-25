@@ -675,8 +675,10 @@ export const applyAction = internalMutation({
       }
     }
 
-    // An answer to an action the producer offered goes back to it; a plain ack stays here.
-    if (offered && item.replyTo && action.type !== "snooze") {
+    // An answer to an action the producer declared goes back to it; Cowtail's own ack, which
+    // the producer never asked to hear about, stays here.
+    const declared = item.actions.some((candidate) => candidate.type === action.type);
+    if (declared && item.replyTo && action.type !== "snooze") {
       await queueItemResponse(ctx, item._id, action, now);
     }
     await appendItemEvent(ctx, item._id, "action_taken", actor, now, { ...action });

@@ -1,5 +1,7 @@
 import {
   itemOutcomes,
+  type ItemAction,
+  type ItemAvailableAction,
   type ItemInvestigationStep,
   type ItemKind,
   type ItemOutcome,
@@ -87,20 +89,37 @@ export function alertOwnerActions(jobs: { status: string }[]) {
 
 const answerTypes = new Set(["approve", "deny", "choose", "reply"]);
 
-// What the owner can still do with an item: a closed item keeps only its links, and an
-// answered item takes no second answer.
-export function itemAvailableActions<Action extends { type: string }>(item: {
+// Approvals and questions wait on the owner's answer, so an ack would drop them unanswered;
+// every other kind is acknowledged, from the push and from the item alike.
+export function itemKindTakesAck(kind: ItemKind): boolean {
+  return kind !== "approval" && kind !== "question";
+}
+
+// What the owner can do with an item now: what its producer declared, and Cowtail's own
+// Acknowledge, Snooze and Unsnooze wherever applyAction takes them. A closed item keeps only
+// its links, and an answered item takes no second answer and gets no Acknowledge or Snooze.
+export function itemAvailableActions(item: {
+  kind: ItemKind;
   state: ItemState;
-  actions: Action[];
+  actions: ItemAction[];
   answeredAt?: number;
-}): Action[] {
+}): ItemAvailableAction[] {
   if (terminalItemStates.has(item.state)) {
     return item.actions.filter((action) => action.type === "open");
   }
-  if (item.answeredAt !== undefined) {
-    return item.actions.filter((action) => !answerTypes.has(action.type));
-  }
-  return item.actions;
+  const answered = item.answeredAt !== undefined;
+  const declared = answered
+    ? item.actions.filter((action) => !answerTypes.has(action.type))
+    : item.actions;
+  if (item.state === "snoozed") return [...declared, { type: "unsnooze" }];
+  if (answered) return declared;
+  if (item.state === "acked") return declared.filter((action) => action.type !== "ack");
+  const declares = (type: string) => declared.some((action) => action.type === type);
+  return [
+    ...declared,
+    ...(itemKindTakesAck(item.kind) && !declares("ack") ? [{ type: "ack" } as const] : []),
+    ...(declares("snooze") ? [] : [{ type: "snooze" } as const]),
+  ];
 }
 
 // An item linked to an alert follows the alert's workflow; every other item follows its

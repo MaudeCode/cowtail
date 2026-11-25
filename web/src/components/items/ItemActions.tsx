@@ -1,4 +1,8 @@
-import type { ItemActionRequest, ItemRecord } from "@maudecode/cowtail-protocol";
+import type {
+  ItemActionRequest,
+  ItemAvailableAction,
+  ItemRecord,
+} from "@maudecode/cowtail-protocol";
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
@@ -8,15 +12,24 @@ import { snoozeOptionsQuery, useItemAction, useItemActionError } from "../../lib
 import { ActionError, Icon, IconButton } from "../ui";
 import RunScriptButton, { textButton } from "./RunScriptButton";
 
-// The controls for what an item still offers. A `choose` action shows its options as text, and
-// a `run` action its label; every other action is an icon button.
-export default function ItemActions({ item }: { item: ItemRecord }) {
+// The controls for what an item still offers, or only the offered `types` when given. A
+// `choose` action shows its options as text, and a `run` action its label; every other action
+// is an icon button.
+export default function ItemActions({
+  item,
+  types,
+}: {
+  item: ItemRecord;
+  types?: ItemAvailableAction["type"][];
+}) {
   const action = useItemAction(item.id);
   const actionError = useItemActionError(item.id);
   const [panel, setPanel] = useState<"reply" | "snooze" | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const actions = item.availableActions ?? [];
+  const actions = (item.availableActions ?? []).filter(
+    (offered) => !types || types.includes(offered.type),
+  );
   if (actions.length === 0) return null;
 
   const send = (key: string, request: ItemActionRequest) => {
@@ -77,6 +90,17 @@ export default function ItemActions({ item }: { item: ItemRecord }) {
                   disabled={busy !== null}
                   aria-busy={busy === "ack"}
                   onClick={() => send("ack", { type: "ack" })}
+                />
+              );
+            // The snoozed item comes back now; a list moves it at once to where it returns.
+            case "unsnooze":
+              return (
+                <IconButton
+                  key="unsnooze"
+                  icon="refresh"
+                  label="Unsnooze"
+                  disabled={busy !== null}
+                  onClick={() => action.mutate({ type: "unsnooze" })}
                 />
               );
             case "reply":

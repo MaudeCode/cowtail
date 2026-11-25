@@ -246,6 +246,8 @@ describe("runbook runs for an item", () => {
         confirmText: "Restart the Hermes gateway?",
         needsAuth: false,
       },
+      { type: "ack" },
+      { type: "snooze" },
     ]);
 
     const run = await startRun(t, owner, {
