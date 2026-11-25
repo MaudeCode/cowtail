@@ -189,9 +189,9 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
 .bt.pl{background:none;color:var(--acct)}
 .apple{background:#fff;color:#000}
 /* pinned action area, above the tab bar */
-.abar{display:flex;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--sep);background:var(--bg)}
+.abar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--sep);background:var(--bg)}
 .abar .bt{white-space:nowrap}
-.abar .lbl{font:9.5px "DM Mono",monospace;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;width:62px;flex:none}
+.abar .lbl{font:9.5px "DM Mono",monospace;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;width:100%;flex:none}
 /* ContentUnavailableView */
 .cuv{display:grid;justify-items:center;gap:4px;text-align:center;padding:34px 20px 22px}
 .ios .cuv svg:not(.ch){width:38px;height:38px;color:var(--mut);stroke-width:1.6;margin-bottom:6px}
@@ -420,7 +420,7 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
 <div class="m phone ios short">
  <div class="lst" style="padding:8px 0 14px;display:grid;gap:10px">
   <div class="abar"><span class="lbl">approval</span><button class="bc pro" title="Approve"><svg><use href="#check"/></svg></button><button class="bc des" title="Deny"><svg><use href="#x"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button></div>
-  <div class="abar" style="flex-wrap:wrap"><span class="lbl">question</span><button class="bt">Rebalance now</button><button class="bt">Wait</button><button class="bc" title="Reply"><svg><use href="#reply"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button></div>
+  <div class="abar"><span class="lbl">question</span><button class="bt">Rebalance now</button><button class="bt">Wait</button><button class="bc" title="Reply"><svg><use href="#reply"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button></div>
   <div class="abar"><span class="lbl">snoozed</span><button class="bc" title="Unsnooze"><svg><use href="#refresh"/></svg></button></div>
   <div class="abar"><span class="lbl">failure</span><button class="bt"><svg style="vertical-align:-2px;width:12px;height:12px"><use href="#play"/></svg> Restart Hermes gateway</button><button class="bc" title="Acknowledge"><svg><use href="#ack"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button></div>
  </div>
