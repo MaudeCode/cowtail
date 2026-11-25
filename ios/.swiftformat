@@ -1,4 +1,4 @@
---exclude .build,CowtailApp/Sources/Generated,OpenAPITools/.build,OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources
+--exclude .build,CowtailKit/.build,CowtailKit/Sources/CowtailKit/Generated,OpenAPITools/.build,OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources
 --swiftversion 6.0
 
 --disable blankLineAfterImports

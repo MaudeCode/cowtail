@@ -11,7 +11,8 @@ This file covers the native iOS app in [`ios/`](./).
 - `./generate.sh` and the Xcode pre-build script run the OpenAPI generator on Node; run `pnpm install` at the repository root first.
 - Run project generation from `ios/` with `./generate.sh`.
 - Build with Xcode 27.2, the version CI pins in `.github/actions/setup-ios`.
-- Test on the `iPhone 17 (iOS 27.2)` simulator, the default of `scripts/test.sh` and the device CI uses, unless the user asks for a different target.
+- Put the app's logic and its tests in the `CowtailKit` package and run them with `cd CowtailKit && swift test`, on macOS with no simulator. The app compiles the package's sources into its own module (`project.yml`), so they need no public API.
+- Run the app-hosted and UI tests on the `iPhone 17 (iOS 27.2)` simulator, the default of `scripts/test.sh` and the device CI uses, unless the user asks for a different target.
 
 ## Product-Specific Values
 
@@ -24,7 +25,7 @@ These values are intentionally product-specific and are currently injected from 
 ## Verification
 
 - Generate the project with `cd ios && ./generate.sh`.
-- The OpenAPI generator, runtime and URLSession transport are pinned to exact versions in `OpenAPITools/Package.swift` and `project.yml`. Bump them together, run `./generate.sh`, and commit `OpenAPITools/Package.resolved` with the regenerated sources. iOS Verify fails when the committed sources differ from what the pins generate.
+- The OpenAPI generator, runtime and URLSession transport are pinned to exact versions in `OpenAPITools/Package.swift`, `CowtailKit/Package.swift` and `project.yml`. Bump them together, run `./generate.sh`, and commit both `Package.resolved` files with the regenerated sources. iOS Verify fails when the committed sources differ from what the pins generate.
 - Build from `ios/` so path assumptions match the monorepo.
 - When changing notifications or universal links, verify both the app path and the linked backend path instead of assuming the simulator proves the full flow.
 - The seeded iOS UI-test harness is deterministic for in-app flows, but it still exposes system-owned notification controls such as `Open System Settings` and `Sign in with Apple`. Do not add UI tests that tap those controls unless you first isolate them behind a test-safe boundary.

@@ -52,6 +52,7 @@ jobs:
             ci.yml: global / *
             ci.yml: web / *
             ci.yml: ios / *
+            ci.yml: ios-sim / *
             ci.yml: cli / *
 
   # Fails the release-freeze status on open pull requests that change a workflow file, so none merges mid-release:
@@ -87,6 +88,15 @@ jobs:
     with:
       ref: ${{ needs.preflight.outputs.sha }}
 
+  # Every release runs the app-hosted tests, whatever its change touched: a push run that skipped them left nothing to
+  # reuse.
+  ios-sim-verify:
+    needs: [preflight]
+    if: "${{ !fromJSON(needs.preflight.outputs.checks)['ci.yml: ios-sim / *'] }}"
+    uses: ./.github/workflows/ios-sim-verify.yml
+    with:
+      ref: ${{ needs.preflight.outputs.sha }}
+
   cli-verify:
     needs: [preflight]
     if: "${{ !fromJSON(needs.preflight.outputs.checks)['ci.yml: cli / *'] }}"
@@ -98,7 +108,7 @@ jobs:
   web-docker-build:
     # A skipped verify passed on this commit already; a failed one stops the release.
     if: &verified ${{ !failure() && !cancelled() }}
-    needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
+    needs: [preflight, global-verify, web-verify, ios-verify, ios-sim-verify, cli-verify]
     uses: ./.github/workflows/docker-build.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
@@ -106,7 +116,7 @@ jobs:
 
   cli-build:
     if: *verified
-    needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
+    needs: [preflight, global-verify, web-verify, ios-verify, ios-sim-verify, cli-verify]
     uses: ./.github/workflows/cli-build.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
@@ -114,7 +124,7 @@ jobs:
 
   ios-build:
     if: *verified
-    needs: [preflight, global-verify, web-verify, ios-verify, cli-verify]
+    needs: [preflight, global-verify, web-verify, ios-verify, ios-sim-verify, cli-verify]
     uses: ./.github/workflows/ios-build.yml
     with:
       ref: ${{ needs.preflight.outputs.sha }}
@@ -132,6 +142,7 @@ jobs:
       - global-verify
       - web-verify
       - ios-verify
+      - ios-sim-verify
       - cli-verify
       - web-docker-build
       - cli-build

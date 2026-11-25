@@ -9,6 +9,7 @@
         "cd ios && ../script/ci/if-installed swiftformat --lint ."
       ]
     },
+    "ios-sim": {},
     "docker": {},
     "plugin": {}
   },
@@ -27,11 +28,12 @@
       "suites": "*"
     },
     { "paths": ["protocol/**", "protocol/**/.*"], "suites": ["global", "web", "cli", "ios"] },
-    { "paths": [".github/actions/setup-ios/**"], "suites": ["ios"] },
+    { "paths": [".github/actions/setup-ios/**"], "suites": ["ios", "ios-sim"] },
     { "paths": [".github/workflows/global-verify.yml", ".github/ci-suites.json"], "suites": ["global"] },
     { "paths": [".github/workflows/web-verify.yml"], "suites": ["web"] },
     { "paths": [".github/workflows/cli-verify.yml", ".github/workflows/cli-build.yml"], "suites": ["cli"] },
     { "paths": [".github/workflows/ios-verify.yml", ".github/workflows/ios-build.yml"], "suites": ["ios"] },
+    { "paths": [".github/workflows/ios-sim-verify.yml"], "suites": ["ios-sim"] },
     { "paths": [".github/workflows/docker-verify.yml", ".github/workflows/docker-build.yml"], "suites": ["docker"] },
     { "paths": [".github/workflows/hermes-plugin-verify.yml"], "suites": ["plugin"] },
     {
@@ -49,7 +51,18 @@
     { "paths": ["web/**", "web/**/.*"], "suites": ["global", "web", "docker"] },
     { "paths": ["cli/**", "cli/**/.*"], "suites": ["global", "cli"] },
     { "paths": ["script/**", ".oxlintrc.json", ".oxfmtrc.json"], "suites": ["global"] },
-    { "paths": ["ios/CowtailTests/**", "ios/CowtailUITests/**"], "suites": ["global", "ios"] },
+    {
+      "paths": [
+        "ios/CowtailTests/**",
+        "ios/CowtailApp/Resources/Fonts/**",
+        "ios/CowtailApp/Resources/Info.plist",
+        "ios/CowtailKit/Sources/CowtailKit/UI/Shared/CowtailTypography.swift",
+        "ios/project.yml",
+        "ios/scripts/test.sh"
+      ],
+      "suites": ["global", "ios", "ios-sim"]
+    },
+    { "paths": ["ios/CowtailKit/Tests/**", "ios/CowtailUITests/**"], "suites": ["global", "ios"] },
     { "paths": ["ios/**", "ios/**/.*"], "suites": ["ios"] },
     { "paths": ["hermes-plugin/**", "hermes-plugin/**/.*"], "suites": ["plugin"] },
     { "paths": [".dockerignore"], "suites": ["docker"] }

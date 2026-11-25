@@ -16,6 +16,7 @@ Packages/
 Package.resolved
 # The generator's lockfile is committed, so generated sources are the same on every machine.
 !OpenAPITools/Package.resolved
+!CowtailKit/Package.resolved
 OpenAPITools/Sources/CowtailGeneratedAPI/GeneratedSources/
 OpenAPITools/Sources/CowtailGeneratedAPI/openapi.json
 

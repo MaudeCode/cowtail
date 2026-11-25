@@ -61,6 +61,7 @@ jobs:
       web: ${{ steps.suites.outputs.web }}
       cli: ${{ steps.suites.outputs.cli }}
       ios: ${{ steps.suites.outputs.ios }}
+      ios-sim: ${{ steps.suites.outputs.ios-sim }}
       docker: ${{ steps.suites.outputs.docker }}
       plugin: ${{ steps.suites.outputs.plugin }}
     steps:
@@ -96,6 +97,12 @@ jobs:
     if: needs.changes.outputs.ios == 'true'
     uses: ./.github/workflows/ios-verify.yml
 
+  ios-sim:
+    name: ios-sim
+    needs: changes
+    if: needs.changes.outputs.ios-sim == 'true'
+    uses: ./.github/workflows/ios-sim-verify.yml
+
   docker:
     name: docker
     needs: changes
@@ -110,7 +117,7 @@ jobs:
 
   gate:
     name: CI Gate
-    needs: [changes, global, web, cli, ios, docker, plugin]
+    needs: [changes, global, web, cli, ios, ios-sim, docker, plugin]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

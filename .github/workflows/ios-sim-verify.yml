@@ -1,0 +1,60 @@
+name: iOS Simulator Verify
+
+# The tests that need the app host, on a booted simulator: called by ci.yml when a change reaches the ios-sim suite,
+# whose paths are what these tests cover, and by every release. A simulator's first boot costs the hosted Mac about
+# 7 minutes, so the rest of the app's tests run in the CowtailKit package on macOS (ios-verify.yml).
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to check out; empty for the commit the run is on.
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: iOS Simulator Verify
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-ios
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # SwiftPM's repository cache, which xcodebuild resolves through, and the OpenAPI generator's build.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ios/OpenAPITools/.build
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('ios/OpenAPITools/Package.resolved', 'ios/CowtailKit/Package.resolved', 'ios/project.yml') }}
+          # A changed pin still starts from the newest older cache: SwiftPM fetches only what changed, and a cold
+          # cache costs the job over a minute.
+          restore-keys: swiftpm-${{ runner.os }}-
+
+      - name: Write iOS verify project env
+        run: install -m 600 ios/Config/project.env.example ios/Config/project.env
+
+      # No UI test: each one launches the app, 15 to 27 s on a hosted runner. They run locally with
+      # `pnpm run test:ios:ui`.
+      - name: Run the app-hosted tests
+        working-directory: ios
+        run: scripts/test.sh CowtailTests
+
+      - name: Check iOS test run times
+        run: |
+          xcrun xcresulttool get test-results tests --path ios/build/TestResults.xcresult > "${RUNNER_TEMP}/ios-tests.json"
+          pnpm exec maudecode-ci test-durations --config script/ci/test-durations.json "${RUNNER_TEMP}/ios-tests.json"

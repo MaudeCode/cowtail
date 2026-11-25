@@ -89,7 +89,7 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 - Check shared protocol contracts with `pnpm run check:protocol`.
 - Test shared protocol contracts with `pnpm run test:protocol`.
 - Generate iOS OpenAPI sources with `cd ios && ./generate.sh` after protocol or HTTP contract changes.
-- Run iOS unit tests with `pnpm run test:ios:unit`.
+- Run iOS unit tests with `pnpm run test:ios:unit` (the `CowtailKit` package, on macOS) and `pnpm run test:ios:hosted` (the app-hosted tests, on the simulator).
 - Run iOS UI tests with `pnpm run test:ios:ui`.
 
 ## UI Mockups
@@ -102,13 +102,13 @@ Use these checks when changing shared chat, push, protocol, or iOS surfaces:
 
 ## Phone Validation
 
-The owner declined the physical-phone validation gate, in advance, for every ticket of the item rewrite epic (decision of 2026-11-23). For those tickets, record the device result as `declined`, offer no phone build, and merge on the simulator unit tests in CI. The owner tries the finished app on a phone once, after the epic. A ticket outside that epic follows the usual gate.
+The owner declined the physical-phone validation gate, in advance, for every ticket of the item rewrite epic (decision of 2026-11-23). For those tickets, record the device result as `declined`, offer no phone build, and merge on the iOS unit tests in CI. The owner tries the finished app on a phone once, after the epic. A ticket outside that epic follows the usual gate.
 
 ## CI
 
 CI follows `CI.md` in the organization's public `.github` repository: a change runs only the suites it reaches.
 
-- [`.github/ci-suites.json`](./.github/ci-suites.json) names the suites, `global` (lint, format, protocol, script tests), `web`, `cli`, `ios`, `docker` and `plugin` (the Hermes plugin's tests, in `hermes-plugin-verify.yml`), and the ordered rules that route a changed path to them. The first rule that matches a path decides it, so narrow rules come before broad ones. A path no rule matches runs every suite; [`script/ci/suites.test.ts`](./script/ci/suites.test.ts) fails when a tracked path is matched by no rule.
+- [`.github/ci-suites.json`](./.github/ci-suites.json) names the suites, `global` (lint, format, protocol, script tests), `web`, `cli`, `ios`, `ios-sim` (the app-hosted iOS tests, on a simulator), `docker` and `plugin` (the Hermes plugin's tests, in `hermes-plugin-verify.yml`), and the ordered rules that route a changed path to them. The first rule that matches a path decides it, so narrow rules come before broad ones. A path no rule matches runs every suite; [`script/ci/suites.test.ts`](./script/ci/suites.test.ts) fails when a tracked path is matched by no rule.
 - [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs on every pull request, every push to `main` and by hand. Its `changes` job selects the suites with the shared `ci-suites` action, one job per suite calls `.github/workflows/<suite>-verify.yml`, and `CI Gate` passes only when every selected suite passed. A suite's checks are named `<suite> / <job>`.
 - The verify workflows run only when `ci.yml` or the release calls them, or by hand; they have no `push` or `pull_request` trigger of their own.
 - To add a suite: add it and its rules to `ci-suites.json`, add its `<suite>-verify.yml` with `workflow_call`, add a job with the suite's name to `ci.yml` and to `CI Gate`'s `needs`, and, when the release should reuse it, add `ci.yml: <suite> / *` to the release preflight's `checks`.
@@ -116,7 +116,10 @@ CI follows `CI.md` in the organization's public `.github` repository: a change r
 - `CI Gate` and `release-freeze` are `main`'s required status checks.
 - No pull request run waits for another. Each run but a push to `main` has a concurrency group of its own, and a pull request's first attempt cancels its older, unfinished runs from the `Supersede` job without waiting for them to stop. A `cancel-in-progress` group held a new run until the old one stopped, and a cancelled iOS job takes minutes to stop.
 - Every job runs on a GitHub-hosted runner, `ubuntu-latest` or `ubuntu-24.04`, `ubuntu-24.04-arm` for the arm64 image, and the hosted `xcode-27` image for iOS. A runner is a new machine for each job: no job prepares or cleans up state for a later one, and every job sets `timeout-minutes`.
-- The iOS job sets up Xcode and installs XcodeGen, SwiftLint and SwiftFormat through [`.github/actions/setup-ios`](./.github/actions/setup-ios/action.yml), where the pinned Xcode version lives. It runs `ios/scripts/test.sh CowtailTests` once, on the `iPhone 17` simulator the hosted image provides, and caches SwiftPM's packages. No UI test runs in hosted CI: each one launches the app, which alone takes 15 to 27 s there. Run them locally with `pnpm run test:ios:ui`.
+- The iOS jobs set up Xcode and install XcodeGen, SwiftLint and SwiftFormat through [`.github/actions/setup-ios`](./.github/actions/setup-ios/action.yml), where the pinned Xcode version lives, and cache SwiftPM's packages.
+- The `ios` suite boots no simulator, whose first boot costs the hosted Mac about 7 minutes. It lints, runs the app's logic tests in the [`ios/CowtailKit`](./ios/CowtailKit) package on macOS with `swift test`, builds the app for the simulator, and checks the generated OpenAPI sources and the app's imports. New logic and its tests go in the package; [`docs/testing.md`](./docs/testing.md) says where each kind of iOS test lives.
+- The `ios-sim` suite runs `ios/scripts/test.sh CowtailTests`, the few tests that need the installed app, on the `iPhone 17` simulator the hosted image provides. Its rule in `ci-suites.json` lists exactly the paths those tests cover, before the broad `ios/` rule, and `script/ci/suites.test.ts` enforces it. Every release runs it. Keep it rare: move logic into the package rather than adding an app-hosted test.
+- No UI test runs in hosted CI: each one launches the app, which alone takes 15 to 27 s there. Run them locally with `pnpm run test:ios:ui`.
 - Only the Convex deploy stays on a self-hosted runner, because its deployment URL is reachable only from inside the cluster.
 
 ## Convex Deploy Path
