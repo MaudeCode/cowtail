@@ -197,12 +197,14 @@ enum ItemButton: Hashable, Identifiable {
         }
     }
 
-    func tint(_ palette: ThemePalette) -> Color? {
-        switch self {
-        case .approve: palette.success
-        case .deny: palette.accent
-        default: nil
-        }
+    /// Deny turns the request down.
+    var role: ButtonRole? {
+        self == .deny ? .destructive : nil
+    }
+
+    /// Approve is the answer the item leads with.
+    var isProminent: Bool {
+        self == .approve
     }
 
     var identifier: String {

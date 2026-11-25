@@ -65,7 +65,7 @@ struct SettingsView: View {
                     }
                 }
                 Spacer()
-                CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right") {
+                CowtailIconButton(title: "Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                     appSessionManager.signOut()
                     appleAccountManager.clearIdentity()
                 }
@@ -189,7 +189,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var urgencyOverrides: some View {
         CowtailSectionHeader(title: "Urgency overrides") {
-            CowtailIconButton(title: "Add override", systemImage: "plus") {
+            CowtailIconButton(title: "Add override", systemImage: "plus", style: .borderless) {
                 isAddingOverride = true
             }
             .accessibilityIdentifier("button.settings.add-override")

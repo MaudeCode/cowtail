@@ -249,7 +249,8 @@ struct ItemActionButtons: View {
                 CowtailIconButton(
                     title: button.title,
                     systemImage: button.systemImage,
-                    tint: button.tint(palette),
+                    role: button.role,
+                    style: button.isProminent ? .prominent : .bordered,
                     isBusy: isAlertAction(button) && store.isPerformingAlertAction(on: item)
                 ) {
                     run(button)

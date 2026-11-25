@@ -157,7 +157,7 @@ struct IncidentDetailView: View {
                 } else {
                     CowtailStatusBadge(title: member.state.rawValue, tint: member.state.tint(palette))
                 }
-                CowtailIconButton(title: "Remove from incident", systemImage: "xmark") {
+                CowtailIconButton(title: "Remove from incident", systemImage: "xmark", role: .destructive) {
                     Task { await store.change(.remove(itemID: member.id), incidentID: summary.id) }
                 }
                 .accessibilityIdentifier("button.incident.remove.\(member.id)")

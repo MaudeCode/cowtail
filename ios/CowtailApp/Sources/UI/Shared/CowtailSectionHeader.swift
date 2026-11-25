@@ -98,33 +98,76 @@ struct CowtailTextButtonStyle: ButtonStyle {
     }
 }
 
-/// Every action is an icon with an accessible name.
+/// Every in-content action is an icon with an accessible name, in a system button style with a hit
+/// area of at least 44 × 44 pt. The glyph follows the body text style, so Dynamic Type scales it.
 struct CowtailIconButton: View {
+    enum Style {
+        /// A filled circle: the item action area, a row's control.
+        case bordered
+        /// The accent-filled circle, for the one answer a screen leads with, such as Approve.
+        case prominent
+        /// A bare glyph, inline with a header or in a navigation bar.
+        case borderless
+    }
+
     @Environment(\.cowtailPalette) private var palette
 
     let title: String
     let systemImage: String
-    var tint: Color?
+    var role: ButtonRole?
+    var style = Style.bordered
     var isBusy = false
     let action: () -> Void
 
+    /// Apple's minimum hit target.
+    private static let minimumSide: CGFloat = 44
+    /// The glyph's square inside a bordered circle; the style's padding brings the circle to 44 pt.
+    @ScaledMetric(relativeTo: .body) private var glyphSide: CGFloat = 30
+
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                if isBusy {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 13, weight: .semibold))
-                }
+        styled(
+            Button(role: role, action: action) {
+                // The glyph stays laid out under the spinner, so busy keeps the button's size.
+                Image(systemName: systemImage)
+                    .font(.body.weight(.semibold))
+                    .opacity(isBusy ? 0 : 1)
+                    .overlay {
+                        if isBusy {
+                            ProgressView()
+                        }
+                    }
+                    .frame(
+                        minWidth: style == .borderless ? Self.minimumSide : glyphSide,
+                        minHeight: style == .borderless ? Self.minimumSide : glyphSide
+                    )
+                    .contentShape(.rect)
             }
-            .frame(width: 30, height: 30)
-            .foregroundStyle(tint ?? palette.ink)
-            .background((tint ?? palette.mutedInk).opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
+        )
+        .frame(minWidth: Self.minimumSide, minHeight: Self.minimumSide)
+        .contentShape(.rect)
         .disabled(isBusy)
         .accessibilityLabel(title)
         .help(title)
+    }
+
+    /// A destructive role draws in the system red, and a prominent one in the app's accent; any
+    /// other control takes the ink colour.
+    @ViewBuilder
+    private func styled(_ button: Button<some View>) -> some View {
+        switch style {
+        case .bordered:
+            button
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
+                .tint(role == .destructive ? nil : palette.ink)
+        case .prominent:
+            button
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+        case .borderless:
+            button
+                .buttonStyle(.borderless)
+                .tint(role == .destructive ? nil : palette.ink)
+        }
     }
 }

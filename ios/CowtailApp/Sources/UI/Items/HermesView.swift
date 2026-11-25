@@ -62,7 +62,7 @@ struct HermesView: View {
                     CowtailIconButton(
                         title: "Run \(script.name)",
                         systemImage: "play.fill",
-                        tint: script.asksToConfirm ? palette.accent : nil,
+                        role: script.asksToConfirm ? .destructive : nil,
                         isBusy: store.scriptsStarting.contains(script.id)
                     ) {
                         if script.asksToConfirm {
