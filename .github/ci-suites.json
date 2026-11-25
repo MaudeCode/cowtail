@@ -17,7 +17,6 @@
     {
       "paths": [
         ".github/workflows/ci.yml",
-        ".github/ci-suites.json",
         ".github/workflows/release.yml",
         "package.json",
         "pnpm-lock.yaml",
@@ -29,7 +28,7 @@
     },
     { "paths": ["protocol/**", "protocol/**/.*"], "suites": ["global", "web", "cli", "ios"] },
     { "paths": [".github/actions/setup-ios/**"], "suites": ["ios"] },
-    { "paths": [".github/workflows/global-verify.yml"], "suites": ["global"] },
+    { "paths": [".github/workflows/global-verify.yml", ".github/ci-suites.json"], "suites": ["global"] },
     { "paths": [".github/workflows/web-verify.yml"], "suites": ["web"] },
     { "paths": [".github/workflows/cli-verify.yml", ".github/workflows/cli-build.yml"], "suites": ["cli"] },
     { "paths": [".github/workflows/ios-verify.yml", ".github/workflows/ios-build.yml"], "suites": ["ios"] },
@@ -42,7 +41,8 @@
         ".github/actionlint.yaml",
         ".codex/**",
         ".githooks/**",
-        ".linear-cli-workspace"
+        ".linear-cli-workspace",
+        "install-release"
       ],
       "suites": []
     },

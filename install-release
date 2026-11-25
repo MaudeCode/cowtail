@@ -1,0 +1,27 @@
+#!/bin/sh
+# Installs this checkout's release of the CLI on the Mac, from the npm package the release published.
+# The Mac's deployer runs it from the checked-out vX.Y.Z tag. Running it twice changes nothing.
+set -eu
+cd "$(dirname "$0")"
+tag=$(git describe --tags --exact-match --exclude '*-*' HEAD) # the stable vX.Y.Z tag, as the deployer installs
+prefix="$HOME/.local/share/cowtail-cli"
+bin="$HOME/.local/bin/cowtail"
+
+npm install --global --prefix "$prefix" --no-audit --no-fund "@maudecode/cowtail-cli@${tag#v}"
+
+# `node` here is the version .node-version pins, which the CLI requires; the shell's default Node may be older.
+# ponytail: pins that Node's full path; if mise removes that version, rerun this script.
+node=$(node -p process.execPath)
+mkdir -p "$(dirname "$bin")"
+# npm_config_prefix sends `cowtail update`'s `npm install --global` to this prefix, the copy the wrapper runs.
+printf '#!/bin/sh\nexport npm_config_prefix="%s"\nexec "%s" "%s" "$@"\n' \
+  "$prefix" "$node" "$prefix/lib/node_modules/@maudecode/cowtail-cli/dist/cowtail.js" > "$bin.new"
+chmod 755 "$bin.new"
+mv -f "$bin.new" "$bin" # replaces the old Bun-compiled binary at the same path
+
+installed=$("$bin" --version)
+if [ "$installed" != "$tag" ]; then
+  echo "install-release: cowtail --version printed '$installed', expected $tag" >&2
+  exit 1
+fi
+echo "install-release: cowtail $tag installed"
