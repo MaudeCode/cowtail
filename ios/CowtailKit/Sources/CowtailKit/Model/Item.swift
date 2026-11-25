@@ -316,6 +316,10 @@ struct ItemInbox: Equatable, Sendable {
     /// Snoozed items, the soonest return first.
     var upcoming: [Item]
     var handled: [Item]
+    /// The app badge, as the server counts it.
+    var badge = 0
+    /// The items whose delivered notification stays, as the server decides it.
+    var liveItemIDs: Set<String> = []
 
     static let empty = ItemInbox(needsYou: [], withHermes: [], handled: [])
 

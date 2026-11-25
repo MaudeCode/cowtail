@@ -16,6 +16,15 @@ export const apsExtrasValidator = v.object({
   category: v.optional(v.string()),
 });
 export type ApsExtras = Infer<typeof apsExtrasValidator>;
+
+// How APNs delivers a push: an alert the owner sees, or a background push that only wakes the
+// app. Apple takes a background push at priority 5 only; an alert defaults to 10, at once.
+export const apnsPushTypeValidator = v.union(v.literal("alert"), v.literal("background"));
+export const apnsPriorityValidator = v.union(v.literal(5), v.literal(10));
+export type ApnsDelivery = {
+  pushType?: Infer<typeof apnsPushTypeValidator>;
+  priority?: Infer<typeof apnsPriorityValidator>;
+};
 export type ApnsEnvironment = PushEnvironment;
 
 const INVALID_TOKEN_REASONS = new Set(["BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"]);

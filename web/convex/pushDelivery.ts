@@ -1,14 +1,19 @@
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { configuredApnsEnvironment, isInvalidDeviceTokenReason, type ApsExtras } from "./apns";
+import {
+  configuredApnsEnvironment,
+  isInvalidDeviceTokenReason,
+  type ApnsDelivery,
+  type ApsExtras,
+} from "./apns";
 import { previewDeviceToken } from "./deviceTokenPreview";
 
 export async function sendPushToUser(
   ctx: ActionCtx,
-  args: {
+  args: ApnsDelivery & {
     userId: string;
-    title: string;
-    body: string;
+    title?: string;
+    body?: string;
     data?: Record<string, unknown>;
     aps?: ApsExtras;
   },
@@ -52,6 +57,8 @@ export async function sendPushToUser(
       body: args.body,
       data: args.data,
       aps: args.aps,
+      pushType: args.pushType,
+      priority: args.priority,
     });
 
     if (result.ok) {

@@ -20,6 +20,7 @@ import {
   alertWorkflowState,
   itemAvailableActions,
   itemInvestigationStep,
+  itemIsLive,
   itemNeedsOwner,
   itemOutcome,
   itemSubtitle,
@@ -102,6 +103,30 @@ async function scheduleDelivery(ctx: MutationCtx, itemId: Id<"items">, reason: I
   await ctx.scheduler.runAfter(0, deliverItemRef, { itemId, reason });
 }
 
+// Items that stop being live within this window go out in one background push.
+export const ITEM_SYNC_WINDOW_MS = 3_000;
+
+const flushItemSyncRef = makeFunctionReference<"action", { syncId: Id<"itemSyncPushes"> }>(
+  "itemDelivery:flushItemSync",
+);
+
+// The item stopped being live: the owner's devices update their badge and drop its push.
+async function queueItemSync(ctx: MutationCtx, itemId: Id<"items">, now: number) {
+  const pending = await ctx.db
+    .query("itemSyncPushes")
+    .withIndex("by_sentAt", (q) => q.eq("sentAt", undefined))
+    .first();
+  if (pending) {
+    if (!pending.itemIds.includes(itemId)) {
+      await ctx.db.patch(pending._id, { itemIds: [...pending.itemIds, itemId] });
+    }
+    return;
+  }
+  const sendAt = now + ITEM_SYNC_WINDOW_MS;
+  const syncId = await ctx.db.insert("itemSyncPushes", { sendAt, itemIds: [itemId] });
+  await ctx.scheduler.runAt(sendAt, flushItemSyncRef, { syncId });
+}
+
 const urgencyRank: Record<ItemUrgency, number> = { whenever: 0, today: 1, now: 2 };
 
 function raisesUrgency(from: ItemUrgency, to: ItemUrgency) {
@@ -154,6 +179,9 @@ export async function transitionItem(
   await ctx.db.patch(item._id, { state: to, ...timing });
   if (to === "snoozed") await leaveTodayBatch(ctx, item._id);
   if (notify && to === "open") await scheduleDelivery(ctx, item._id, delivery);
+  if (notify && itemIsLive(item) && !itemIsLive({ ...item, state: to })) {
+    await queueItemSync(ctx, item._id, at);
+  }
   await appendItemEvent(
     ctx,
     item._id,
@@ -415,18 +443,25 @@ function investigationResult(alert: Doc<"alerts">) {
   return rootCause || action || ownerNote ? { rootCause, action, ownerNote } : undefined;
 }
 
-// The app badge: open items that need the owner.
+// The app badge, open items that need the owner, and the live items whose notification stays,
+// from every open item rather than the inbox's bounded read.
 // ponytail: reads every open item per push; add a counter when open items number thousands.
-export async function ownerBadgeCount(ctx: QueryCtx) {
+export async function ownerNotificationState(ctx: QueryCtx) {
   const open = await ctx.db
     .query("items")
     .withIndex("by_state_updatedAt", (q) => q.eq("state", "open"))
     .collect();
-  let count = 0;
+  let badge = 0;
+  const liveItemIds: string[] = [];
   for (const item of open) {
-    if (itemNeedsOwner(item, (await alertContext(ctx, item)).workflow)) count += 1;
+    if (itemIsLive(item)) liveItemIds.push(String(item._id));
+    if (itemNeedsOwner(item, (await alertContext(ctx, item)).workflow)) badge += 1;
   }
-  return count;
+  return { badge, liveItemIds };
+}
+
+export async function ownerBadgeCount(ctx: QueryCtx) {
+  return (await ownerNotificationState(ctx)).badge;
 }
 
 export async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
@@ -690,6 +725,7 @@ export const applyAction = internalMutation({
       // The producer closes the item once it has applied the answer; until then the item
       // waits on the producer, not the owner.
       await patchItemContent(ctx, item._id, { updatedAt: now, answeredAt: now });
+      if (itemIsLive(item)) await queueItemSync(ctx, item._id, now);
     }
   },
 });
@@ -952,6 +988,7 @@ export const inbox = internalQuery({
       withHermes: oneRecordPerIncident(withHermes, seen),
       upcoming: oneRecordPerIncident(upcoming, seen),
       handled: oneRecordPerIncident(handled, seen),
+      ...(await ownerNotificationState(ctx)),
     };
   },
 });

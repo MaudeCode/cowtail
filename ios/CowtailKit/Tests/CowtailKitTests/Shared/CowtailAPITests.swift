@@ -251,7 +251,7 @@ final class CowtailAPITests: XCTestCase {
     func testTheInboxKeepsTheServersUpcomingOrderAndReturnTimes() async throws {
         let reply = """
         {"ok":true,"counts":{"needsYou":0,"withHermes":0,"upcoming":7,"handled":0},\
-        "needsYou":[],"withHermes":[],"handled":[],\
+        "needsYou":[],"withHermes":[],"handled":[],"badge":0,"liveItemIds":[],\
         "upcoming":[\(Self.itemRecord("later", snoozedUntil: 1_800_000_000_000)),\
         \(Self.itemRecord("sooner", snoozedUntil: 1_700_000_000_000))]}
         """
@@ -268,7 +268,7 @@ final class CowtailAPITests: XCTestCase {
     func testAnInboxFromAServerBeforeUpcomingHasNoUpcomingItems() async throws {
         let reply = """
         {"ok":true,"counts":{"needsYou":1,"withHermes":0,"handled":0},\
-        "needsYou":[\(Self.itemRecord("open"))],"withHermes":[],"handled":[]}
+        "needsYou":[\(Self.itemRecord("open"))],"withHermes":[],"handled":[],"badge":1,"liveItemIds":["open"]}
         """
         let transport = RecordingTransport(routes: ["GET /api/items/inbox": .init(json: reply)])
 
@@ -277,6 +277,20 @@ final class CowtailAPITests: XCTestCase {
         XCTAssertEqual(inbox.upcoming, [])
         XCTAssertEqual(inbox.counts.upcoming, 0)
         XCTAssertEqual(inbox.needsYou.map(\.id), ["open"])
+    }
+
+    func testTheInboxCarriesTheServersBadgeAndLiveItems() async throws {
+        let reply = """
+        {"ok":true,"counts":{"needsYou":0,"withHermes":1,"upcoming":0,"handled":0},\
+        "needsYou":[],"withHermes":[\(Self.itemRecord("today-fyi"))],"upcoming":[],"handled":[],\
+        "badge":3,"liveItemIds":["today-fyi","incident-member"]}
+        """
+        let transport = RecordingTransport(routes: ["GET /api/items/inbox": .init(json: reply)])
+
+        let inbox = try await CowtailAPI(transport: transport).fetchInbox(sessionToken: "session")
+
+        XCTAssertEqual(inbox.badge, 3)
+        XCTAssertEqual(inbox.liveItemIDs, ["today-fyi", "incident-member"])
     }
 
     func testSnoozeOptionsAskInTheGivenZoneAndKeepTheServersOrder() async throws {

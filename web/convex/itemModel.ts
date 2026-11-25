@@ -122,14 +122,18 @@ export function itemAvailableActions(item: {
   ];
 }
 
+// An open item the owner has not answered: its delivered notification stays on the device.
+export function itemIsLive(item: { state: ItemState; answeredAt?: number }): boolean {
+  return item.state === "open" && item.answeredAt === undefined;
+}
+
 // An item linked to an alert follows the alert's workflow; every other item follows its
 // kind and urgency until the owner answers it.
 export function itemNeedsOwner(
   item: { state: ItemState; kind: ItemKind; urgency: ItemUrgency; answeredAt?: number },
   alertWorkflow?: AlertWorkflowState,
 ): boolean {
-  if (item.state !== "open") return false;
-  if (item.answeredAt !== undefined) return false;
+  if (!itemIsLive(item)) return false;
   if (alertWorkflow) {
     return alertWorkflow === "needsReview" || alertWorkflow === "investigationFailed";
   }
