@@ -4,8 +4,10 @@ import XCTest
 
 @MainActor
 final class HostedHistoryTests: XCTestCase {
-    func testHistoryShowsStatsAndNamedFilter() throws {
-        let screen = try host(.inboxPopulated)
+    func testHistoryShowsStatsAndNamedFilter() async throws {
+        let store = UITestScenario.fixtureStore(.inboxPopulated)
+        await store.loadHistory(HistoryFilter())
+        let screen = try host(.inboxPopulated, store: store)
         defer { screen.close() }
         let sections = ["section.Outcomes", "section.Time to resolve"]
         screen.assertVisible(sections + ["button.history.filter", "row.history.noise-rate"])
@@ -14,7 +16,7 @@ final class HostedHistoryTests: XCTestCase {
     }
 
     func testRoundupRowOpensRoundup() throws {
-        let screen = try host(.roundupPopulated)
+        let screen = try host(.roundupPopulated, store: UITestScenario.fixtureStore(.roundupPopulated))
         defer { screen.close() }
         try screen.activate("row.history.roundup")
         screen.assertVisible(["screen.roundup", "card.roundup.summary"])
@@ -22,7 +24,7 @@ final class HostedHistoryTests: XCTestCase {
 
     func testRemovingKindChipClearsFilter() throws {
         let store = UITestScenario.fixtureStore(.inboxPopulated)
-        let screen = try HostedScreen(FilteredHistory().environmentObject(store).environmentObject(UniversalLinkRouter.shared))
+        let screen = try host(.inboxPopulated, store: store, filter: HistoryFilter(kind: .approval))
         defer { screen.close() }
 
         let chip = "chip.history.kind"
@@ -45,22 +47,30 @@ final class HostedHistoryTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 10), .completed)
     }
 
-    private struct FilteredHistory: View {
-        @State private var filter = HistoryFilter(kind: .approval)
+    private struct HistoryStack: View {
+        @State var filter: HistoryFilter
 
         var body: some View {
-            NavigationStack { HistoryView(filter: $filter) }
+            NavigationStack {
+                HistoryView(filter: $filter)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        if case .roundup(let roundup) = route {
+                            RoundupView(roundupRoute: roundup)
+                        }
+                    }
+            }
         }
     }
 
-    private func host(_ scenario: UITestScenario.Name) throws -> HostedScreen {
-        let router = UniversalLinkRouter.shared
-        router.openInbox()
-        router.selectedTab = .history
+    private func host(
+        _ scenario: UITestScenario.Name,
+        store: CowtailStore,
+        filter: HistoryFilter = HistoryFilter()
+    ) throws -> HostedScreen {
         let client = SeededCowtailAPI(seed: UITestScenario(named: scenario).seed.server)
-        return try HostedScreen(ContentView()
-            .environmentObject(UITestScenario.fixtureStore(scenario))
-            .environmentObject(router)
+        return try HostedScreen(HistoryStack(filter: filter)
+            .environmentObject(store)
+            .environmentObject(UniversalLinkRouter.shared)
             .environment(\.roundupDataClient, client))
     }
 }
