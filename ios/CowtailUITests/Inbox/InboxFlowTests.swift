@@ -118,6 +118,25 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 · Read the replica's last termination state"].waitForExistence(timeout: 10))
     }
 
+    func testItemActionsSitInTheirPinnedAreaNotTheBadgeRow() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+        let row = app.element("row.item.alert-crashloop")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        let area = app.element("area.item.actions")
+        XCTAssertTrue(area.waitForExistence(timeout: 10))
+        for action in ["ack", "snooze", "retry", "mark-noise", "escalate"] {
+            XCTAssertTrue(area.buttons["button.item.\(action).alert-crashloop"].exists, action)
+        }
+        // Pinned above the tab bar.
+        XCTAssertLessThanOrEqual(
+            area.buttons["button.item.ack.alert-crashloop"].frame.maxY,
+            app.tabBars.firstMatch.frame.minY
+        )
+    }
+
     func testAnAlertLinkOpensThatAlertsItem() {
         let app = AppLaunching.configuredApp(scenario: "alert_deep_link_known", deepLinkURL: "/alerts/alert-1")
         app.launch()
