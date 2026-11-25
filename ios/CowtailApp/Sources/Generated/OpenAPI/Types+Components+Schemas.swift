@@ -702,6 +702,8 @@ extension Components {
         internal struct AuthProvidersResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/apple`.
             internal var apple: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/appleWeb`.
+            internal var appleWeb: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/oidc`.
             internal struct OidcPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/AuthProvidersResponse/oidc/name`.
@@ -723,16 +725,20 @@ extension Components {
             ///
             /// - Parameters:
             ///   - apple:
+            ///   - appleWeb:
             ///   - oidc:
             internal init(
                 apple: Swift.Bool,
+                appleWeb: Swift.Bool,
                 oidc: Components.Schemas.AuthProvidersResponse.OidcPayload? = nil
             ) {
                 self.apple = apple
+                self.appleWeb = appleWeb
                 self.oidc = oidc
             }
             internal enum CodingKeys: String, CodingKey {
                 case apple
+                case appleWeb
                 case oidc
             }
         }

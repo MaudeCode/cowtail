@@ -362,7 +362,6 @@ export const SESSION = "GET /actions/api/me/notification-preferences";
 export function signedIn(routes: Record<string, unknown> = {}) {
   return {
     [SESSION]: { ok: true, preferences },
-    "GET /actions/api/auth/providers": { apple: true, oidc: { name: "Pocket ID" } },
     "GET /actions/api/health": health,
     "GET /actions/api/hermes/status": hermesStatus,
     [MAINTENANCE]: { ok: true, active: [], recent: [], sourceChoices: [] },

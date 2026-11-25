@@ -13,18 +13,33 @@ export class AppleIdentityVerificationError extends Error {
   }
 }
 
-export async function verifyAppleIdentityToken(identityToken: string): Promise<string> {
+// The Services ID the web's Sign in with Apple uses as its client ID, or null when the web
+// flow is off.
+export function appleWebServicesId(): string | null {
+  return process.env.APPLE_WEB_SERVICES_ID?.trim() || null;
+}
+
+// The token's subject. The iOS app's tokens are for its bundle ID; the web flow passes its
+// Services ID as `audience` and the nonce it sent to Apple.
+export async function verifyAppleIdentityToken(
+  identityToken: string,
+  expected: { audience?: string; nonce?: string } = {},
+): Promise<string> {
   if (!looksLikeJwt(identityToken)) {
     throw new AppleIdentityVerificationError("Invalid Apple identity token format", 401);
   }
 
-  const audience = resolveAppleAudience();
+  const audience = expected.audience ?? resolveAppleAudience();
 
   try {
     const { payload } = await jwtVerify(identityToken, APPLE_JWKS, {
       issuer: APPLE_ISSUER,
       audience,
     });
+
+    if (expected.nonce !== undefined && payload.nonce !== expected.nonce) {
+      throw new AppleIdentityVerificationError("Apple identity token verification failed", 401);
+    }
 
     if (typeof payload.sub !== "string" || payload.sub.trim() === "") {
       throw new AppleIdentityVerificationError(

@@ -351,12 +351,12 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
 <h2 id="web">Web app</h2>
 <div class="grid">
 
-<figure id="web-login" class="w"><figcaption>Login, configured and not configured <span class="k">COW-13</span><span class="k">COW-33</span></figcaption>
+<figure id="web-login" class="w"><figcaption>Login, configured and not configured <span class="k">COW-13</span><span class="k">COW-33</span><span class="k">COW-53</span></figcaption>
 <div class="dw"><div class="m desk">
  <div class="url">cowtail.example/</div>
  <div class="login">
-  <div><span class="brand" style="font-size:20px">COWTAIL</span><button class="ob" style="height:36px;padding:0 18px;font-weight:600;font-size:13px">Sign in with Pocket ID</button></div>
-  <div><span class="brand" style="font-size:20px">COWTAIL</span><div style="max-width:300px">Web sign-in is not configured. Set these Convex variables:<pre style="text-align:left;margin-top:10px">OIDC_ISSUER_URL
+  <div><span class="brand" style="font-size:20px">COWTAIL</span><button class="ob" style="height:36px;padding:0 18px;font-weight:600;font-size:13px">Sign in with Apple</button><button class="ob" style="height:36px;padding:0 18px;font-weight:600;font-size:13px">Sign in with Pocket ID</button></div>
+  <div><span class="brand" style="font-size:20px">COWTAIL</span><div style="max-width:300px">Web sign-in is not configured. Set either group of Convex variables:<pre style="text-align:left;margin-top:10px">APPLE_WEB_SERVICES_ID</pre><pre style="text-align:left;margin-top:10px">OIDC_ISSUER_URL
 OIDC_CLIENT_ID
 OIDC_CLIENT_SECRET
 COWTAIL_OWNER_OIDC_SUBJECT</pre></div></div>
@@ -534,7 +534,7 @@ transcoder-7d9f   212m   610Mi      (limit 512Mi)</pre>
     <div class="kv"><span>Require Face ID for approvals<div class="s">Applies on iOS.</div></span><span class="sw on"></span></div>
     <div class="kv"><span>Daily roundup</span><span class="sw on"></span></div>
     <div class="lab"><span>Account</span></div>
-    <div class="kv"><span>Signed in with Pocket ID</span><button class="ib" title="Sign out"><svg><use href="#out"/></svg></button></div>
+    <div class="kv"><span>Signed in</span><button class="ib" title="Sign out"><svg><use href="#out"/></svg></button></div>
    </div>
    <div>
     <div class="lab"><span>Urgency overrides</span><button class="ib" title="Add override" style="width:20px;height:20px"><svg><use href="#plus"/></svg></button></div>

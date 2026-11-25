@@ -103,7 +103,12 @@ The Hermes plugin needs only Python 3.11 or later. Test it with `python -m unitt
    - `OIDC_DISPLAY_NAME` optionally renames the button; it defaults to `Pocket ID`.
    - With none set, the OIDC routes return 404. With only some set, they return 500 naming the missing ones.
 
-5. **Deploy** using the HelmRelease in your GitOps repo, or any Kubernetes deployment method.
+5. **Optional: Sign in with Apple on the web.** The browser signs in as the same owner as the iOS app.
+   - In the Apple Developer portal, create a Services ID, enable Sign in with Apple on it with the Cowtail App ID as its primary App ID, and register the Cowtail web domain and the return URL `<COWTAIL_WEB_ORIGIN>/actions/api/auth/apple/callback`.
+   - Set `APPLE_WEB_SERVICES_ID` on the Convex deployment to that Services ID. Only the Apple account whose subject is `COWTAIL_OWNER_USER_ID` can sign in.
+   - Unset, the login page offers no Apple button and the Apple web routes return 404.
+
+6. **Deploy** using the HelmRelease in your GitOps repo, or any Kubernetes deployment method.
 
 ### Writing alerts
 
