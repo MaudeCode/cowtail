@@ -31,12 +31,17 @@ struct InboxView: View {
         } content: {
             let inbox = store.inbox ?? .empty
 
-            if let error = store.errorMessage {
-                Text(error)
-                    .font(.cowtailSans(13, relativeTo: .footnote))
-                    .foregroundStyle(palette.accent)
+            switch store.inboxState {
+            case .loading:
+                ProgressView("Loading inbox")
                     .listRowBackground(Color.clear)
-                    .accessibilityIdentifier("text.inbox.error")
+                    .accessibilityIdentifier("progress.inbox")
+            case .stale(let receivedAt, let error):
+                RefreshFailureBanner(receivedAt: receivedAt, error: error) { await store.refresh() }
+            case .failed(let error):
+                RefreshFailureBanner(receivedAt: nil, error: error) { await store.refresh() }
+            case .fresh:
+                EmptyView()
             }
 
             if !store.maintenanceWindows.isEmpty || store.maintenanceError != nil {
@@ -54,7 +59,7 @@ struct InboxView: View {
             }
 
             // Nothing needs the owner: the all-clear takes Needs you's place.
-            if store.inbox != nil, inbox.needsYou.isEmpty {
+            if store.inboxState == .fresh, inbox.needsYou.isEmpty {
                 Section {
                     ContentUnavailableView("All clear", systemImage: "checkmark.circle", description: Text("Nothing needs you."))
                         .listRowBackground(Color.clear)
@@ -89,6 +94,34 @@ struct InboxView: View {
         case "HEALTH_WARN": palette.warning
         default: palette.accent
         }
+    }
+}
+
+struct RefreshFailureBanner: View {
+    let receivedAt: Date?
+    let error: String
+    let retry: @MainActor () async -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                if let receivedAt {
+                    Text("As of \(receivedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.headline)
+                        .accessibilityIdentifier("text.stale.as-of")
+                }
+                Text(error)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("text.inbox.error")
+            }
+            Spacer()
+            CowtailIconButton(title: "Retry", systemImage: "arrow.clockwise", style: .borderless) {
+                Task { await retry() }
+            }
+            .accessibilityIdentifier("button.stale.retry")
+        }
+        .accessibilityElement(children: .contain)
     }
 }
 

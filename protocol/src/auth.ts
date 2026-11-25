@@ -37,7 +37,14 @@ export const authOidcHandoffRequestSchema = z.object({
   verifier: pkceCodeVerifierSchema,
 });
 
-export const authOidcHandoffResponseSchema = authSessionCreateResponseSchema;
+export const authOidcHandoffResponseSchema = authSessionCreateResponseSchema.extend({
+  session: authSessionSchema.extend({ refreshToken: nonEmptyStringSchema.optional() }),
+});
+
+export const authOidcRefreshRequestSchema = z.object({
+  sessionToken: nonEmptyStringSchema,
+  refreshToken: nonEmptyStringSchema,
+});
 
 export const authLogoutResponseSchema = okResponseSchema;
 

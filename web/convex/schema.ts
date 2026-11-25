@@ -390,6 +390,7 @@ export default defineSchema({
     lastUsedAt: v.number(),
     expiresAt: v.number(),
     revokedAt: v.optional(v.number()),
+    oidcRefreshHash: v.optional(v.string()),
   })
     .index("by_tokenHash", ["tokenHash"])
     .index("by_userId", ["userId"])
@@ -404,6 +405,7 @@ export default defineSchema({
     client: v.union(v.literal("web"), v.literal("ios")),
     handoffChallenge: v.optional(v.string()),
     handoffCodeHash: v.optional(v.string()),
+    oidcRefreshToken: v.optional(v.string()),
     expiresAt: v.number(),
     consumedAt: v.optional(v.number()),
   })

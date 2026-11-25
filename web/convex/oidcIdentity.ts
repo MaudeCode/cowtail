@@ -80,7 +80,31 @@ export async function exchangeOidcCode(
   config: OidcConfig,
   discovery: OidcDiscovery,
   { code, codeVerifier, redirectUri }: { code: string; codeVerifier: string; redirectUri: string },
-): Promise<string> {
+) {
+  return await exchangeOidcGrant(config, discovery, {
+    grant_type: "authorization_code",
+    code,
+    code_verifier: codeVerifier,
+    redirect_uri: redirectUri,
+  });
+}
+
+export async function refreshOidcGrant(
+  config: OidcConfig,
+  discovery: OidcDiscovery,
+  refreshToken: string,
+) {
+  return await exchangeOidcGrant(config, discovery, {
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+  });
+}
+
+async function exchangeOidcGrant(
+  config: OidcConfig,
+  discovery: OidcDiscovery,
+  form: Record<string, string>,
+) {
   const credentials = btoa(
     `${encodeURIComponent(config.clientId)}:${encodeURIComponent(config.clientSecret)}`,
   );
@@ -93,20 +117,24 @@ export async function exchangeOidcCode(
         authorization: `Basic ${credentials}`,
         "content-type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        code_verifier: codeVerifier,
-        redirect_uri: redirectUri,
-      }),
+      body: new URLSearchParams(form),
     },
-    "OIDC provider refused the authorization code",
+    form.grant_type === "authorization_code"
+      ? "OIDC provider refused the authorization code"
+      : undefined,
+    form.grant_type === "refresh_token",
   );
   if (typeof tokens.id_token !== "string" || !tokens.id_token) {
     throw new OidcError("OIDC token response has no id_token", 502);
   }
 
-  return tokens.id_token;
+  return {
+    idToken: tokens.id_token,
+    refreshToken:
+      typeof tokens.refresh_token === "string" && tokens.refresh_token
+        ? tokens.refresh_token
+        : undefined,
+  };
 }
 
 const REJECTED_TOKEN_ERRORS = [
@@ -125,7 +153,7 @@ const jwksByUri = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 export async function verifyOidcIdToken(
   config: OidcConfig,
   discovery: OidcDiscovery,
-  { idToken, nonce }: { idToken: string; nonce: string },
+  { idToken, nonce }: { idToken: string; nonce?: string },
 ): Promise<string> {
   let jwks = jwksByUri.get(discovery.jwksUri);
   if (!jwks) {
@@ -138,7 +166,7 @@ export async function verifyOidcIdToken(
     ({ payload } = await jwtVerify(idToken, jwks, {
       issuer: config.issuer,
       audience: config.clientId,
-      requiredClaims: ["exp", "sub", "nonce"],
+      requiredClaims: nonce === undefined ? ["exp", "sub"] : ["exp", "sub", "nonce"],
     }));
   } catch (error) {
     if (REJECTED_TOKEN_ERRORS.some((type) => error instanceof type)) {
@@ -147,7 +175,11 @@ export async function verifyOidcIdToken(
     throw new OidcError("OIDC ID token verification is temporarily unavailable", 502);
   }
 
-  if (payload.nonce !== nonce || typeof payload.sub !== "string" || !payload.sub) {
+  if (
+    (nonce !== undefined && payload.nonce !== nonce) ||
+    typeof payload.sub !== "string" ||
+    !payload.sub
+  ) {
     throw new OidcError("OIDC ID token verification failed", 401);
   }
 
@@ -160,6 +192,7 @@ async function fetchJson(
   url: string,
   init: RequestInit,
   refusedMessage?: string,
+  isRefreshGrant = false,
 ): Promise<Record<string, unknown>> {
   let response: Response;
   try {
@@ -169,6 +202,9 @@ async function fetchJson(
   }
 
   const body = await response.json().catch(() => null);
+  if (isRefreshGrant && response.status === 400 && body?.error === "invalid_grant") {
+    throw new OidcError("Pocket ID renewal credential was refused", 401);
+  }
   if (refusedMessage && response.status >= 400 && response.status < 500) {
     throw new OidcError(refusedMessage, 401);
   }

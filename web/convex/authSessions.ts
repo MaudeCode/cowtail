@@ -137,6 +137,7 @@ export const createSession = internalMutation({
     userId: v.string(),
     tokenHash: v.string(),
     expiresAt: v.number(),
+    oidcRefreshHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -146,9 +147,38 @@ export const createSession = internalMutation({
       createdAt: now,
       lastUsedAt: now,
       expiresAt: args.expiresAt,
+      oidcRefreshHash: args.oidcRefreshHash,
     });
 
     return { id };
+  },
+});
+
+export const renewOidcSession = internalMutation({
+  args: {
+    id: v.id("authSessions"),
+    previousRefreshHash: v.string(),
+    nextRefreshHash: v.string(),
+    nextTokenHash: v.string(),
+    expiresAt: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.id);
+    if (
+      !session ||
+      session.revokedAt !== undefined ||
+      session.oidcRefreshHash !== args.previousRefreshHash
+    ) {
+      return false;
+    }
+    await ctx.db.patch(args.id, {
+      oidcRefreshHash: args.nextRefreshHash,
+      tokenHash: args.nextTokenHash,
+      expiresAt: args.expiresAt,
+      lastUsedAt: Date.now(),
+    });
+    return true;
   },
 });
 
@@ -256,10 +286,12 @@ export const storeOidcHandoffCode = internalMutation({
   args: {
     id: v.id("oidcLogins"),
     handoffCodeHash: v.string(),
+    oidcRefreshToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.id, {
       handoffCodeHash: args.handoffCodeHash,
+      oidcRefreshToken: args.oidcRefreshToken,
       expiresAt: Date.now() + OIDC_HANDOFF_TTL_MS,
     });
   },
@@ -281,12 +313,13 @@ export const redeemOidcHandoffCode = internalMutation({
     }
 
     await ctx.db.delete(login._id);
-    return {
-      ok:
-        login.client === "ios" &&
-        login.expiresAt > Date.now() &&
-        login.handoffChallenge === args.handoffChallenge,
-    };
+    const ok =
+      login.client === "ios" &&
+      login.expiresAt > Date.now() &&
+      login.handoffChallenge === args.handoffChallenge;
+    return ok
+      ? { ok: true as const, refreshToken: login.oidcRefreshToken }
+      : { ok: false as const };
   },
 });
 

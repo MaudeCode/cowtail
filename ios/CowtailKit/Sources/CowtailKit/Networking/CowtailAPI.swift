@@ -62,6 +62,7 @@ protocol AuthAPIClient: Sendable {
     func fetchOIDCProviderName() async throws -> String?
     /// Trades the code from the OIDC callback and its PKCE verifier for a session.
     func redeemOIDCHandoff(code: String, verifier: String) async throws -> AppAuthSession
+    func refreshOIDCSession(sessionToken: String, refreshToken: String) async throws -> AppAuthSession?
     /// Revokes the session on the server.
     func logout(sessionToken: String) async throws
 }
@@ -265,12 +266,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
     func redeemOIDCHandoff(code: String, verifier: String) async throws -> AppAuthSession {
         switch try await authClient.redeemOidcHandoff(body: .json(.init(code: code, verifier: verifier))) {
         case .ok(let response):
-            let session = try response.body.json.session
-            return AppAuthSession(
-                token: session.token,
-                userID: session.userId,
-                expiresAt: Date(timeIntervalSince1970: TimeInterval(session.expiresAt) / 1000)
-            )
+            return try Self.oidcSession(from: response.body.json.session)
         case .badRequest(let response):
             throw CowtailAPIError.refused(try response.body.json.error)
         case .unauthorized(let response):
@@ -280,6 +276,34 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Sign-in failed with HTTP \(statusCode).")
         }
+    }
+
+    func refreshOIDCSession(sessionToken: String, refreshToken: String) async throws -> AppAuthSession? {
+        switch try await authClient.refreshOidcSession(
+            body: .json(.init(sessionToken: sessionToken, refreshToken: refreshToken))
+        ) {
+        case .ok(let response):
+            return try Self.oidcSession(from: response.body.json.session)
+        case .unauthorized:
+            return nil
+        case .badRequest(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .notFound(let response):
+            throw CowtailAPIError.refused(try response.body.json.error)
+        case .undocumented(let statusCode, _):
+            throw CowtailAPIError.requestFailed("Pocket ID renewal failed with HTTP \(statusCode).")
+        }
+    }
+
+    private static func oidcSession(
+        from session: Components.Schemas.AuthOidcHandoffResponse.SessionPayload
+    ) -> AppAuthSession {
+        AppAuthSession(
+            token: session.token,
+            userID: session.userId,
+            expiresAt: Date(timeIntervalSince1970: TimeInterval(session.expiresAt) / 1000),
+            refreshToken: session.refreshToken
+        )
     }
 
     func logout(sessionToken: String) async throws {
@@ -1031,6 +1055,7 @@ struct AppAuthSession: Sendable {
     let token: String
     let userID: String
     let expiresAt: Date
+    var refreshToken: String?
 }
 
 struct QuietHours: Equatable, Sendable {

@@ -82,6 +82,9 @@ struct ItemDetailView: View {
     /// occurrences. The actions are pinned above the tab bar and never scroll away.
     var body: some View {
         CowtailScreen(title: "", identifier: "screen.item-detail", titleDisplayMode: .inline) {
+            if let error = store.detailErrors[item.id], let receivedAt = store.detailReceivedAt[item.id] {
+                RefreshFailureBanner(receivedAt: receivedAt, error: error) { await store.loadDetail(itemID: item.id) }
+            }
             header
             details
             fixes

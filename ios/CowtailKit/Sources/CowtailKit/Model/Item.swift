@@ -3,23 +3,23 @@ import Foundation
 // The app's view of the server's items. Every field is the server's: the app maps the wire
 // format to Swift types and decides nothing about an item's state.
 
-enum ItemKind: String, CaseIterable, Identifiable, Sendable {
+enum ItemKind: String, CaseIterable, Identifiable, Sendable, Codable {
     case alert, failure, approval, question, fyi, done
 
     var id: String { rawValue }
 }
 
-enum ItemUrgency: String, CaseIterable, Identifiable, Sendable {
+enum ItemUrgency: String, CaseIterable, Identifiable, Sendable, Codable {
     case now, today, whenever
 
     var id: String { rawValue }
 }
 
-enum ItemState: String, Sendable {
+enum ItemState: String, Sendable, Codable {
     case open, acked, snoozed, resolved, expired
 }
 
-enum ItemOutcome: String, CaseIterable, Identifiable, Sendable {
+enum ItemOutcome: String, CaseIterable, Identifiable, Sendable, Codable {
     case fixed
     case selfResolved = "self-resolved"
     case noise
@@ -29,11 +29,11 @@ enum ItemOutcome: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
-enum ItemInvestigationStep: String, Sendable {
+enum ItemInvestigationStep: String, Sendable, Codable {
     case queued, investigating, failed
 }
 
-enum ItemAction: Hashable, Sendable {
+enum ItemAction: Hashable, Sendable, Codable {
     case approve
     case deny
     case choose([String])
@@ -54,17 +54,17 @@ enum ItemAction: Hashable, Sendable {
     }
 }
 
-struct ItemLink: Hashable, Sendable {
+struct ItemLink: Hashable, Sendable, Codable {
     let label: String
     let url: URL
 }
 
-struct ItemUpdate: Hashable, Sendable {
+struct ItemUpdate: Hashable, Sendable, Codable {
     let text: String
     let at: Date
 }
 
-struct Item: Identifiable, Hashable, Sendable {
+struct Item: Identifiable, Hashable, Sendable, Codable {
     let id: String
     let source: String
     /// The registered source's display name.
@@ -301,8 +301,8 @@ struct ItemDetail: Hashable, Sendable {
     var priorOccurrences: [PriorOccurrence] = []
 }
 
-struct ItemInbox: Equatable, Sendable {
-    struct Counts: Equatable, Sendable {
+struct ItemInbox: Equatable, Sendable, Codable {
+    struct Counts: Equatable, Sendable, Codable {
         var needsYou: Int
         var withHermes: Int
         var upcoming: Int

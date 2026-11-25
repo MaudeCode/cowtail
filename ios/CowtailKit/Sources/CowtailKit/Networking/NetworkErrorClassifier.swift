@@ -19,6 +19,18 @@ enum NetworkErrorClassifier {
         }
     }
 
+    static func isTransientConnectionFailure(_ error: any Error) -> Bool {
+        isOffline(error) || anyInChain(error) {
+            isURLError($0, codes: [
+                NSURLErrorTimedOut,
+                NSURLErrorCannotFindHost,
+                NSURLErrorCannotConnectToHost,
+                NSURLErrorNetworkConnectionLost,
+                NSURLErrorDNSLookupFailed,
+            ])
+        }
+    }
+
     private static func isURLError(_ error: any Error, codes: Set<Int>) -> Bool {
         let nsError = error as NSError
         return nsError.domain == NSURLErrorDomain && codes.contains(nsError.code)

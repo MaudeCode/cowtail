@@ -754,25 +754,31 @@ extension Components {
                 internal var userId: Swift.String
                 /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session/expiresAt`.
                 internal var expiresAt: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session/refreshToken`.
+                internal var refreshToken: Swift.String?
                 /// Creates a new `SessionPayload`.
                 ///
                 /// - Parameters:
                 ///   - token:
                 ///   - userId:
                 ///   - expiresAt:
+                ///   - refreshToken:
                 internal init(
                     token: Swift.String,
                     userId: Swift.String,
-                    expiresAt: Swift.Int
+                    expiresAt: Swift.Int,
+                    refreshToken: Swift.String? = nil
                 ) {
                     self.token = token
                     self.userId = userId
                     self.expiresAt = expiresAt
+                    self.refreshToken = refreshToken
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case token
                     case userId
                     case expiresAt
+                    case refreshToken
                 }
             }
             /// - Remark: Generated from `#/components/schemas/AuthOidcHandoffResponse/session`.
@@ -815,6 +821,29 @@ extension Components {
             internal enum CodingKeys: String, CodingKey {
                 case code
                 case verifier
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AuthOidcRefreshRequest`.
+        internal struct AuthOidcRefreshRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AuthOidcRefreshRequest/sessionToken`.
+            internal var sessionToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AuthOidcRefreshRequest/refreshToken`.
+            internal var refreshToken: Swift.String
+            /// Creates a new `AuthOidcRefreshRequest`.
+            ///
+            /// - Parameters:
+            ///   - sessionToken:
+            ///   - refreshToken:
+            internal init(
+                sessionToken: Swift.String,
+                refreshToken: Swift.String
+            ) {
+                self.sessionToken = sessionToken
+                self.refreshToken = refreshToken
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case sessionToken
+                case refreshToken
             }
         }
         /// - Remark: Generated from `#/components/schemas/AuthLogoutResponse`.

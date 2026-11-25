@@ -54,7 +54,10 @@ final class AppRuntime {
             return AppRuntime(
                 appleAccountManager: appleAccountManager,
                 appSessionManager: appSessionManager,
-                cowtailStore: CowtailStore(api: api),
+                cowtailStore: CowtailStore(
+                    api: api,
+                    inboxCacheURL: URL.cachesDirectory.appending(path: "cowtail-inbox.json")
+                ),
                 oidcSignIn: OIDCSignIn(api: api),
                 notificationManager: notificationManager,
                 themeSettings: themeSettings,
@@ -104,16 +107,42 @@ final class AppRuntime {
                 selectedTab: configuration.selectedTab,
                 deepLinkURL: configuration.deepLinkURL
             )
+            let inboxCacheURL = makeUITestInboxCache(for: scenario)
+            defer {
+                if let inboxCacheURL {
+                    try? FileManager.default.removeItem(at: inboxCacheURL)
+                }
+            }
             return AppRuntime(
                 appleAccountManager: appleAccountManager,
                 appSessionManager: appSessionManager,
-                cowtailStore: CowtailStore(api: seededAPI, authenticator: SeededApprovalAuthenticator()),
+                cowtailStore: CowtailStore(
+                    api: seededAPI,
+                    inboxCacheURL: inboxCacheURL,
+                    authenticator: SeededApprovalAuthenticator()
+                ),
                 oidcSignIn: OIDCSignIn(api: seededAPI, presenter: SeededWebAuthenticationPresenter()),
                 notificationManager: notificationManager,
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,
                 roundupDataClient: seededAPI
             )
+        }
+    }
+
+    private static func makeUITestInboxCache(for scenario: UITestScenario) -> URL? {
+        guard scenario.name == .inboxCachedOffline,
+              let item = scenario.seed.server.items.first(where: { $0.id == "approval-ingress" }) else { return nil }
+        let url = URL.temporaryDirectory.appending(path: "cowtail-inbox-\(UUID()).json")
+        do {
+            let snapshot = InboxSnapshot(
+                inbox: ItemInbox(needsYou: [item], withHermes: []),
+                receivedAt: Date(timeIntervalSince1970: 1_800_000_000)
+            )
+            try JSONEncoder().encode(snapshot).write(to: url, options: .atomic)
+            return url
+        } catch {
+            return nil
         }
     }
 }

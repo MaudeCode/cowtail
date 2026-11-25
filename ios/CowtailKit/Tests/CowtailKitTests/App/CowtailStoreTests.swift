@@ -67,6 +67,87 @@ final class CowtailStoreTests: XCTestCase {
         )
     }
 
+    func testAnUnloadedInboxHasNoError() {
+        let subject = store(api: FakeItemAPI(inbox: .empty))
+
+        XCTAssertEqual(subject.inboxState, .loading)
+        XCTAssertNil(subject.errorMessage)
+    }
+
+    func testAnEmptyServerInboxIsFresh() async {
+        let subject = store(api: FakeItemAPI(inbox: .empty))
+
+        await subject.refresh()
+
+        XCTAssertEqual(subject.inboxState, .fresh)
+        XCTAssertEqual(subject.inbox, .empty)
+    }
+
+    func testARejectedFirstLoadHasNoInbox() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.failInbox(with: CowtailAPIError.refused("Inbox unavailable"))
+        let subject = store(api: api)
+
+        await subject.refresh()
+
+        XCTAssertEqual(subject.inboxState, .failed("Inbox unavailable"))
+        XCTAssertNil(subject.inbox)
+    }
+
+    func testFailedSessionRenewalIsReportedAsTransient() async {
+        let subject = CowtailStore(
+            api: FakeItemAPI(inbox: .empty),
+            sessionToken: { nil },
+            sessionFailure: { "No connection." },
+            notificationCenter: FakeNotificationCenter()
+        )
+
+        await subject.refresh()
+
+        XCTAssertEqual(subject.inboxState, .failed("Could not renew your session. No connection."))
+    }
+
+    func testColdStoreLoadsItsMostRecentConfirmedInbox() async throws {
+        let directory = URL.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "inbox.json")
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: []))
+        let original = CowtailStore(
+            api: api,
+            inboxCacheURL: url,
+            sessionToken: { "session-token" },
+            notificationCenter: FakeNotificationCenter()
+        )
+        await original.refresh()
+
+        await api.failInbox(with: CowtailAPIError.requestFailed("Inbox unavailable"))
+        let relaunched = CowtailStore(
+            api: api,
+            inboxCacheURL: url,
+            sessionToken: { "session-token" },
+            notificationCenter: FakeNotificationCenter()
+        )
+        await relaunched.refresh()
+
+        guard case .stale(_, let message) = relaunched.inboxState else {
+            return XCTFail("Expected the restored inbox to be stale after the failed request")
+        }
+        XCTAssertEqual(message, "Inbox unavailable")
+        XCTAssertEqual(relaunched.inbox?.needsYou.map(\.id), [approval.id])
+    }
+
+    func testFirstInboxNetworkFailureRetriesBeforeShowingAnError() async {
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: []))
+        await api.failNextInboxRequest()
+        let subject = store(api: api)
+
+        await subject.refresh()
+
+        XCTAssertEqual(subject.inbox?.needsYou.map(\.id), [approval.id])
+        XCTAssertNil(subject.errorMessage)
+    }
+
     func testAnInboxLoadSetsTheServersBadgeAndKeepsOnlyLiveItemsNotifications() async {
         var inbox = ItemInbox(needsYou: [approval], withHermes: [])
         inbox.badge = 1
@@ -802,6 +883,8 @@ private actor FakeAuthenticator: ApprovalAuthenticating {
 private actor FakeItemAPI: CowtailAPIClient {
     private var inbox: ItemInbox
     private var inboxError: Error?
+    private var failNextInbox = false
+
     private let actionError: Error?
     private var failingHealthRequests: Int
     private let pagesByCursor: [String: ItemPage]
@@ -822,6 +905,10 @@ private actor FakeItemAPI: CowtailAPIClient {
         self.actionError = actionError
         self.failingHealthRequests = failingHealthRequests
         self.pagesByCursor = pagesByCursor
+    }
+
+    func failNextInboxRequest() {
+        failNextInbox = true
     }
 
     func failInbox(with error: Error) {
@@ -859,6 +946,10 @@ private actor FakeItemAPI: CowtailAPIClient {
     }
 
     func fetchInbox(sessionToken _: String) async throws -> ItemInbox {
+        if failNextInbox {
+            failNextInbox = false
+            throw URLError(.notConnectedToInternet)
+        }
         if let inboxError {
             throw inboxError
         }

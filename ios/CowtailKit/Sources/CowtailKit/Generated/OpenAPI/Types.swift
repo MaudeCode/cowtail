@@ -33,6 +33,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /auth/oidc/handoff`.
     /// - Remark: Generated from `#/paths//auth/oidc/handoff/post(redeemOidcHandoff)`.
     func redeemOidcHandoff(_ input: Operations.RedeemOidcHandoff.Input) async throws -> Operations.RedeemOidcHandoff.Output
+    /// Renew an iOS session with its Pocket ID renewal credential
+    ///
+    /// - Remark: HTTP `POST /auth/oidc/refresh`.
+    /// - Remark: Generated from `#/paths//auth/oidc/refresh/post(refreshOidcSession)`.
+    func refreshOidcSession(_ input: Operations.RefreshOidcSession.Input) async throws -> Operations.RefreshOidcSession.Output
     /// Revoke the current app session
     ///
     /// - Remark: HTTP `POST /auth/logout`.
@@ -234,6 +239,19 @@ extension APIProtocol {
         body: Operations.RedeemOidcHandoff.Input.Body
     ) async throws -> Operations.RedeemOidcHandoff.Output {
         try await redeemOidcHandoff(Operations.RedeemOidcHandoff.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Renew an iOS session with its Pocket ID renewal credential
+    ///
+    /// - Remark: HTTP `POST /auth/oidc/refresh`.
+    /// - Remark: Generated from `#/paths//auth/oidc/refresh/post(refreshOidcSession)`.
+    internal func refreshOidcSession(
+        headers: Operations.RefreshOidcSession.Input.Headers = .init(),
+        body: Operations.RefreshOidcSession.Input.Body
+    ) async throws -> Operations.RefreshOidcSession.Output {
+        try await refreshOidcSession(Operations.RefreshOidcSession.Input(
             headers: headers,
             body: body
         ))

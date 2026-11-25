@@ -9,6 +9,7 @@ struct UITestScenario {
         case inboxIncidents = "inbox_incidents"
         case inboxEmpty = "inbox_empty"
         case inboxError = "inbox_error"
+        case inboxCachedOffline = "inbox_cached_offline"
         case roundupPopulated = "roundup_populated"
         case roundupEmpty = "roundup_empty"
         case alertDeepLinkKnown = "alert_deep_link_known"
@@ -165,7 +166,7 @@ private enum SeedFactory {
         case .inboxEmpty:
             return seed(server: SeededCowtailAPI.Seed(items: []))
 
-        case .inboxError:
+        case .inboxError, .inboxCachedOffline:
             return seed(server: SeededCowtailAPI.Seed(itemErrorMessage: "Unable to load items from the seeded API."))
 
         case .roundupPopulated:

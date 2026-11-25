@@ -3,12 +3,12 @@ import Foundation
 // Related items the server grouped into one incident, with one timeline and Hermes's
 // postmortem. Every field is the server's.
 
-enum IncidentState: String, Sendable {
+enum IncidentState: String, Sendable, Codable {
     case open, resolved
 }
 
 /// An incident as its row and an item's incident chip show it.
-struct IncidentSummary: Identifiable, Hashable, Sendable {
+struct IncidentSummary: Identifiable, Hashable, Sendable, Codable {
     let id: String
     let title: String
     var state: IncidentState
