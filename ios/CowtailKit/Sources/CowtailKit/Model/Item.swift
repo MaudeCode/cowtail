@@ -43,11 +43,13 @@ enum ItemAction: Hashable, Sendable {
     case open(URL)
     /// Runs a runbook script for the item; the script's name is the action's label.
     case run(RunbookScript)
+    /// Returns a snoozed item to the inbox now. Only the server offers it.
+    case unsnooze
 
     var isAnswer: Bool {
         switch self {
         case .approve, .deny, .choose, .reply: true
-        case .snooze, .ack, .open, .run: false
+        case .snooze, .ack, .open, .run, .unsnooze: false
         }
     }
 }

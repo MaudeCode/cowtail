@@ -2,6 +2,19 @@ import XCTest
 @testable import CowtailKit
 
 final class ItemPresentationTests: XCTestCase {
+    func testAnUpcomingRowOffersUnsnoozeOnlyWhenTheServerDoes() {
+        let snoozed = { (offered: [ItemAction]) in
+            Item(
+                id: "item", source: "cron", kind: .fyi, urgency: .today, state: .snoozed, title: "Disk",
+                availableActions: offered, createdAt: .now
+            )
+        }
+
+        XCTAssertEqual(ItemButton.buttons(for: snoozed([.ack, .unsnooze])), [.ack, .unsnooze])
+        XCTAssertEqual(ItemButton.buttons(for: snoozed([.ack, .unsnooze]), isUpcoming: true), [.unsnooze])
+        XCTAssertEqual(ItemButton.buttons(for: snoozed([.ack]), isUpcoming: true), [])
+    }
+
     func testANotifiedEventNamesTheDecisionTheServerRecorded() {
         let text = { (payload: [String: String]) in
             ItemEvent(id: "event", at: .now, type: .notified, actor: "cowtail", payload: payload).text

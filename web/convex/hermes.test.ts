@@ -202,6 +202,14 @@ describe("owner answers for Hermes", () => {
     expect((await answer(t, plain, { type: "approve" })).status).toBe(200);
     // The approval offers no ack, so an ack stays with Cowtail.
     expect((await answer(t, routed, { type: "ack" })).status).toBe(200);
+    // Cowtail offers an ack on a report its producer did not ask to hear about; it stays here.
+    const report = await createItem(t, {
+      ...approval,
+      kind: "fyi",
+      title: "Scratch volume deleted",
+      actions: undefined,
+    });
+    expect((await answer(t, report, { type: "ack" })).status).toBe(200);
     expect(await claim(t)).toBeUndefined();
 
     expect((await answer(t, routed, { type: "deny" })).status).toBe(200);

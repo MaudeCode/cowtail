@@ -28,6 +28,13 @@ describe("item create requests", () => {
     ).toMatchObject({ context: { "k8s.namespace": "media" }, replyTo: { session_id: "abc" } });
   });
 
+  test("refuse an unsnooze, which only the server offers", () => {
+    const declare = (type: string) =>
+      itemCreateRequestSchema.safeParse({ ...request, actions: [{ type }] }).success;
+    expect(declare("ack")).toBe(true);
+    expect(declare("unsnooze")).toBe(false);
+  });
+
   test("accept only web links", () => {
     const link = (url: string) =>
       itemCreateRequestSchema.safeParse({ ...request, links: [{ label: "Log", url }] }).success;
@@ -62,6 +69,16 @@ describe("item records", () => {
     expect(
       itemRecordSchema.parse({ ...record, sourceInfo: { ...sourceInfo, iconUrl } }).sourceInfo,
     ).toEqual({ ...sourceInfo, iconUrl });
+  });
+
+  test("offer an unsnooze in availableActions, never in the producer's actions", () => {
+    const sourceInfo = { slug: "deployer", displayName: "Mac deployer" };
+    const unsnooze = [{ type: "unsnooze" }];
+    const snoozed = { ...record, sourceInfo, state: "snoozed" };
+    expect(
+      itemRecordSchema.parse({ ...snoozed, availableActions: unsnooze }).availableActions,
+    ).toEqual(unsnooze);
+    expect(itemRecordSchema.safeParse({ ...snoozed, actions: unsnooze }).success).toBe(false);
   });
 });
 

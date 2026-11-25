@@ -39,6 +39,7 @@ import {
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemActionSchema,
+  itemAvailableActionSchema,
   itemEventRecordSchema,
   itemGetResponseSchema,
   itemGraphQuerySchema,
@@ -77,6 +78,9 @@ const registry = new OpenAPIRegistry();
 // Registered by identity, so every response that holds an item or event refers to one type.
 zodToOpenAPIRegistry.add(itemRecordSchema, { _internal: { refId: "ItemRecord" } });
 zodToOpenAPIRegistry.add(itemActionSchema, { _internal: { refId: "ItemAction" } });
+zodToOpenAPIRegistry.add(itemAvailableActionSchema, {
+  _internal: { refId: "ItemAvailableAction" },
+});
 zodToOpenAPIRegistry.add(itemEventRecordSchema, { _internal: { refId: "ItemEventRecord" } });
 zodToOpenAPIRegistry.add(investigationEvidenceStepSchema, {
   _internal: { refId: "InvestigationEvidenceStep" },

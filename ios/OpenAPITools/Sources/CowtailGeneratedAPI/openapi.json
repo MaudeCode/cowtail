@@ -1033,7 +1033,7 @@
           "availableActions": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ItemAction"
+              "$ref": "#/components/schemas/ItemAvailableAction"
             }
           },
           "latestUpdate": {
@@ -1285,6 +1285,27 @@
               "type",
               "scriptId",
               "label"
+            ]
+          }
+        ]
+      },
+      "ItemAvailableAction": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ItemAction"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unsnooze"
+                ]
+              }
+            },
+            "required": [
+              "type"
             ]
           }
         ]

@@ -30,7 +30,7 @@ extension CowtailAPI {
             contextOrder: record.contextOrder,
             occurrenceCount: record.occurrenceCount,
             actions: record.actions.compactMap(makeAction),
-            availableActions: (record.availableActions ?? []).compactMap(makeAction),
+            availableActions: (record.availableActions ?? []).compactMap(makeAvailableAction),
             alertID: record.alertId,
             alertActions: (record.alertActions ?? []).compactMap { AlertHumanAction(rawValue: $0.rawValue) },
             rootCause: record.investigationResult?.rootCause,
@@ -142,6 +142,13 @@ extension CowtailAPI {
         case .case7(let open): URL(string: open.url).map(ItemAction.open)
         case .case8(let run):
             .run(RunbookScript(id: run.scriptId, name: run.label, confirmText: run.confirmText, needsAuth: run.needsAuth ?? false))
+        }
+    }
+
+    private static func makeAvailableAction(_ action: Components.Schemas.ItemAvailableAction) -> ItemAction? {
+        switch action {
+        case .ItemAction(let declared): makeAction(declared)
+        case .case2: .unsnooze
         }
     }
 

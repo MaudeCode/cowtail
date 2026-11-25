@@ -1,5 +1,6 @@
 import type {
   HermesSnapshot,
+  ItemAvailableAction,
   RunbookRunRecord,
   RunbookScript,
   RunbookSection,
@@ -60,15 +61,13 @@ export async function runbookSections(ctx: QueryCtx, catalog: RunbookScript[]) {
   return [...sections.values()];
 }
 
-type ItemAction = Doc<"items">["actions"][number];
-
 // An item's `run` actions with the server's calls on their scripts; a script the catalog no
 // longer holds cannot run, so its action is left out.
-export async function withRunbookCalls(ctx: QueryCtx, actions: ItemAction[]) {
+export async function withRunbookCalls(ctx: QueryCtx, actions: ItemAvailableAction[]) {
   if (!actions.some((action) => action.type === "run")) return actions;
   const catalog = new Map((await runbookCatalog(ctx)).map((script) => [script.id, script]));
   const needAuth = await approvalsNeedAuth(ctx);
-  return actions.flatMap((action): ItemAction[] => {
+  return actions.flatMap((action): ItemAvailableAction[] => {
     if (action.type !== "run") return [action];
     const script = catalog.get(action.scriptId);
     if (!script) return [];

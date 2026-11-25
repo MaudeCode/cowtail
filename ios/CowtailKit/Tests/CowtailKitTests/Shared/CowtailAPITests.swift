@@ -215,6 +215,20 @@ final class CowtailAPITests: XCTestCase {
         XCTAssertEqual(detail.events.map(\.text), ["Restart Hermes gateway · exit 0\nrestarted"])
     }
 
+    func testASnoozedItemOffersUnsnoozeFromItsAvailableActions() async throws {
+        let reply = """
+        {"ok":true,"item":{"id":"item-3","source":"cron","sourceInfo":{"slug":"cron","displayName":"Cron"},\
+        "kind":"fyi","urgency":"today","state":"snoozed","needsOwner":false,"title":"Disk at 70%","body":"",\
+        "links":[],"context":{},"occurrenceCount":1,"createdAt":1,"updatedAt":2,"snoozedUntil":3,\
+        "actions":[],"availableActions":[{"type":"ack"},{"type":"unsnooze"}]},"events":[]}
+        """
+        let transport = RecordingTransport(routes: ["GET /api/items/item-3": .init(json: reply)])
+
+        let fetched = try await CowtailAPI(transport: transport).fetchItem(id: "item-3", sessionToken: "session")
+
+        XCTAssertEqual(try XCTUnwrap(fetched).item.availableActions, [.ack, .unsnooze])
+    }
+
     func testHermesStatusBeforeTheFirstHeartbeatHasNoHeartbeat() async throws {
         let transport = RecordingTransport(routes: [
             "GET /api/hermes/status": .init(json: #"{"ok": true, "status": null, "recentAnswers": []}"#),

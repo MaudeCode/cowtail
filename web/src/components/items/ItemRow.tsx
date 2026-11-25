@@ -8,9 +8,8 @@ import {
   toneText,
   urgencyTone,
 } from "../../lib/itemPresentation";
-import { useItemAction, useItemActionError } from "../../lib/queries";
 import { useNow } from "../../lib/useNow";
-import { ActionError, Badge, Icon, IconButton } from "../ui";
+import { Badge, Icon } from "../ui";
 import ItemActions from "./ItemActions";
 import SourceIcon from "./SourceIcon";
 
@@ -69,22 +68,6 @@ function NeedsYouStatus({ item, now }: { item: ItemRecord; now: number }) {
   return <span className={toneText[urgencyTone[item.urgency]]}>{status}</span>;
 }
 
-// A snoozed item comes back now; the row moves at once to the section it returns to.
-function Unsnooze({ item }: { item: ItemRecord }) {
-  const action = useItemAction(item.id);
-  const error = useItemActionError(item.id);
-  return (
-    <div className="ml-auto flex shrink-0 flex-col items-end gap-1.5">
-      <IconButton
-        icon="refresh"
-        label="Unsnooze"
-        onClick={() => action.mutate({ type: "unsnooze" })}
-      />
-      <ActionError error={error} />
-    </div>
-  );
-}
-
 // One item in Needs you, Hermes is on it or Upcoming.
 export default function ItemRow({
   item,
@@ -132,7 +115,7 @@ export default function ItemRow({
         </div>
       </div>
       {variant === "upcoming" ? (
-        <Unsnooze item={item} />
+        <ItemActions item={item} types={["unsnooze"]} />
       ) : variant === "needsYou" ? (
         <ItemActions item={item} />
       ) : (

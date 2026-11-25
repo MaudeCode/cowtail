@@ -471,6 +471,7 @@ describe("acting from Home", () => {
     const upcoming = screen.getByRole("heading", { name: /Upcoming/ }).closest("section")!;
     expect(within(upcoming).getByText("KubePodCrashLooping")).toBeInTheDocument();
     expect(within(upcoming).getByText("02 Jan 09:00")).toBeInTheDocument();
+    expect(within(upcoming).getByRole("button", { name: "Unsnooze" })).toBeInTheDocument();
   });
 });
 
@@ -533,7 +534,7 @@ describe("Upcoming on Home", () => {
     needsOwner: false,
     needsOwnerWhenOpen: true,
     title: "CephOSDNearFull",
-    availableActions: [{ type: "ack" }],
+    availableActions: [{ type: "ack" }, { type: "unsnooze" }],
     snoozedUntil: new Date(2030, 0, 2, 9, 0).getTime(),
   });
   const routes = () => signedIn({ "GET /actions/api/items/inbox": inbox({ upcoming: [snoozed] }) });
@@ -560,6 +561,24 @@ describe("Upcoming on Home", () => {
         },
       ]),
     );
+  });
+
+  test("a snoozed item shows Unsnooze only when the server offers it", async () => {
+    const held = item({
+      ...snoozed,
+      id: "snoozed-2",
+      title: "Reminder the server holds",
+      availableActions: [{ type: "ack" }],
+    });
+    stubApi(signedIn({ "GET /actions/api/items/inbox": inbox({ upcoming: [snoozed, held] }) }));
+    renderApp("/");
+
+    const row = (title: string) =>
+      screen.getByText(title).closest<HTMLElement>("div.flex.flex-wrap")!;
+    await screen.findByText("Reminder the server holds");
+    expect(within(row("CephOSDNearFull")).getAllByRole("button")).toHaveLength(1);
+    expect(within(row("CephOSDNearFull")).getByRole("button", { name: "Unsnooze" })).toBeVisible();
+    expect(within(row("Reminder the server holds")).queryAllByRole("button")).toEqual([]);
   });
 
   test("Unsnooze moves the item to the section the server said it returns to, before it answers", async () => {

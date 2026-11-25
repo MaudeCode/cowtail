@@ -308,10 +308,7 @@ struct ItemActionButtons: View {
     }
 
     private var buttons: [ItemButton] {
-        if isUpcoming {
-            return [.unsnooze]
-        }
-        var buttons = ItemButton.buttons(for: item)
+        var buttons = ItemButton.buttons(for: item, isUpcoming: isUpcoming)
         if includesAlertActions {
             buttons += item.alertActions.map { action in
                 switch action {

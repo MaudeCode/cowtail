@@ -268,6 +268,48 @@ describe("owner actions", () => {
     expectTimelineReplaysState(timeline);
   });
 
+  test("an open item its producer gave no actions offers Acknowledge and Snooze in every response", async () => {
+    const t = await newBackendWithSources("cron");
+    const bearer = await seedSession(t, OWNER);
+    const { id } = await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "now",
+      title: "Backup finished late",
+    });
+
+    const inbox = itemInboxResponseSchema.parse(
+      (await request(t, "/api/items/inbox", { bearer })).json,
+    );
+    const offered = [{ type: "ack" }, { type: "snooze" }];
+    expect((await getItem(t, id)).item.availableActions).toEqual(offered);
+    expect((await listItems(t)).map((item) => item.availableActions)).toEqual([offered]);
+    expect(inbox.needsYou.map((item) => item.availableActions)).toEqual([offered]);
+  });
+
+  test("a snoozed approval offers Unsnooze and still takes Approve", async () => {
+    const t = await newBackendWithSources("cron");
+    const act = await ownerActions(t);
+    const { id } = await createItem(t, {
+      source: "hermes",
+      kind: "approval",
+      urgency: "now",
+      title: "Restart ingress in edge?",
+      actions: [{ type: "approve" }, { type: "deny" }],
+    });
+
+    const snoozed = await act(id, { type: "snooze", until: NOW + 3_600_000 });
+    const approved = await act(id, { type: "approve" });
+
+    expect(itemResponseSchema.parse(snoozed.json).item.availableActions).toEqual([
+      { type: "approve" },
+      { type: "deny" },
+      { type: "unsnooze" },
+    ]);
+    expect(approved.status).toBe(200);
+    expect(itemResponseSchema.parse(approved.json).item.answeredAt).toBe(NOW);
+  });
+
   test("an item whose remindAt has passed is created open", async () => {
     const t = await newBackendWithSources("cron");
     const { id } = await createItem(t, {

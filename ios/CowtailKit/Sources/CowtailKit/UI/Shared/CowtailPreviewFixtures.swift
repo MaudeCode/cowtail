@@ -40,6 +40,7 @@ enum CowtailPreviewFixtures {
         title: "Restart ingress in edge?",
         body: "`kubectl rollout restart deploy/ingress -n edge`",
         actions: [.approve, .deny],
+        availableActions: [.approve, .deny, .snooze],
         expiresAt: .now.addingTimeInterval(4 * 60),
         createdAt: minutesAgo(1)
     )
@@ -53,6 +54,7 @@ enum CowtailPreviewFixtures {
         needsOwner: true,
         title: "OSD 4 is 88% full. Rebalance now or wait for the new disk?",
         actions: [.choose(["Rebalance now", "Wait"]), .reply],
+        availableActions: [.choose(["Rebalance now", "Wait"]), .reply, .snooze],
         createdAt: minutesAgo(3)
     )
 
@@ -98,6 +100,7 @@ enum CowtailPreviewFixtures {
             kind: .failure,
             urgency: .today,
             title: "Nightly backup verify failed",
+            availableActions: [.ack, .snooze],
             createdAt: minutesAgo(40),
             latestUpdate: ItemUpdate(text: "Re-running against a fresh snapshot", at: minutesAgo(9))
         ),
@@ -108,6 +111,7 @@ enum CowtailPreviewFixtures {
             kind: .failure,
             urgency: .whenever,
             title: "Merge queue stalled 40m",
+            availableActions: [.ack, .snooze],
             createdAt: minutesAgo(45)
         ),
     ]
@@ -130,6 +134,7 @@ enum CowtailPreviewFixtures {
             state: .snoozed,
             title: "CephOSDNearFull · osd.4",
             actions: [.ack, .snooze],
+            availableActions: [.ack, .snooze, .unsnooze],
             alertID: "alert-7",
             // Later today, however late the test runs.
             snoozedUntil: min(
@@ -148,6 +153,7 @@ enum CowtailPreviewFixtures {
             urgency: .whenever,
             state: .snoozed,
             title: "Check the new disk shipment",
+            availableActions: [.unsnooze],
             snoozedUntil: daysAhead(3),
             needsOwnerWhenOpen: true,
             createdAt: minutesAgo(90)
@@ -161,6 +167,7 @@ enum CowtailPreviewFixtures {
             state: .snoozed,
             title: "CertificateExpiringSoon · edge",
             actions: [.ack, .snooze],
+            availableActions: [.ack, .snooze, .unsnooze],
             alertID: "alert-8",
             snoozedUntil: daysAhead(10),
             needsOwnerWhenOpen: false,

@@ -149,19 +149,22 @@ enum ItemButton: Hashable, Identifiable {
 
     var id: String { identifier }
 
-    /// The buttons for an item's `actions`; `choose` shows its options as text instead.
-    static func buttons(for item: Item) -> [ItemButton] {
-        item.availableActions.compactMap { action in
+    /// The buttons for what the server offers on an item; `choose` shows its options as text
+    /// instead. An Upcoming row offers only Unsnooze.
+    static func buttons(for item: Item, isUpcoming: Bool = false) -> [ItemButton] {
+        let buttons: [ItemButton] = item.availableActions.compactMap { action in
             switch action {
             case .approve: .approve
             case .deny: .deny
             case .reply: .reply
             case .ack: .ack
             case .snooze: .snooze
+            case .unsnooze: .unsnooze
             case .open(let url): .open(url)
             case .choose, .run: nil
             }
         }
+        return isUpcoming ? buttons.filter { $0 == .unsnooze } : buttons
     }
 
     var title: String {
