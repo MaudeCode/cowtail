@@ -2,6 +2,7 @@ import Darwin
 import SwiftUI
 import UIKit
 import XCTest
+@testable import Cowtail
 
 @MainActor
 final class HostedScreen {
@@ -22,6 +23,8 @@ final class HostedScreen {
         let scene = try Self.foregroundScene()
         _ = Self.enableAccessibility
         previousKeyWindow = scene.keyWindow
+        // The app's text-input warm-up raises the system keyboard, which busies the main thread mid-test.
+        TextInputServicesWarmupHostView.didWarmTextInputServices = true
         window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(rootView: content)
         window.makeKeyAndVisible()
@@ -33,12 +36,22 @@ final class HostedScreen {
                 $0.activationState == .foregroundActive
             }
         }
-        if let active = activeScene() {
-            return active
-        }
-        let activated = XCTNSNotificationExpectation(name: UIScene.didActivateNotification)
-        _ = XCTWaiter.wait(for: [activated], timeout: 10)
+        _ = waitUntil { activeScene() != nil }
         return try XCTUnwrap(activeScene(), "The test host has no active window scene")
+    }
+
+    /// Every hosted wait goes through here. It checks the condition itself between short run-loop turns,
+    /// so a busy main thread delays a check but never skips it, as XCTNSPredicateExpectation's
+    /// once-a-second poll can.
+    static func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while !condition() {
+            guard Date() < deadline else {
+                return false
+            }
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
+        }
+        return true
     }
 
     func close() {
@@ -52,38 +65,24 @@ final class HostedScreen {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let appeared = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated {
-                Set(identifiers).isSubset(of: Set(self.identifiedElements().keys))
-            }
-        }, object: nil)
-        let result = XCTWaiter.wait(for: [appeared], timeout: 10)
-        let missing = Set(identifiers).subtracting(Set(self.identifiedElements().keys))
-        XCTAssertEqual(result, .completed, "Missing accessibility identifiers: \(missing.sorted())", file: file, line: line)
+        let appeared = Self.waitUntil { Set(identifiers).isSubset(of: Set(identifiedElements().keys)) }
+        let missing = Set(identifiers).subtracting(Set(identifiedElements().keys))
+        XCTAssertTrue(appeared, "Missing accessibility identifiers: \(missing.sorted())", file: file, line: line)
     }
 
     func assertGone(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
-        let gone = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated { self.element(identifier) == nil }
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 10), .completed,
-                       "Expected \(identifier) to disappear", file: file, line: line)
+        XCTAssertTrue(Self.waitUntil { element(identifier) == nil },
+                      "Expected \(identifier) to disappear", file: file, line: line)
     }
 
     func assertLabel(_ label: String, for identifier: String, file: StaticString = #filePath, line: UInt = #line) {
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated { self.element(identifier)?.accessibilityLabel == label }
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 10), .completed,
-                       "Expected \(identifier) to have label \(label)", file: file, line: line)
+        XCTAssertTrue(Self.waitUntil { element(identifier)?.accessibilityLabel == label },
+                      "Expected \(identifier) to have label \(label)", file: file, line: line)
     }
 
     func assertValue(_ value: String, for identifier: String, file: StaticString = #filePath, line: UInt = #line) {
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated { self.element(identifier)?.accessibilityValue == value }
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 10), .completed,
-                       "Expected \(identifier) to have value \(value)", file: file, line: line)
+        XCTAssertTrue(Self.waitUntil { element(identifier)?.accessibilityValue == value },
+                      "Expected \(identifier) to have value \(value)", file: file, line: line)
     }
 
     func element(_ identifier: String) -> NSObject? {
@@ -125,10 +124,7 @@ final class HostedScreen {
             return controller as? UIAlertController
         }
 
-        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated { alert()?.title == title }
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 10), .completed, file: file, line: line)
+        XCTAssertTrue(Self.waitUntil { alert()?.title == title }, "Expected alert \(title)", file: file, line: line)
         let controller = try XCTUnwrap(alert(), file: file, line: line)
         XCTAssertEqual(controller.message, message, file: file, line: line)
         let button = try XCTUnwrap(controller.actions.first { $0.title == action }, file: file, line: line)

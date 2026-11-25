@@ -13,7 +13,8 @@ struct TextInputServicesWarmupView: UIViewRepresentable {
 
 @MainActor
 final class TextInputServicesWarmupHostView: UIView {
-    private static var didWarmTextInputServices = false
+    /// Hosted tests set this so the warm-up never raises the system keyboard during a test.
+    static var didWarmTextInputServices = false
 
     private var didScheduleWarmup = false
     private weak var warmupField: UITextField?
