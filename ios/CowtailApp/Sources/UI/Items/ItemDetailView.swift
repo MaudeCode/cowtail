@@ -78,24 +78,43 @@ struct ItemDetailView: View {
 
     private var item: Item { detail.item }
 
+    /// Answer first: the header, the details and fix, then the timeline, graph and past
+    /// occurrences. The actions are pinned above the tab bar and never scroll away.
     var body: some View {
-        CowtailCanvas {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    ItemTimeline(events: detail.events)
-                    ItemGraphSection(itemID: item.id)
-                    details
-                    fixes
-                    priorOccurrences
-                }
-                .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
-                .padding(.bottom, 28)
+        CowtailScreen(title: "", identifier: "screen.item-detail", titleDisplayMode: .inline) {
+            header
+            details
+            fixes
+            ItemTimeline(events: detail.events)
+            ItemGraphSection(itemID: item.id)
+            priorOccurrences
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !item.availableActions.isEmpty || !item.alertActions.isEmpty || store.actionErrors[item.id] != nil {
+                actionArea
             }
         }
+    }
+
+    /// The text actions (a question's answers, a script), then the icon actions and the owner's
+    /// alert calls, wrapping to the next line rather than clipping.
+    private var actionArea: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ItemTextButtons(item: item)
+            ItemActionButtons(item: item, isActionArea: true)
+            if let error = store.actionErrors[item.id] {
+                Text(error)
+                    .font(.cowtailSans(12, relativeTo: .footnote))
+                    .foregroundStyle(palette.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("screen.item-detail")
-        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("area.item.actions")
     }
 
     private var header: some View {
@@ -135,17 +154,8 @@ struct ItemDetailView: View {
                     .accessibilityLabel("Open incident \(incident.title)")
                     .accessibilityIdentifier("chip.item.incident")
                 }
-                ItemActionButtons(item: item, includesAlertActions: true)
             }
             .padding(.top, 4)
-
-            ItemTextButtons(item: item)
-
-            if let error = store.actionErrors[item.id] {
-                Text(error)
-                    .font(.cowtailSans(12, relativeTo: .footnote))
-                    .foregroundStyle(palette.accent)
-            }
         }
         .padding(.top, 8)
     }

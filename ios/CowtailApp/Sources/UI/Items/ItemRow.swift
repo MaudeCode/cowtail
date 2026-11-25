@@ -227,10 +227,11 @@ struct ItemSourceIcon: View {
     }
 }
 
-/// The icon buttons for what an item offers. The item header adds the owner's alert calls.
+/// The icon buttons for what an item offers. The item page's action area adds the owner's alert
+/// calls and wraps them to the next line.
 struct ItemActionButtons: View {
     let item: Item
-    var includesAlertActions = false
+    var isActionArea = false
     /// An Upcoming row offers only Unsnooze.
     var isUpcoming = false
 
@@ -244,7 +245,8 @@ struct ItemActionButtons: View {
     @State private var noteText = ""
 
     var body: some View {
-        HStack(spacing: 6) {
+        let layout = isActionArea ? AnyLayout(FlowLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 6))
+        layout {
             ForEach(buttons) { button in
                 CowtailIconButton(
                     title: button.title,
@@ -307,7 +309,7 @@ struct ItemActionButtons: View {
 
     private var buttons: [ItemButton] {
         var buttons = ItemButton.buttons(for: item, isUpcoming: isUpcoming)
-        if includesAlertActions {
+        if isActionArea {
             buttons += item.alertActions.map { action in
                 switch action {
                 case .retryInvestigation: .retryInvestigation

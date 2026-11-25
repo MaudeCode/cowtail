@@ -106,7 +106,8 @@ final class InboxFlowTests: XCTestCase {
         for type in types {
             XCTAssertTrue(app.element("event.\(type)").waitForExistence(timeout: 10), type)
         }
-        app.assertSections(["Timeline", "Details", "Fix", "Past occurrences"])
+        // Answer first: the details and fix lead, before the timeline.
+        app.assertSections(["Details", "Fix", "Timeline", "Past occurrences"])
         XCTAssertTrue(app.element("row.prior-occurrence.alert-replicas-prior-1").exists)
 
         // Hermes's evidence starts collapsed and opens to its numbered steps.
