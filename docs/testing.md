@@ -19,7 +19,7 @@ Every added or changed test passes the `test-audit` skill's authoring gate and i
 
 - `ios/CowtailKit/Tests/CowtailKitTests`: the app's logic, which the `CowtailKit` package builds and tests on macOS with no simulator. Run `pnpm run test:ios:unit`. The app compiles the package's sources into its own module (`ios/project.yml`), so they need no public API. Put new logic and its tests here: CI runs them on every iOS change, in seconds.
 - `ios/CowtailTests`: tests that need the installed app, including fonts and hosted screen contracts. Run `pnpm run test:ios:hosted`. CI runs them in the `ios-sim` suite, on a booted simulator, which costs the hosted Mac about 7 minutes. `ios-sim`'s rule in `.github/ci-suites.json` lists every path these tests cover, and `script/ci/suites.test.ts` fails when an app-hosted test or a listed path does not route there. Every release runs `ios-sim`.
-- `ios/CowtailUITests`: launched-app routing, native gestures, and Apple accessibility audits, run locally with `pnpm run test:ios:ui`. The `ios` suite runs the Inbox split-view test on an iPad because it measures both columns.
+- `ios/CowtailUITests`: launched-app routing, native gestures, and Apple accessibility audits, run only locally, with `pnpm run test:ios:ui`. Hosted CI runs no UI test.
 
 ## Checks in CI
 
