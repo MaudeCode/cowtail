@@ -452,6 +452,28 @@ test("logout revokes the cookie session and clears the cookie", async () => {
   expect(after.status).toBe(401);
 });
 
+test("logout prevents an expired Pocket ID session from renewing", async () => {
+  const t = newBackend();
+  const verifier = "a".repeat(43);
+  const signedIn = await handoff(t, await iosSignIn(t, verifier), verifier);
+  const { session } = authOidcHandoffResponseSchema.parse(await signedIn.json());
+  expect(session.refreshToken).toBeTypeOf("string");
+  vi.setSystemTime(session.expiresAt);
+
+  const logout = await t.fetch("/api/auth/logout", {
+    method: "POST",
+    headers: { authorization: `Bearer ${session.token}` },
+  });
+  expect(logout.status).toBe(200);
+
+  const refresh = await t.fetch("/api/auth/oidc/refresh", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionToken: session.token, refreshToken: session.refreshToken }),
+  });
+  expect(refresh.status).toBe(401);
+});
+
 test("logout revokes a bearer session", async () => {
   const t = newBackend();
   const verifier = randomBytes(32).toString("base64url");

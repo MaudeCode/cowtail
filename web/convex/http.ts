@@ -383,7 +383,7 @@ type AppSessionContext = Context<typeof app extends Hono<infer Env> ? Env : neve
 
 // A bearer token wins when present. Without one, the `cowtail_session` cookie is accepted,
 // and a state-changing cookie request must come from the web origin (CSRF).
-async function requireAppSession(c: AppSessionContext) {
+async function requireAppSession(c: AppSessionContext, { forLogout = false } = {}) {
   const authorization = c.req.header("authorization")?.trim();
   let token: string | undefined;
   if (authorization) {
@@ -409,7 +409,12 @@ async function requireAppSession(c: AppSessionContext) {
   const tokenHash = await sha256Hex(token);
   const session = await c.env.runQuery(internal.authSessions.getSessionByTokenHash, { tokenHash });
 
-  if (!session || session.revokedAt || session.expiresAt <= Date.now()) {
+  const canRevokeExpiredSession = forLogout && authorization && session?.oidcRefreshHash;
+  if (
+    !session ||
+    session.revokedAt !== undefined ||
+    (session.expiresAt <= Date.now() && !canRevokeExpiredSession)
+  ) {
     return { error: jsonError("Unauthorized", 401) };
   }
 
@@ -2775,7 +2780,7 @@ app.post("/api/auth/oidc/refresh", async (c) => {
 
 // POST /api/auth/logout — revoke the current bearer or cookie session and clear the cookie
 app.post("/api/auth/logout", async (c) => {
-  const auth = await requireAppSession(c);
+  const auth = await requireAppSession(c, { forLogout: true });
   if ("error" in auth) return auth.error;
 
   await c.env.runMutation(internal.authSessions.revokeSession, { id: auth.session._id });
