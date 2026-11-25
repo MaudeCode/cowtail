@@ -140,6 +140,98 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
 .login{display:grid;grid-template-columns:1fr 1fr}
 .login>div{padding:54px 40px;display:grid;justify-items:center;gap:14px;text-align:center}
 .login>div+div{border-left:1px solid var(--ln)}
+/* ---- iOS figures: native layout, Cowtail palette. A 393 pt phone draws 320 px wide, so 44 pt is 36 px. ---- */
+.ios{--bg:#0e0e10;--cell:#1c1c1f;--sheet:#161618;--sep:#ffffff1c;--fill:#ffffff14;--mut:#8c8c96;--tx:#e8e8ea;--acc:#b8242c;--acct:#ec6168;--ok:#2e9c52;--warn:#d4870a;--info:#3b7ad6;font-size:13px}
+@media (prefers-color-scheme:light){
+ .ios{--bg:#f2f0eb;--cell:#fff;--sheet:#f7f6f3;--sep:#0000001a;--fill:#0000000d;--mut:#63636f;--tx:#212126;--acct:#b8242c;--sf2:#ecebe7;--ln:#0000001a;--ln2:#00000026}
+ .ios .apple{background:#000;color:#fff}
+}
+.ios .s{font-size:11px}
+.ios .sb{padding:11px 26px 0}
+.ios .src{background:var(--fill);border:0;border-radius:7px;width:26px;height:26px}
+.nb{display:flex;align-items:center;gap:6px;min-height:44px;padding:2px 10px;position:relative}
+.nb .sp{flex:1}
+.nb .ti{position:absolute;left:0;right:0;text-align:center;font-weight:600;font-size:14px;pointer-events:none}
+.bk{display:flex;align-items:center;gap:2px;height:36px;color:var(--acct);font-size:13.5px}
+.ios .bk svg:not(.ch){width:19px;height:19px}
+.tg{display:flex;background:var(--cell);border-radius:99px;box-shadow:0 1px 4px #0003}
+.tb{width:36px;height:36px;border-radius:50%;border:0;background:none;color:var(--tx);display:grid;place-items:center;padding:0;cursor:pointer}
+.ios .tb svg:not(.ch),.ios .bc svg:not(.ch){width:17px;height:17px}
+.tt{height:36px;border:0;background:var(--cell);color:var(--tx);border-radius:99px;padding:0 14px;font:inherit;font-size:13px;box-shadow:0 1px 4px #0003}
+.lt{font-size:27px;font-weight:700;padding:0 16px 4px;letter-spacing:-.01em}
+.lst{padding:0 12px 18px;flex:1}
+.hd{padding:2px 4px 0}
+.sh{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.02em;color:var(--mut);padding:16px 14px 5px;min-height:20px}
+.sh .bc{margin:-10px -8px -10px 0}
+.ft{font-size:10.5px;color:var(--mut);padding:5px 14px 0}
+.grp{background:var(--cell);border-radius:14px;overflow:hidden}
+.cell{display:flex;gap:10px;align-items:center;min-height:36px;padding:7px 12px;position:relative}
+.cell.tp{align-items:flex-start}
+.cell+.cell::before{content:"";position:absolute;top:0;left:12px;right:0;border-top:1px solid var(--sep)}
+.cell.ic+.cell::before,.cell+.cell.ic::before{left:48px}
+.cell>.v{color:var(--mut);white-space:nowrap;flex:none;display:flex;gap:4px;align-items:center}
+.cell .t{font-weight:500}
+.chv{color:var(--mut);opacity:.7;width:11px!important;height:11px!important;flex:none}
+.cell.btn{color:var(--acct);justify-content:center}
+.cell.des{color:var(--acct)}
+.pill{background:var(--fill);border-radius:7px;padding:3px 8px;font:12px "DM Mono",monospace;color:var(--tx)}
+.ios .sw{width:34px;height:20px;border-radius:10px;background:var(--fill)}
+.ios .sw::after{width:16px;height:16px;box-shadow:0 1px 2px #0004}
+.ios .sw.on{background:var(--ok)}.ios .sw.on::after{left:16px}
+/* system buttons */
+.bc{width:36px;height:36px;border-radius:50%;border:0;background:var(--fill);color:var(--tx);display:grid;place-items:center;padding:0;flex:none;cursor:pointer}
+.bc.pro,.bt.pro{background:var(--acc);color:#fff}
+.bc.des,.bt.des{color:var(--acct)}
+.bc.ok{color:var(--ok)}
+.bc[disabled]{opacity:.35}
+.bt{min-height:30px;border-radius:99px;border:0;background:var(--fill);color:var(--tx);font:inherit;font-size:12.5px;font-weight:500;padding:0 13px;cursor:pointer}
+.bt.lg{min-height:40px;width:100%;font-size:13.5px;font-weight:600}
+.bt.pl{background:none;color:var(--acct)}
+.apple{background:#fff;color:#000}
+/* pinned action area, above the tab bar */
+.abar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--sep);background:var(--bg)}
+.abar .bt{white-space:nowrap}
+.abar .lbl{font:9.5px "DM Mono",monospace;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;width:100%;flex:none}
+/* ContentUnavailableView */
+.cuv{display:grid;justify-items:center;gap:4px;text-align:center;padding:34px 20px 22px}
+.ios .cuv svg:not(.ch){width:38px;height:38px;color:var(--mut);stroke-width:1.6;margin-bottom:6px}
+.cuv b{font-size:16px}
+/* swipe actions and context menu */
+.swp{display:flex;overflow:hidden}
+.swp>.cell{flex:none;width:100%}
+.sa{flex:none;width:70px;display:grid;place-items:center;align-content:center;gap:3px;color:#fff;font-size:10px;font-weight:600}
+.ios .sa svg:not(.ch){width:16px;height:16px}
+.menu{background:var(--cell);border-radius:14px;overflow:hidden;width:230px;box-shadow:0 12px 30px #0006}
+.menu>div{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-top:1px solid var(--sep);min-height:36px}
+.menu>div:first-child{border:0}
+.menu>.gap{border-top:6px solid var(--fill);padding:0;min-height:0}
+.menu>.gap+div{border:0}
+/* sheets and alerts */
+.ios .dim{background:var(--bg);opacity:1;position:relative;padding:12px 16px}
+.ios .dim::after{content:"";position:absolute;inset:0;background:#0008}
+.ios .sheet{background:var(--sheet);border-radius:22px 22px 0 0;border:0;padding:6px 12px 18px;flex:1;margin-top:-14px;position:relative}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--mut);opacity:.5;margin:0 auto 4px}
+.ios .sheet .nb{padding:0}
+.alert{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:238px;background:var(--cell);border-radius:22px;padding:16px 14px 12px;text-align:center;box-shadow:0 12px 30px #0007;display:grid;gap:8px}
+.alert b{font-size:14px}
+.alert .fld{background:var(--fill);border:0;text-align:left}
+.alert .bts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.alert .bts .bt{min-height:36px}
+.ios .seg{border:0;background:var(--fill);border-radius:99px;padding:2px}
+.ios .seg span{border-radius:99px}
+.ios .seg .on{background:var(--cell);box-shadow:0 1px 3px #0003}
+.ios .fld{background:none;border:0;padding:0;min-height:0;color:var(--tx)}
+.ios pre{background:var(--fill);border-left:0;border-radius:8px;color:var(--tx)}
+.ios.phone{position:relative}
+.ios .node{border:0;padding:8px 12px;position:relative}
+.ios .node+.node{border-top:1px solid var(--sep)}
+.ios .tl li{border-color:var(--sep)}
+/* iOS 26 floating tab bar */
+.ios .tabs{margin:0 14px 12px;border:0;border-radius:99px;background:var(--cell);padding:6px 4px;box-shadow:0 4px 16px #0004}
+.ios .tabs span{font-size:9px}
+.pair{display:flex;gap:16px;flex-wrap:wrap}
+.fn{font-size:12px;opacity:.75;max-width:320px;margin:8px 0 0;line-height:1.45}
+.rh{font-size:14px;margin:22px 0 0;font-weight:600}
 </style>
 </head>
 <body>
@@ -169,6 +261,12 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
 <symbol id="refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
 <symbol id="box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
 <symbol id="face" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9v1.5M15 9v1.5M12 9v4h-1M9 15.5c1.8 1.3 4.2 1.3 6 0"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="mute" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></symbol>
+<symbol id="up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+<symbol id="okc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+<symbol id="updown" viewBox="0 0 24 24"><path d="m7 9 5-5 5 5M7 15l5 5 5-5"/></symbol>
+<symbol id="apple" viewBox="0 0 24 24"><path style="fill:currentColor;stroke:none" d="M12 7c-1.5-1-4.5-1.2-6 1.2-1.6 2.6-.8 7 1.4 9.6 1.1 1.3 2.2 1.6 3.2 1 .9-.5 1.9-.5 2.8 0 1 .6 2.1.3 3.2-1 1-1.2 1.7-2.6 2-3.8-2.6-1.2-2.8-5-.5-6.3C16.5 5.9 13.6 6 12 7zM12 6.5c0-2 1.2-3.3 3-3.5 0 1.9-1.3 3.3-3 3.5z"/></symbol>
 </svg>
 
 <nav class="jump"><a href="#ios">iOS app</a><a href="#push">Notifications</a><a href="#web">Web app</a><a href="#later">Later tickets</a><a href="#none">No screen</a><a href="#rules">Rules</a></nav>
@@ -176,142 +274,420 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
 
 <!-- ============================ iOS ============================ -->
 <h2 id="ios">iOS app</h2>
+<p class="legend">Native iOS layout, following Apple's Human Interface Guidelines: see <a href="#rules-ios">iOS rules</a>. Light and dark follow the system appearance.</p>
 <div class="grid">
 
-<figure id="ios-inbox"><figcaption>Inbox <span class="k">COW-12</span><span class="k">COW-32</span></figcaption>
-<div class="m phone" data-tab="Inbox">
- <div class="nt">Inbox <span class="chips"><span class="chip"><i class="dot"></i>cluster</span></span></div>
- <div class="pb">
-  <div class="cnt"><span><b>3</b>need you</span><span><b>4</b>with Hermes</span><span><b>9</b>handled</span></div>
-  <div class="lab"><span>Needs you</span><span>3</span></div>
-  <div class="row"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Restart ingress in edge?</div><div class="s mono">kubectl rollout restart deploy/ingress -n edge</div><div class="s">Hermes · approval · <span class="c-now">expires in 4:12</span></div></div><div class="acts"><button class="ib yes" title="Approve"><svg><use href="#check"/></svg></button><button class="ib no" title="Deny"><svg><use href="#x"/></svg></button><button class="ib" title="Snooze"><svg><use href="#clock"/></svg></button></div></div>
-  <div class="row"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">OSD 4 is 88% full. Rebalance now or wait for the new disk?</div><div class="s">Hermes · question · <span class="c-now">now</span></div><div class="acts" style="margin-top:6px"><button class="ob">Rebalance now</button><button class="ob">Wait</button><button class="ib" title="Reply"><svg><use href="#reply"/></svg></button><button class="ib" title="Snooze"><svg><use href="#clock"/></svg></button></div></div></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubePodCrashLooping <span class="chip">×6</span></div><div class="s">media / transcoder</div><div class="s">Alertmanager · alert · <span class="c-now">investigation failed</span></div></div><div class="acts"><button class="ib" title="Acknowledge"><svg><use href="#ack"/></svg></button><button class="ib" title="Snooze"><svg><use href="#clock"/></svg></button></div></div>
-  <div class="lab"><span>Hermes is on it</span><span>4</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">NodeMemoryPressure · node-2</div><div class="s"><span class="c-info">Hermes</span> Checking top memory consumers · 2m</div></div></div>
-  <div class="row"><span class="src"><svg><use href="#clock"/></svg></span><div class="g"><div class="t">Nightly backup verify failed</div><div class="s"><span class="c-info">Hermes</span> Re-running against a fresh snapshot · 9m</div></div></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephHealthWarn</div><div class="s"><span class="c-info">Hermes</span> Waiting 10m for PGs to settle · 14m</div></div></div>
-  <div class="row"><span class="src"><svg><use href="#box"/></svg></span><div class="g"><div class="t">Merge queue stalled 40m</div><div class="s">Factory · failure · queued</div></div></div>
-  <div class="lab"><span>Handled · 24h</span><span>9</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubeDeploymentReplicasMismatch</div><div class="s">apps / api · 14:02</div></div><span class="chip c-ok">fixed</span></div>
-  <div class="row"><span class="src"><svg><use href="#box"/></svg></span><div class="g"><div class="t">web v1.8.2 deployed</div><div class="s">Deployer · 11:47</div></div><span class="chip">done</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">TargetDown</div><div class="s">monitoring / node-exporter · 08:15</div></div><span class="chip">noise</span></div>
+<figure id="ios-inbox"><figcaption>Inbox <span class="k">COW-12</span><span class="k">COW-32</span><span class="k">COW-59</span><span class="k">COW-60</span><span class="k">COW-72</span></figcaption>
+<div class="m phone ios" data-tab="Inbox">
+ <div class="nb"><span class="sp"></span><span class="tg"><button class="tb" title="Start a maintenance window"><svg><use href="#wrench"/></svg></button><button class="tb" title="Settings"><svg><use href="#gear"/></svg></button></span></div>
+ <div class="lt">Inbox</div>
+ <div class="lst">
+  <div class="chips hd"><span class="chip"><i class="dot"></i>cluster</span><span class="chip"><i class="dot"></i>hermes</span></div>
+  <div class="sh"><span>Needs you</span><span>3</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Restart ingress in edge?</div><div class="s mono">kubectl rollout restart deploy/ingress -n edge</div><div class="s">Hermes · approval · <span class="c-now">expires in 4:12</span></div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">OSD 4 is 88% full. Rebalance now or wait for the new disk?</div><div class="s">Hermes · question · <span class="c-now">now</span></div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubePodCrashLooping <span class="chip">×6</span></div><div class="s">media / transcoder</div><div class="s">Alertmanager · alert · <span class="c-now">investigation failed</span></div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+  <div class="sh"><span>Hermes is on it</span><span>4</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">NodeMemoryPressure · node-2</div><div class="s"><span class="c-info">Hermes</span> Checking top memory consumers · 2m</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#clock"/></svg></span><div class="g"><div class="t">Nightly backup verify failed</div><div class="s"><span class="c-info">Hermes</span> Re-running against a fresh snapshot · 9m</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephHealthWarn</div><div class="s"><span class="c-info">Hermes</span> Waiting 10m for PGs to settle · 14m</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#box"/></svg></span><div class="g"><div class="t">Merge queue stalled 40m</div><div class="s">Factory · failure · queued</div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+ </div>
+</div>
+<p class="fn">Upcoming is empty here, so its section is hidden. Rows carry no buttons: a tap opens the item, a swipe or long press acts on it.</p></figure>
+
+<figure id="ios-inbox-clear"><figcaption>Inbox, all clear <span class="k">COW-60</span><span class="k">COW-72</span></figcaption>
+<div class="m phone ios" data-tab="Inbox">
+ <div class="nb"><span class="sp"></span><span class="tg"><button class="tb" title="Start a maintenance window"><svg><use href="#wrench"/></svg></button><button class="tb" title="Settings"><svg><use href="#gear"/></svg></button></span></div>
+ <div class="lt">Inbox</div>
+ <div class="lst">
+  <div class="chips hd"><span class="chip"><i class="dot"></i>cluster</span><span class="chip"><i class="dot"></i>hermes</span></div>
+  <div class="cuv"><svg><use href="#okc"/></svg><b>All clear</b><span class="s">Nothing needs you.</span></div>
+  <div class="sh"><span>Hermes is on it</span><span>1</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#clock"/></svg></span><div class="g"><div class="t">Nightly backup verify failed</div><div class="s"><span class="c-info">Hermes</span> Re-running against a fresh snapshot · 9m</div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+  <div class="sh"><span>Upcoming</span><span>1</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Check the new disk shipment</div><div class="s">Reminder · Fri 09:00</div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+ </div>
+</div>
+<p class="fn">The all-clear <code>ContentUnavailableView</code> takes the place of an empty Needs you. With nothing in any section it stands alone.</p></figure>
+
+<figure id="ios-inbox-later"><figcaption>Inbox with a window, an incident and snoozes <span class="k">COW-17</span><span class="k">COW-18</span><span class="k">COW-19</span><span class="k">COW-14</span><span class="k">COW-16</span><span class="k">COW-60</span></figcaption>
+<div class="m phone ios" data-tab="Inbox">
+ <div class="nb"><span class="sp"></span><span class="tg"><button class="tb" title="Start a maintenance window"><svg><use href="#wrench"/></svg></button><button class="tb" title="Settings"><svg><use href="#gear"/></svg></button></span></div>
+ <div class="lt">Inbox</div>
+ <div class="lst">
+  <div class="chips hd"><span class="chip"><i class="dot"></i>cluster</span><span class="chip"><i class="dot"></i>hermes</span></div>
+  <div class="grp" style="margin-top:12px;background:#d4870a26">
+   <div class="cell ic"><span class="src c-today"><svg><use href="#wrench"/></svg></span><div class="g"><div class="t">Cluster upgrade</div><div class="s">All alerts silenced · 42m left</div></div><button class="bc des" title="End window"><svg><use href="#stop"/></svg></button></div>
+  </div>
+  <div class="sh"><span>Needs you</span><span>2</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#layers"/></svg></span><div class="g"><div class="t">Storage outage</div><div class="s">Incident · 11 items · <span class="c-now">now</span> · 47m</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Gateway is not answering</div><div class="s">Cowtail · failure · <span class="c-now">now</span></div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+  <div class="sh"><span>Hermes is on it</span><span>1</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#clock"/></svg></span><div class="g"><div class="t">Nightly backup verify failed</div><div class="s"><span class="c-info">Hermes</span> Re-running against a fresh snapshot · 9m</div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+  <div class="sh"><span>Upcoming</span><span>3</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephOSDNearFull · osd.4</div><div class="s">Today 13:41</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Check the new disk shipment</div><div class="s">Reminder · Fri 09:00</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#box"/></svg></span><div class="g"><div class="t">Merge queue stalled 40m</div><div class="s">Mon 09:00</div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+ </div>
+</div>
+<p class="fn">The maintenance banner is the first row, above Needs you. The script action (Restart Hermes gateway <span class="tag">COW-16</span>) moves to the row's context menu and the item page.</p></figure>
+
+<figure id="ios-row-actions"><figcaption>Swipe actions <span class="k">COW-60</span></figcaption>
+<div class="m phone ios short">
+ <div class="lst" style="padding-top:6px">
+  <div class="sh"><span>Trailing: acknowledge (full swipe), then snooze</span></div>
+  <div class="grp swp"><div class="cell tp ic" style="margin-left:-140px"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubePodCrashLooping <span class="chip">×6</span></div><div class="s">media / transcoder</div></div></div><span class="sa" style="background:var(--warn)"><svg><use href="#clock"/></svg>Snooze</span><span class="sa" style="background:var(--ok)"><svg><use href="#ack"/></svg>Acknowledge</span></div>
+  <div class="sh"><span>Leading: approve. No full trailing swipe here</span></div>
+  <div class="grp swp"><span class="sa" style="background:var(--ok)"><svg><use href="#check"/></svg>Approve</span><div class="cell tp ic"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Restart ingress in edge?</div><div class="s">Hermes · approval</div></div></div></div>
+  <div class="sh"><span>Leading: unsnooze</span></div>
+  <div class="grp swp"><span class="sa" style="background:var(--info)"><svg><use href="#refresh"/></svg>Unsnooze</span><div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephOSDNearFull · osd.4</div><div class="s">Today 13:41</div></div></div></div>
+  <p class="s" style="padding:12px 4px 0;margin:0">Success haptic when the server accepts, error haptic and roll back when it refuses.</p>
  </div>
 </div></figure>
 
-<figure id="ios-item"><figcaption>Item detail <span class="k">COW-12</span><span class="k">COW-32</span></figcaption>
-<div class="m phone" data-tab="Inbox">
- <div class="nt sm"><svg><use href="#back"/></svg> Inbox</div>
- <div class="pb">
-  <div class="row" style="border:0;padding-bottom:4px"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="s">Alertmanager</div><div class="t" style="font-size:15px">KubePodCrashLooping</div><div class="s">media / transcoder-7d9f</div></div></div>
-  <div class="chips"><span class="chip">alert</span><span class="chip c-now">now</span><span class="chip c-ok">resolved</span><span class="chip">×6</span>
-   <span class="acts" style="margin-left:auto"><button class="ib" title="Acknowledge"><svg><use href="#ack"/></svg></button><button class="ib" title="Snooze"><svg><use href="#clock"/></svg></button><button class="ib" title="Open in Grafana"><svg><use href="#link"/></svg></button></span></div>
-  <div class="lab"><span>Timeline</span></div>
-  <ol class="tl">
-   <li class="al"><time>09:12</time><div class="ty">created</div>Fired, critical</li>
-   <li><time>09:12</time><div class="ty">dispatched</div>Investigation sent to Hermes</li>
-   <li><time>09:12</time><div class="ty">notified</div>Push sent, time-sensitive</li>
-   <li class="al"><time>09:17</time><div class="ty">repeated</div>Fired again, ×6</li>
-   <li class="h"><time>09:19</time><div class="ty">hermes_update</div>OOMKilled 4 times. Limit 512Mi, peak 610Mi.</li>
-   <li class="u"><time>09:20</time><div class="ty">action_taken</div>You acknowledged</li>
-   <li><time>09:20</time><div class="ty">state_changed</div>open → acked</li>
-   <li><time>09:22</time><div class="ty">notified</div>Re-send skipped: acknowledged</li>
-   <li class="h"><time>09:31</time><div class="ty">hermes_update</div>Raised the limit to 1Gi. Pod stable for 5m.</li>
-   <li class="o"><time>09:40</time><div class="ty">resolved</div>Recovered · fixed</li>
-  </ol>
-  <div class="lab"><span>Details</span></div>
-  <p style="margin:8px 0">Pod <span class="mono">transcoder-7d9f</span> restarted 6 times in 10 minutes.</p>
-  <div class="chips"><span class="chip">namespace=media</span><span class="chip">severity=critical</span><span class="chip">container=worker</span></div>
-  <div class="kv" style="margin-top:8px"><span>Grafana panel</span><svg><use href="#link"/></svg></div>
-  <div class="kv"><span>Runbook</span><svg><use href="#link"/></svg></div>
+<figure id="ios-menu"><figcaption>Long press on a row <span class="k">COW-60</span></figcaption>
+<div class="m phone ios short" style="min-height:440px">
+ <div class="lst" style="padding:14px 16px;background:#0005;display:grid;gap:10px;align-content:start">
+  <div class="grp"><div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubePodCrashLooping <span class="chip">×6</span></div><div class="s">media / transcoder</div><div class="s">Alertmanager · alert · <span class="c-now">investigation failed</span></div></div></div></div>
+  <div class="menu">
+   <div>Acknowledge <svg><use href="#ack"/></svg></div>
+   <div>Snooze… <svg><use href="#clock"/></svg></div>
+   <div class="gap"></div>
+   <div>Retry investigation <svg><use href="#refresh"/></svg></div>
+   <div>Mark as noise <svg><use href="#mute"/></svg></div>
+   <div>Escalate <svg><use href="#up"/></svg></div>
+  </div>
  </div>
-</div></figure>
+</div>
+<p class="fn">Exactly the item's <code>availableActions</code>, then its alert calls, with the row as the preview.</p></figure>
+
+<figure id="ios-item"><figcaption>Item detail <span class="k">COW-12</span><span class="k">COW-32</span><span class="k">COW-59</span></figcaption>
+<div class="m phone ios" data-tab="Inbox">
+ <div class="nb"><span class="bk"><svg><use href="#back"/></svg>Inbox</span></div>
+ <div class="lst">
+  <div class="cell tp" style="padding:4px 4px 0"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="s">Alertmanager</div><div class="t" style="font-size:17px;font-weight:700">KubePodCrashLooping</div><div class="s mono">media / transcoder-7d9f</div></div></div>
+  <div class="chips" style="padding:8px 4px 0"><span class="chip">alert</span><span class="chip c-now">now</span><span class="chip">open</span><span class="chip">×6</span><span class="chip"><svg><use href="#layers"/></svg>Storage outage</span></div>
+  <div class="sh"><span>Details</span></div>
+  <div class="grp">
+   <div class="cell tp"><div class="g">Pod <span class="mono">transcoder-7d9f</span> restarted 6 times in 10 minutes.</div></div>
+   <div class="cell tp"><div class="g"><div class="s">Root cause</div>OOMKilled 4 times. Limit 512Mi, peak 610Mi.</div></div>
+   <div class="cell tp"><div class="g"><div class="s">Action</div>Hermes raised the limit to 1Gi at 09:31.</div></div>
+   <div class="cell"><div class="chips"><span class="chip">namespace=media</span><span class="chip">severity=critical</span><span class="chip">container=worker</span></div></div>
+  </div>
+  <div class="grp" style="margin-top:10px">
+   <div class="cell"><span class="g">Grafana panel</span><svg class="chv"><use href="#link"/></svg></div>
+   <div class="cell"><span class="g">Runbook</span><svg class="chv"><use href="#link"/></svg></div>
+   <div class="cell"><span class="g">Cowtail Web</span><svg class="chv"><use href="#link"/></svg></div>
+  </div>
+  <div class="sh"><span>Timeline</span></div>
+  <div class="grp" style="padding:10px 12px">
+   <ol class="tl" style="margin:0">
+    <li class="al"><time>09:12</time><div class="ty">created</div>Fired, critical</li>
+    <li><time>09:12</time><div class="ty">dispatched</div>Investigation sent to Hermes</li>
+    <li class="al"><time>09:17</time><div class="ty">repeated</div>Fired again, ×6</li>
+    <li class="h"><time>09:19</time><div class="ty">hermes_update</div>OOMKilled 4 times. Limit 512Mi, peak 610Mi.</li>
+    <li class="h"><time>09:31</time><div class="ty">hermes_update</div>Raised the limit to 1Gi.</li>
+   </ol>
+  </div>
+  <div class="sh"><span>Memory · 1h</span></div>
+  <div class="grp" style="padding:10px 12px"><svg class="ch" viewBox="0 0 280 50" style="width:100%;height:50px;display:block" aria-label="Memory of transcoder-7d9f over the last hour"><path d="M0 40h280" stroke="var(--sep)"/><path d="M0 12h280" stroke="var(--acct)" stroke-dasharray="3 3" opacity=".6"/><polyline fill="none" stroke="var(--info)" stroke-width="2" points="0,36 30,30 60,22 75,8 80,38 110,28 135,9 140,38 170,26 190,10 195,38 225,30 250,27 280,26"/></svg><div class="leg" style="padding-bottom:0"><span><i style="background:var(--info)"></i>memory</span><span><i style="background:var(--acct)"></i>512Mi limit</span></div></div>
+  <div class="sh"><span>Past occurrences</span><span>2</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Thu 19 Nov · 14m</span><span class="chip c-ok">fixed</span><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell"><span class="g">Tue 10 Nov · 3m</span><span class="chip">noise</span><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+ </div>
+ <div class="abar"><button class="bc pro" title="Acknowledge"><svg><use href="#ack"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button><span class="sp" style="flex:1"></span><button class="bc" title="Retry investigation"><svg><use href="#refresh"/></svg></button><button class="bc" title="Mark as noise"><svg><use href="#mute"/></svg></button><button class="bc" title="Escalate"><svg><use href="#up"/></svg></button></div>
+</div>
+<p class="fn">Answer first: header and badges, then the details, root cause and action, then timeline, graph and past occurrences. The actions are pinned above the tab bar and never scroll away.</p></figure>
+
+<figure id="ios-item-actions"><figcaption>Item action area, by kind <span class="k">COW-59</span><span class="k">COW-16</span></figcaption>
+<div class="m phone ios short">
+ <div class="lst" style="padding:8px 0 14px;display:grid;gap:10px">
+  <div class="abar"><span class="lbl">approval</span><button class="bc pro" title="Approve"><svg><use href="#check"/></svg></button><button class="bc des" title="Deny"><svg><use href="#x"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button></div>
+  <div class="abar"><span class="lbl">question</span><button class="bt">Rebalance now</button><button class="bt">Wait</button><button class="bc" title="Reply"><svg><use href="#reply"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button></div>
+  <div class="abar"><span class="lbl">snoozed</span><button class="bc" title="Unsnooze"><svg><use href="#refresh"/></svg></button></div>
+  <div class="abar"><span class="lbl">failure</span><button class="bt"><svg style="vertical-align:-2px;width:12px;height:12px"><use href="#play"/></svg> Restart Hermes gateway</button><button class="bc" title="Acknowledge"><svg><use href="#ack"/></svg></button><button class="bc" title="Snooze"><svg><use href="#clock"/></svg></button></div>
+ </div>
+</div>
+<p class="fn">Every control has a 44 × 44 pt hit area. Text stays on a question's answers and a script action.</p></figure>
+
+<figure id="ios-incident"><figcaption>Incident <span class="k">COW-18</span><span class="k">COW-59</span><span class="k">COW-60</span></figcaption>
+<div class="m phone ios" data-tab="Inbox">
+ <div class="nb"><span class="bk"><svg><use href="#back"/></svg>Inbox</span><span class="sp"></span><span class="tg"><button class="tb" title="Add an item"><svg><use href="#plus"/></svg></button><button class="tb" title="Request postmortem again"><svg><use href="#refresh"/></svg></button><button class="tb" title="Resolve"><svg><use href="#check"/></svg></button></span></div>
+ <div class="lst">
+  <div class="cell tp" style="padding:4px 4px 0"><span class="src"><svg><use href="#layers"/></svg></span><div class="g"><div class="s">Incident · 09:12 – now</div><div class="t" style="font-size:17px;font-weight:700">Storage outage</div></div></div>
+  <div class="chips" style="padding:8px 4px 0"><span class="chip">open</span><span class="chip">11 items</span><span class="chip c-now">now</span><span class="chip">47m</span></div>
+  <div class="sh"><span>Timeline</span></div>
+  <div class="grp" style="padding:10px 12px">
+   <ol class="tl" style="margin:0">
+    <li class="al"><time>09:12</time><div class="ty">opened</div>CephHealthWarn joined 3 alerts</li>
+    <li class="h"><time>09:20</time><div class="ty">hermes_update</div>osd.4 near full, PGs degraded</li>
+    <li><time>09:41</time><div class="ty">member_added</div>You added Nightly backup verify failed</li>
+   </ol>
+  </div>
+  <div class="sh"><span>Postmortem</span><span>Hermes · 09:58</span></div>
+  <div class="grp"><div class="cell tp md"><div class="g"><h4 style="margin-top:0">Cause</h4><p>osd.4 filled to 88%, and recovery stalled behind a 2-node quorum.</p></div></div></div>
+  <div class="sh"><span>Members</span><span>11</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephHealthWarn</div><div class="s">storage · 09:12</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephOSDNearFull · osd.4</div><div class="s">storage · 09:14</div></div><svg class="chv"><use href="#chev"/></svg></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#clock"/></svg></span><div class="g"><div class="t">Nightly backup verify failed</div><div class="s">cron · 09:41</div></div><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+ </div>
+</div>
+<p class="fn">Header, timeline, postmortem, members, as on web. Page actions sit in the navigation bar; members swipe like inbox rows.</p></figure>
 
 <figure id="ios-cluster"><figcaption>Cluster <span class="k">COW-12</span><span class="k">COW-11</span><span class="k">COW-20</span></figcaption>
-<div class="m phone" data-tab="Cluster">
- <div class="nt">Cluster <span class="chip c-ok"><i class="dot"></i>pipeline ok</span></div>
- <div class="pb">
-  <div class="s" style="padding-top:4px">Last Watchdog 2m ago</div>
-  <div class="lab"><span>Nodes</span><span>3 ready</span></div>
-  <div class="nodes"></div>
-  <div class="lab"><span>Ceph</span><span class="c-ok">HEALTH_OK</span></div>
-  <div class="kv"><span>OSDs</span><span>6 / 6 up</span></div>
-  <div class="bl" style="grid-template-columns:50px 1fr 96px;padding:6px 0"><span>Storage</span><div class="bar"><i style="width:61%"></i></div><span>14.6 / 24 TiB</span></div>
-  <div class="lab"><span>Firing by namespace</span><span>7</span></div>
-  <div class="kv"><span>media</span><span>3</span></div>
-  <div class="kv"><span>storage</span><span>2</span></div>
-  <div class="kv"><span>monitoring</span><span>1</span></div>
-  <div class="kv"><span>edge</span><span>1</span></div>
-  <div class="lab"><span>Volume · 7 days</span><span>111</span></div>
-  <div class="vol"></div>
-  <div class="leg"><span><i style="background:var(--acc)"></i>alertmanager</span><span><i style="background:var(--info)"></i>hermes</span><span><i style="background:var(--dim)"></i>other</span></div>
-  <div class="lab"><span>Noisiest</span></div>
-  <div class="kv"><span>TargetDown · node-exporter</span><span>×18 · 94% noise</span></div>
-  <div class="kv"><span>KubePodCrashLooping · transcoder</span><span>×11 · 9% noise</span></div>
-  <div class="kv"><span>CephHealthWarn</span><span>×7 · 43% noise</span></div>
- </div>
-</div></figure>
-
-<figure id="ios-history"><figcaption>History <span class="k">COW-12</span><span class="k">COW-11</span></figcaption>
-<div class="m phone" data-tab="History">
- <div class="nt">History</div>
- <div class="pb">
-  <div style="display:flex;gap:6px;margin-top:8px"><div class="fld g"><svg><use href="#search"/></svg>Search</div><button class="ib" title="Filter"><svg><use href="#filter"/></svg></button></div>
-  <div class="chips" style="margin-top:8px"><span class="chip">alertmanager <svg><use href="#x"/></svg></span><span class="chip">last 7 days <svg><use href="#x"/></svg></span></div>
-  <div class="lab"><span>Outcomes</span><span>92 resolved</span></div>
-  <div class="mixes"></div>
-  <div class="lab"><span>Time to resolve</span><span>median · p90</span></div>
-  <div class="kv"><span>alert</span><span class="mono">14m · 2h 10m</span></div>
-  <div class="kv"><span>failure</span><span class="mono">38m · 5h 02m</span></div>
-  <div class="kv"><span>approval</span><span class="mono">1m 40s · 4m</span></div>
-  <div class="kv"><span>Noise rate</span><span class="mono">19.6%</span></div>
-  <div class="kv"><span class="t">Roundup</span><span>Today 08:00 <svg><use href="#chev"/></svg></span></div>
-  <div class="lab"><span>Mon 23 Nov</span><span>6</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubePodCrashLooping</div><div class="s">media / transcoder · 09:12 · 28m</div></div><span class="chip c-ok">fixed</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">TargetDown</div><div class="s">monitoring / node-exporter · 08:15 · 3m</div></div><span class="chip">noise</span></div>
-  <div class="lab"><span>Sun 22 Nov</span><span>9</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubeNodeNotReady · node-3</div><div class="s">22:40 · 1h 12m</div></div><span class="chip c-today">escalated</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephHealthWarn</div><div class="s">storage · 17:03 · 11m</div></div><span class="chip c-info">self-resolved</span></div>
- </div>
-</div></figure>
-
-<figure id="ios-settings"><figcaption>Settings <span class="k">COW-12</span><span class="k">COW-9</span></figcaption>
-<div class="m phone" data-tab="Settings">
- <div class="nt">Settings</div>
- <div class="pb">
-  <div class="lab"><span>Account</span></div>
-  <div class="kv"><span>Signed in with Pocket ID</span><button class="ib" title="Sign out"><svg><use href="#out"/></svg></button></div>
-  <div class="lab"><span>Notifications</span></div>
-  <div class="kv"><span>Quiet hours<div class="s">Holds back <span class="c-today">today</span> pushes. <span class="c-now">now</span> always pushes.</div></span><span class="sw on"></span></div>
-  <div class="kv"><span>From</span><span class="mono">22:00</span></div>
-  <div class="kv"><span>To</span><span class="mono">07:30</span></div>
-  <div class="kv"><span>Require Face ID for approvals</span><span class="sw on"></span></div>
-  <div class="kv"><span>Daily roundup</span><span class="sw on"></span></div>
-  <div class="lab"><span>Urgency overrides</span><button class="ib" title="Add override" style="width:20px;height:20px"><svg><use href="#plus"/></svg></button></div>
-  <div class="kv"><span class="mono">factory</span><span class="chip">whenever</span></div>
-  <div class="kv"><span class="mono">hermes:failure</span><span class="chip c-now">now</span></div>
-  <div class="kv"><span class="mono">deployer:done</span><span class="chip">whenever</span></div>
-  <div class="lab"><span>Appearance</span></div>
-  <div class="kv"><span>Theme</span><span>Cowtail <svg><use href="#chev"/></svg></span></div>
-  <div class="kv"><span>Mode</span><span>System <svg><use href="#chev"/></svg></span></div>
-  <div class="lab"><span>Devices</span></div>
-  <div class="kv"><span>iPhone</span><span>this device</span></div>
-  <div class="kv"><span>iPad</span><span>seen 3d ago</span></div>
- </div>
-</div></figure>
-
-<figure id="ios-signin"><figcaption>Signed out <span class="k">COW-34</span></figcaption>
-<div class="m phone short">
- <div class="nt">Settings</div>
- <div class="pb">
-  <div class="lab"><span>Account</span></div>
-  <div style="display:grid;gap:8px;padding:12px 0 4px">
-   <button class="ob" style="height:36px;background:#fff;color:#000;font-weight:600;border:0">Sign in with Apple</button>
-   <button class="ob" style="height:36px;font-weight:600">Sign in with Pocket ID</button>
+<div class="m phone ios" data-tab="Cluster">
+ <div class="nb"></div>
+ <div class="lt">Cluster</div>
+ <div class="lst">
+  <div class="grp" style="margin-top:8px"><div class="cell"><span class="g">Alert pipeline<div class="s">Last Watchdog 2m ago</div></span><span class="chip c-ok"><i class="dot"></i>ok</span></div></div>
+  <div class="sh"><span>Nodes</span><span>3 ready</span></div>
+  <div class="grp nodes"></div>
+  <div class="sh"><span>Ceph</span><span class="c-ok">HEALTH_OK</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">OSDs</span><span class="v">6 / 6 up</span></div>
+   <div class="cell"><div class="bl g" style="grid-template-columns:50px 1fr 90px;margin:0"><span>Storage</span><div class="bar"><i style="width:61%"></i></div><span>14.6 / 24 TiB</span></div></div>
   </div>
-  <div class="s">The second button shows only when the server lists an OIDC provider, and uses its name.</div>
+  <div class="sh"><span>Firing by namespace</span><span>7</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">media</span><span class="v">3</span></div>
+   <div class="cell"><span class="g">storage</span><span class="v">2</span></div>
+   <div class="cell"><span class="g">monitoring</span><span class="v">1</span></div>
+   <div class="cell"><span class="g">edge</span><span class="v">1</span></div>
+  </div>
+  <div class="sh"><span>Volume · 7 days</span><span>111</span></div>
+  <div class="grp" style="padding:4px 12px 2px"><div class="vol"></div><div class="leg"><span><i style="background:var(--acc)"></i>alertmanager</span><span><i style="background:var(--info)"></i>hermes</span><span><i style="background:var(--dim)"></i>other</span></div></div>
+  <div class="sh"><span>Noisiest</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">TargetDown · node-exporter</span><span class="v">×18 · 94%</span></div>
+   <div class="cell"><span class="g">KubePodCrashLooping · transcoder</span><span class="v">×11 · 9%</span></div>
+   <div class="cell"><span class="g">CephHealthWarn</span><span class="v">×7 · 43%</span></div>
+  </div>
+  <div class="ft">Share of each alert's firings marked noise.</div>
  </div>
 </div></figure>
+
+<figure id="ios-history"><figcaption>History <span class="k">COW-12</span><span class="k">COW-11</span><span class="k">COW-60</span><span class="k">COW-72</span></figcaption>
+<div class="m phone ios" data-tab="History">
+ <div class="nb"><span class="sp"></span><span class="tg"><button class="tb" title="Filter"><svg><use href="#filter"/></svg></button></span></div>
+ <div class="lt">History</div>
+ <div class="lst">
+  <div class="grp" style="background:var(--fill);border-radius:99px;margin-top:2px"><div class="cell" style="min-height:32px;color:var(--mut)"><svg><use href="#search"/></svg>Search</div></div>
+  <div class="chips" style="padding:8px 4px 0"><span class="chip">alertmanager <svg><use href="#x"/></svg></span><span class="chip">last 7 days <svg><use href="#x"/></svg></span></div>
+  <div class="sh"><span>Outcomes</span><span>92 resolved</span></div>
+  <div class="grp" style="padding:0 12px 10px"><div class="mixes"></div></div>
+  <div class="sh"><span>Time to resolve</span><span>median · p90</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">alert</span><span class="v mono">14m · 2h 10m</span></div>
+   <div class="cell"><span class="g">failure</span><span class="v mono">38m · 5h 02m</span></div>
+   <div class="cell"><span class="g">approval</span><span class="v mono">1m 40s · 4m</span></div>
+   <div class="cell"><span class="g">Noise rate</span><span class="v mono">19.6%</span></div>
+   <div class="cell"><span class="g">Roundup</span><span class="v">Today 08:00</span><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+  <div class="sh"><span>Mon 23 Nov</span><span>6</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubePodCrashLooping</div><div class="s">media / transcoder · 09:12 · 28m</div></div><span class="chip c-ok">fixed</span></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">TargetDown</div><div class="s">monitoring / node-exporter · 08:15 · 3m</div></div><span class="chip">noise</span></div>
+  </div>
+  <div class="sh"><span>Sun 22 Nov</span><span>9</span></div>
+  <div class="grp">
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubeNodeNotReady · node-3</div><div class="s">22:40 · 1h 12m</div></div><span class="chip c-today">escalated</span></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephHealthWarn</div><div class="s">storage · 17:03 · 11m</div></div><span class="chip c-info">self-resolved</span></div>
+  </div>
+ </div>
+</div>
+<p class="fn">Search is the system <code>.searchable</code> field. The filter button opens a sheet with the source, kind, outcome and range pickers; active filters show as removable chips.</p></figure>
+
+<figure id="ios-hermes"><figcaption>Hermes <span class="k">COW-14</span><span class="k">COW-16</span></figcaption>
+<div class="m phone ios" data-tab="Hermes">
+ <div class="nb"></div>
+ <div class="lt">Hermes</div>
+ <div class="lst">
+  <div class="grp" style="margin-top:8px">
+   <div class="cell"><span class="g">Heartbeat<div class="s mono">opus-5.5 · anthropic</div></span><span class="chip c-ok"><i class="dot"></i>38s ago</span></div>
+   <div class="cell"><span class="g">Platforms</span><span class="chips"><span class="chip c-ok">cowtail</span><span class="chip c-ok">telegram</span><span class="chip c-ok">api</span></span></div>
+  </div>
+  <div class="sh"><span>Cron</span><span>6 jobs</span></div>
+  <div class="grp">
+   <div class="cell tp"><div class="g"><div class="t">backup-verify <span class="chip c-now">failed</span></div><div class="s mono">0 3 * * * · ran 6h ago · next in 18h</div></div></div>
+   <div class="cell tp"><div class="g"><div class="t">roundup-digest <span class="chip c-ok">ok</span></div><div class="s mono">0 8 * * * · ran 1h ago · next in 23h</div></div></div>
+   <div class="cell tp"><div class="g"><div class="t">repo-sweep <span class="chip c-ok">ok</span></div><div class="s mono">*/30 * * * * · ran 11m ago · next in 19m</div></div></div>
+   <div class="cell"><span class="g">backup-verify failing ×2</span><svg class="chv"><use href="#chev"/></svg></div>
+  </div>
+  <div class="sh"><span>Kanban</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Blocked</span><span class="v c-today">2</span></div>
+   <div class="cell"><span class="g">Running</span><span class="v">1</span></div>
+  </div>
+  <div class="sh"><span>Budget</span><span>rate limit ok</span></div>
+  <div class="grp"><div class="cell"><div class="bl g" style="grid-template-columns:36px 1fr 40px;margin:0"><span>Today</span><div class="bar"><i style="width:62%"></i></div><span>62%</span></div></div></div>
+  <div class="sh"><span>Runbook · Services</span><span class="tag">COW-16</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Restart Hermes gateway<div class="s">Asks to confirm</div></span><button class="bc des" title="Run Restart Hermes gateway"><svg><use href="#play"/></svg></button></div>
+   <div class="cell"><span class="g">Restart script runner</span><button class="bc" title="Run Restart script runner"><svg><use href="#play"/></svg></button></div>
+  </div>
+  <div class="sh"><span>Runbook · Diagnostics</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Disk usage</span><button class="bc" title="Run Disk usage" disabled><svg><use href="#play"/></svg></button></div>
+  </div>
+  <div class="sh"><span>Run · Disk usage</span><span class="c-today">running · 0:07</span></div>
+  <pre>$ df -h /var/lib
+/dev/nvme0n1p2  916G  604G  266G  70% /
+▍</pre>
+  <div class="sh"><span>Recent answers</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Restart ingress in edge?</span><span class="v"><span class="c-ok">approved</span> · 09:42</span></div>
+   <div class="cell"><span class="g">Delete 14 stale PVCs?</span><span class="v"><span class="c-now">denied</span> · Sun</span></div>
+  </div>
+ </div>
+</div></figure>
+
+<figure id="ios-settings"><figcaption>Settings, pushed from Inbox <span class="k">COW-12</span><span class="k">COW-9</span><span class="k">COW-59</span><span class="k">COW-62</span></figcaption>
+<div class="m phone ios" data-tab="Inbox">
+ <div class="nb"><span class="bk"><svg><use href="#back"/></svg>Inbox</span></div>
+ <div class="lt">Settings</div>
+ <div class="lst">
+  <div class="sh"><span>Account</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Signed in with Pocket ID</span></div>
+   <div class="cell des">Sign out</div>
+  </div>
+  <div class="sh"><span>Notifications</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Push alerts</span><span class="v">Ready</span></div>
+   <div class="cell tp"><span class="g">Quiet hours<div class="s">Holds back <span class="c-today">today</span> pushes. <span class="c-now">now</span> always pushes.</div></span><span class="sw on"></span></div>
+   <div class="cell"><span class="g">From</span><span class="pill">22:00</span></div>
+   <div class="cell"><span class="g">To</span><span class="pill">07:30</span></div>
+   <div class="cell"><span class="g">Require Face ID for approvals</span><span class="sw on"></span></div>
+   <div class="cell"><span class="g">Daily roundup</span><span class="sw on"></span></div>
+  </div>
+  <div class="sh"><span>Urgency overrides</span><button class="bc" title="Add override" style="background:none;color:var(--acct)"><svg><use href="#plus"/></svg></button></div>
+  <div class="grp">
+   <div class="cell"><span class="g mono">factory</span><span class="v">whenever <svg><use href="#updown"/></svg></span></div>
+   <div class="cell"><span class="g mono">hermes:failure</span><span class="v c-now">now <svg><use href="#updown"/></svg></span></div>
+   <div class="cell"><span class="g mono">deployer:done</span><span class="v">whenever <svg><use href="#updown"/></svg></span></div>
+  </div>
+  <div class="sh"><span>Appearance</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Theme</span><span class="v">Cowtail <svg><use href="#updown"/></svg></span></div>
+   <div class="cell"><span class="g">Mode</span><span class="v">System <svg><use href="#updown"/></svg></span></div>
+  </div>
+  <div class="sh"><span>Devices</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">iPhone</span><span class="v">this device</span></div>
+   <div class="cell"><span class="g">iPad</span><span class="v">seen 3d ago</span></div>
+  </div>
+  <div class="sh"><span>Developer</span></div>
+  <div class="grp"><div class="cell"><span class="g">Developer</span><svg class="chv"><use href="#chev"/></svg></div></div>
+  <div class="sh"><span>Links</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">Public site</span><svg class="chv"><use href="#link"/></svg></div>
+   <div class="cell"><span class="g">Convex query endpoint</span><svg class="chv"><use href="#link"/></svg></div>
+   <div class="cell"><span class="g">Alert write endpoint</span><svg class="chv"><use href="#link"/></svg></div>
+   <div class="cell"><span class="g">Push registration endpoint</span><svg class="chv"><use href="#link"/></svg></div>
+  </div>
+ </div>
+</div>
+<p class="fn">An inset-grouped <code>Form</code> with the app's seven sections, in this order. Developer pushes the diagnostics, the developer-mode switch and their buttons.</p></figure>
+
+<figure id="ios-signin"><figcaption>Signed out, then notifications <span class="k">COW-34</span><span class="k">COW-63</span></figcaption>
+<div class="pair">
+<div class="m phone ios" style="min-height:560px">
+ <div class="lst" style="display:flex;flex-direction:column;justify-content:space-between;padding:0 20px 28px">
+  <div style="display:grid;justify-items:center;gap:10px;padding-top:120px"><span style="width:64px;height:64px;border-radius:15px;background:var(--acc);color:#fff;display:grid;place-items:center;font:700 34px 'Space Grotesk'">C</span><b style="font-size:22px">Cowtail</b></div>
+  <div style="display:grid;gap:10px">
+   <button class="bt lg apple"><svg style="vertical-align:-2px"><use href="#apple"/></svg> Sign in with Apple</button>
+   <button class="bt lg">Sign in with Pocket ID</button>
+  </div>
+ </div>
+</div>
+<div class="m phone ios" style="min-height:560px">
+ <div class="lst" style="display:flex;flex-direction:column;justify-content:space-between;padding:0 20px 28px">
+  <div class="cuv" style="padding-top:120px"><svg><use href="#bell"/></svg><b>Turn on notifications</b><span class="s">Cowtail pushes what needs you now and holds the rest for quiet hours.</span></div>
+  <div style="display:grid;gap:6px">
+   <button class="bt lg pro">Turn on notifications</button>
+   <button class="bt lg pl">Not now</button>
+  </div>
+ </div>
+</div>
+</div>
+<p class="fn" style="max-width:660px">The app's root while no session exists, in place of the tabs; signing out returns here. Pocket ID's button shows only when the server lists an OIDC provider, and uses its name. Turn on notifications shows the system prompt and registers for push; either button leads to the tabs.</p></figure>
+
+<figure id="ios-snooze"><figcaption>Snooze sheet, medium detent <span class="k">COW-17</span><span class="k">COW-59</span></figcaption>
+<div class="m phone ios" style="min-height:560px">
+ <div class="dim" style="height:190px"><div class="t">CephOSDNearFull · osd.4</div><div class="s">storage · Alertmanager</div></div>
+ <div class="sheet">
+  <div class="grab"></div>
+  <div class="nb"><button class="tt" title="Cancel">Cancel</button><span class="ti">Snooze until</span></div>
+  <div class="grp" style="margin-top:6px">
+   <div class="cell"><span class="g">1 hour</span><span class="v mono">10:41</span></div>
+   <div class="cell"><span class="g">4 hours</span><span class="v mono">13:41</span></div>
+   <div class="cell"><span class="g">Tomorrow</span><span class="v mono">Tue 09:00</span></div>
+   <div class="cell"><span class="g">Next Monday</span><span class="v mono">30 Nov 09:00</span></div>
+  </div>
+  <div class="grp" style="margin-top:12px">
+   <div class="cell"><span class="g">Custom</span><span class="pill">27 Nov 2026</span><span class="pill">09:00</span></div>
+  </div>
+  <div style="padding-top:14px"><button class="bt lg pro">Snooze</button></div>
+ </div>
+</div>
+<p class="fn">A preset snoozes on tap. Custom snoozes with the Snooze button.</p></figure>
+
+<figure id="ios-maintenance"><figcaption>Start a maintenance window, large detent <span class="k">COW-19</span><span class="k">COW-59</span></figcaption>
+<div class="m phone ios" style="min-height:560px">
+ <div class="dim" style="height:44px"></div>
+ <div class="sheet">
+  <div class="grab"></div>
+  <div class="nb"><button class="tt" title="Cancel">Cancel</button><span class="ti">Maintenance window</span></div>
+  <div class="grp" style="margin-top:6px"><div class="cell"><span class="g">Cluster upgrade</span></div></div>
+  <div class="sh"><span>Duration</span></div>
+  <div class="seg"><span>30m</span><span class="on">1h</span><span>2h</span><span>4h</span><span>Custom</span></div>
+  <div class="sh"><span>Silence</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">All alerts</span><svg class="c-ok"><use href="#check"/></svg></div>
+   <div class="cell"><span class="g">A namespace</span></div>
+   <div class="cell"><span class="g">An alert name</span></div>
+  </div>
+  <div class="sh"><span>Sources</span></div>
+  <div class="grp">
+   <div class="cell"><span class="g">hermes</span><span class="sw on"></span></div>
+   <div class="cell"><span class="g">cron</span><span class="sw on"></span></div>
+  </div>
+  <div class="ft">Cowtail's own watchdog items still push.</div>
+  <div style="padding-top:14px"><button class="bt lg pro">Start 1h window</button></div>
+ </div>
+</div></figure>
+
+<figure id="ios-alerts"><figcaption>Reply and note alerts <span class="k">COW-12</span><span class="k">COW-59</span></figcaption>
+<div class="pair">
+<div class="m phone ios" style="min-height:330px">
+ <div class="dim" style="flex:1"><div class="t">OSD 4 is 88% full. Rebalance now or wait for the new disk?</div><div class="s">Hermes · question</div></div>
+ <div class="alert"><b>Reply</b><div class="fld">Wait for Thursday's disk</div><div class="bts"><button class="bt">Cancel</button><button class="bt pro">Send</button></div></div>
+</div>
+<div class="m phone ios" style="min-height:330px">
+ <div class="dim" style="flex:1"><div class="t">TargetDown</div><div class="s">monitoring / node-exporter</div></div>
+ <div class="alert"><b>Mark as noise</b><div class="fld" style="color:var(--mut)">Note (optional)</div><div class="bts"><button class="bt">Cancel</button><button class="bt pro">Mark as noise</button></div></div>
+</div>
+</div>
+<p class="fn" style="max-width:660px">System alerts with a text field. Escalate and Retry investigation use the same note alert with their own title and button.</p></figure>
 </div>
 
 <!-- ============================ push ============================ -->
@@ -552,86 +928,6 @@ transcoder-7d9f   212m   610Mi      (limit 512Mi)</pre>
 <h2 id="later">Later tickets</h2>
 <div class="grid">
 
-<figure id="ios-inbox-later"><figcaption>Inbox with a window, an incident and snoozes <span class="k">COW-17</span><span class="k">COW-18</span><span class="k">COW-19</span><span class="k">COW-14</span><span class="k">COW-16</span></figcaption>
-<div class="m phone" data-tab="Inbox" data-h>
- <div class="nt">Inbox <span class="chips"><span class="chip"><i class="dot"></i>cluster</span><span class="chip"><i class="dot"></i>hermes</span><button class="ib" title="Start a maintenance window"><svg><use href="#wrench"/></svg></button></span></div>
- <div class="pb">
-  <div class="ban"><svg><use href="#wrench"/></svg><div class="g"><div class="t">Cluster upgrade</div><div class="s">All alerts silenced · 42m left</div></div><button class="ib" title="End window"><svg><use href="#stop"/></svg></button></div>
-  <div class="lab"><span>Needs you</span><span>2</span></div>
-  <div class="row"><span class="src"><svg><use href="#layers"/></svg></span><div class="g"><div class="t">Storage outage</div><div class="s">Incident · 11 items · <span class="c-now">now</span> · 47m</div></div><svg style="margin-top:5px"><use href="#chev"/></svg></div>
-  <div class="row"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Gateway is not answering</div><div class="s">Cowtail · failure · <span class="c-now">now</span></div><div class="acts" style="margin-top:6px"><button class="ob"><svg style="vertical-align:-2px"><use href="#play"/></svg> Restart Hermes gateway</button><span class="tag">COW-16</span></div></div></div>
-  <div class="lab"><span>Hermes is on it</span><span>1</span></div>
-  <div class="row"><span class="src"><svg><use href="#clock"/></svg></span><div class="g"><div class="t">Nightly backup verify failed</div><div class="s"><span class="c-info">Hermes</span> Re-running against a fresh snapshot · 9m</div></div></div>
-  <div class="lab"><span>Upcoming</span><span>3</span></div>
-  <div class="row"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">CephOSDNearFull · osd.4</div><div class="s">Today 13:41</div></div><button class="ib" title="Unsnooze"><svg><use href="#refresh"/></svg></button></div>
-  <div class="row"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Check the new disk shipment</div><div class="s">Reminder · Fri 09:00</div></div><button class="ib" title="Unsnooze"><svg><use href="#refresh"/></svg></button></div>
-  <div class="row"><span class="src"><svg><use href="#box"/></svg></span><div class="g"><div class="t">Merge queue stalled 40m</div><div class="s">Mon 09:00</div></div><button class="ib" title="Unsnooze"><svg><use href="#refresh"/></svg></button></div>
- </div>
-</div></figure>
-
-<figure id="ios-hermes"><figcaption>Hermes tab <span class="k">COW-14</span><span class="k">COW-16</span></figcaption>
-<div class="m phone" data-tab="Hermes" data-h>
- <div class="nt">Hermes <span class="chip c-ok"><i class="dot"></i>38s ago</span></div>
- <div class="pb">
-  <div class="s mono" style="padding-top:4px">opus-5.5 · anthropic</div>
-  <div class="lab"><span>Platforms</span></div>
-  <div class="chips" style="padding:8px 0"><span class="chip c-ok">cowtail</span><span class="chip c-ok">telegram</span><span class="chip c-ok">api</span></div>
-  <div class="lab"><span>Cron</span><span>6 jobs</span></div>
-  <div class="row"><div class="g"><div class="t">backup-verify <span class="chip c-now">failed</span></div><div class="s mono">0 3 * * * · ran 6h ago · next in 18h</div></div></div>
-  <div class="row"><div class="g"><div class="t">roundup-digest <span class="chip c-ok">ok</span></div><div class="s mono">0 8 * * * · ran 1h ago · next in 23h</div></div></div>
-  <div class="row"><div class="g"><div class="t">repo-sweep <span class="chip c-ok">ok</span></div><div class="s mono">*/30 * * * * · ran 11m ago · next in 19m</div></div></div>
-  <div class="lab"><span>Cron incidents</span><span>1</span></div>
-  <div class="kv"><span>backup-verify failing ×2</span><svg><use href="#chev"/></svg></div>
-  <div class="lab"><span>Kanban</span></div>
-  <div class="kv"><span>Blocked</span><span class="c-today">2</span></div><div class="kv"><span>Running</span><span>1</span></div>
-  <div class="lab"><span>Budget</span><span>rate limit ok</span></div>
-  <div class="bl" style="grid-template-columns:36px 1fr 40px;padding:7px 0"><span>Today</span><div class="bar"><i style="width:62%"></i></div><span>62%</span></div>
-  <div class="lab"><span>Runbook · Services</span><span class="tag">COW-16</span></div>
-  <div class="kv"><span>Restart Hermes gateway<div class="s">Asks to confirm</div></span><button class="ib no" title="Run"><svg><use href="#play"/></svg></button></div>
-  <div class="kv"><span>Restart script runner</span><button class="ib" title="Run"><svg><use href="#play"/></svg></button></div>
-  <div class="lab"><span>Runbook · Diagnostics</span></div>
-  <div class="kv"><span>Disk usage</span><button class="ib" title="Run" disabled style="opacity:.4"><svg><use href="#play"/></svg></button></div>
-  <div class="lab"><span>Run · Disk usage</span><span class="c-today">running · 0:07</span></div>
-  <pre>$ df -h /var/lib
-/dev/nvme0n1p2  916G  604G  266G  70% /
-▍</pre>
-  <div class="kv"><span>Restart script runner</span><span><span class="c-ok">exit 0</span> · Sun 21:14</span></div>
-  <div class="lab"><span>Recent answers</span></div>
-  <div class="kv"><span>Restart ingress in edge?</span><span><span class="c-ok">approved</span> · 09:42</span></div>
-  <div class="kv"><span>Delete 14 stale PVCs?</span><span><span class="c-now">denied</span> · Sun</span></div>
- </div>
-</div></figure>
-
-<figure id="ios-snooze"><figcaption>Snooze picker <span class="k">COW-17</span></figcaption>
-<div class="m phone short">
- <div class="dim"><div class="t">CephOSDNearFull · osd.4</div><div class="s">storage · Alertmanager</div></div>
- <div class="sheet">
-  <h3>Snooze until</h3>
-  <div class="kv"><span>1 hour</span><span class="mono">10:41</span></div>
-  <div class="kv"><span>4 hours</span><span class="mono">13:41</span></div>
-  <div class="kv"><span>Tomorrow</span><span class="mono">Tue 09:00</span></div>
-  <div class="kv"><span>Next Monday</span><span class="mono">30 Nov 09:00</span></div>
-  <div class="kv" style="border:0"><span>Custom</span><span class="fld mono">27 Nov 2026, 09:00</span></div>
- </div>
-</div></figure>
-
-<figure id="ios-maintenance"><figcaption>Start a maintenance window <span class="k">COW-19</span></figcaption>
-<div class="m phone short">
- <div class="dim"><div class="t">Inbox</div></div>
- <div class="sheet">
-  <h3>Maintenance window</h3>
-  <div class="fld" style="margin:8px 0;color:var(--tx)">Cluster upgrade</div>
-  <div class="seg"><span>30m</span><span class="on">1h</span><span>2h</span><span>4h</span><span>Custom</span></div>
-  <div class="lab"><span>Silence</span></div>
-  <div class="kv"><span>All alerts</span><svg class="c-ok"><use href="#check"/></svg></div>
-  <div class="kv"><span>A namespace</span><span></span></div>
-  <div class="kv"><span>An alert name</span><span></span></div>
-  <div class="kv"><span>Sources</span><span class="chips"><span class="chip">hermes</span><span class="chip">cron</span></span></div>
-  <div class="s" style="padding:8px 0">Cowtail's own watchdog items still push.</div>
-  <button class="ob pri">Start 1h window</button>
- </div>
-</div></figure>
-
 <figure id="web-hermes" class="w"><figcaption>Hermes, with a runbook run in progress <span class="k">COW-14</span><span class="k">COW-16</span></figcaption>
 <div class="dw"><div class="m desk">
  <div class="url">cowtail.example/hermes</div>
@@ -736,17 +1032,37 @@ $ du -sh /var/lib/* | sort -h | tail -3
 </table>
 
 <h2 id="rules">Rules</h2>
+<h3 class="rh" id="rules-both">Both</h3>
 <ul class="rules">
-<li>This page is the visual spec for COW-9, COW-12, COW-13, COW-14, COW-16, COW-17, COW-18, COW-19, COW-21, COW-22, COW-32 and COW-34. A ticket decides behaviour, data and API. This page decides layout, grouping, order and controls.</li>
-<li>A section is a small uppercase mono label over rows split by hairlines. No card, panel or box encloses a section or a row, on web or iOS. Sheets, popovers, dialogs, banners and notifications are the only enclosed surfaces.</li>
-<li>Every action is an icon button with an accessible name, and a tooltip on web. Text stays only on sign-in buttons, a question's answer options, a script action on an item, the submit of a sheet or dialog, and iOS notification actions.</li>
-<li>A web list filters through one filter icon button. Search and pickers sit in the popup it opens, active filters show as removable chips, and the filter is part of the address.</li>
-<li>Colour and type are the Cowtail dark palette, Space Grotesk and DM Mono, from <code>web/src/index.css</code> and the iOS theme system. Light mode and the other iOS theme keep this layout with their own palette.</li>
+<li>This page is the visual spec for COW-9, COW-12, COW-13, COW-14, COW-16, COW-17, COW-18, COW-19, COW-21, COW-22, COW-32, COW-34, COW-59, COW-60, COW-62, COW-63 and COW-72. A ticket decides behaviour, data and API. This page decides layout, grouping, order and controls.</li>
+<li>Colour and type are the Cowtail dark palette, Space Grotesk and DM Mono, from <code>web/src/index.css</code> and the iOS theme system. Light mode and the other iOS theme keep this layout with their own palette. The iOS figures draw light or dark from this page's appearance.</li>
 <li>Sample data is invented. A glyph in the source-icon position stands for that source's uploaded icon.</li>
 <li>A control the app has today, and that no ticket removes, stays in the nearest section.</li>
-<li>Drawn on iOS only, and the same on web: the snooze picker is a popover from the Snooze button, Upcoming is a section after "Hermes is on it" on Home, and the maintenance sheet is a dialog from the wrench button with its banner above "Needs you".</li>
-<li>Drawn on web only, and the same on iOS, stacked in this order: item detail is header, timeline with evidence, metric graph, details, fix, past occurrences. Incident detail is header, timeline, postmortem, members.</li>
+</ul>
+<h3 class="rh" id="rules-web">Web</h3>
+<ul class="rules">
+<li>A section is a small uppercase mono label over rows split by hairlines. No card, panel or box encloses a section or a row. Sheets, popovers, dialogs, banners and notifications are the only enclosed surfaces.</li>
+<li>Every action is an icon button with an accessible name and a tooltip. Text stays only on sign-in buttons, a question's answer options, a script action on an item, and the submit of a sheet or dialog.</li>
+<li>A web list filters through one filter icon button. Search and pickers sit in the popup it opens, active filters show as removable chips, and the filter is part of the address.</li>
+<li>Not drawn on web: the snooze picker is a popover from the Snooze button, Upcoming is a section after "Hermes is on it" on Home, and the maintenance window is a dialog from the wrench button with its banner above "Needs you".</li>
+<li>Item detail stacks header, timeline with evidence, metric graph, details, fix, past occurrences. Incident detail stacks header, timeline, postmortem, members.</li>
 <li>Below 960 px wide the web columns stack in source order, left column first, and a nav link keeps its label on the current page only. Below 600 px the top bar's cluster and hermes chips keep only their dots. Nothing scrolls sideways at 382 px.</li>
+</ul>
+<h3 class="rh" id="rules-ios">iOS</h3>
+<ul class="rules">
+<li>iOS follows Apple's Human Interface Guidelines. Cowtail's identity stays in its palette, accent tint, app icon and typefaces, not in custom layout. A phone 393 pt wide is drawn 320 px wide, so 44 pt is 36 px.</li>
+<li>Four tabs: Inbox, Cluster, Hermes, History. Settings is not a tab: a toolbar button on Inbox pushes it. Cluster health stays as the chip under the Inbox title.</li>
+<li>Every tab is a <code>NavigationStack</code> with a navigation-bar title, large on a tab's root and inline once pushed. No screen hides the bar or draws its own title.</li>
+<li>Content is a <code>List</code> or <code>Form</code> with system sections and headers, in the default inset-grouped style. Settings is an inset-grouped <code>Form</code> with Account, Notifications, Urgency overrides, Appearance, Devices, Developer and Links, in that order. A section's count sits in its header.</li>
+<li>Page actions are toolbar items in the navigation bar: maintenance and Settings on Inbox, the filter on History, Add, Request postmortem and Resolve on an incident.</li>
+<li>Per-row actions are swipe actions and a context menu. Rows carry no buttons, and a tap anywhere on a row opens it. A trailing full swipe acknowledges, and Snooze follows it; without Acknowledge there is no full swipe. A leading swipe approves or unsnoozes. A long press shows every action the server lists for the item, then its alert calls.</li>
+<li>The item page is answer first: title and badges, then the details, root cause and action, then timeline, graph and past occurrences. Its actions sit in their own area pinned above the tab bar, never in the badge row.</li>
+<li>The inbox holds Needs you, Hermes is on it and Upcoming, in that order, and hides an empty section. When Needs you is empty, an all-clear <code>ContentUnavailableView</code> takes its place. Other empty states, such as an empty History search, use <code>ContentUnavailableView</code> too. Handled items live in History.</li>
+<li>Sheets use detents: medium for Snooze, large for a maintenance window, each with Cancel in its bar and a prominent submit. A reply or a note is a system alert with a text field.</li>
+<li>With no session, the app's root is the sign-in screen instead of the tabs: Sign in with Apple and Pocket ID, then one skippable step that asks for notification permission, then the tabs. Signing out returns there.</li>
+<li>Buttons use system styles at system sizes: <code>.bordered</code>, <code>.borderedProminent</code> for Approve and a sheet's submit, <code>role: .destructive</code> for Deny, Sign out and similar. Every control has a hit area of at least 44 × 44 pt.</li>
+<li>In-content and toolbar actions are icon buttons with accessible names. Swipe actions, context-menu items, alert and sheet buttons, a <code>Form</code>'s action rows such as Sign out, the sign-in and notification steps, and notification actions carry text labels as the system draws them. Text also stays on a question's answer options and a script action on an item.</li>
+<li>Text and glyphs scale with Dynamic Type everywhere; nothing uses a fixed point size. A completed action plays success haptic feedback, and a refused one plays error feedback.</li>
 </ul>
 
 <script>
@@ -759,10 +1075,10 @@ const VOL=[['Tue',12,3,2],['Wed',9,4,1],['Thu',21,6,3],['Fri',8,2,2],['Sat',5,1,
 $$('.vol').forEach(e=>e.innerHTML=VOL.map(([d,a,h,x])=>`<div><span>${a+h+x}</span><i class="x" style="height:${x*2}px"></i><i class="h" style="height:${h*2}px"></i><i style="height:${a*2}px"></i><span>${d}</span></div>`).join(''));
 const MIX=[['fixed',41,'#3fb868'],['self-resolved',23,'#5b96e8'],['noise',18,'#6e6e76'],['escalated',6,'#e0a030'],['other',4,'#3a3a3f']];
 $$('.mixes').forEach(e=>e.innerHTML=`<div class="mix">${MIX.map(([,n,c])=>`<i style="flex:${n};background:${c}"></i>`).join('')}</div><div class="mixl">${MIX.map(([l,n,c])=>`<span><i style="background:${c}"></i>${l} ${n}</span>`).join('')}</div>`);
-const TABS=[['Inbox','inbox'],['Cluster','server'],['Hermes','spark'],['History','history'],['Settings','gear']];
+const TABS=[['Inbox','inbox'],['Cluster','server'],['Hermes','spark'],['History','history']];
 $$('.phone').forEach(p=>{
   if(!p.querySelector('.lock,.dim'))p.insertAdjacentHTML('afterbegin','<div class="sb"><span>9:41</span><span class="mono">5G</span></div>');
-  if(p.dataset.tab)p.insertAdjacentHTML('beforeend',`<div class="tabs">${TABS.filter(t=>t[0]!='Hermes'||'h' in p.dataset).map(([t,i])=>`<span class="${t==p.dataset.tab?'on':''}">${ic(i)}${t}</span>`).join('')}</div>`);
+  if(p.dataset.tab)p.insertAdjacentHTML('beforeend',`<div class="tabs">${TABS.map(([t,i])=>`<span class="${t==p.dataset.tab?'on':''}">${ic(i)}${t}</span>`).join('')}</div>`);
 });
 $$('.top').forEach(t=>t.innerHTML=`<span class="brand">COWTAIL</span>`+[['Home','inbox'],['Cluster','server'],['History','history'],['Hermes','spark'],['Settings','gear']].filter(n=>n[0]!='Hermes'||'h' in t.dataset).map(([n,i])=>`<a class="${n==t.dataset.on?'on':''}">${ic(i)}${n}</a>`).join('')+`<span class="sp"><span class="chip"><i class="dot"></i>cluster</span>${'h' in t.dataset?`<span class="chip"><i class="dot"></i>hermes</span><button class="ib" title="Start a maintenance window">${ic('wrench')}</button>`:''}</span>`);
 $$('.ib').forEach(b=>b.ariaLabel=b.title);
