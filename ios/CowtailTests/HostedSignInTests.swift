@@ -18,6 +18,8 @@ final class HostedSignInTests: XCTestCase {
         defer { screen.close() }
         try screen.activate("button.settings.sign-out")
         screen.assertVisible(["button.sign-in.oidc"])
-        XCTAssertNil(screen.firstView(ofType: UITabBar.self))
+        // The outgoing tabs stay in the hierarchy while the root swaps.
+        XCTAssertTrue(HostedScreen.waitUntil { screen.firstView(ofType: UITabBar.self) == nil },
+                      "The tab bar is still shown after signing out")
     }
 }
