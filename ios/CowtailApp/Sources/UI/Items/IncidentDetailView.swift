@@ -299,7 +299,7 @@ struct AddIncidentItemSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    CowtailIconButton(title: "Close", systemImage: "xmark") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
             }
         }

@@ -76,15 +76,19 @@ struct SettingsView: View {
             VStack(spacing: 8) {
                 appleSignInButton
                 if let providerName = oidcSignIn.providerName {
-                    Button("Sign in with \(providerName)") {
+                    Button {
                         Task {
                             await oidcSignIn.signIn()
                             await notificationManager.syncDeviceRegistration()
                             await notificationManager.loadDailyRoundupPreference()
                             await store.loadDevices()
                         }
+                    } label: {
+                        Text("Sign in with \(providerName)").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(CowtailTextButtonStyle(fullWidth: true))
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .tint(palette.ink)
                     .disabled(oidcSignIn.isSigningIn)
                     .accessibilityIdentifier("button.settings.oidc-sign-in")
                 }

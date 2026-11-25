@@ -12,44 +12,51 @@ struct SnoozeSheet: View {
     @State private var custom = Date.now.addingTimeInterval(60 * 60)
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Snooze until")
-                    .font(.cowtailSans(17, weight: .bold, relativeTo: .headline))
-                    .foregroundStyle(palette.ink)
-                    .accessibilityAddTraits(.isHeader)
-                    .padding(.bottom, 6)
-
-                if let options {
-                    ForEach(options) { option in
-                        presetRow(option)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let options {
+                        ForEach(options) { option in
+                            presetRow(option)
+                        }
+                    } else if let loadError {
+                        Text(loadError)
+                            .font(.cowtailSans(12, relativeTo: .footnote))
+                            .foregroundStyle(palette.accent)
+                            .padding(.vertical, 9)
+                            .accessibilityIdentifier("text.snooze.error")
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
                     }
-                } else if let loadError {
-                    Text(loadError)
-                        .font(.cowtailSans(12, relativeTo: .footnote))
-                        .foregroundStyle(palette.accent)
-                        .padding(.vertical, 9)
-                        .accessibilityIdentifier("text.snooze.error")
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                }
 
-                DatePicker("Custom", selection: $custom, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
-                    .font(.cowtailSans(14, relativeTo: .body))
-                    .foregroundStyle(palette.ink)
-                    .accessibilityIdentifier("picker.snooze.custom")
-                    .padding(.vertical, 9)
+                    DatePicker("Custom", selection: $custom, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
+                        .font(.cowtailSans(14, relativeTo: .body))
+                        .foregroundStyle(palette.ink)
+                        .accessibilityIdentifier("picker.snooze.custom")
+                        .padding(.vertical, 9)
 
-                Button("Snooze") {
-                    choose(custom)
+                    Button {
+                        choose(custom)
+                    } label: {
+                        Text("Snooze").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("button.snooze.custom")
                 }
-                .buttonStyle(CowtailTextButtonStyle(fullWidth: true))
-                .padding(.top, 4)
-                .accessibilityIdentifier("button.snooze.custom")
+                .padding(20)
             }
-            .padding(20)
+            .navigationTitle("Snooze until")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("button.snooze.cancel")
+                }
+            }
         }
         .task {
             do {

@@ -359,6 +359,7 @@ struct ItemTextButtons: View {
     let item: Item
 
     @EnvironmentObject private var store: CowtailStore
+    @Environment(\.cowtailPalette) private var palette
     @State private var confirming: RunbookScript?
 
     var body: some View {
@@ -368,7 +369,6 @@ struct ItemTextButtons: View {
                     Button(option) {
                         Task { await store.perform(.choose(option), on: item) }
                     }
-                    .buttonStyle(CowtailTextButtonStyle())
                     .accessibilityIdentifier("button.item.choose.\(item.id).\(option)")
                 }
                 ForEach(scripts) { script in
@@ -381,11 +381,13 @@ struct ItemTextButtons: View {
                     } label: {
                         Label(script.name, systemImage: "play.fill")
                     }
-                    .buttonStyle(CowtailTextButtonStyle())
                     .disabled(store.scriptsStarting.contains(script.id))
                     .accessibilityIdentifier("button.item.run.\(item.id).\(script.id)")
                 }
             }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .tint(palette.ink)
             .runbookConfirmation($confirming) { script in
                 Task { await store.startRun(script, itemID: item.id) }
             }
