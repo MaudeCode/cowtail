@@ -123,7 +123,7 @@ final class HostedInboxTests: XCTestCase {
 
     private func hostInbox(_ store: CowtailStore) throws -> HostedScreen {
         try HostedScreen(NavigationStack { InboxView() }
-            .environmentObject(store)
+            .environment(store)
             .environmentObject(UniversalLinkRouter.shared))
     }
 }

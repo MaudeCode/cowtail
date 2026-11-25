@@ -33,14 +33,14 @@ final class HostedHistoryTests: XCTestCase {
         XCTAssertEqual(screen.element(chip)?.accessibilityLabel, "Remove filter approval")
         let filtered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             MainActor.assumeIsolated {
-                store.historyStats != nil && !store.historyItems.contains { $0.id == alertID }
+                store.history.stats != nil && !store.history.items.contains { $0.id == alertID }
             }
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [filtered], timeout: 10), .completed)
 
         let cleared = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             MainActor.assumeIsolated {
-                screen.element(chip) == nil && store.historyItems.contains { $0.id == alertID }
+                screen.element(chip) == nil && store.history.items.contains { $0.id == alertID }
             }
         }, object: nil)
         try screen.activate(chip)
@@ -69,7 +69,7 @@ final class HostedHistoryTests: XCTestCase {
     ) throws -> HostedScreen {
         let client = SeededCowtailAPI(seed: UITestScenario(named: scenario).seed.server)
         return try HostedScreen(HistoryStack(filter: filter)
-            .environmentObject(store)
+            .environment(store)
             .environmentObject(UniversalLinkRouter.shared)
             .environment(\.roundupDataClient, client))
     }

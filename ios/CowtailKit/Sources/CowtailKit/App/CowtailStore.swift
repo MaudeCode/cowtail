@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import OSLog
 
 private let healthRefreshRetryDelays: [Duration] = [
@@ -79,7 +80,8 @@ struct InboxSnapshot: Codable {
 }
 
 @MainActor
-final class CowtailStore: ObservableObject {
+@Observable
+final class CowtailStore {
     enum InboxState: Equatable {
         case loading
         case fresh
@@ -87,10 +89,10 @@ final class CowtailStore: ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var inbox: ItemInbox?
-    @Published private var inboxReceivedAt: Date?
-    @Published private var inboxLoadError: String?
-    @Published private var hasLoadedInbox = false
+    private(set) var inbox: ItemInbox?
+    private var inboxReceivedAt: Date?
+    private var inboxLoadError: String?
+    private var hasLoadedInbox = false
     private var hasStartedInboxRequest = false
     private var inboxGeneration = 0
 
@@ -103,26 +105,26 @@ final class CowtailStore: ObservableObject {
         }
         return hasLoadedInbox ? .fresh : .loading
     }
-    @Published private(set) var health: HealthSummary?
-    @Published private(set) var healthErrorMessage: String?
-    @Published private(set) var clusterStats: ItemStats?
-    @Published private(set) var hermes: HermesStatus?
-    @Published private(set) var hermesErrorMessage: String?
-    @Published private(set) var lastUpdated: Date?
-    @Published private(set) var isLoading = false
-    @Published private(set) var errorMessage: String?
+    private(set) var health: HealthSummary?
+    private(set) var healthErrorMessage: String?
+    private(set) var clusterStats: ItemStats?
+    private(set) var hermes: HermesStatus?
+    private(set) var hermesErrorMessage: String?
+    private(set) var lastUpdated: Date?
+    private(set) var isLoading = false
+    private(set) var errorMessage: String?
 
-    @Published private(set) var details: [String: ItemDetail] = [:]
-    @Published private(set) var detailReceivedAt: [String: Date] = [:]
-    @Published private(set) var detailErrors: [String: String] = [:]
+    private(set) var details: [String: ItemDetail] = [:]
+    private(set) var detailReceivedAt: [String: Date] = [:]
+    private(set) var detailErrors: [String: String] = [:]
     /// Each item's metric graph at the range last asked for; absent when the server has none.
-    @Published private(set) var graphs: [String: ItemGraph] = [:]
-    @Published private(set) var itemIDsByAlertID: [String: String] = [:]
-    @Published private(set) var actionErrors: [String: String] = [:]
+    private(set) var graphs: [String: ItemGraph] = [:]
+    private(set) var itemIDsByAlertID: [String: String] = [:]
+    private(set) var actionErrors: [String: String] = [:]
     /// How the owner's last item action ended, for the haptic the app plays.
-    @Published private(set) var actionFeedback: ActionFeedback?
+    private(set) var actionFeedback: ActionFeedback?
     /// Writes whose outcome the server has not confirmed yet; their items take no new action.
-    @Published private(set) var unconfirmedItemIDs: Set<String> = []
+    private(set) var unconfirmedItemIDs: Set<String> = []
     /// Items with a write on its way; a second tap waits for the first to settle.
     private var itemIDsInFlight: Set<String> = []
     /// Snoozes and unsnoozes sent and not yet answered, oldest first. Every inbox read shows
@@ -133,39 +135,27 @@ final class CowtailStore: ObservableObject {
         let itemID: String
         let request: ItemActionRequest
     }
-    @Published private(set) var alertActionsInFlight: Set<String> = []
+    private(set) var alertActionsInFlight: Set<String> = []
     /// Each item with an action sent and not yet answered, as the action shows it. Every read of
     /// History or an incident shows it over the server's copy, so a poll cannot undo it.
     private var itemsInFlight: [String: Item] = [:]
-    /// Bumped each time an item action settles, so a History read taken before is discarded.
-    private var historyWriteGeneration = 0
 
     /// The running maintenance windows, the soonest end first.
-    @Published private(set) var maintenanceWindows: [MaintenanceWindow] = []
-    @Published private(set) var maintenanceError: String?
+    private(set) var maintenanceWindows: [MaintenanceWindow] = []
+    private(set) var maintenanceError: String?
     /// The sources a new window can hold back, as the server lists them.
-    @Published private(set) var maintenanceSourceChoices: [String] = []
+    private(set) var maintenanceSourceChoices: [String] = []
     /// Windows the owner ended that the server has not answered for; every read keeps them gone.
     private var endingWindowIDs: Set<String> = []
 
-    @Published private(set) var historyFilter = HistoryFilter()
-    @Published private(set) var historyItems: [Item] = []
-    @Published private(set) var historyDayCounts: [String: Int] = [:]
-    @Published private(set) var historyStats: ItemStats?
-    @Published private(set) var historySources: [String] = []
-    @Published private(set) var historyReceivedAt: Date?
-    @Published private(set) var historyError: String?
-    @Published private(set) var isLoadingHistory = false
-    private var historyCursor: String?
-    /// The query the current history pages came from; continuations reuse its bounds.
-    private var historyQuery: ItemListQuery?
+    let history = HistoryState()
 
-    @Published private(set) var devices: [UserDevice] = []
+    private(set) var devices: [UserDevice] = []
 
-    @Published private(set) var incidents: [String: IncidentDetail] = [:]
-    @Published private(set) var incidentErrors: [String: String] = [:]
+    private(set) var incidents: [String: IncidentDetail] = [:]
+    private(set) var incidentErrors: [String: String] = [:]
     /// The change at the server for each incident; the next one waits for it to settle.
-    @Published private(set) var incidentChangesInFlight: [String: IncidentChange] = [:]
+    private(set) var incidentChangesInFlight: [String: IncidentChange] = [:]
     /// Changes sent or waiting their turn, oldest first; every read shows them still applied.
     private var pendingIncidentChanges: [String: [PendingIncidentChange]] = [:]
     private struct PendingIncidentChange {
@@ -181,15 +171,7 @@ final class CowtailStore: ObservableObject {
     /// The last change sent or queued for each incident; the next one waits for it.
     private var incidentChangeQueues: [String: Task<Void, Never>] = [:]
 
-    /// The run the Hermes tab follows once the owner started or picked one; the newest otherwise.
-    @Published private(set) var selectedRunID: String?
-    @Published private(set) var runDetail: RunbookRunDetail?
-    @Published private(set) var runbookError: String?
-    /// Scripts whose run request is on its way; their buttons wait for the reply.
-    @Published private(set) var scriptsStarting: Set<String> = []
-    /// Run requests the server never answered, by script and item. The next tap sends the same
-    /// request again, so the server returns the run it may have queued and queues no second one.
-    private var unansweredRunRequests: [String: String] = [:]
+    let runbook = RunbookState()
 
     private let inboxCacheURL: URL?
     private let api: any CowtailAPIClient
@@ -621,7 +603,7 @@ final class CowtailStore: ObservableObject {
                 pendingSnoozes.removeAll { $0.id == pending.id }
                 itemsInFlight[item.id] = nil
                 // Whatever the outcome, a list read that started before it is out of date.
-                historyWriteGeneration += 1
+                history.writeGeneration += 1
                 for id in listsBefore.compactMap(\.incidentID) {
                     incidentWriteGenerations[id, default: 0] += 1
                 }
@@ -659,8 +641,8 @@ final class CowtailStore: ObservableObject {
                 await loadDetail(itemID: item.id)
             }
             // History and the incidents show the write too; only the server's lists say whether it landed.
-            if historyItems.contains(where: { $0.id == item.id }) {
-                await loadHistory(historyFilter)
+            if history.items.contains(where: { $0.id == item.id }) {
+                await loadHistory(history.filter)
             }
             for id in listsBefore.compactMap(\.incidentID) {
                 await loadIncident(id: id)
@@ -713,11 +695,11 @@ final class CowtailStore: ObservableObject {
 
     /// Each copy of the item that History and the loaded incidents show.
     private func shownInLists(_ itemID: String) -> [ShownItem] {
-        let history = historyItems.first { $0.id == itemID }.map { ShownItem(item: $0, incidentID: nil) }
+        let historyCopy = history.items.first { $0.id == itemID }.map { ShownItem(item: $0, incidentID: nil) }
         let members = confirmedIncidents.compactMap { id, detail in
             detail.members.first { $0.id == itemID }.map { ShownItem(item: $0, incidentID: id) }
         }
-        return [history].compactMap { $0 } + members
+        return [historyCopy].compactMap { $0 } + members
     }
 
     /// Puts each copy back in its own list.
@@ -727,8 +709,8 @@ final class CowtailStore: ObservableObject {
                 guard let index = confirmedIncidents[id]?.members.firstIndex(where: { $0.id == copy.item.id }) else { continue }
                 confirmedIncidents[id]?.members[index] = copy.item
                 confirm(nil, incidentID: id)
-            } else if let index = historyItems.firstIndex(where: { $0.id == copy.item.id }) {
-                historyItems[index] = copy.item
+            } else if let index = history.items.firstIndex(where: { $0.id == copy.item.id }) {
+                history.items[index] = copy.item
             }
         }
     }
@@ -785,7 +767,7 @@ final class CowtailStore: ObservableObject {
     // MARK: Runbook
 
     var shownRunID: String? {
-        selectedRunID ?? hermes?.recentRuns.first?.id
+        runbook.selectedRunID ?? hermes?.recentRuns.first?.id
     }
 
     /// Asks Hermes to run a script, for an item when `itemID` is set. The owner has accepted the
@@ -793,8 +775,8 @@ final class CowtailStore: ObservableObject {
     /// on the script and this device's setting both count. The run is the server's to create, so
     /// the script's button waits for the reply.
     func startRun(_ script: RunbookScript, itemID: String? = nil) async {
-        guard scriptsStarting.insert(script.id).inserted else { return }
-        defer { scriptsStarting.remove(script.id) }
+        guard runbook.scriptsStarting.insert(script.id).inserted else { return }
+        defer { runbook.scriptsStarting.remove(script.id) }
         let report: (String?) -> Void = { message in
             if message != nil {
                 self.actionFeedback = ActionFeedback(succeeded: false)
@@ -802,7 +784,7 @@ final class CowtailStore: ObservableObject {
             if let itemID {
                 self.actionErrors[itemID] = message
             } else {
-                self.runbookError = message
+                self.runbook.error = message
             }
         }
         report(nil)
@@ -821,8 +803,8 @@ final class CowtailStore: ObservableObject {
         }
 
         let key = "\(script.id)\n\(itemID ?? "")"
-        let requestID = unansweredRunRequests[key] ?? UUID().uuidString
-        unansweredRunRequests[key] = requestID
+        let requestID = runbook.unansweredRequests[key] ?? UUID().uuidString
+        runbook.unansweredRequests[key] = requestID
         do {
             let run = try await api.startRunbookRun(
                 requestID: requestID,
@@ -832,10 +814,10 @@ final class CowtailStore: ObservableObject {
                 authenticated: authenticated,
                 sessionToken: token
             )
-            unansweredRunRequests[key] = nil
+            runbook.unansweredRequests[key] = nil
             actionFeedback = ActionFeedback(succeeded: true)
-            selectedRunID = run.id
-            runDetail = RunbookRunDetail(run: run, output: "")
+            runbook.selectedRunID = run.id
+            runbook.detail = RunbookRunDetail(run: run, output: "")
             if let itemID {
                 if details[itemID] != nil {
                     await loadDetail(itemID: itemID)
@@ -845,7 +827,7 @@ final class CowtailStore: ObservableObject {
             await refreshHermes(sessionToken: token)
         } catch CowtailAPIError.refused(let message) {
             // The server's answer: nothing was queued.
-            unansweredRunRequests[key] = nil
+            runbook.unansweredRequests[key] = nil
             report(message)
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
@@ -854,9 +836,9 @@ final class CowtailStore: ObservableObject {
     }
 
     func selectRun(_ id: String) {
-        selectedRunID = id
-        if runDetail?.run.id != id {
-            runDetail = nil
+        runbook.selectedRunID = id
+        if runbook.detail?.run.id != id {
+            runbook.detail = nil
         }
     }
 
@@ -868,15 +850,15 @@ final class CowtailStore: ObservableObject {
             do {
                 let detail = try await api.fetchRunbookRun(id: id, sessionToken: token)
                 guard shownRunID == id else { return }
-                runDetail = detail
-                runbookError = nil
+                runbook.detail = detail
+                runbook.error = nil
                 if !detail.run.active {
                     await refreshHermes(sessionToken: token)
                     return
                 }
             } catch {
                 guard !NetworkErrorClassifier.isCancellation(error) else { return }
-                runbookError = error.localizedDescription
+                runbook.error = error.localizedDescription
             }
             try? await Task.sleep(for: interval)
         }
@@ -887,59 +869,57 @@ final class CowtailStore: ObservableObject {
     /// Loads the first page for a new filter; a refresh of the same filter reloads as many
     /// items as are already shown, so the owner keeps their place.
     func loadHistory(_ filter: HistoryFilter) async {
-        let shown = filter == historyFilter && historyQuery != nil ? historyItems.count : 0
-        historyFilter = filter
+        let shown = filter == history.filter && history.query != nil ? history.items.count : 0
+        history.filter = filter
         guard let token = await sessionToken() else {
-            historyError = Self.signInMessage
+            history.error = Self.signInMessage
             return
         }
-        isLoadingHistory = true
-        defer { isLoadingHistory = false }
+        history.isLoading = true
+        defer { history.isLoading = false }
 
         var firstPage = filter.query()
         firstPage.limit = min(500, max(firstPage.limit, shown))
         let query = firstPage
-        let generation = historyWriteGeneration
+        let generation = history.writeGeneration
         do {
             async let page = fetchHistoryPage(query, sessionToken: token)
             async let stats = api.fetchItemStats(query, sessionToken: token)
             async let sources = api.fetchItemSources(sessionToken: token)
             let (loadedPage, loadedStats, loadedSources) = try await (page, stats, sources)
-            guard filter == historyFilter, generation == historyWriteGeneration else { return }
-            historySources = loadedSources
-            historyQuery = query.continuing(loadedPage)
-            historyItems = loadedPage.items.map(overlaid)
-            historyReceivedAt = .now
-            historyDayCounts = Self.dayCounts(loadedPage.days)
-            historyCursor = loadedPage.nextCursor
-            historyStats = loadedStats
-            historyError = nil
+            guard filter == history.filter, generation == history.writeGeneration else { return }
+            history.sources = loadedSources
+            history.query = query.continuing(loadedPage)
+            history.items = loadedPage.items.map(overlaid)
+            history.receivedAt = .now
+            history.dayCounts = Self.dayCounts(loadedPage.days)
+            history.cursor = loadedPage.nextCursor
+            history.stats = loadedStats
+            history.error = nil
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
-            historyError = error.localizedDescription
+            history.error = error.localizedDescription
         }
     }
 
-    var hasMoreHistory: Bool { historyCursor != nil }
-
     func loadMoreHistory() async {
         // Reserved before the first suspension, so two triggers never read the same page twice.
-        guard let cursor = historyCursor, var query = historyQuery, !isLoadingHistory else { return }
-        isLoadingHistory = true
-        defer { isLoadingHistory = false }
+        guard let cursor = history.cursor, var query = history.query, !history.isLoading else { return }
+        history.isLoading = true
+        defer { history.isLoading = false }
         guard let token = await sessionToken() else { return }
-        let filter = historyFilter
-        let generation = historyWriteGeneration
+        let filter = history.filter
+        let generation = history.writeGeneration
         query.cursor = cursor
         do {
             let page = try await fetchHistoryPage(query, sessionToken: token)
-            guard filter == historyFilter, generation == historyWriteGeneration else { return }
-            historyItems += page.items.map(overlaid)
-            historyDayCounts.merge(Self.dayCounts(page.days)) { _, newer in newer }
-            historyCursor = page.nextCursor
+            guard filter == history.filter, generation == history.writeGeneration else { return }
+            history.items += page.items.map(overlaid)
+            history.dayCounts.merge(Self.dayCounts(page.days)) { _, newer in newer }
+            history.cursor = page.nextCursor
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
-            historyError = error.localizedDescription
+            history.error = error.localizedDescription
         }
     }
 
@@ -1053,4 +1033,38 @@ extension ItemInbox {
             return self
         }
     }
+}
+
+@MainActor
+@Observable
+final class HistoryState {
+    fileprivate(set) var filter = HistoryFilter()
+    fileprivate(set) var items: [Item] = []
+    fileprivate(set) var dayCounts: [String: Int] = [:]
+    fileprivate(set) var stats: ItemStats?
+    fileprivate(set) var sources: [String] = []
+    fileprivate(set) var receivedAt: Date?
+    fileprivate(set) var error: String?
+    fileprivate(set) var isLoading = false
+    fileprivate var cursor: String?
+    /// The query the current history pages came from; continuations reuse its bounds.
+    fileprivate var query: ItemListQuery?
+    /// Bumped each time an item action settles, so a History read taken before is discarded.
+    fileprivate var writeGeneration = 0
+
+    var hasMore: Bool { cursor != nil }
+}
+
+@MainActor
+@Observable
+final class RunbookState {
+    /// The run the Hermes tab follows once the owner started or picked one; the newest otherwise.
+    fileprivate(set) var selectedRunID: String?
+    fileprivate(set) var detail: RunbookRunDetail?
+    fileprivate(set) var error: String?
+    /// Scripts whose run request is on its way; their buttons wait for the reply.
+    fileprivate(set) var scriptsStarting: Set<String> = []
+    /// Run requests the server never answered, by script and item. The next tap sends the same
+    /// request again, so the server returns the run it may have queued and queues no second one.
+    fileprivate var unansweredRequests: [String: String] = [:]
 }

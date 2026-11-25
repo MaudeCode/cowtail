@@ -6,7 +6,7 @@ import XCTest
 final class HostedHermesTests: XCTestCase {
     func testHermesShowsItsHeaderAndOrdersSections() throws {
         let screen = try HostedScreen(NavigationStack { HermesView() }
-            .environmentObject(UITestScenario.fixtureStore(.inboxPopulated)))
+            .environment(UITestScenario.fixtureStore(.inboxPopulated)))
         defer { screen.close() }
 
         let sections = [
@@ -21,7 +21,7 @@ final class HostedHermesTests: XCTestCase {
 
     func testConfirmingRunbookPromptShowsOutput() throws {
         let screen = try HostedScreen(NavigationStack { HermesView() }
-            .environmentObject(UITestScenario.fixtureStore(.inboxPopulated)))
+            .environment(UITestScenario.fixtureStore(.inboxPopulated)))
         defer { screen.close() }
         screen.assertVisible(["button.runbook.gateway-restart"])
         XCTAssertTrue(screen.hasLabel("Asks to confirm"))
@@ -37,7 +37,7 @@ final class HostedHermesTests: XCTestCase {
                 .navigationDestination(for: AppRoute.self) { route in
                     ItemDestinationView(route: route)
                 }
-        }.environmentObject(UITestScenario.fixtureStore(.inboxPopulated)))
+        }.environment(UITestScenario.fixtureStore(.inboxPopulated)))
         defer { screen.close() }
         try screen.activate("row.hermes.incident.backup-verify-sig")
         screen.assertVisible(["screen.item-detail", "text.item.title"])

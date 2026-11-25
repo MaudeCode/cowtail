@@ -6,7 +6,7 @@ struct RootView: View {
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @State private var asksForNotifications = false
 
     var body: some View {
@@ -33,7 +33,7 @@ struct ContentView: View {
     @Environment(\.cowtailPalette) private var palette
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var universalLinkRouter: UniversalLinkRouter
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @State private var historyFilter = HistoryFilter()
 
     @State private var hermesPath: [AppRoute] = []

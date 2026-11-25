@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HistoryView: View {
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @EnvironmentObject private var router: UniversalLinkRouter
     @Environment(\.cowtailPalette) private var palette
 
@@ -19,16 +19,16 @@ struct HistoryView: View {
         } content: {
             chips
 
-            if let error = store.historyError, let receivedAt = store.historyReceivedAt {
+            if let error = store.history.error, let receivedAt = store.history.receivedAt {
                 RefreshFailureBanner(receivedAt: receivedAt, error: error) { await store.loadHistory(filter) }
-            } else if let error = store.historyError {
+            } else if let error = store.history.error {
                 Text(error)
                     .font(.cowtailSans(13, relativeTo: .footnote))
                     .foregroundStyle(palette.accent)
                     .listRowBackground(Color.clear)
             }
 
-            if let stats = store.historyStats {
+            if let stats = store.history.stats {
                 outcomes(stats)
                 timeToResolve(stats)
             } else {
@@ -38,7 +38,7 @@ struct HistoryView: View {
         }
         .searchable(text: $filter.search, placement: .navigationBarDrawer)
         .sheet(isPresented: $isFiltering) {
-            HistoryFilterSheet(filter: $filter, sources: store.historySources)
+            HistoryFilterSheet(filter: $filter, sources: store.history.sources)
                 .presentationDetents([.medium, .large])
         }
         .task(id: filter) {
@@ -180,7 +180,7 @@ struct HistoryView: View {
     /// The server's days, in the server's order.
     private var dayGroups: [(date: String, items: [Item])] {
         var groups: [(date: String, items: [Item])] = []
-        for item in store.historyItems {
+        for item in store.history.items {
             let date = item.createdDate ?? ""
             if groups.last?.date == date {
                 groups[groups.count - 1].items.append(item)
@@ -194,18 +194,18 @@ struct HistoryView: View {
     @ViewBuilder
     private var days: some View {
         ForEach(dayGroups, id: \.date) { group in
-            Section(Self.dayLabel(group.date), detail: store.historyDayCounts[group.date].map(String.init)) {
+            Section(Self.dayLabel(group.date), detail: store.history.dayCounts[group.date].map(String.init)) {
                 ForEach(group.items) { item in
                     ItemRow(item: item, style: .history)
                         .onAppear {
-                            if item.id == store.historyItems.last?.id, store.hasMoreHistory {
+                            if item.id == store.history.items.last?.id, store.history.hasMore {
                                 Task { await store.loadMoreHistory() }
                             }
                         }
                 }
             }
         }
-        if store.hasMoreHistory {
+        if store.history.hasMore {
             CowtailIconButton(title: "Load older items", systemImage: "arrow.down") {
                 Task { await store.loadMoreHistory() }
             }

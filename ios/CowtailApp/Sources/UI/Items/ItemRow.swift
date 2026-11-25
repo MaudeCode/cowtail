@@ -16,7 +16,7 @@ struct ItemRow: View {
     let item: Item
     let style: Style
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
@@ -257,7 +257,7 @@ struct ItemActions<Content: View>: View {
     let item: Item
     @ViewBuilder let content: (_ run: @escaping (ItemButton) -> Void) -> Content
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.openURL) private var openURL
     @State private var isSnoozing = false
     @State private var isReplying = false
@@ -359,7 +359,7 @@ struct ItemActions<Content: View>: View {
 struct ItemActionButtons: View {
     let item: Item
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
@@ -407,7 +407,7 @@ struct ItemActionButtons: View {
 
     private func isStarting(_ button: ItemButton) -> Bool {
         if case .run(let script) = button {
-            return store.scriptsStarting.contains(script.id)
+            return store.runbook.scriptsStarting.contains(script.id)
         }
         return false
     }

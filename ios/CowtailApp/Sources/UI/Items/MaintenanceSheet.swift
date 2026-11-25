@@ -39,7 +39,7 @@ struct MaintenanceSheet: View {
         }
     }
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.cowtailPalette) private var palette
     @State private var title = ""
@@ -253,7 +253,7 @@ struct MaintenanceSheet: View {
 struct MaintenanceBanner: View {
     let window: MaintenanceWindow
 
-    @EnvironmentObject private var store: CowtailStore
+    @Environment(CowtailStore.self) private var store
     @Environment(\.cowtailPalette) private var palette
 
     var body: some View {
