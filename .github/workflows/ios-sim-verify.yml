@@ -41,6 +41,9 @@ jobs:
             ~/Library/Caches/org.swift.swiftpm
             ios/OpenAPITools/.build
           key: swiftpm-${{ runner.os }}-${{ hashFiles('ios/OpenAPITools/Package.resolved', 'ios/CowtailKit/Package.resolved', 'ios/project.yml') }}
+          # A changed pin still starts from the newest older cache: SwiftPM fetches only what changed, and a cold
+          # cache costs the job over a minute.
+          restore-keys: swiftpm-${{ runner.os }}-
 
       - name: Write iOS verify project env
         run: install -m 600 ios/Config/project.env.example ios/Config/project.env
