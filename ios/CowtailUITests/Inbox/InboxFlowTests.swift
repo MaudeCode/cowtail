@@ -197,6 +197,21 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertTrue(app.element("screen.item-missing").waitForExistence(timeout: 10))
     }
 
+    func testColdOfflineLaunchShowsCachedInboxAndRetry() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_cached_offline")
+        app.launch()
+
+        XCTAssertTrue(app.element("text.stale.as-of").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.element("row.item.approval-ingress").exists)
+        XCTAssertTrue(app.buttons["button.stale.retry"].exists)
+        XCTAssertFalse(app.element("empty.inbox.all-clear").exists)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Inbox restored offline"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testAFailedLoadShowsTheError() {
         let app = AppLaunching.configuredApp(scenario: "inbox_error")
         app.launch()

@@ -77,7 +77,7 @@ struct HermesStatus: Equatable, Sendable {
 }
 
 /// A MaudeUtils script Hermes can run, with the server's calls on it.
-struct RunbookScript: Identifiable, Hashable, Sendable {
+struct RunbookScript: Identifiable, Hashable, Sendable, Codable {
     let id: String
     let name: String
     /// The prompt to show before a run; nil when the script runs on a tap.

@@ -6,6 +6,7 @@ struct RootView: View {
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
     @EnvironmentObject private var notificationManager: NotificationManager
+    @EnvironmentObject private var store: CowtailStore
     @State private var asksForNotifications = false
 
     var body: some View {
@@ -19,6 +20,9 @@ struct RootView: View {
             }
         }
         .onChange(of: appSessionManager.isSignedIn) { _, isSignedIn in
+            if !isSignedIn {
+                store.discardInbox()
+            }
             // Only a sign-in asks, and only while the system has not asked yet.
             asksForNotifications = isSignedIn && notificationManager.authorizationStatus == .notDetermined
         }

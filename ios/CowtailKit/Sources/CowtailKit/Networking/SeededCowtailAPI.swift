@@ -347,6 +347,10 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
         seed.oidcProviderName
     }
 
+    func refreshOIDCSession(sessionToken _: String, refreshToken _: String) async throws -> AppAuthSession? {
+        Self.session
+    }
+
     func redeemOIDCHandoff(code _: String, verifier _: String) async throws -> AppAuthSession {
         Self.session
     }

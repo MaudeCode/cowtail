@@ -8,6 +8,7 @@ import {
   authLogoutResponseSchema,
   authOidcHandoffRequestSchema,
   authOidcHandoffResponseSchema,
+  authOidcRefreshRequestSchema,
   authProvidersResponseSchema,
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
@@ -119,6 +120,7 @@ import { expireWindowSilences, silenceWindow } from "./maintenance";
 import { resolveItemStatsRange, resolveRangeStart } from "./itemStats";
 import {
   exchangeOidcCode,
+  refreshOidcGrant,
   fetchOidcDiscovery,
   OidcError,
   oidcConfig,
@@ -132,6 +134,8 @@ import { snoozeOptions } from "./itemModel";
 import { SOURCE_TOKEN_PREFIX, sourceIconError } from "./sources";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// Renew native Pocket ID sessions before the provider's default inactivity window expires.
+const OIDC_APP_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "cowtail_session";
 // The web Sign in with Apple's `state.nonce` while the browser is at Apple. Apple posts the
 // reply cross-site, so only a SameSite=None cookie comes back with it.
@@ -362,23 +366,24 @@ async function pkceChallenge(verifier: string): Promise<string> {
 
 // The one place a session is created: Apple sign-in on iOS and the web, the OIDC web callback
 // and the OIDC iOS hand-off all issue through it.
-async function issueSession(ctx: ActionCtx, userId: string) {
+async function issueSession(ctx: ActionCtx, userId: string, refreshToken?: string) {
   const token = createOpaqueToken();
-  const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
+  const expiresAt = Date.now() + (refreshToken ? OIDC_APP_SESSION_TTL_MS : AUTH_SESSION_TTL_MS);
   await ctx.runMutation(internal.authSessions.createSession, {
     userId,
     tokenHash: await sha256Hex(token),
     expiresAt,
+    oidcRefreshHash: refreshToken ? await sha256Hex(refreshToken) : undefined,
   });
 
-  return { token, userId, expiresAt };
+  return { token, userId, expiresAt, refreshToken };
 }
 
 type AppSessionContext = Context<typeof app extends Hono<infer Env> ? Env : never>;
 
 // A bearer token wins when present. Without one, the `cowtail_session` cookie is accepted,
 // and a state-changing cookie request must come from the web origin (CSRF).
-async function requireAppSession(c: AppSessionContext) {
+async function requireAppSession(c: AppSessionContext, { forLogout = false } = {}) {
   const authorization = c.req.header("authorization")?.trim();
   let token: string | undefined;
   if (authorization) {
@@ -404,7 +409,12 @@ async function requireAppSession(c: AppSessionContext) {
   const tokenHash = await sha256Hex(token);
   const session = await c.env.runQuery(internal.authSessions.getSessionByTokenHash, { tokenHash });
 
-  if (!session || session.revokedAt || session.expiresAt <= Date.now()) {
+  const canRevokeExpiredSession = forLogout && authorization && session?.oidcRefreshHash;
+  if (
+    !session ||
+    session.revokedAt !== undefined ||
+    (session.expiresAt <= Date.now() && !canRevokeExpiredSession)
+  ) {
     return { error: jsonError("Unauthorized", 401) };
   }
 
@@ -2577,14 +2587,19 @@ app.get("/api/auth/oidc/callback", async (c) => {
   }
 
   let subject: string;
+  let refreshToken: string | undefined;
   try {
     const discovery = await fetchOidcDiscovery(oidc.config);
-    const idToken = await exchangeOidcCode(oidc.config, discovery, {
+    const grant = await exchangeOidcCode(oidc.config, discovery, {
       code,
       codeVerifier: login.codeVerifier,
       redirectUri: oidcRedirectUri(),
     });
-    subject = await verifyOidcIdToken(oidc.config, discovery, { idToken, nonce: login.nonce });
+    subject = await verifyOidcIdToken(oidc.config, discovery, {
+      idToken: grant.idToken,
+      nonce: login.nonce,
+    });
+    refreshToken = grant.refreshToken;
   } catch (error) {
     if (error instanceof OidcError) return textPage(error.message, error.statusCode);
     throw error;
@@ -2599,6 +2614,7 @@ app.get("/api/auth/oidc/callback", async (c) => {
     await c.env.runMutation(internal.authSessions.storeOidcHandoffCode, {
       id: login.id,
       handoffCodeHash: await sha256Hex(handoffCode),
+      oidcRefreshToken: refreshToken,
     });
     return c.redirect(`cowtail://auth/callback?code=${encodeURIComponent(handoffCode)}`, 302);
   }
@@ -2704,14 +2720,67 @@ app.post("/api/auth/oidc/handoff", async (c) => {
   return c.json(
     authOidcHandoffResponseSchema.parse({
       ok: true,
-      session: await issueSession(c.env, ownerUserId),
+      session: await issueSession(c.env, ownerUserId, redemption.refreshToken),
     }),
   );
 });
 
+app.post("/api/auth/oidc/refresh", async (c) => {
+  const oidc = requireOidc((message, status) => jsonError(message, status));
+  if ("error" in oidc) return oidc.error;
+
+  const parsed = authOidcRefreshRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues), 400);
+  const { sessionToken, refreshToken } = parsed.data;
+  const previousRefreshHash = await sha256Hex(refreshToken);
+  const current = await c.env.runQuery(internal.authSessions.getSessionByTokenHash, {
+    tokenHash: await sha256Hex(sessionToken),
+  });
+  const userId = cowtailOwnerUserId();
+  if (
+    !userId ||
+    !current ||
+    current.userId !== userId ||
+    current.revokedAt !== undefined ||
+    current.oidcRefreshHash !== previousRefreshHash
+  ) {
+    return jsonError("Pocket ID session could not be renewed. Sign in again.", 401);
+  }
+
+  try {
+    const discovery = await fetchOidcDiscovery(oidc.config);
+    const grant = await refreshOidcGrant(oidc.config, discovery, refreshToken);
+    const subject = await verifyOidcIdToken(oidc.config, discovery, { idToken: grant.idToken });
+    if (subject !== oidc.config.ownerSubject) {
+      return jsonError("Pocket ID session could not be renewed. Sign in again.", 401);
+    }
+    if (!grant.refreshToken) return jsonError("Pocket ID returned no renewal credential.", 502);
+
+    const token = createOpaqueToken();
+    const expiresAt = Date.now() + OIDC_APP_SESSION_TTL_MS;
+    const renewed = await c.env.runMutation(internal.authSessions.renewOidcSession, {
+      id: current._id,
+      previousRefreshHash,
+      nextRefreshHash: await sha256Hex(grant.refreshToken),
+      nextTokenHash: await sha256Hex(token),
+      expiresAt,
+    });
+    if (!renewed) return jsonError("Pocket ID session could not be renewed. Sign in again.", 401);
+    return c.json(
+      authOidcHandoffResponseSchema.parse({
+        ok: true,
+        session: { token, userId, expiresAt, refreshToken: grant.refreshToken },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof OidcError) return jsonError(error.message, error.statusCode);
+    throw error;
+  }
+});
+
 // POST /api/auth/logout — revoke the current bearer or cookie session and clear the cookie
 app.post("/api/auth/logout", async (c) => {
-  const auth = await requireAppSession(c);
+  const auth = await requireAppSession(c, { forLogout: true });
   if ("error" in auth) return auth.error;
 
   await c.env.runMutation(internal.authSessions.revokeSession, { id: auth.session._id });

@@ -18,6 +18,7 @@ import {
   authLogoutResponseSchema,
   authOidcHandoffRequestSchema,
   authOidcHandoffResponseSchema,
+  authOidcRefreshRequestSchema,
   authProvidersResponseSchema,
   authSessionCreateRequestSchema,
   authSessionCreateResponseSchema,
@@ -127,6 +128,7 @@ const AuthOidcHandoffRequest = authOidcHandoffRequestSchema.meta({
 const AuthOidcHandoffResponse = authOidcHandoffResponseSchema.meta({
   id: "AuthOidcHandoffResponse",
 });
+const AuthOidcRefreshRequest = authOidcRefreshRequestSchema.meta({ id: "AuthOidcRefreshRequest" });
 const AuthLogoutResponse = authLogoutResponseSchema.meta({ id: "AuthLogoutResponse" });
 const NotificationPreferencesResponse = notificationPreferencesResponseSchema.meta({
   id: "NotificationPreferencesResponse",
@@ -286,6 +288,23 @@ registry.registerPath({
     200: jsonResponse("The app session payload.", AuthOidcHandoffResponse),
     400: jsonResponse("Invalid hand-off request.", ErrorResponse),
     401: jsonResponse("Unknown, used, expired or mismatched hand-off code.", ErrorResponse),
+    404: jsonResponse("OIDC sign-in is not configured.", ErrorResponse),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/oidc/refresh",
+  operationId: "refreshOidcSession",
+  tags: ["auth"],
+  summary: "Renew an iOS session with its Pocket ID renewal credential",
+  request: {
+    body: { required: true, content: jsonContent(AuthOidcRefreshRequest) },
+  },
+  responses: {
+    200: jsonResponse("The renewed app session.", AuthOidcHandoffResponse),
+    400: jsonResponse("Invalid renewal request.", ErrorResponse),
+    401: jsonResponse("The renewal credential was refused.", ErrorResponse),
     404: jsonResponse("OIDC sign-in is not configured.", ErrorResponse),
   },
 });

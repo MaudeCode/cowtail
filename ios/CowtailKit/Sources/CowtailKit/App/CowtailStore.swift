@@ -73,9 +73,36 @@ struct ActionFeedback: Equatable {
     let succeeded: Bool
 }
 
+struct InboxSnapshot: Codable {
+    let inbox: ItemInbox
+    let receivedAt: Date
+}
+
 @MainActor
 final class CowtailStore: ObservableObject {
+    enum InboxState: Equatable {
+        case loading
+        case fresh
+        case stale(Date, String)
+        case failed(String)
+    }
+
     @Published private(set) var inbox: ItemInbox?
+    @Published private var inboxReceivedAt: Date?
+    @Published private var inboxLoadError: String?
+    @Published private var hasLoadedInbox = false
+    private var hasStartedInboxRequest = false
+    private var inboxGeneration = 0
+
+    var inboxState: InboxState {
+        if let inboxLoadError {
+            if let inboxReceivedAt {
+                return .stale(inboxReceivedAt, inboxLoadError)
+            }
+            return .failed(inboxLoadError)
+        }
+        return hasLoadedInbox ? .fresh : .loading
+    }
     @Published private(set) var health: HealthSummary?
     @Published private(set) var healthErrorMessage: String?
     @Published private(set) var clusterStats: ItemStats?
@@ -86,6 +113,7 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     @Published private(set) var details: [String: ItemDetail] = [:]
+    @Published private(set) var detailReceivedAt: [String: Date] = [:]
     @Published private(set) var detailErrors: [String: String] = [:]
     /// Each item's metric graph at the range last asked for; absent when the server has none.
     @Published private(set) var graphs: [String: ItemGraph] = [:]
@@ -125,6 +153,7 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var historyDayCounts: [String: Int] = [:]
     @Published private(set) var historyStats: ItemStats?
     @Published private(set) var historySources: [String] = []
+    @Published private(set) var historyReceivedAt: Date?
     @Published private(set) var historyError: String?
     @Published private(set) var isLoadingHistory = false
     private var historyCursor: String?
@@ -162,8 +191,10 @@ final class CowtailStore: ObservableObject {
     /// request again, so the server returns the run it may have queued and queues no second one.
     private var unansweredRunRequests: [String: String] = [:]
 
+    private let inboxCacheURL: URL?
     private let api: any CowtailAPIClient
     private let sessionToken: @MainActor () async -> String?
+    private let sessionFailure: @MainActor () -> String?
     private let authenticator: any ApprovalAuthenticating
     private let requiresApprovalAuthentication: @MainActor () -> Bool
     private let notificationCenter: any DeliveredNotificationCenter
@@ -177,20 +208,43 @@ final class CowtailStore: ObservableObject {
 
     init(
         api: any CowtailAPIClient = CowtailAPI(),
+        inboxCacheURL: URL? = nil,
         sessionToken: @escaping @MainActor () async -> String? = {
             await AppSessionManager.shared.refreshSessionIfPossible()
         },
+        sessionFailure: @escaping @MainActor () -> String? = { AppSessionManager.shared.lastError },
         authenticator: any ApprovalAuthenticating = DeviceOwnerAuthenticator(),
         requiresApprovalAuthentication: @escaping @MainActor () -> Bool = {
             NotificationManager.shared.requiresApprovalAuthentication
         },
         notificationCenter: any DeliveredNotificationCenter = SystemNotificationCenter()
     ) {
+        self.inboxCacheURL = inboxCacheURL
+        if let inboxCacheURL,
+           let data = try? Data(contentsOf: inboxCacheURL),
+           let snapshot = try? JSONDecoder().decode(InboxSnapshot.self, from: data) {
+            inbox = snapshot.inbox
+            inboxReceivedAt = snapshot.receivedAt
+        }
         self.api = api
         self.sessionToken = sessionToken
+        self.sessionFailure = sessionFailure
         self.authenticator = authenticator
         self.requiresApprovalAuthentication = requiresApprovalAuthentication
         self.notificationCenter = notificationCenter
+    }
+
+    func discardInbox() {
+        inboxGeneration += 1
+        inbox = nil
+        inboxReceivedAt = nil
+        inboxLoadError = nil
+        hasLoadedInbox = false
+        hasStartedInboxRequest = false
+        errorMessage = nil
+        if let inboxCacheURL {
+            try? FileManager.default.removeItem(at: inboxCacheURL)
+        }
     }
 
     // MARK: Inbox and cluster
@@ -212,7 +266,9 @@ final class CowtailStore: ObservableObject {
             await hermes
             await maintenance
         } else {
-            errorMessage = Self.signInMessage
+            let message = sessionFailure().map { "Could not renew your session. \($0)" } ?? Self.signInMessage
+            inboxLoadError = message
+            errorMessage = message
         }
         await health
         lastUpdated = .now
@@ -309,19 +365,45 @@ final class CowtailStore: ObservableObject {
             .sorted { $0.endsAt < $1.endsAt }
     }
 
+    private func fetchInbox(sessionToken token: String) async throws -> ItemInbox {
+        let isFirstRequest = !hasStartedInboxRequest
+        hasStartedInboxRequest = true
+        do {
+            return try await api.fetchInbox(sessionToken: token)
+        } catch where isFirstRequest && NetworkErrorClassifier.isTransientConnectionFailure(error) {
+            try Task.checkCancellation()
+            return try await api.fetchInbox(sessionToken: token)
+        }
+    }
+
     /// True when the server answered.
     @discardableResult
     private func reloadInbox(sessionToken token: String) async -> Bool {
+        let generation = inboxGeneration
         do {
-            let read = try await api.fetchInbox(sessionToken: token)
+            let read = try await fetchInbox(sessionToken: token)
+            guard generation == inboxGeneration, !Task.isCancelled else { return false }
             inbox = pendingSnoozes.reduce(read) { shown, pending in
                 shown.showingPending(pending.request, on: pending.itemID)
+            }
+            let receivedAt = Date.now
+            inboxReceivedAt = receivedAt
+            hasLoadedInbox = true
+            inboxLoadError = nil
+            if let inboxCacheURL {
+                do {
+                    let data = try JSONEncoder().encode(InboxSnapshot(inbox: read, receivedAt: receivedAt))
+                    try data.write(to: inboxCacheURL, options: [.atomic, .completeFileProtection])
+                } catch {
+                    logger.error("persist inbox failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             unconfirmedItemIDs.removeAll()
             await DeliveredNotifications.show(badge: read.badge, liveItemIDs: read.liveItemIDs, in: notificationCenter)
             return true
         } catch {
-            guard !NetworkErrorClassifier.isCancellation(error) else { return false }
+            guard generation == inboxGeneration, !NetworkErrorClassifier.isCancellation(error) else { return false }
+            inboxLoadError = error.localizedDescription
             logger.error("refresh inbox failed: \(String(describing: error), privacy: .public)")
             errorMessage = error.localizedDescription
             return false
@@ -338,6 +420,7 @@ final class CowtailStore: ObservableObject {
         do {
             if let detail = try await api.fetchItem(id: itemID, sessionToken: token) {
                 details[itemID] = detail
+                detailReceivedAt[itemID] = .now
                 detailErrors[itemID] = nil
             } else {
                 detailErrors[itemID] = "This item could not be found."
@@ -361,21 +444,22 @@ final class CowtailStore: ObservableObject {
 
     /// An alert link opens the item the server keeps for that alert.
     func loadDetail(alertID: String) async {
+        let errorKey = itemIDsByAlertID[alertID] ?? alertID
         guard let token = await sessionToken() else {
-            detailErrors[alertID] = Self.signInMessage
+            detailErrors[errorKey] = Self.signInMessage
             return
         }
         do {
             let page = try await api.fetchItems(ItemListQuery(alertID: alertID), sessionToken: token)
             guard let item = page.items.first else {
-                detailErrors[alertID] = "This alert could not be found."
+                detailErrors[errorKey] = "This alert could not be found."
                 return
             }
             itemIDsByAlertID[alertID] = item.id
             await loadDetail(itemID: item.id)
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return }
-            detailErrors[alertID] = error.localizedDescription
+            detailErrors[errorKey] = error.localizedDescription
         }
     }
 
@@ -825,6 +909,7 @@ final class CowtailStore: ObservableObject {
             historySources = loadedSources
             historyQuery = query.continuing(loadedPage)
             historyItems = loadedPage.items.map(overlaid)
+            historyReceivedAt = .now
             historyDayCounts = Self.dayCounts(loadedPage.days)
             historyCursor = loadedPage.nextCursor
             historyStats = loadedStats

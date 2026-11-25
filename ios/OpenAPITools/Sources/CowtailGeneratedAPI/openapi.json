@@ -566,6 +566,10 @@
               "expiresAt": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "refreshToken": {
+                "type": "string",
+                "minLength": 1
               }
             },
             "required": [
@@ -595,6 +599,23 @@
         "required": [
           "code",
           "verifier"
+        ]
+      },
+      "AuthOidcRefreshRequest": {
+        "type": "object",
+        "properties": {
+          "sessionToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "sessionToken",
+          "refreshToken"
         ]
       },
       "AuthLogoutResponse": {
@@ -3772,6 +3793,67 @@
           },
           "401": {
             "description": "Unknown, used, expired or mismatched hand-off code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "OIDC sign-in is not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/oidc/refresh": {
+      "post": {
+        "operationId": "refreshOidcSession",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Renew an iOS session with its Pocket ID renewal credential",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthOidcRefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The renewed app session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOidcHandoffResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid renewal request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The renewal credential was refused.",
             "content": {
               "application/json": {
                 "schema": {

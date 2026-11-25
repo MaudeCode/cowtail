@@ -45,6 +45,7 @@ type IdTokenClaims = Partial<Pick<JWTPayload, "iss" | "aud" | "sub" | "exp">> & 
 // token endpoint enforces client_secret_basic, the redirect URI and the PKCE verifier.
 function fakeOidcProvider() {
   const grants = new Map<string, { challenge: string; idToken: string }>();
+  const refreshTokens = new Map<string, string>();
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input, init) => {
@@ -62,9 +63,30 @@ function fakeOidcProvider() {
       }
       if (url === `${ISSUER}/token`) {
         const form = new URLSearchParams(String(init?.body));
+        const basic = `Basic ${btoa(`${CLIENT_ID}:${CLIENT_SECRET}`)}`;
+        if (form.get("grant_type") === "refresh_token") {
+          const token = form.get("refresh_token") ?? "";
+          const subject = refreshTokens.get(token);
+          if (!subject || new Headers(init?.headers).get("authorization") !== basic) {
+            return Response.json({ error: "invalid_grant" }, { status: 400 });
+          }
+          refreshTokens.delete(token);
+          const nextToken = randomBytes(32).toString("hex");
+          refreshTokens.set(nextToken, subject);
+          return Response.json({
+            access_token: "at",
+            token_type: "Bearer",
+            refresh_token: nextToken,
+            id_token: await signIdToken({
+              iss: ISSUER,
+              aud: CLIENT_ID,
+              sub: subject,
+              exp: Math.floor(Date.now() / 1000) + 300,
+            }),
+          });
+        }
         const grant = grants.get(form.get("code") ?? "");
         grants.delete(form.get("code") ?? "");
-        const basic = `Basic ${btoa(`${CLIENT_ID}:${CLIENT_SECRET}`)}`;
         if (
           !grant ||
           new Headers(init?.headers).get("authorization") !== basic ||
@@ -74,7 +96,14 @@ function fakeOidcProvider() {
         ) {
           return Response.json({ error: "invalid_grant" }, { status: 400 });
         }
-        return Response.json({ access_token: "at", token_type: "Bearer", id_token: grant.idToken });
+        const refreshToken = randomBytes(32).toString("hex");
+        refreshTokens.set(refreshToken, OWNER_SUBJECT);
+        return Response.json({
+          access_token: "at",
+          token_type: "Bearer",
+          id_token: grant.idToken,
+          refresh_token: refreshToken,
+        });
       }
       throw new Error(`unexpected fetch ${url}`);
     }),
@@ -160,6 +189,28 @@ async function handoff(t: Backend, code: string, verifier: string) {
     body: JSON.stringify({ code, verifier }),
   });
 }
+
+test("an iOS Pocket ID session can renew without Apple credentials", async () => {
+  const t = newBackend();
+  const verifier = "a".repeat(43);
+  const code = await iosSignIn(t, verifier);
+  const signedIn = await handoff(t, code, verifier);
+  expect(signedIn.status).toBe(200);
+  const { session } = await signedIn.json();
+
+  const refreshed = await t.fetch("/api/auth/oidc/refresh", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionToken: session.token, refreshToken: session.refreshToken }),
+  });
+
+  expect(refreshed.status).toBe(200);
+  const { session: renewed } = await refreshed.json();
+  expect(renewed.userId).toBe(OWNER_USER_ID);
+  expect(renewed.token).not.toBe(session.token);
+  expect(renewed.refreshToken).toBeTypeOf("string");
+  expect(renewed.refreshToken).not.toBe(session.refreshToken);
+});
 
 test("the start route sends the browser to the provider with PKCE, state and nonce", async () => {
   const t = newBackend();
@@ -399,6 +450,28 @@ test("logout revokes the cookie session and clears the cookie", async () => {
   expect(logout.headers.get("set-cookie")).toMatch(/^cowtail_session=; Max-Age=0;/);
   const after = await get(t, "/api/me/notification-preferences", { cookie });
   expect(after.status).toBe(401);
+});
+
+test("logout prevents an expired Pocket ID session from renewing", async () => {
+  const t = newBackend();
+  const verifier = "a".repeat(43);
+  const signedIn = await handoff(t, await iosSignIn(t, verifier), verifier);
+  const { session } = authOidcHandoffResponseSchema.parse(await signedIn.json());
+  expect(session.refreshToken).toBeTypeOf("string");
+  vi.setSystemTime(session.expiresAt);
+
+  const logout = await t.fetch("/api/auth/logout", {
+    method: "POST",
+    headers: { authorization: `Bearer ${session.token}` },
+  });
+  expect(logout.status).toBe(200);
+
+  const refresh = await t.fetch("/api/auth/oidc/refresh", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionToken: session.token, refreshToken: session.refreshToken }),
+  });
+  expect(refresh.status).toBe(401);
 });
 
 test("logout revokes a bearer session", async () => {

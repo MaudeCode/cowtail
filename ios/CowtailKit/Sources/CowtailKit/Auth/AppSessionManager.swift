@@ -30,11 +30,13 @@ final class AppSessionManager: ObservableObject {
     private let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
     private let defaults = UserDefaults.cowtail
     private let tokenKey = "appSession.token"
+    private let oidcRefreshKey = "appSession.oidcRefreshToken"
     private let userIDKey = "appSession.userID"
     private let expiresAtKey = "appSession.expiresAt"
     private let providerKey = "appSession.provider"
     private var isUITesting = false
     private var sessionToken: String?
+    private var oidcRefreshToken: String?
     private var refreshTask: Task<String?, Never>?
     private var refreshToken: UUID?
 
@@ -43,6 +45,7 @@ final class AppSessionManager: ObservableObject {
     func configure() {
         isUITesting = false
         sessionToken = keychain.string(for: tokenKey)
+        oidcRefreshToken = keychain.string(for: oidcRefreshKey)
         userID = keychain.string(for: userIDKey) ?? defaults.string(forKey: userIDKey)
         provider = defaults.string(forKey: providerKey)
 
@@ -50,12 +53,12 @@ final class AppSessionManager: ObservableObject {
             expiresAt = Date(timeIntervalSince1970: rawExpiresAt)
         }
 
-        if !hasValidPersistedSession {
+        if !hasValidPersistedSession && !hasRenewableOIDCSession {
             clearSession()
             return
         }
 
-        sessionState = .ready
+        sessionState = hasValidPersistedSession ? .ready : .idle
         lastError = nil
     }
 
@@ -84,7 +87,12 @@ final class AppSessionManager: ObservableObject {
     /// Signed in while an Apple identity or a session from any provider exists; the app's root
     /// shows the tabs only then.
     var isSignedIn: Bool {
-        AppleAccountManager.shared.userID != nil || hasValidPersistedSession
+        AppleAccountManager.shared.userID != nil || hasValidPersistedSession || hasRenewableOIDCSession
+    }
+
+    private var hasRenewableOIDCSession: Bool {
+        !isAppleSession && sessionToken?.isEmpty == false && userID?.isEmpty == false &&
+            oidcRefreshToken?.isEmpty == false
     }
 
     /// Sessions stored before providers were recorded came from Apple.
@@ -97,7 +105,9 @@ final class AppSessionManager: ObservableObject {
             return sessionToken
         }
 
-        clearSession()
+        if !hasRenewableOIDCSession {
+            clearSession()
+        }
         return nil
     }
 
@@ -118,6 +128,12 @@ final class AppSessionManager: ObservableObject {
             return await refreshTask.value
         }
 
+        if hasRenewableOIDCSession, let provider, let sessionToken, let oidcRefreshToken {
+            return await renewSession(provider: provider) { [api] in
+                try await api.refreshOIDCSession(sessionToken: sessionToken, refreshToken: oidcRefreshToken)
+            }
+        }
+
         guard let appleUserID = AppleAccountManager.shared.userID, !appleUserID.isEmpty else {
             print("[roundup-debug] AppSessionManager.refreshSessionIfPossible no Apple user ID")
             logger.debug("refreshSessionIfPossible no Apple user ID")
@@ -129,50 +145,54 @@ final class AppSessionManager: ObservableObject {
         guard let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty else {
             print("[roundup-debug] AppSessionManager.refreshSessionIfPossible missing Apple identity token")
             logger.debug("refreshSessionIfPossible missing Apple identity token")
-            sessionState = .idle
-            lastError = nil
+            sessionState = .failed
+            lastError = "The Apple identity token is unavailable."
             return nil
         }
 
-        print("[roundup-debug] AppSessionManager.refreshSessionIfPossible creating backend session")
-        logger.debug("refreshSessionIfPossible creating backend session")
+        return await renewSession(provider: Self.appleProvider) { [api] in
+            try await api.createAuthSession(identityToken: identityToken)
+        }
+    }
+
+    private func renewSession(
+        provider: String,
+        request: @escaping @Sendable () async throws -> AppAuthSession?
+    ) async -> String? {
         sessionState = .refreshing
         lastError = nil
-
         let refreshToken = UUID()
-        let refreshTask = Task<String?, Never> { [api] in
-            do {
-                let session = try await api.createAuthSession(identityToken: identityToken)
-                await MainActor.run {
-                    print("[roundup-debug] AppSessionManager.refreshSessionIfPossible session created userID=\(session.userID)")
-                    self.logger.debug("refreshSessionIfPossible session created for user \(session.userID, privacy: .public)")
-                    self.store(session, provider: Self.appleProvider)
+        self.refreshToken = refreshToken
+        let task = Task<String?, Never> {
+            defer {
+                if self.refreshToken == refreshToken {
+                    self.refreshTask = nil
+                    self.refreshToken = nil
                 }
+            }
+            do {
+                let session = try await request()
+                guard self.refreshToken == refreshToken, !Task.isCancelled else { return nil }
+                guard let session else {
+                    self.clearSession()
+                    return nil
+                }
+                self.store(session, provider: provider)
                 return session.token
             } catch {
-                await MainActor.run {
-                    print("[roundup-debug] AppSessionManager.refreshSessionIfPossible failed error=\(error.localizedDescription)")
-                    self.logger.error("refreshSessionIfPossible failed: \(error.localizedDescription, privacy: .public)")
-                    self.clearSession()
-                    self.userID = appleUserID
-                    self.sessionState = .failed
-                    self.lastError = error.localizedDescription
-                }
+                guard self.refreshToken == refreshToken, !Task.isCancelled else { return nil }
+                self.logger.error("Session renewal failed: \(error.localizedDescription, privacy: .public)")
+                self.sessionState = .failed
+                self.lastError = error.localizedDescription
                 return nil
             }
         }
-
-        self.refreshTask = refreshTask
-        self.refreshToken = refreshToken
-        let token = await refreshTask.value
-        if self.refreshToken == refreshToken {
-            self.refreshTask = nil
-            self.refreshToken = nil
-        }
-        return token
+        refreshTask = task
+        return await task.value
     }
 
     func clearSession() {
+        oidcRefreshToken = nil
         clearStoredSession()
         applyUITestState(
             sessionState: .idle,
@@ -210,7 +230,7 @@ final class AppSessionManager: ObservableObject {
 
     func appleIdentityDidChange() {
         // An Apple identity change leaves a session from another provider alone.
-        if !isAppleSession, hasValidPersistedSession {
+        if !isAppleSession, hasValidPersistedSession || hasRenewableOIDCSession {
             return
         }
 
@@ -233,12 +253,18 @@ final class AppSessionManager: ObservableObject {
     /// The one place a new session is kept, whichever provider signed in.
     func store(_ session: AppAuthSession, provider: String) {
         sessionToken = session.token
+        oidcRefreshToken = session.refreshToken
         userID = session.userID
         expiresAt = session.expiresAt
         self.provider = provider
         sessionState = .ready
         lastError = nil
 
+        if let refreshToken = session.refreshToken {
+            keychain.set(refreshToken, for: oidcRefreshKey)
+        } else {
+            keychain.remove(oidcRefreshKey)
+        }
         keychain.set(session.token, for: tokenKey)
         keychain.set(session.userID, for: userIDKey)
         defaults.set(session.userID, forKey: userIDKey)
@@ -286,6 +312,7 @@ final class AppSessionManager: ObservableObject {
 
     private func clearStoredSession() {
         keychain.remove(tokenKey)
+        keychain.remove(oidcRefreshKey)
         keychain.remove(userIDKey)
         defaults.removeObject(forKey: userIDKey)
         defaults.removeObject(forKey: expiresAtKey)

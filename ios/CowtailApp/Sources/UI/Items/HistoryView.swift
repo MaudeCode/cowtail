@@ -19,7 +19,9 @@ struct HistoryView: View {
         } content: {
             chips
 
-            if let error = store.historyError {
+            if let error = store.historyError, let receivedAt = store.historyReceivedAt {
+                RefreshFailureBanner(receivedAt: receivedAt, error: error) { await store.loadHistory(filter) }
+            } else if let error = store.historyError {
                 Text(error)
                     .font(.cowtailSans(13, relativeTo: .footnote))
                     .foregroundStyle(palette.accent)

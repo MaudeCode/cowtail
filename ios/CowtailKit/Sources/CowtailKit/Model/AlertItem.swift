@@ -123,7 +123,7 @@ enum AlertOwnerDisposition: String, Decodable {
     case escalated
 }
 
-enum AlertHumanAction: String, Encodable {
+enum AlertHumanAction: String, Codable {
     case retryInvestigation = "retry-investigation"
     case markNoise = "mark-noise"
     case escalate
