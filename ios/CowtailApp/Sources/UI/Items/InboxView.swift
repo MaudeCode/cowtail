@@ -2,6 +2,7 @@ import SwiftUI
 
 struct InboxView: View {
     @EnvironmentObject private var store: CowtailStore
+    @EnvironmentObject private var router: UniversalLinkRouter
     @Environment(\.cowtailPalette) private var palette
     @State private var isStartingMaintenance = false
 
@@ -18,10 +19,15 @@ struct InboxView: View {
                     .accessibilityLabel("Hermes \(level?.rawValue ?? "not reporting")")
                     .accessibilityIdentifier("chip.inbox.hermes")
             }
-            CowtailIconButton(title: "Start a maintenance window", systemImage: "wrench.adjustable") {
+        } actions: {
+            CowtailIconButton(title: "Start a maintenance window", systemImage: "wrench.adjustable", style: .borderless) {
                 isStartingMaintenance = true
             }
             .accessibilityIdentifier("button.inbox.maintenance")
+            CowtailIconButton(title: "Settings", systemImage: "gearshape", style: .borderless) {
+                router.openSettings()
+            }
+            .accessibilityIdentifier("button.inbox.settings")
         } content: {
             let inbox = store.inbox ?? .empty
 
@@ -95,36 +101,53 @@ struct InboxView: View {
     }
 }
 
-/// A tab's page: a title with its chips, then sections, on the Cowtail canvas.
-struct CowtailScreen<Accessory: View, Content: View>: View {
+/// Every tab's page and the pages pushed onto it: the navigation bar's title, large on a tab's
+/// root and inline once pushed, the page's actions as its toolbar items, then a row of status
+/// chips under the title and the sections, on the Cowtail canvas.
+struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
     let title: String
     let identifier: String
-    @ViewBuilder let accessory: () -> Accessory
+    var titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large
+    @ViewBuilder let header: () -> Header
+    @ViewBuilder let actions: () -> Actions
     @ViewBuilder let content: () -> Content
+
+    init(
+        title: String,
+        identifier: String,
+        titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large,
+        @ViewBuilder header: @escaping () -> Header = { EmptyView() },
+        @ViewBuilder actions: @escaping () -> Actions = { EmptyView() },
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.identifier = identifier
+        self.titleDisplayMode = titleDisplayMode
+        self.header = header
+        self.actions = actions
+        self.content = content
+    }
 
     var body: some View {
         CowtailCanvas {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    CowtailPageHeader(title: .title(title)) {
-                        HStack(spacing: 6) { accessory() }
-                    }
+                    HStack(spacing: 6) { header() }
                     content()
                 }
                 .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
-                .padding(.top, CowtailDesignGuide.pageTopPadding)
                 .padding(.bottom, 28)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
-        .toolbar(.hidden, for: .navigationBar)
-    }
-}
-
-extension CowtailScreen where Accessory == EmptyView {
-    init(title: String, identifier: String, @ViewBuilder content: @escaping () -> Content) {
-        self.init(title: title, identifier: identifier, accessory: { EmptyView() }, content: content)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(titleDisplayMode)
+        .toolbar {
+            if Actions.self != EmptyView.self {
+                ToolbarItemGroup(placement: .topBarTrailing) { actions() }
+            }
+        }
     }
 }
 

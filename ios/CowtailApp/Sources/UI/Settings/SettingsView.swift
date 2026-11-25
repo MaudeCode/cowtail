@@ -15,7 +15,7 @@ struct SettingsView: View {
     @State private var isAddingOverride = false
 
     var body: some View {
-        CowtailScreen(title: "Settings", identifier: "screen.settings") {
+        CowtailScreen(title: "Settings", identifier: "screen.settings", titleDisplayMode: .inline) {
             account
             notifications
             urgencyOverrides

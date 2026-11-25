@@ -39,12 +39,6 @@ struct ContentView: View {
             .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
             .accessibilityIdentifier("tab.history")
 
-            NavigationStack {
-                SettingsView()
-            }
-            .tag(AppTab.settings)
-            .tabItem { Label("Settings", systemImage: "gearshape") }
-            .accessibilityIdentifier("tab.settings")
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(palette.accent)
@@ -76,6 +70,8 @@ struct ContentView: View {
             IncidentDestinationView(id: id)
         case .roundup(let roundupRoute):
             RoundupView(roundupRoute: roundupRoute)
+        case .settings:
+            SettingsView()
         }
     }
 }

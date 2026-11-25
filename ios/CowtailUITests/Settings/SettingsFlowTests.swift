@@ -2,9 +2,14 @@ import XCTest
 
 @MainActor
 final class SettingsFlowTests: XCTestCase {
-    func testSettingsShowsItsSectionsInTheFiguresOrder() {
-        let app = AppLaunching.configuredApp(scenario: "notifications_ready", startTab: "settings")
+    /// Settings is no tab: Inbox's toolbar button pushes it.
+    func testInboxOpensSettingsWithItsSectionsInTheFiguresOrder() {
+        let app = AppLaunching.configuredApp(scenario: "notifications_ready")
         app.launch()
+
+        let settings = app.buttons["button.inbox.settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
 
         app.assertSections(["Account", "Notifications", "Urgency overrides", "Appearance", "Devices", "Developer", "Links"])
         XCTAssertEqual(app.buttons["button.settings.add-override"].label, "Add override")

@@ -13,7 +13,7 @@ struct ItemDestinationView: View {
             if let itemID, let detail = store.details[itemID] {
                 ItemDetailView(detail: detail)
             } else if let error = store.detailErrors[routeKey] ?? itemID.flatMap({ store.detailErrors[$0] }) {
-                CowtailScreen(title: "Item", identifier: "screen.item-missing") {
+                CowtailScreen(title: "Item", identifier: "screen.item-missing", titleDisplayMode: .inline) {
                     Text(error)
                         .font(.cowtailSans(15, relativeTo: .body))
                         .foregroundStyle(palette.mutedInk)
@@ -49,7 +49,7 @@ struct ItemDestinationView: View {
     private var routeKey: String {
         switch route {
         case .item(let id), .alert(let id): id
-        case .incident, .roundup: ""
+        case .incident, .roundup, .settings: ""
         }
     }
 
@@ -57,7 +57,7 @@ struct ItemDestinationView: View {
         switch route {
         case .item(let id): id
         case .alert(let alertID): store.itemIDsByAlertID[alertID]
-        case .incident, .roundup: nil
+        case .incident, .roundup, .settings: nil
         }
     }
 
@@ -65,7 +65,7 @@ struct ItemDestinationView: View {
         switch route {
         case .item(let id): await store.loadDetail(itemID: id)
         case .alert(let alertID): await store.loadDetail(alertID: alertID)
-        case .incident, .roundup: break
+        case .incident, .roundup, .settings: break
         }
     }
 }

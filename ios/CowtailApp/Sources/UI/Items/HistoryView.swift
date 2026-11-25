@@ -10,6 +10,13 @@ struct HistoryView: View {
 
     var body: some View {
         CowtailScreen(title: "History", identifier: "screen.history") {
+            EmptyView()
+        } actions: {
+            CowtailIconButton(title: "Filter", systemImage: "line.3.horizontal.decrease", style: .borderless) {
+                isFiltering = true
+            }
+            .accessibilityIdentifier("button.history.filter")
+        } content: {
             searchBar
             chips
 
@@ -46,26 +53,19 @@ struct HistoryView: View {
     }
 
     private var searchBar: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(palette.mutedInk)
-                TextField("Search", text: $filter.search)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .accessibilityIdentifier("field.history.search")
-            }
-            .font(.cowtailSans(14, relativeTo: .body))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(palette.border, lineWidth: 1))
-
-            CowtailIconButton(title: "Filter", systemImage: "line.3.horizontal.decrease") {
-                isFiltering = true
-            }
-            .accessibilityIdentifier("button.history.filter")
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(palette.mutedInk)
+            TextField("Search", text: $filter.search)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .accessibilityIdentifier("field.history.search")
         }
+        .font(.cowtailSans(14, relativeTo: .body))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(palette.border, lineWidth: 1))
         .padding(.top, 8)
     }
 

@@ -5,6 +5,7 @@ enum AppTab: String, Hashable {
     case cluster
     case hermes
     case history
+    /// Not a tab: Settings is pushed from Inbox. A launch that names it opens Settings there.
     case settings
 }
 
@@ -14,6 +15,7 @@ enum AppRoute: Hashable {
     case alert(String)
     case incident(String)
     case roundup(RoundupRoute)
+    case settings
 }
 
 struct RoundupRoute: Hashable {
@@ -139,6 +141,12 @@ final class UniversalLinkRouter: ObservableObject {
         historyPath = [.roundup(roundupRoute)]
     }
 
+    /// Settings is pushed from Inbox's toolbar.
+    func openSettings() {
+        selectedTab = .inbox
+        inboxPath = [.settings]
+    }
+
     func applyUITestStartupSelection(selectedTab: AppTab?, deepLinkURL: URL?) {
         resetForUITesting()
 
@@ -146,7 +154,9 @@ final class UniversalLinkRouter: ObservableObject {
             return
         }
 
-        if let selectedTab {
+        if selectedTab == .settings {
+            openSettings()
+        } else if let selectedTab {
             self.selectedTab = selectedTab
         }
     }
