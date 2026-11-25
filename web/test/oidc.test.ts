@@ -443,6 +443,16 @@ test("the hourly cron deletes expired OIDC logins", async () => {
   await startLogin(t, "client=web");
   expect(await t.run((ctx) => ctx.db.query("oidcLogins").collect())).toHaveLength(1);
 
-  await advance(t, 60 * 60_000);
+  await advance(t, 60 * 60_000, { only: ["delete expired OIDC logins"] });
   expect(await t.run((ctx) => ctx.db.query("oidcLogins").collect())).toHaveLength(0);
+});
+
+test("advancing without interval crons leaves expired OIDC logins for the cleanup job", async () => {
+  const t = newBackend();
+  await startLogin(t, "client=web");
+
+  await advance(t, 60 * 60_000, { only: [] });
+
+  expect(Date.now()).toBe(NOW + 60 * 60_000);
+  expect(await t.run((ctx) => ctx.db.query("oidcLogins").collect())).toHaveLength(1);
 });

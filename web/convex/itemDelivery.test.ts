@@ -106,8 +106,10 @@ describe("item delivery", () => {
       aps: { interruptionLevel: "time-sensitive" },
     });
 
-    await advance(t, 60 * MINUTE);
-    expect(alertPushes()).toHaveLength(4);
+    for (let interval = 1; interval <= 6; interval++) {
+      await advance(t, 10 * MINUTE, { only: [] });
+      expect(alertPushes()).toHaveLength(1 + Math.min(interval, 3));
+    }
     expect((await decisions(t, id)).map(({ decision, attempt }) => [decision, attempt])).toEqual([
       ["pushed", 0],
       ["pushed", 1],
@@ -128,7 +130,7 @@ describe("item delivery", () => {
       body: { type: "ack" },
     });
     expect(ack.status).toBe(200);
-    await advance(t, 60 * MINUTE);
+    await advance(t, 60 * MINUTE, { only: [] });
 
     expect(alertPushes()).toHaveLength(2);
     expect((await decisions(t, id)).at(-1)).toMatchObject({
@@ -175,7 +177,7 @@ describe("item delivery", () => {
   test("a whenever item never pushes", async () => {
     const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "whenever" });
-    await advance(t, 60 * MINUTE);
+    await advance(t, 60 * MINUTE, { only: [] });
 
     expect(alertPushes()).toEqual([]);
     expect(await decisions(t, id)).toEqual([
@@ -252,10 +254,10 @@ describe("reminders", () => {
     });
     expect(snooze.status).toBe(200);
 
-    await advance(t, 59 * MINUTE);
+    await advance(t, 59 * MINUTE, { only: ["return snoozed items whose time has come"] });
     expect((await getItem(t, id)).item.state).toBe("snoozed");
 
-    await advance(t, 60 * MINUTE);
+    await advance(t, 60 * MINUTE, { only: ["return snoozed items whose time has come"] });
     expect((await getItem(t, id)).item.state).toBe("open");
     expect((await states(t, id)).at(-1)).toEqual({
       actor: "cowtail",
@@ -318,7 +320,7 @@ describe("reminders", () => {
       body: { type: "snooze", until: NOW + 2 * MINUTE },
     });
 
-    await advance(t, 60 * MINUTE);
+    await advance(t, 60 * MINUTE, { only: ["return snoozed items whose time has come"] });
 
     expect((await triggers(t, id)).filter(([, decision]) => decision === "pushed")).toEqual([
       ["created", "pushed"],
@@ -361,11 +363,11 @@ describe("reminders", () => {
       snoozedUntil: NOW + 120 * MINUTE,
     });
 
-    await advance(t, 119 * MINUTE);
+    await advance(t, 119 * MINUTE, { only: ["return snoozed items whose time has come"] });
     expect(alertPushes()).toEqual([]);
     expect(await decisions(t, id)).toEqual([]);
 
-    await advance(t, 60 * MINUTE);
+    await advance(t, 60 * MINUTE, { only: ["return snoozed items whose time has come"] });
     expect((await states(t, id)).at(-1)).toMatchObject({ to: "open", reason: "reminder" });
     expect(alertPushes()).toHaveLength(1);
     expect(alertPushes()[0]).toMatchObject({

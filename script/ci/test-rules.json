@@ -20,6 +20,13 @@
         "^(?:export\\s+)?(?:const|let|var)\\s+\\w+\\s*=\\s*(?:Date\\.now\\(\\)|new Date\\(\\))"
       ],
       "message": "test-audit clock: anchor a fixture time to a fixed instant the test holds the clock at, never the real clock at load (docs/testing.md)"
+    },
+    "clock-unscoped-crons": {
+      "paths": ["web/"],
+      "patterns": [
+        "\\badvance\\(\\s*\\w+\\s*,\\s*(?:\\d+\\s*\\*\\s*)?(?:[6-9]\\d|\\d{3,})\\s*\\*\\s*(?:MINUTE|60_000)\\s*\\)"
+      ],
+      "message": "test-audit heavy: limit long clock advances to the interval crons the test needs (docs/testing.md)"
     }
   }
 }

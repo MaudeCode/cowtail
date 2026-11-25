@@ -107,10 +107,10 @@ describe("Hermes hook deliveries", () => {
   test("the hourly prune forgets deliveries older than a day", async () => {
     const t = newBackend();
     expect(await send(t, apiError(500))).toBe(200);
-    await advance(t, 23 * 60 * MINUTE);
+    await advance(t, 23 * 60 * MINUTE, { only: ["prune Hermes hook deliveries"] });
     expect(await send(t, apiError(503))).toBe(200);
 
-    await advance(t, 2 * 60 * MINUTE);
+    await advance(t, 2 * 60 * MINUTE, { only: ["prune Hermes hook deliveries"] });
 
     expect((await rows(t, "hermesHookDeliveries")).map((row) => row.receivedAt)).toEqual([
       NOW + 23 * 60 * MINUTE,

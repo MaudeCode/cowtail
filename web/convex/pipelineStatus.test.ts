@@ -99,7 +99,9 @@ test("a mixed batch leaves the Watchdog out of its membership", async () => {
 test("nothing is raised before the first Watchdog arrives", async () => {
   const t = newBackend();
 
-  await advance(t, 60 * MINUTE);
+  await advance(t, 60 * MINUTE, {
+    only: ["raise an item when the Alertmanager Watchdog goes silent"],
+  });
 
   expect(await rows(t, "items")).toEqual([]);
   expect(await alertPipeline(t)).toEqual({ state: "not_configured" });

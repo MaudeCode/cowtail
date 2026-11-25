@@ -99,12 +99,14 @@ function intervalMs({ schedule }: CronSpec): number | undefined {
 // convex-test runs `ctx.scheduler` work but not `crons.ts`, and every Cowtail retry
 // runs from an interval cron. Each interval cron that comes due in the window runs
 // through convex-test's scheduler, in time order, at multiples of its interval.
+// Pass only to restrict interval crons. Function-scheduled work still runs.
 // ponytail: interval crons only; the hourly roundup cron never fires here. Add
 // calendar schedules when a test needs one.
-export async function advance(t: Backend, ms: number) {
+export async function advance(t: Backend, ms: number, { only }: { only?: readonly string[] } = {}) {
   const end = Date.now() + ms;
   const due: { at: number; cron: CronSpec }[] = [];
-  for (const cron of Object.values(crons.crons) as CronSpec[]) {
+  for (const [name, cron] of Object.entries(crons.crons) as [string, CronSpec][]) {
+    if (only && !only.includes(name)) continue;
     const every = intervalMs(cron);
     if (!every) continue;
     for (let at = (Math.floor(Date.now() / every) + 1) * every; at <= end; at += every) {
