@@ -154,16 +154,17 @@ struct CowtailIconButton: View {
         .help(title)
     }
 
-    /// A destructive role draws in the system red, and a prominent one in the app's accent; any
-    /// other control takes the ink colour.
+    /// A prominent control fills with the app's accent. A bordered or bare one draws in ink, or in
+    /// the system red for a destructive role, which these styles do not colour on their own.
     @ViewBuilder
     private func styled(_ button: Button<some View>) -> some View {
+        let tint = role == .destructive ? Color.red : palette.ink
         switch style {
         case .bordered:
             button
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.circle)
-                .tint(role == .destructive ? nil : palette.ink)
+                .tint(tint)
         case .prominent:
             button
                 .buttonStyle(.borderedProminent)
@@ -171,7 +172,7 @@ struct CowtailIconButton: View {
         case .borderless:
             button
                 .buttonStyle(.borderless)
-                .tint(role == .destructive ? nil : palette.ink)
+                .tint(tint)
         }
     }
 }
