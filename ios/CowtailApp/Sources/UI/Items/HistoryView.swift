@@ -9,7 +9,7 @@ struct HistoryView: View {
     @State private var isFiltering = false
 
     var body: some View {
-        CowtailScreen(title: "History", identifier: "screen.history") {
+        CowtailScreen(title: "History", identifier: "screen.history", isList: true) {
             EmptyView()
         } actions: {
             CowtailIconButton(title: "Filter", systemImage: "line.3.horizontal.decrease", style: .borderless) {
@@ -17,23 +17,24 @@ struct HistoryView: View {
             }
             .accessibilityIdentifier("button.history.filter")
         } content: {
-            searchBar
             chips
 
             if let error = store.historyError {
                 Text(error)
                     .font(.cowtailSans(13, relativeTo: .footnote))
                     .foregroundStyle(palette.accent)
-                    .padding(.top, 8)
+                    .listRowBackground(Color.clear)
             }
 
             if let stats = store.historyStats {
                 outcomes(stats)
                 timeToResolve(stats)
+            } else {
+                Section { roundupRow }
             }
-            roundupRow
             days
         }
+        .searchable(text: $filter.search, placement: .navigationBarDrawer)
         .sheet(isPresented: $isFiltering) {
             HistoryFilterSheet(filter: $filter, sources: store.historySources)
                 .presentationDetents([.medium, .large])
@@ -50,23 +51,6 @@ struct HistoryView: View {
             }
         }
         .refreshable { await store.loadHistory(filter) }
-    }
-
-    private var searchBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(palette.mutedInk)
-            TextField("Search", text: $filter.search)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .accessibilityIdentifier("field.history.search")
-        }
-        .font(.cowtailSans(14, relativeTo: .body))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(palette.border, lineWidth: 1))
-        .padding(.top, 8)
     }
 
     @ViewBuilder
@@ -93,7 +77,8 @@ struct HistoryView: View {
                     .accessibilityIdentifier("chip.history.\(chip.key)")
                 }
             }
-            .padding(.top, 8)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
         }
     }
 
@@ -123,55 +108,57 @@ struct HistoryView: View {
     @ViewBuilder
     private func outcomes(_ stats: ItemStats) -> some View {
         // The server's range: with no date filter, it counts the last 7 days.
-        CowtailSectionHeader(
-            title: "Outcomes",
+        Section(
+            "Outcomes",
             detail: [
                 "\(stats.resolvedCount) resolved",
                 stats.from.map { "since \($0.formatted(.dateTime.day().month(.abbreviated)))" },
             ]
             .compactMap { $0 }
             .joined(separator: " · ")
-        )
-        VStack(alignment: .leading, spacing: 8) {
-            GeometryReader { geometry in
-                HStack(spacing: 2) {
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                GeometryReader { geometry in
+                    HStack(spacing: 2) {
+                        ForEach(ItemOutcome.allCases) { outcome in
+                            let count = stats.outcomeMix[outcome] ?? 0
+                            if count > 0, stats.resolvedCount > 0 {
+                                Rectangle()
+                                    .fill(outcome.tint(palette))
+                                    .frame(width: max(2, geometry.size.width * Double(count) / Double(stats.resolvedCount) - 2))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 8)
+                .clipShape(Capsule())
+
+                FlowLayout(spacing: 10) {
                     ForEach(ItemOutcome.allCases) { outcome in
-                        let count = stats.outcomeMix[outcome] ?? 0
-                        if count > 0, stats.resolvedCount > 0 {
-                            Rectangle()
-                                .fill(outcome.tint(palette))
-                                .frame(width: max(2, geometry.size.width * Double(count) / Double(stats.resolvedCount) - 2))
+                        HStack(spacing: 4) {
+                            Circle().fill(outcome.tint(palette)).frame(width: 7, height: 7)
+                            Text("\(outcome.label) \(stats.outcomeMix[outcome] ?? 0)")
+                                .font(.cowtailMono(11, relativeTo: .caption))
+                                .foregroundStyle(palette.mutedInk)
                         }
                     }
                 }
             }
-            .frame(height: 8)
-            .clipShape(Capsule())
-
-            FlowLayout(spacing: 10) {
-                ForEach(ItemOutcome.allCases) { outcome in
-                    HStack(spacing: 4) {
-                        Circle().fill(outcome.tint(palette)).frame(width: 7, height: 7)
-                        Text("\(outcome.label) \(stats.outcomeMix[outcome] ?? 0)")
-                            .font(.cowtailMono(11, relativeTo: .caption))
-                            .foregroundStyle(palette.mutedInk)
-                    }
-                }
-            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("chart.history.outcomes")
         }
-        .cowtailRow()
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("chart.history.outcomes")
     }
 
     @ViewBuilder
     private func timeToResolve(_ stats: ItemStats) -> some View {
-        CowtailSectionHeader(title: "Time to resolve", detail: "median · p90")
-        ForEach(stats.timeToResolve, id: \.kind) { row in
-            keyValue(row.kind.rawValue, "\(ItemFormat.duration(row.median)) · \(ItemFormat.duration(row.p90))")
+        Section("Time to resolve", detail: "median · p90") {
+            ForEach(stats.timeToResolve, id: \.kind) { row in
+                keyValue(row.kind.rawValue, "\(ItemFormat.duration(row.median)) · \(ItemFormat.duration(row.p90))")
+            }
+            keyValue("Noise rate", ItemFormat.percent(stats.noiseRate))
+                .accessibilityIdentifier("row.history.noise-rate")
+            roundupRow
         }
-        keyValue("Noise rate", ItemFormat.percent(stats.noiseRate))
-            .accessibilityIdentifier("row.history.noise-rate")
     }
 
     private var roundupRow: some View {
@@ -183,16 +170,9 @@ struct HistoryView: View {
                 Text(router.roundupRoute.from)
                     .font(.cowtailMono(12, relativeTo: .caption))
                     .foregroundStyle(palette.mutedInk)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(palette.mutedInk)
             }
-            .contentShape(Rectangle())
-            .cowtailRow()
         }
-        .buttonStyle(.plain)
         .accessibilityIdentifier("row.history.roundup")
-        .padding(.top, 10)
     }
 
     /// The server's days, in the server's order.
@@ -212,25 +192,23 @@ struct HistoryView: View {
     @ViewBuilder
     private var days: some View {
         ForEach(dayGroups, id: \.date) { group in
-            CowtailSectionHeader(
-                title: Self.dayLabel(group.date),
-                detail: store.historyDayCounts[group.date].map(String.init)
-            )
-            ForEach(group.items) { item in
-                ItemRow(item: item, style: .history)
-                    .onAppear {
-                        if item.id == store.historyItems.last?.id, store.hasMoreHistory {
-                            Task { await store.loadMoreHistory() }
+            Section(Self.dayLabel(group.date), detail: store.historyDayCounts[group.date].map(String.init)) {
+                ForEach(group.items) { item in
+                    ItemRow(item: item, style: .history)
+                        .onAppear {
+                            if item.id == store.historyItems.last?.id, store.hasMoreHistory {
+                                Task { await store.loadMoreHistory() }
+                            }
                         }
-                    }
+                }
             }
         }
         if store.hasMoreHistory {
             CowtailIconButton(title: "Load older items", systemImage: "arrow.down") {
                 Task { await store.loadMoreHistory() }
             }
-            .padding(.top, 12)
             .frame(maxWidth: .infinity)
+            .listRowBackground(Color.clear)
             .accessibilityIdentifier("button.history.load-more")
         }
     }
@@ -251,7 +229,6 @@ struct HistoryView: View {
                 .font(.cowtailMono(12, relativeTo: .caption))
                 .foregroundStyle(palette.ink)
         }
-        .cowtailRow()
     }
 }
 

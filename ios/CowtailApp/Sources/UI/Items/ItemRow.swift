@@ -1,12 +1,16 @@
 import SwiftUI
 
-/// One item in Inbox or History. The style picks the second line and what ends the row.
+/// One item in a list: Inbox, History or an incident's members. The whole row opens the item; its
+/// actions are swipe actions and a context menu. The style picks the second line and what ends
+/// the row.
 struct ItemRow: View {
-    enum Style {
+    enum Style: Equatable {
         case needsYou
         case withHermes
         case upcoming
         case history
+        /// A member of the incident, whose menu can take it out.
+        case member(incidentID: String)
     }
 
     let item: Item
@@ -14,48 +18,76 @@ struct ItemRow: View {
 
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        if let incident = item.incident {
+        // A list shows an incident's members as one row, except the incident's own page.
+        if let incident = item.incident, !isMember {
             IncidentRow(incident: incident)
         } else {
-            itemRow
+            ItemActions(item: item) { run in
+                let buttons = ItemButton.buttons(for: item)
+                let trailing = ItemButton.trailingSwipe(buttons)
+                link
+                    // Without Acknowledge a full swipe takes nothing, so it cannot snooze by accident.
+                    .swipeActions(edge: .trailing, allowsFullSwipe: trailing.first == .ack) {
+                        ForEach(trailing) { swipeButton($0, run: run) }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        ForEach(ItemButton.leadingSwipe(buttons)) { swipeButton($0, run: run) }
+                    }
+                    .contextMenu {
+                        Section {
+                            ForEach(buttons.filter { !$0.isAlertCall }) { menuButton($0, run: run) }
+                        }
+                        Section {
+                            ForEach(buttons.filter(\.isAlertCall)) { menuButton($0, run: run) }
+                        }
+                        if case .member(let incidentID) = style {
+                            Button("Remove from incident", systemImage: "rectangle.stack.badge.minus", role: .destructive) {
+                                Task { await store.change(.remove(itemID: item.id), incidentID: incidentID) }
+                            }
+                            .accessibilityIdentifier("button.incident.remove.\(item.id)")
+                        }
+                    }
+            }
         }
     }
 
-    private var itemRow: some View {
-        // At accessibility text sizes the row's buttons go under its summary, which keeps the width.
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-            : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
-        return VStack(alignment: .leading, spacing: 6) {
-            layout {
-                NavigationLink(value: AppRoute.item(item.id)) {
-                    HStack(alignment: .top, spacing: 10) {
-                        ItemSourceIcon(item: item)
-                        summary
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("row.item.\(item.id)")
+    private var isMember: Bool {
+        if case .member = style {
+            return true
+        }
+        return false
+    }
 
+    private func swipeButton(_ button: ItemButton, run: @escaping (ItemButton) -> Void) -> some View {
+        Button(button.title, systemImage: button.systemImage, role: button.role) { run(button) }
+            .tint(button.swipeTint(palette))
+            .accessibilityIdentifier(button.accessibilityIdentifier(itemID: item.id))
+    }
+
+    private func menuButton(_ button: ItemButton, run: @escaping (ItemButton) -> Void) -> some View {
+        Button(button.title, systemImage: button.systemImage, role: button.role) { run(button) }
+            .accessibilityIdentifier(button.accessibilityIdentifier(itemID: item.id))
+    }
+
+    private var link: some View {
+        NavigationLink(value: AppRoute.item(item.id)) {
+            HStack(alignment: .top, spacing: 10) {
+                ItemSourceIcon(item: item)
+                VStack(alignment: .leading, spacing: 3) {
+                    summary
+                    if let error = store.actionErrors[item.id] {
+                        Text(error)
+                            .font(.cowtailSans(12, relativeTo: .footnote))
+                            .foregroundStyle(palette.accent)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 trailing
             }
-
-            if style == .needsYou {
-                ItemTextButtons(item: item)
-            }
-
-            if let error = store.actionErrors[item.id] {
-                Text(error)
-                    .font(.cowtailSans(12, relativeTo: .footnote))
-                    .foregroundStyle(palette.accent)
-            }
         }
-        .cowtailRow()
+        .accessibilityIdentifier("row.item.\(item.id)")
     }
 
     private var summary: some View {
@@ -70,7 +102,7 @@ struct ItemRow: View {
                 }
                 if item.maintenanceWindowID != nil, style == .history {
                     Image(systemName: "wrench.adjustable")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundStyle(palette.mutedInk)
                         .accessibilityLabel("Recorded during a maintenance window")
                         .accessibilityIdentifier("glyph.item.maintenance.\(item.id)")
@@ -114,6 +146,8 @@ struct ItemRow: View {
                 .compactMap { $0 }
                 .joined(separator: " · ")
             )
+        case .member:
+            Text("\(item.subtitle ?? item.sourceName) · \(ItemFormat.time(item.createdAt))")
         }
     }
 
@@ -127,16 +161,10 @@ struct ItemRow: View {
         return item.urgency.rawValue
     }
 
+    /// History ends a row with how the item ended.
     @ViewBuilder
     private var trailing: some View {
-        switch style {
-        case .needsYou:
-            ItemActionButtons(item: item)
-        case .withHermes:
-            EmptyView()
-        case .upcoming:
-            ItemActionButtons(item: item, isUpcoming: true)
-        case .history:
+        if style == .history {
             if let outcome = item.outcome {
                 CowtailStatusBadge(title: outcome.label, tint: outcome.tint(palette))
             } else {
@@ -165,19 +193,9 @@ struct IncidentRow: View {
                         .font(.cowtailSans(12, relativeTo: .caption))
                         .foregroundStyle(palette.mutedInk)
                 }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(palette.mutedInk)
-                    .padding(.top, 4)
-                    .accessibilityHidden(true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .accessibilityIdentifier("row.incident.\(incident.id)")
-        .cowtailRow()
     }
 }
 
@@ -232,76 +250,64 @@ struct ItemSourceIcon: View {
     }
 }
 
-/// The icon buttons for what an item offers. The item page's action area adds the owner's alert
-/// calls and wraps them to the next line.
-struct ItemActionButtons: View {
+/// Runs an item's buttons wherever they show: the item page, a row's swipe actions and its
+/// context menu. It holds what a button opens before the write: the snooze sheet, the reply
+/// and note alerts, and a script's prompt.
+struct ItemActions<Content: View>: View {
     let item: Item
-    var isActionArea = false
-    /// An Upcoming row offers only Unsnooze.
-    var isUpcoming = false
+    @ViewBuilder let content: (_ run: @escaping (ItemButton) -> Void) -> Content
 
     @EnvironmentObject private var store: CowtailStore
-    @Environment(\.cowtailPalette) private var palette
     @Environment(\.openURL) private var openURL
     @State private var isSnoozing = false
     @State private var isReplying = false
     @State private var replyText = ""
     @State private var noteAction: AlertHumanAction?
     @State private var noteText = ""
+    @State private var confirming: RunbookScript?
 
     var body: some View {
-        let layout = isActionArea ? AnyLayout(FlowLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 6))
-        layout {
-            ForEach(buttons) { button in
-                CowtailIconButton(
-                    title: button.title,
-                    systemImage: button.systemImage,
-                    role: button.role,
-                    style: button.isProminent ? .prominent : .bordered,
-                    isBusy: isAlertAction(button) && store.isPerformingAlertAction(on: item)
-                ) {
-                    run(button)
+        content(run)
+            .sheet(isPresented: $isSnoozing) {
+                SnoozeSheet(load: { try await store.snoozeOptions() }) { until in
+                    Task { await store.perform(.snooze(until: until), on: item) }
                 }
-                .accessibilityIdentifier("button.item.\(button.identifier).\(item.id)")
             }
-        }
-        .sheet(isPresented: $isSnoozing) {
-            SnoozeSheet(load: { try await store.snoozeOptions() }) { until in
-                Task { await store.perform(.snooze(until: until), on: item) }
-            }
-        }
-        .alert("Reply", isPresented: $isReplying) {
-            TextField("Reply", text: $replyText)
-            Button("Send") {
-                let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
-                replyText = ""
-                guard !text.isEmpty else { return }
-                Task { await store.perform(.reply(text), on: item) }
-            }
-            Button("Cancel", role: .cancel) {
-                replyText = ""
-            }
-        }
-        .alert(
-            noteAction.map(Self.title) ?? "",
-            isPresented: Binding(get: { noteAction != nil }, set: {
-                if !$0 {
-                    noteAction = nil
+            .alert("Reply", isPresented: $isReplying) {
+                TextField("Reply", text: $replyText)
+                Button("Send") {
+                    let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    replyText = ""
+                    guard !text.isEmpty else { return }
+                    Task { await store.perform(.reply(text), on: item) }
                 }
-            })
-        ) {
-            TextField("Note (optional)", text: $noteText)
-            if let action = noteAction {
-                Button(Self.title(action)) {
-                    let note = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+                Button("Cancel", role: .cancel) {
+                    replyText = ""
+                }
+            }
+            .alert(
+                noteAction.map(Self.title) ?? "",
+                isPresented: Binding(get: { noteAction != nil }, set: {
+                    if !$0 {
+                        noteAction = nil
+                    }
+                })
+            ) {
+                TextField("Note (optional)", text: $noteText)
+                if let action = noteAction {
+                    Button(Self.title(action)) {
+                        let note = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        noteText = ""
+                        Task { await store.perform(action, note: note.isEmpty ? nil : note, on: item) }
+                    }
+                }
+                Button("Cancel", role: .cancel) {
                     noteText = ""
-                    Task { await store.perform(action, note: note.isEmpty ? nil : note, on: item) }
                 }
             }
-            Button("Cancel", role: .cancel) {
-                noteText = ""
+            .runbookConfirmation($confirming) { script in
+                Task { await store.startRun(script, itemID: item.id) }
             }
-        }
     }
 
     private static func title(_ action: AlertHumanAction) -> String {
@@ -309,27 +315,6 @@ struct ItemActionButtons: View {
         case .markNoise: ItemButton.markNoise.title
         case .escalate: ItemButton.escalate.title
         case .retryInvestigation: ItemButton.retryInvestigation.title
-        }
-    }
-
-    private var buttons: [ItemButton] {
-        var buttons = ItemButton.buttons(for: item, isUpcoming: isUpcoming)
-        if isActionArea {
-            buttons += item.alertActions.map { action in
-                switch action {
-                case .retryInvestigation: .retryInvestigation
-                case .markNoise: .markNoise
-                case .escalate: .escalate
-                }
-            }
-        }
-        return buttons
-    }
-
-    private func isAlertAction(_ button: ItemButton) -> Bool {
-        switch button {
-        case .markNoise, .escalate, .retryInvestigation: true
-        default: false
         }
     }
 
@@ -347,8 +332,16 @@ struct ItemActionButtons: View {
             Task { await store.perform(.unsnooze, on: item) }
         case .reply:
             isReplying = true
+        case .choose(let option):
+            Task { await store.perform(.choose(option), on: item) }
         case .open(let url):
             openURL(url)
+        case .run(let script):
+            if script.asksToConfirm {
+                confirming = script
+            } else {
+                Task { await store.startRun(script, itemID: item.id) }
+            }
         // The owner's call on an alert takes an optional note, as it always has.
         case .markNoise:
             noteAction = .markNoise
@@ -360,62 +353,63 @@ struct ItemActionButtons: View {
     }
 }
 
-/// The actions whose words carry what an icon cannot, as text buttons under the row: a
-/// question's answers, and a script action's play glyph and label.
-struct ItemTextButtons: View {
+/// The item page's action area: the actions whose words carry what an icon cannot (a
+/// question's answers, a script) as text buttons, then the icon buttons, wrapping to the next
+/// line rather than clipping.
+struct ItemActionButtons: View {
     let item: Item
 
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
-    @State private var confirming: RunbookScript?
 
     var body: some View {
-        if !options.isEmpty || !scripts.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(options, id: \.self) { option in
-                    Button(option) {
-                        Task { await store.perform(.choose(option), on: item) }
-                    }
-                    .accessibilityIdentifier("button.item.choose.\(item.id).\(option)")
-                }
-                ForEach(scripts) { script in
-                    Button {
-                        if script.asksToConfirm {
-                            confirming = script
-                        } else {
-                            Task { await store.startRun(script, itemID: item.id) }
+        ItemActions(item: item) { run in
+            let buttons = ItemButton.buttons(for: item)
+            let text = buttons.filter(\.isText)
+            VStack(alignment: .leading, spacing: 8) {
+                if !text.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(text) { button in
+                            Button {
+                                run(button)
+                            } label: {
+                                if case .run = button {
+                                    Label(button.title, systemImage: button.systemImage)
+                                } else {
+                                    Text(button.title)
+                                }
+                            }
+                            .disabled(isStarting(button))
+                            .accessibilityIdentifier(button.accessibilityIdentifier(itemID: item.id))
                         }
-                    } label: {
-                        Label(script.name, systemImage: "play.fill")
                     }
-                    .disabled(store.scriptsStarting.contains(script.id))
-                    .accessibilityIdentifier("button.item.run.\(item.id).\(script.id)")
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .tint(palette.ink)
+                }
+                FlowLayout(spacing: 10) {
+                    ForEach(buttons.filter { !$0.isText }) { button in
+                        CowtailIconButton(
+                            title: button.title,
+                            systemImage: button.systemImage,
+                            role: button.role,
+                            style: button.isProminent ? .prominent : .bordered,
+                            isBusy: button.isAlertCall && store.isPerformingAlertAction(on: item)
+                        ) {
+                            run(button)
+                        }
+                        .accessibilityIdentifier(button.accessibilityIdentifier(itemID: item.id))
+                    }
                 }
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-            .tint(palette.ink)
-            .runbookConfirmation($confirming) { script in
-                Task { await store.startRun(script, itemID: item.id) }
-            }
         }
     }
 
-    private var options: [String] {
-        for case .choose(let options) in item.availableActions {
-            return options
+    private func isStarting(_ button: ItemButton) -> Bool {
+        if case .run(let script) = button {
+            return store.scriptsStarting.contains(script.id)
         }
-        return []
-    }
-
-    private var scripts: [RunbookScript] {
-        item.availableActions.compactMap { action in
-            if case .run(let script) = action {
-                script
-            } else {
-                nil
-            }
-        }
+        return false
     }
 }
 

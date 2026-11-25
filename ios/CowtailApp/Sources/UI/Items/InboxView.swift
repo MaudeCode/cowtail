@@ -7,7 +7,7 @@ struct InboxView: View {
     @State private var isStartingMaintenance = false
 
     var body: some View {
-        CowtailScreen(title: "Inbox", identifier: "screen.inbox") {
+        CowtailScreen(title: "Inbox", identifier: "screen.inbox", isList: true) {
             if let health = store.health {
                 CowtailStatusBadge(title: "cluster", tint: clusterTint(health), showsDot: true)
                     .accessibilityLabel("Cluster \(health.cephStatus)")
@@ -31,27 +31,36 @@ struct InboxView: View {
         } content: {
             let inbox = store.inbox ?? .empty
 
-            counts(inbox)
-
             if let error = store.errorMessage {
                 Text(error)
                     .font(.cowtailSans(13, relativeTo: .footnote))
                     .foregroundStyle(palette.accent)
-                    .padding(.top, 8)
+                    .listRowBackground(Color.clear)
                     .accessibilityIdentifier("text.inbox.error")
             }
 
-            ForEach(store.maintenanceWindows) { window in
-                MaintenanceBanner(window: window)
-            }
-            if let error = store.maintenanceError {
-                Text(error)
-                    .font(.cowtailSans(12, relativeTo: .footnote))
-                    .foregroundStyle(palette.accent)
-                    .padding(.top, 6)
-                    .accessibilityIdentifier("text.maintenance.error")
+            if !store.maintenanceWindows.isEmpty || store.maintenanceError != nil {
+                Section {
+                    ForEach(store.maintenanceWindows) { window in
+                        MaintenanceBanner(window: window)
+                    }
+                    if let error = store.maintenanceError {
+                        Text(error)
+                            .font(.cowtailSans(12, relativeTo: .footnote))
+                            .foregroundStyle(palette.accent)
+                            .accessibilityIdentifier("text.maintenance.error")
+                    }
+                }
             }
 
+            // Nothing needs the owner: the all-clear takes Needs you's place.
+            if store.inbox != nil, inbox.needsYou.isEmpty {
+                Section {
+                    ContentUnavailableView("All clear", systemImage: "checkmark.circle", description: Text("Nothing needs you."))
+                        .listRowBackground(Color.clear)
+                        .accessibilityIdentifier("empty.inbox.all-clear")
+                }
+            }
             section("Needs you", inbox.needsYou, count: inbox.counts.needsYou, style: .needsYou)
             section("Hermes is on it", inbox.withHermes, count: inbox.counts.withHermes, style: .withHermes)
             section("Upcoming", inbox.upcoming, count: inbox.counts.upcoming, style: .upcoming)
@@ -62,34 +71,15 @@ struct InboxView: View {
         }
     }
 
-    /// Each count keeps its words together and wraps whole at large text sizes.
-    private func counts(_ inbox: ItemInbox) -> some View {
-        FlowLayout(spacing: 18) {
-            count(inbox.counts.needsYou, "need you")
-            count(inbox.counts.withHermes, "with Hermes")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("strip.inbox.counts")
-    }
-
-    private func count(_ value: Int, _ label: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text("\(value)")
-                .font(.cowtailSans(17, weight: .bold, relativeTo: .headline))
-                .foregroundStyle(palette.ink)
-            Text(label)
-                .font(.cowtailSans(12, relativeTo: .caption))
-                .foregroundStyle(palette.mutedInk)
-        }
-    }
-
+    /// An empty section is hidden.
     @ViewBuilder
     private func section(_ title: String, _ items: [Item], count: Int, style: ItemRow.Style) -> some View {
-        CowtailSectionHeader(title: title, detail: "\(count)")
-        ForEach(items) { item in
-            ItemRow(item: item, style: style)
+        if !items.isEmpty {
+            Section(title, detail: "\(count)") {
+                ForEach(items) { item in
+                    ItemRow(item: item, style: style)
+                }
+            }
         }
     }
 
@@ -104,11 +94,13 @@ struct InboxView: View {
 
 /// Every tab's page and the pages pushed onto it: the navigation bar's title, large on a tab's
 /// root and inline once pushed, the page's actions as its toolbar items, then a row of status
-/// chips under the title and the sections, on the Cowtail canvas.
+/// chips under the title and the sections, on the Cowtail canvas. A list page's content is
+/// the sections of an inset-grouped `List`.
 struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
     let title: String
     let identifier: String
     var titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large
+    var isList = false
     @ViewBuilder let header: () -> Header
     @ViewBuilder let actions: () -> Actions
     @ViewBuilder let content: () -> Content
@@ -117,6 +109,7 @@ struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
         title: String,
         identifier: String,
         titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large,
+        isList: Bool = false,
         @ViewBuilder header: @escaping () -> Header = { EmptyView() },
         @ViewBuilder actions: @escaping () -> Actions = { EmptyView() },
         @ViewBuilder content: @escaping () -> Content
@@ -124,6 +117,7 @@ struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
         self.title = title
         self.identifier = identifier
         self.titleDisplayMode = titleDisplayMode
+        self.isList = isList
         self.header = header
         self.actions = actions
         self.content = content
@@ -131,13 +125,27 @@ struct CowtailScreen<Header: View, Actions: View, Content: View>: View {
 
     var body: some View {
         CowtailCanvas {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 6) { header() }
+            if isList {
+                List {
+                    if Header.self != EmptyView.self {
+                        HStack(spacing: 6) { header() }
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+                    }
                     content()
                 }
-                .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
-                .padding(.bottom, 28)
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 6) { header() }
+                        content()
+                    }
+                    .padding(.horizontal, CowtailDesignGuide.pageHorizontalPadding)
+                    .padding(.bottom, 28)
+                }
             }
         }
         .accessibilityElement(children: .contain)

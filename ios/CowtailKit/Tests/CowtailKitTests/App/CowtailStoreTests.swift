@@ -383,6 +383,17 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.inbox?.needsYou.map(\.id), [approval.id])
         XCTAssertEqual(store.inbox?.withHermes, [])
         XCTAssertEqual(store.actionErrors[approval.id], "The item is closed")
+        XCTAssertEqual(store.actionFeedback?.succeeded, false)
+    }
+
+    func testAnActionTheServerAcceptsEndsInSuccessFeedback() async {
+        let api = FakeItemAPI(inbox: ItemInbox(needsYou: [approval], withHermes: []))
+        let store = store(api: api)
+        await store.refresh()
+
+        await store.perform(.approve, on: approval)
+
+        XCTAssertEqual(store.actionFeedback?.succeeded, true)
     }
 
     func testALateRefusalPutsBackOnlyItsOwnItem() async {
@@ -595,6 +606,33 @@ final class CowtailStoreTests: XCTestCase {
         await store.loadHistory(HistoryFilter(kind: .approval))
 
         XCTAssertEqual(store.historyItems.map(\.id), ["older"])
+    }
+
+    func testAnActionShowsOnItsHistoryRowAtOnceAndARefusalPutsTheRowBack() async {
+        let failed = Item(
+            id: "failed",
+            source: "cron",
+            kind: .failure,
+            urgency: .today,
+            title: "Backup failed",
+            actions: [.ack, .snooze],
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            createdDate: "2027-01-15"
+        )
+        let api = FakeItemAPI(inbox: .empty, pagesByCursor: ["": ItemPage(items: [failed], nextCursor: nil)])
+        let store = store(api: api)
+        await store.loadHistory(HistoryFilter())
+        await api.hold(itemID: failed.id)
+
+        let ack = Task { await store.perform(.ack, on: failed) }
+        await api.waitUntilHeld()
+        XCTAssertEqual(store.historyItems.first?.state, .acked)
+        XCTAssertEqual(store.historyItems.first?.availableActions, [.snooze])
+        await api.releaseHeld(with: CowtailAPIError.refused("The item is closed"))
+        await ack.value
+
+        XCTAssertEqual(store.historyItems.first?.state, .open)
+        XCTAssertEqual(store.historyItems.first?.availableActions, [.ack, .snooze])
     }
 
     func testHistoryOpensOnTheLast24Hours() {

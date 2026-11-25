@@ -38,7 +38,7 @@ final class HistoryFlowTests: XCTestCase {
 
         chip.tap()
 
-        XCTAssertTrue(other.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.scrolledTo("row.item.alert-crashloop").exists)
         XCTAssertFalse(app.buttons["chip.history.kind"].exists)
     }
 

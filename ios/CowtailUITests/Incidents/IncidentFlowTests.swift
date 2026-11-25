@@ -27,8 +27,8 @@ final class IncidentFlowTests: XCTestCase {
             XCTAssertTrue(app.buttons[button].exists, button)
         }
         XCTAssertFalse(app.buttons["Request postmortem again"].isEnabled)
-        XCTAssertTrue(app.element("row.member.alert-osddown").exists)
-        XCTAssertTrue(app.element("row.member.alert-cephhealtherr").exists)
+        XCTAssertTrue(app.scrolledTo("row.item.alert-osddown").exists)
+        XCTAssertTrue(app.element("row.item.alert-cephhealtherr").exists)
     }
 
     func testAResolvedIncidentShowsHermessPostmortem() {
@@ -52,25 +52,28 @@ final class IncidentFlowTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
 
-        let remove = app.buttons["button.incident.remove.alert-cephhealtherr"]
+        XCTAssertTrue(app.element("section.Members").waitForExistence(timeout: 10))
+        let member = app.scrolledTo("row.item.alert-cephhealtherr")
+        XCTAssertTrue(member.exists)
+        member.press(forDuration: 1.2)
+        let remove = app.buttons["Remove from incident"]
         XCTAssertTrue(remove.waitForExistence(timeout: 10))
-        XCTAssertEqual(remove.label, "Remove from incident")
         remove.tap()
 
-        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.element("row.member.alert-cephhealtherr"))
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: member)
         waitForExpectations(timeout: 10)
-        XCTAssertTrue(app.element("row.member.alert-osddown").exists)
+        XCTAssertTrue(app.element("row.item.alert-osddown").exists)
     }
 
     func testAnItemInAnIncidentLinksToIt() {
         let app = AppLaunching.configuredApp(scenario: "inbox_incidents", startTab: "history")
         app.launch()
 
-        let row = app.element("row.incident.incident-storage")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        row.tap()
-        let member = app.element("link.member.alert-osddown")
-        XCTAssertTrue(member.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.element("section.Outcomes").waitForExistence(timeout: 10))
+        app.scrolledTo("row.incident.incident-storage").tap()
+        XCTAssertTrue(app.element("section.Members").waitForExistence(timeout: 10))
+        let member = app.scrolledTo("row.item.alert-osddown")
+        XCTAssertTrue(member.exists)
         member.tap()
 
         let chip = app.element("chip.item.incident")

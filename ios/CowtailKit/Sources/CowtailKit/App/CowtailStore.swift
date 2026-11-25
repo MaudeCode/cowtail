@@ -67,6 +67,12 @@ struct HistoryFilter: Hashable, Sendable {
     }
 }
 
+/// One ended action: each is new, so the same outcome twice plays twice.
+struct ActionFeedback: Equatable {
+    let id = UUID()
+    let succeeded: Bool
+}
+
 @MainActor
 final class CowtailStore: ObservableObject {
     @Published private(set) var inbox: ItemInbox?
@@ -85,6 +91,8 @@ final class CowtailStore: ObservableObject {
     @Published private(set) var graphs: [String: ItemGraph] = [:]
     @Published private(set) var itemIDsByAlertID: [String: String] = [:]
     @Published private(set) var actionErrors: [String: String] = [:]
+    /// How the owner's last item action ended, for the haptic the app plays.
+    @Published private(set) var actionFeedback: ActionFeedback?
     /// Writes whose outcome the server has not confirmed yet; their items take no new action.
     @Published private(set) var unconfirmedItemIDs: Set<String> = []
     /// Items with a write on its way; a second tap waits for the first to settle.
@@ -478,11 +486,16 @@ final class CowtailStore: ObservableObject {
     func perform(_ request: ItemActionRequest, on item: Item) async {
         guard !unconfirmedItemIDs.contains(item.id) else {
             actionErrors[item.id] = Self.unconfirmedMessage
+            actionFeedback = ActionFeedback(succeeded: false)
             return
         }
         // Held from before the first suspension, so a second tap cannot overtake this write.
         guard itemIDsInFlight.insert(item.id).inserted else { return }
-        defer { itemIDsInFlight.remove(item.id) }
+        var succeeded = false
+        defer {
+            itemIDsInFlight.remove(item.id)
+            actionFeedback = ActionFeedback(succeeded: succeeded)
+        }
         actionErrors[item.id] = nil
         // The server's word on the item and this device's setting both count; the server
         // refuses an approval sent without Face ID while the owner requires it.
@@ -505,6 +518,7 @@ final class CowtailStore: ObservableObject {
 
         let inboxBefore = inbox
         let detailBefore = details[item.id]
+        let historyBefore = historyItems.first { $0.id == item.id }
         showOptimistically(request, on: item)
         let pending = PendingSnooze(itemID: item.id, request: request)
         switch request {
@@ -522,6 +536,7 @@ final class CowtailStore: ObservableObject {
                 sessionToken: token
             )
             pendingSnoozes.removeAll { $0.id == pending.id }
+            succeeded = true
             if details[item.id] != nil {
                 details[item.id]?.item = updated
                 await loadDetail(itemID: item.id)
@@ -530,6 +545,9 @@ final class CowtailStore: ObservableObject {
         } catch CowtailAPIError.refused(let message) {
             restore(item.id, from: inboxBefore)
             details[item.id] = detailBefore
+            if let historyBefore {
+                replaceHistoryItem(historyBefore)
+            }
             actionErrors[item.id] = message
         } catch {
             // The write may or may not have landed. Keep showing it, and take no new action on
@@ -567,7 +585,16 @@ final class CowtailStore: ObservableObject {
 
     private func showOptimistically(_ request: ItemActionRequest, on item: Item) {
         inbox = inbox?.showing(request, on: item)
-        details[item.id]?.item = ItemInbox.item(item, showing: request)
+        let shown = ItemInbox.item(item, showing: request)
+        details[item.id]?.item = shown
+        replaceHistoryItem(shown)
+    }
+
+    /// History's row for the item, where it lists one; the next read brings the server's own.
+    private func replaceHistoryItem(_ item: Item) {
+        if let index = historyItems.firstIndex(where: { $0.id == item.id }) {
+            historyItems[index] = item
+        }
     }
 
     /// The snooze picker's presets, worked out by the server in this device's zone.
@@ -593,13 +620,19 @@ final class CowtailStore: ObservableObject {
         actionErrors[item.id] = nil
         guard let token = await sessionToken() else {
             actionErrors[item.id] = Self.signInMessage
+            actionFeedback = ActionFeedback(succeeded: false)
             return
         }
         alertActionsInFlight.insert(item.id)
-        defer { alertActionsInFlight.remove(item.id) }
+        var succeeded = false
+        defer {
+            alertActionsInFlight.remove(item.id)
+            actionFeedback = ActionFeedback(succeeded: succeeded)
+        }
 
         do {
             try await api.performAlertAction(alertID: alertID, action: action, note: note, sessionToken: token)
+            succeeded = true
             await loadDetail(itemID: item.id)
             await reloadInbox(sessionToken: token)
         } catch {
@@ -622,6 +655,9 @@ final class CowtailStore: ObservableObject {
         guard scriptsStarting.insert(script.id).inserted else { return }
         defer { scriptsStarting.remove(script.id) }
         let report: (String?) -> Void = { message in
+            if message != nil {
+                self.actionFeedback = ActionFeedback(succeeded: false)
+            }
             if let itemID {
                 self.actionErrors[itemID] = message
             } else {
@@ -656,6 +692,7 @@ final class CowtailStore: ObservableObject {
                 sessionToken: token
             )
             unansweredRunRequests[key] = nil
+            actionFeedback = ActionFeedback(succeeded: true)
             selectedRunID = run.id
             runDetail = RunbookRunDetail(run: run, output: "")
             if let itemID {
@@ -815,6 +852,7 @@ extension ItemInbox {
         moved.availableActions.removeAll { $0 == .unsnooze }
         switch request {
         case .ack:
+            moved.availableActions.removeAll { $0 == .ack }
             moved.state = .acked
             moved.needsOwner = false
         case .snooze(let until):

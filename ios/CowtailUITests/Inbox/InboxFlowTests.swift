@@ -19,44 +19,79 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertGreaterThan(hermes.frame.minX, app.element("chip.inbox.cluster").frame.maxX)
     }
 
-    func testEveryNeedsYouActionButtonNamesItsAction() {
+    func testALongPressShowsTheItemsActionsThenItsAlertCalls() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 
-        let expected = [
-            "button.item.approve.approval-ingress": "Approve",
-            "button.item.deny.approval-ingress": "Deny",
-            "button.item.reply.question-osd": "Reply",
-            "button.item.ack.alert-crashloop": "Acknowledge",
-            "button.item.snooze.alert-crashloop": "Snooze",
-        ]
-        for (identifier, label) in expected {
-            let button = app.buttons[identifier]
-            XCTAssertTrue(button.waitForExistence(timeout: 10), identifier)
-            XCTAssertEqual(button.label, label, identifier)
+        let row = app.element("row.item.alert-crashloop")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.press(forDuration: 1.2)
+
+        let labels = ["Acknowledge", "Snooze", "Retry investigation", "Mark as noise", "Escalate"]
+        let tops = labels.map { label -> CGFloat in
+            let button = app.buttons[label]
+            XCTAssertTrue(button.waitForExistence(timeout: 10), label)
+            return button.frame.minY
         }
+        XCTAssertEqual(tops, tops.sorted(), "menu out of order")
+        // A menu over the inbox, not the item page's action area, which has the same names.
+        XCTAssertFalse(app.element("screen.item-detail").exists)
     }
 
-    func testApprovingMovesTheItemOutOfNeedsYou() {
+    func testAFullTrailingSwipeAcknowledgesTheItem() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 
-        let approve = app.buttons["button.item.approve.approval-ingress"]
-        XCTAssertTrue(approve.waitForExistence(timeout: 10))
-        approve.tap()
+        let row = app.element("row.item.alert-crashloop")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        app.fullSwipe(row)
 
-        let row = app.element("row.item.approval-ingress")
+        // Acknowledged, it no longer needs the owner.
         let withHermes = app.element("section.Hermes is on it")
         let movedBelow = NSPredicate { _, _ in row.exists && withHermes.exists && row.frame.minY > withHermes.frame.minY }
         expectation(for: movedBelow, evaluatedWith: nil)
         waitForExpectations(timeout: 10)
-        XCTAssertFalse(app.buttons["button.item.approve.approval-ingress"].exists)
+    }
+
+    func testAFullTrailingSwipeOnAnApprovalTakesNoAction() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let row = app.element("row.item.approval-ingress")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        app.fullSwipe(row)
+
+        // The swipe stops on Snooze, which opens nothing until it is tapped.
+        XCTAssertTrue(app.buttons["button.item.snooze.approval-ingress"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["button.snooze.4h"].exists)
+        XCTAssertTrue(row.exists)
+    }
+
+    func testALeadingSwipeApprovesAndMovesTheItemOutOfNeedsYou() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let row = app.element("row.item.approval-ingress")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        app.revealSwipeActions(on: row, toward: .leading)
+        let approve = app.buttons["button.item.approve.approval-ingress"]
+        XCTAssertTrue(approve.waitForExistence(timeout: 10))
+        XCTAssertEqual(approve.label, "Approve")
+        approve.tap()
+
+        let withHermes = app.element("section.Hermes is on it")
+        let movedBelow = NSPredicate { _, _ in row.exists && withHermes.exists && row.frame.minY > withHermes.frame.minY }
+        expectation(for: movedBelow, evaluatedWith: nil)
+        waitForExpectations(timeout: 10)
     }
 
     func testAPickedSnoozeMovesTheItemIntoUpcoming() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 
+        let row = app.element("row.item.alert-crashloop")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        app.revealSwipeActions(on: row, toward: .trailing)
         let snooze = app.buttons["button.item.snooze.alert-crashloop"]
         XCTAssertTrue(snooze.waitForExistence(timeout: 10))
         snooze.tap()
@@ -64,32 +99,40 @@ final class InboxFlowTests: XCTestCase {
         XCTAssertTrue(fourHours.waitForExistence(timeout: 10))
         fourHours.tap()
 
-        let row = app.element("row.item.alert-crashloop")
         let upcoming = app.element("section.Upcoming")
         let inUpcoming = NSPredicate { _, _ in
             row.exists && upcoming.exists && row.frame.minY > upcoming.frame.minY
         }
         expectation(for: inUpcoming, evaluatedWith: nil)
         waitForExpectations(timeout: 10)
-        XCTAssertTrue(app.buttons["button.item.unsnooze.alert-crashloop"].exists)
     }
 
-    func testUnsnoozeReturnsTheItemToTheInbox() {
+    func testALeadingSwipeUnsnoozesTheItemBackToTheInbox() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()
 
+        XCTAssertTrue(app.element("section.Needs you").waitForExistence(timeout: 10))
+        let row = app.scrolledTo("row.item.alert-osdfull")
+        XCTAssertTrue(row.exists)
+        app.revealSwipeActions(on: row, toward: .leading)
         let unsnooze = app.buttons["button.item.unsnooze.alert-osdfull"]
         XCTAssertTrue(unsnooze.waitForExistence(timeout: 10))
         XCTAssertEqual(unsnooze.label, "Unsnooze")
         unsnooze.tap()
 
         // The seeded server returns an item that needs the owner to Needs you.
-        let row = app.element("row.item.alert-osdfull")
         let withHermes = app.element("section.Hermes is on it")
         let inNeedsYou = NSPredicate { _, _ in row.exists && withHermes.exists && row.frame.minY < withHermes.frame.minY }
         expectation(for: inNeedsYou, evaluatedWith: nil)
         waitForExpectations(timeout: 10)
-        XCTAssertFalse(app.buttons["button.item.unsnooze.alert-osdfull"].exists)
+    }
+
+    func testWithNothingThatNeedsTheOwnerTheInboxIsAllClear() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_empty")
+        app.launch()
+
+        XCTAssertTrue(app.element("empty.inbox.all-clear").waitForExistence(timeout: 10))
+        XCTAssertFalse(app.element("section.Needs you").exists)
     }
 
     func testItemDetailShowsATimelineOfEveryEventType() {
