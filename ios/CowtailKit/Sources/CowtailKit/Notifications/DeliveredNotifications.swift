@@ -18,12 +18,23 @@ struct DeliveredItemNotification: Equatable, Sendable {
     }
 }
 
+/// A notification the app posts itself, at once.
+struct LocalNotification: Equatable, Sendable {
+    let title: String
+    let body: String
+    /// Groups it with the push it is about.
+    let threadIdentifier: String
+    /// What a tap opens, read as a push's is.
+    let userInfo: [String: String]
+}
+
 /// The notification center calls that keep the badge and delivered notifications in line with
-/// the server; unit tests fake it.
+/// the server, and post the app's own notifications; unit tests fake it.
 protocol DeliveredNotificationCenter: Sendable {
     func setBadgeCount(_ count: Int) async
     func deliveredItemNotifications() async -> [DeliveredItemNotification]
     func removeDeliveredNotifications(withIdentifiers identifiers: [String]) async
+    func post(_ notification: LocalNotification) async
 }
 
 struct SystemNotificationCenter: DeliveredNotificationCenter {
@@ -42,6 +53,18 @@ struct SystemNotificationCenter: DeliveredNotificationCenter {
 
     func removeDeliveredNotifications(withIdentifiers identifiers: [String]) async {
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    func post(_ notification: LocalNotification) async {
+        let content = UNMutableNotificationContent()
+        content.title = notification.title
+        content.body = notification.body
+        content.threadIdentifier = notification.threadIdentifier
+        content.userInfo = notification.userInfo
+        content.sound = .default
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        )
     }
 }
 

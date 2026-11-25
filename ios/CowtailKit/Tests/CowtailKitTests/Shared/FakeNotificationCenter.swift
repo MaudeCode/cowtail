@@ -4,6 +4,7 @@
 actor FakeNotificationCenter: DeliveredNotificationCenter {
     private(set) var badge: Int?
     private(set) var delivered: [DeliveredItemNotification]
+    private(set) var posted: [LocalNotification] = []
 
     init(delivered: [DeliveredItemNotification] = []) {
         self.delivered = delivered
@@ -19,5 +20,9 @@ actor FakeNotificationCenter: DeliveredNotificationCenter {
 
     func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
         delivered.removeAll { identifiers.contains($0.identifier) }
+    }
+
+    func post(_ notification: LocalNotification) {
+        posted.append(notification)
     }
 }
