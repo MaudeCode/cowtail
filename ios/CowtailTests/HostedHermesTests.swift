@@ -32,13 +32,12 @@ final class HostedHermesTests: XCTestCase {
     }
 
     func testCronIncidentOpensItsItem() throws {
-        let router = UniversalLinkRouter.shared
-        router.openInbox()
-        router.selectedTab = .hermes
-        defer { router.openInbox() }
-        let screen = try HostedScreen(ContentView()
-            .environmentObject(UITestScenario.fixtureStore(.inboxPopulated))
-            .environmentObject(router))
+        let screen = try HostedScreen(NavigationStack {
+            HermesView()
+                .navigationDestination(for: AppRoute.self) { route in
+                    ItemDestinationView(route: route)
+                }
+        }.environmentObject(UITestScenario.fixtureStore(.inboxPopulated)))
         defer { screen.close() }
         try screen.activate("row.hermes.incident.backup-verify-sig")
         screen.assertVisible(["screen.item-detail", "text.item.title"])
