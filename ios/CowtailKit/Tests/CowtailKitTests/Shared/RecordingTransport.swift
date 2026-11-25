@@ -7,7 +7,9 @@ import OpenAPIRuntime
 final class RecordingTransport: ClientTransport, @unchecked Sendable {
     struct Route {
         var status: HTTPResponse.Status = .ok
-        let json: String
+        var json = ""
+        /// Thrown instead of answering, as URLSession does when the device is offline.
+        var failure: URLError?
     }
 
     private let routes: [String: Route]
@@ -40,6 +42,9 @@ final class RecordingTransport: ClientTransport, @unchecked Sendable {
 
         guard let route = routes[Self.key(for: full)] else {
             return (HTTPResponse(status: .notFound), nil)
+        }
+        if let failure = route.failure {
+            throw failure
         }
         var headers = HTTPFields()
         headers[.contentType] = "application/json"

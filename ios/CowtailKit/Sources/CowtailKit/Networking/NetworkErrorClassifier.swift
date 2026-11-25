@@ -3,23 +3,40 @@ import OpenAPIRuntime
 
 enum NetworkErrorClassifier {
     static func isCancellation(_ error: any Error) -> Bool {
-        if error is CancellationError {
+        anyInChain(error) { error in
+            error is CancellationError || isURLError(error, codes: [NSURLErrorCancelled])
+        }
+    }
+
+    /// The device has no network, so the request never reached the server.
+    static func isOffline(_ error: any Error) -> Bool {
+        anyInChain(error) { error in
+            isURLError(error, codes: [
+                NSURLErrorNotConnectedToInternet,
+                NSURLErrorDataNotAllowed,
+                NSURLErrorInternationalRoamingOff,
+            ])
+        }
+    }
+
+    private static func isURLError(_ error: any Error, codes: Set<Int>) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && codes.contains(nsError.code)
+    }
+
+    /// Checks the error and every error it wraps.
+    private static func anyInChain(_ error: any Error, _ matches: (any Error) -> Bool) -> Bool {
+        if matches(error) {
             return true
         }
 
         // OpenAPI wraps URLSession transport failures inside ClientError.
         if let clientError = error as? ClientError {
-            return isCancellation(clientError.underlyingError)
+            return anyInChain(clientError.underlyingError, matches)
         }
 
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
-            return true
-        }
-
-        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? any Error,
-           isCancellation(underlyingError) {
-            return true
+        if let underlyingError = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error {
+            return anyInChain(underlyingError, matches)
         }
 
         return false

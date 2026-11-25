@@ -90,11 +90,13 @@ final class NotificationManager: NSObject, ObservableObject {
     private var isUITesting = false
     private let readAuthorizationStatus: @MainActor () async -> UNAuthorizationStatus
     private let registerWithAPNs: @MainActor () -> Void
+    private let notificationCenter: any DeliveredNotificationCenter
 
     /// Unit tests make their own manager against a recording server, with the system's
-    /// notification permission and APNs registration faked.
+    /// notification center, notification permission and APNs registration faked.
     init(
         api: CowtailAPI = CowtailAPI(),
+        notificationCenter: any DeliveredNotificationCenter = SystemNotificationCenter(),
         deviceToken: String? = nil,
         authorizationStatus: @escaping @MainActor () async -> UNAuthorizationStatus = {
             await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
@@ -106,6 +108,7 @@ final class NotificationManager: NSObject, ObservableObject {
         }
     ) {
         self.api = api
+        self.notificationCenter = notificationCenter
         self.deviceToken = deviceToken
         self.readAuthorizationStatus = authorizationStatus
         self.registerWithAPNs = registerWithAPNs
@@ -164,28 +167,42 @@ final class NotificationManager: NSObject, ObservableObject {
         defaults.set(requiresApprovalAuthentication, forKey: requireAuthForApprovalsKey)
     }
 
-    /// Sends a notification action to the item actions endpoint.
-    private func performItemAction(
-        itemID: String,
+    /// Sends a notification button's answer to the item actions endpoint. Every failure posts a
+    /// notification saying so, since the owner never sees the app answer.
+    func answer(
+        _ action: ItemNotifications.Action,
         request: ItemActionRequest,
-        authenticated: Bool?
+        authenticated: Bool?,
+        itemID: String,
+        itemTitle: String,
+        threadIdentifier: String
     ) async {
-        guard let sessionToken = await appSessionManager.refreshSessionIfPossible() else {
-            lastNotificationResponse = "Sign in with Apple again to act on notifications."
-            return
+        var failure: (any Error)?
+        if let sessionToken = await appSessionManager.refreshSessionIfPossible() {
+            do {
+                _ = try await api.performItemAction(
+                    itemID: itemID,
+                    request: request,
+                    authenticated: authenticated,
+                    sessionToken: sessionToken
+                )
+                return
+            } catch {
+                failure = error
+            }
         }
 
-        do {
-            _ = try await api.performItemAction(
-                itemID: itemID,
-                request: request,
-                authenticated: authenticated,
-                sessionToken: sessionToken
-            )
-        } catch {
-            logger.error("performItemAction failed: \(error.localizedDescription, privacy: .public)")
-            lastNotificationResponse = error.localizedDescription
-        }
+        let notice = ItemNotifications.failure(
+            of: action,
+            itemID: itemID,
+            itemTitle: itemTitle,
+            threadIdentifier: threadIdentifier,
+            error: failure
+        )
+        let diagnostic = failure?.localizedDescription ?? notice.body
+        logger.error("notification answer failed: \(diagnostic, privacy: .public)")
+        lastNotificationResponse = diagnostic
+        await notificationCenter.post(notice)
     }
 
     func refreshAuthorizationStatus() async {
@@ -798,21 +815,25 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let payload = Self.notificationOpenPayload(from: response)
+        let content = response.notification.request.content
         let request = ItemNotifications.request(
             actionIdentifier: response.actionIdentifier,
             replyText: (response as? UNTextInputNotificationResponse)?.userText,
             now: Date()
         )
 
-        if let request, let itemID = payload.userInfo["itemId"] {
-            await NotificationManager.shared.performItemAction(
-                itemID: itemID,
+        if let action = ItemNotifications.Action(rawValue: response.actionIdentifier),
+           let request,
+           let itemID = payload.userInfo["itemId"] {
+            await NotificationManager.shared.answer(
+                action,
                 request: request,
                 authenticated: request.isApproval
-                    ? ItemNotifications.authenticated(
-                        categoryIdentifier: response.notification.request.content.categoryIdentifier
-                    )
-                    : nil
+                    ? ItemNotifications.authenticated(categoryIdentifier: content.categoryIdentifier)
+                    : nil,
+                itemID: itemID,
+                itemTitle: payload.title,
+                threadIdentifier: content.threadIdentifier
             )
             await MainActor.run {
                 NotificationCenter.default.post(name: .cowtailPushReceived, object: nil)

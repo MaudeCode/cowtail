@@ -17,6 +17,17 @@ enum ItemNotifications {
         case reply = "ITEM_REPLY"
         case acknowledge = "ITEM_ACKNOWLEDGE"
         case snooze = "ITEM_SNOOZE_1H"
+
+        /// The action as a failure names it: "Couldn't approve …".
+        var failureVerb: String {
+            switch self {
+            case .approve: "approve"
+            case .deny: "deny"
+            case .reply: "reply to"
+            case .acknowledge: "acknowledge"
+            case .snooze: "snooze"
+            }
+        }
     }
 
     static let snoozeInterval: TimeInterval = 60 * 60
@@ -103,4 +114,41 @@ enum ItemNotifications {
             return nil
         }
     }
+
+    /// Tells the owner an answer from a notification failed; a tap opens the item.
+    /// `error` is nil when there was no session to send it with.
+    static func failure(
+        of action: Action,
+        itemID: String,
+        itemTitle: String,
+        threadIdentifier: String,
+        error: (any Error)?
+    ) -> LocalNotification {
+        LocalNotification(
+            title: "Couldn't \(action.failureVerb) “\(itemTitle)”",
+            body: "\(failureReason(error)) Open Cowtail to retry.",
+            threadIdentifier: threadIdentifier,
+            userInfo: ["itemId": itemID]
+        )
+    }
+
+    private static func failureReason(_ error: (any Error)?) -> String {
+        guard let error else {
+            return signInAgain
+        }
+        if NetworkErrorClassifier.isOffline(error) {
+            return "You're offline."
+        }
+        guard case CowtailAPIError.refused(let message) = error else {
+            // The answer may have landed.
+            return "Cowtail has not confirmed your answer yet."
+        }
+        if message == "Unauthorized" {
+            return signInAgain
+        }
+        // The server's words, as the item page shows them.
+        return message.hasSuffix(".") ? message : "\(message)."
+    }
+
+    private static let signInAgain = "Sign in to Cowtail again."
 }
