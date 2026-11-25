@@ -8,7 +8,7 @@ import XCTest
 @MainActor
 final class OIDCSignInTests: XCTestCase {
     private static let startURL = URL(string: "https://cowtail.test/api/auth/oidc/start")!
-    private static let pocketID = RecordingTransport.Route(json: #"{"apple":true,"oidc":{"name":"Pocket ID"}}"#)
+    private static let pocketID = RecordingTransport.Route(json: #"{"apple":true,"appleWeb":false,"oidc":{"name":"Pocket ID"}}"#)
     private static let handoff = RecordingTransport.Route(
         json: #"{"ok":true,"session":{"token":"oidc-session","userId":"owner","expiresAt":4102444800000}}"#
     )
@@ -104,7 +104,7 @@ final class OIDCSignInTests: XCTestCase {
     func testWithoutAnOIDCProviderThereIsNoSignIn() async {
         let run = await signIn(
             callback: .success("cowtail://auth/callback?code=handoff-code"),
-            providers: .init(json: #"{"apple":true}"#)
+            providers: .init(json: #"{"apple":true,"appleWeb":false}"#)
         )
         let oidc = run.oidc, presenter = run.presenter
 

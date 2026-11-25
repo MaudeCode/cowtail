@@ -18,9 +18,12 @@ export const authSessionCreateResponseSchema = z.object({
   session: authSessionSchema,
 });
 
-// Sign-in methods the server accepts. `oidc` is present only when OIDC is fully configured.
+// Sign-in methods the server accepts. `apple` is the iOS app's native flow; `appleWeb` says
+// whether the browser's Sign in with Apple works. `oidc` is present only when OIDC is fully
+// configured.
 export const authProvidersResponseSchema = z.object({
   apple: z.literal(true),
+  appleWeb: z.boolean(),
   oidc: z.object({ name: nonEmptyStringSchema }).optional(),
 });
 

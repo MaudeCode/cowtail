@@ -102,7 +102,11 @@ import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { configuredApnsEnvironment } from "./apns";
-import { AppleIdentityVerificationError, verifyAppleIdentityToken } from "./appleIdentity";
+import {
+  AppleIdentityVerificationError,
+  appleWebServicesId,
+  verifyAppleIdentityToken,
+} from "./appleIdentity";
 import { planAlertmanagerInvestigation } from "./alertmanagerBatching";
 import { WATCHDOG_ALERTNAME } from "./pipelineStatus";
 import { alertLifecycleDedupeKey, alertmanagerFingerprint } from "./alertLifecycle";
@@ -128,6 +132,15 @@ import { SOURCE_TOKEN_PREFIX, sourceIconError } from "./sources";
 
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "cowtail_session";
+// The web Sign in with Apple's `state.nonce` while the browser is at Apple. Apple posts the
+// reply cross-site, so only a SameSite=None cookie comes back with it.
+const APPLE_LOGIN_COOKIE = "cowtail_apple_login";
+const APPLE_LOGIN_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  path: "/",
+} as const;
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 const app: HonoWithConvex<ActionCtx> = new Hono();
@@ -346,8 +359,8 @@ async function pkceChallenge(verifier: string): Promise<string> {
   return base64Url(new Uint8Array(hash));
 }
 
-// The one place a session is created: Apple sign-in, the OIDC web callback and the OIDC
-// iOS hand-off all issue through it.
+// The one place a session is created: Apple sign-in on iOS and the web, the OIDC web callback
+// and the OIDC iOS hand-off all issue through it.
 async function issueSession(ctx: ActionCtx, userId: string) {
   const token = createOpaqueToken();
   const expiresAt = Date.now() + AUTH_SESSION_TTL_MS;
@@ -423,19 +436,24 @@ async function requirePushUser(
   return await requireAppleUser(identityToken);
 }
 
+// `respond` shapes the error for a JSON client or a browser page; `expected` is the web
+// flow's Services ID and nonce.
 async function requireAppleUser(
   identityToken: string,
+  expected: { audience?: string; nonce?: string } = {},
+  respond: (message: string, status: number) => Response = (message, status) =>
+    jsonError(message, status),
 ): Promise<{ userId: string } | { error: Response }> {
   try {
-    return { userId: await verifyAppleIdentityToken(identityToken) };
+    return { userId: await verifyAppleIdentityToken(identityToken, expected) };
   } catch (error) {
     if (error instanceof AppleIdentityVerificationError) {
-      return { error: jsonError(error.message, error.statusCode) };
+      return { error: respond(error.message, error.statusCode) };
     }
 
     const message =
       error instanceof Error ? error.message : "Apple identity token verification failed";
-    return { error: jsonError(message, 500) };
+    return { error: respond(message, 500) };
   }
 }
 
@@ -2441,6 +2459,7 @@ app.get("/api/auth/providers", (c) => {
   return c.json(
     authProvidersResponseSchema.parse({
       apple: true,
+      appleWeb: appleWebServicesId() !== null,
       ...(oidc ? { oidc: { name: oidc.displayName } } : {}),
     }),
   );
@@ -2570,6 +2589,11 @@ app.get("/api/auth/oidc/callback", async (c) => {
     return c.redirect(`cowtail://auth/callback?code=${encodeURIComponent(handoffCode)}`, 302);
   }
 
+  return await signInBrowser(c, ownerUserId);
+});
+
+// A browser sign-in's end: a session cookie for the owner, then home.
+async function signInBrowser(c: AppSessionContext, ownerUserId: string) {
   const session = await issueSession(c.env, ownerUserId);
   setCookie(c, SESSION_COOKIE, session.token, {
     httpOnly: true,
@@ -2579,6 +2603,65 @@ app.get("/api/auth/oidc/callback", async (c) => {
     maxAge: AUTH_SESSION_TTL_MS / 1000,
   });
   return c.redirect("/", 302);
+}
+
+function appleWebRedirectUri(): string {
+  return `${cowtailWebOrigin()}/actions/api/auth/apple/callback`;
+}
+
+// GET /api/auth/apple/start — send the browser to Sign in with Apple (COW-53)
+app.get("/api/auth/apple/start", (c) => {
+  const servicesId = appleWebServicesId();
+  if (!servicesId) return textPage("Not found", 404);
+
+  const state = randomBase64Url();
+  const nonce = randomBase64Url();
+  setCookie(c, APPLE_LOGIN_COOKIE, `${state}.${nonce}`, {
+    ...APPLE_LOGIN_COOKIE_OPTIONS,
+    maxAge: 10 * 60,
+  });
+  // No scope: the owner is already known, so Apple sends no name or email.
+  const authorize = new URL("https://appleid.apple.com/auth/authorize");
+  authorize.search = new URLSearchParams({
+    response_type: "code id_token",
+    response_mode: "form_post",
+    client_id: servicesId,
+    redirect_uri: appleWebRedirectUri(),
+    state,
+    nonce,
+  }).toString();
+  return c.redirect(authorize.toString(), 302);
+});
+
+// POST /api/auth/apple/callback — Apple's form post after the owner signs in. The ID token
+// alone proves the sign-in, so the authorization code goes unused.
+app.post("/api/auth/apple/callback", async (c) => {
+  const servicesId = appleWebServicesId();
+  if (!servicesId) return textPage("Not found", 404);
+  const ownerUserId = cowtailOwnerUserId();
+  if (!ownerUserId) {
+    return textPage("Cowtail owner user ID is not configured", 500);
+  }
+
+  const [expectedState, nonce] = (getCookie(c, APPLE_LOGIN_COOKIE) ?? "").split(".");
+  deleteCookie(c, APPLE_LOGIN_COOKIE, APPLE_LOGIN_COOKIE_OPTIONS);
+  const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
+  const state = nonEmptyString(form.state);
+  if (!expectedState || !nonce || state !== expectedState) {
+    return textPage("Sign-in expired or was already used. Start again.", 400);
+  }
+  const idToken = nonEmptyString(form.id_token);
+  if (!idToken) {
+    return textPage("Sign-in failed: Apple returned no identity token", 400);
+  }
+
+  const apple = await requireAppleUser(idToken, { audience: servicesId, nonce }, textPage);
+  if ("error" in apple) return apple.error;
+  if (apple.userId !== ownerUserId) {
+    return textPage("This account is not allowed to sign in to Cowtail.", 403);
+  }
+
+  return await signInBrowser(c, ownerUserId);
 });
 
 // POST /api/auth/oidc/handoff — the iOS app trades its hand-off code and PKCE verifier for a session

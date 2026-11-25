@@ -8,7 +8,7 @@ import { useState, type FormEvent } from "react";
 
 import { Badge, IconButton, KeyValue, QueryError, Section, Switch } from "../components/ui";
 import { urgencyTone } from "../lib/itemPresentation";
-import { providersQuery, sessionQuery, usePreferencesUpdate, useSignOut } from "../lib/queries";
+import { sessionQuery, usePreferencesUpdate, useSignOut } from "../lib/queries";
 
 const field =
   "h-[26px] rounded-lg border border-gray-200 bg-surface-2 px-2 text-[0.75rem] text-txt";
@@ -162,7 +162,6 @@ export default function Settings() {
   const { data: session } = useQuery(sessionQuery);
   const update = usePreferencesUpdate();
   const signOut = useSignOut();
-  const providers = useQuery(providersQuery);
   if (!session) return null;
   const { preferences } = session;
   const hours = preferences.quietHours;
@@ -228,7 +227,7 @@ export default function Settings() {
           {update.error && <QueryError error={update.error} />}
         </Section>
         <Section label="Account">
-          <KeyValue label={`Signed in with ${providers.data?.oidc?.name ?? "Pocket ID"}`}>
+          <KeyValue label="Signed in">
             <IconButton
               icon="out"
               label="Sign out"

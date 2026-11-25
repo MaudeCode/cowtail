@@ -51,22 +51,58 @@ describe("signed out", () => {
   test("every address shows only the login page, whose button starts the Pocket ID sign-in", async () => {
     stubApi({
       ...signedOut,
-      "GET /actions/api/auth/providers": { apple: true, oidc: { name: "Pocket ID" } },
+      "GET /actions/api/auth/providers": {
+        apple: true,
+        appleWeb: false,
+        oidc: { name: "Pocket ID" },
+      },
     });
 
     renderApp("/history?source=alertmanager");
 
     const signIn = await screen.findByRole("link", { name: "Sign in with Pocket ID" });
     expect(signIn).toHaveAttribute("href", "/actions/api/auth/oidc/start?client=web");
+    expect(screen.queryByRole("link", { name: "Sign in with Apple" })).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 
-  test("without an OIDC provider the login page names the variables that turn it on", async () => {
-    stubApi({ ...signedOut, "GET /actions/api/auth/providers": { apple: true } });
+  test("when the server offers only Apple on the web, the login page shows only Sign in with Apple", async () => {
+    stubApi({ ...signedOut, "GET /actions/api/auth/providers": { apple: true, appleWeb: true } });
+
+    renderApp("/");
+
+    const signIn = await screen.findByRole("link", { name: "Sign in with Apple" });
+    expect(signIn).toHaveAttribute("href", "/actions/api/auth/apple/start");
+    expect(screen.getAllByRole("link")).toEqual([signIn]);
+    expect(screen.queryByText(/Web sign-in is not configured/)).not.toBeInTheDocument();
+  });
+
+  test("when the server offers Apple and OIDC, the login page shows both buttons", async () => {
+    stubApi({
+      ...signedOut,
+      "GET /actions/api/auth/providers": {
+        apple: true,
+        appleWeb: true,
+        oidc: { name: "Pocket ID" },
+      },
+    });
+
+    renderApp("/");
+
+    await screen.findByRole("link", { name: "Sign in with Apple" });
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Sign in with Apple",
+      "Sign in with Pocket ID",
+    ]);
+  });
+
+  test("without a web provider the login page names the variables that turn each on", async () => {
+    stubApi({ ...signedOut, "GET /actions/api/auth/providers": { apple: true, appleWeb: false } });
 
     renderApp("/");
 
     expect(await screen.findByText(/Web sign-in is not configured/)).toBeInTheDocument();
+    expect(screen.getByText("APPLE_WEB_SERVICES_ID")).toBeInTheDocument();
     expect(screen.getByText(/OIDC_ISSUER_URL/).textContent?.split("\n")).toEqual([
       "OIDC_ISSUER_URL",
       "OIDC_CLIENT_ID",
@@ -785,7 +821,13 @@ test("Sign out posts the logout and returns to the login page", async () => {
   // The server forgets the session once it answers the logout.
   let signedOutYet = false;
   const { calls } = stubApi({
-    ...signedIn(),
+    ...signedIn({
+      "GET /actions/api/auth/providers": {
+        apple: true,
+        appleWeb: false,
+        oidc: { name: "Pocket ID" },
+      },
+    }),
     get [SESSION]() {
       return signedOutYet ? signedOut[SESSION] : { ok: true, preferences };
     },

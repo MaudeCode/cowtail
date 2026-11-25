@@ -346,7 +346,10 @@ test("with OIDC unset, providers list only Apple and the OIDC routes are not fou
   for (const name of Object.keys(OIDC_ENV)) vi.stubEnv(name, "");
 
   const providers = await get(t, "/api/auth/providers");
-  expect(authProvidersResponseSchema.parse(await providers.json())).toEqual({ apple: true });
+  expect(authProvidersResponseSchema.parse(await providers.json())).toEqual({
+    apple: true,
+    appleWeb: false,
+  });
   expect((await get(t, "/api/auth/oidc/start?client=web")).status).toBe(404);
   expect((await get(t, "/api/auth/oidc/callback?code=c&state=s")).status).toBe(404);
   expect((await handoff(t, "code", "v".repeat(43))).status).toBe(404);
@@ -359,6 +362,7 @@ test("with OIDC fully set, providers offer it under its display name", async () 
   const providers = await get(t, "/api/auth/providers");
   expect(authProvidersResponseSchema.parse(await providers.json())).toEqual({
     apple: true,
+    appleWeb: false,
     oidc: { name: "Home ID" },
   });
 });
@@ -377,7 +381,10 @@ test("a partial OIDC configuration fails every OIDC route naming what is missing
     expect(await response.text()).toContain("OIDC_CLIENT_SECRET, COWTAIL_OWNER_OIDC_SUBJECT");
   }
   const providers = await get(t, "/api/auth/providers");
-  expect(authProvidersResponseSchema.parse(await providers.json())).toEqual({ apple: true });
+  expect(authProvidersResponseSchema.parse(await providers.json())).toEqual({
+    apple: true,
+    appleWeb: false,
+  });
 });
 
 test("logout revokes the cookie session and clears the cookie", async () => {

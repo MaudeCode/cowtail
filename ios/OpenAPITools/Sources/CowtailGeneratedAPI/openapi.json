@@ -522,6 +522,9 @@
               true
             ]
           },
+          "appleWeb": {
+            "type": "boolean"
+          },
           "oidc": {
             "type": "object",
             "properties": {
@@ -536,7 +539,8 @@
           }
         },
         "required": [
-          "apple"
+          "apple",
+          "appleWeb"
         ]
       },
       "AuthOidcHandoffResponse": {

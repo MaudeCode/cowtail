@@ -3,13 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 import { errorMessage } from "../lib/api";
 import { providersQuery } from "../lib/queries";
 
-// The four Convex variables that turn on web sign-in (COW-33).
+// The Convex variables that turn on web sign-in: Sign in with Apple (COW-53), or OIDC (COW-33).
+const APPLE_VARIABLES = ["APPLE_WEB_SERVICES_ID"];
 const OIDC_VARIABLES = [
   "OIDC_ISSUER_URL",
   "OIDC_CLIENT_ID",
   "OIDC_CLIENT_SECRET",
   "COWTAIL_OWNER_OIDC_SUBJECT",
 ];
+
+const buttonClass =
+  "inline-flex h-9 items-center rounded-[7px] border border-gray-200 bg-surface-2 px-[18px] font-semibold";
+const variablesClass =
+  "mt-2.5 border-l-2 border-gray-200 bg-surface px-2.5 py-2 text-left font-mono text-[0.7rem] text-gray-600";
 
 export default function Login() {
   const { data, error, isPending } = useQuery(providersQuery);
@@ -18,19 +24,24 @@ export default function Login() {
     <main className="grid min-h-screen place-items-center bg-bg px-4 text-[0.8125rem] text-txt">
       <div className="grid max-w-[300px] justify-items-center gap-3.5 text-center">
         <h1 className="text-xl font-bold tracking-[0.22em] text-accent-text">COWTAIL</h1>
-        {isPending ? null : data?.oidc ? (
-          <a
-            href="/actions/api/auth/oidc/start?client=web"
-            className="inline-flex h-9 items-center rounded-[7px] border border-gray-200 bg-surface-2 px-[18px] font-semibold"
-          >
-            Sign in with {data.oidc.name}
-          </a>
+        {isPending ? null : data?.appleWeb || data?.oidc ? (
+          <>
+            {data.appleWeb ? (
+              <a href="/actions/api/auth/apple/start" className={buttonClass}>
+                Sign in with Apple
+              </a>
+            ) : null}
+            {data.oidc ? (
+              <a href="/actions/api/auth/oidc/start?client=web" className={buttonClass}>
+                Sign in with {data.oidc.name}
+              </a>
+            ) : null}
+          </>
         ) : data ? (
           <div>
-            Web sign-in is not configured. Set these Convex variables:
-            <pre className="mt-2.5 border-l-2 border-gray-200 bg-surface px-2.5 py-2 text-left font-mono text-[0.7rem] text-gray-600">
-              {OIDC_VARIABLES.join("\n")}
-            </pre>
+            Web sign-in is not configured. Set either group of Convex variables:
+            <pre className={variablesClass}>{APPLE_VARIABLES.join("\n")}</pre>
+            <pre className={variablesClass}>{OIDC_VARIABLES.join("\n")}</pre>
           </div>
         ) : (
           <p role="alert" className="text-accent-text">
