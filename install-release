@@ -13,7 +13,9 @@ npm install --global --prefix "$prefix" --no-audit --no-fund "@maudecode/cowtail
 # ponytail: pins that Node's full path; if mise removes that version, rerun this script.
 node=$(node -p process.execPath)
 mkdir -p "$(dirname "$bin")"
-printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "$node" "$prefix/lib/node_modules/@maudecode/cowtail-cli/dist/cowtail.js" > "$bin.new"
+# npm_config_prefix sends `cowtail update`'s `npm install --global` to this prefix, the copy the wrapper runs.
+printf '#!/bin/sh\nexport npm_config_prefix="%s"\nexec "%s" "%s" "$@"\n' \
+  "$prefix" "$node" "$prefix/lib/node_modules/@maudecode/cowtail-cli/dist/cowtail.js" > "$bin.new"
 chmod 755 "$bin.new"
 mv -f "$bin.new" "$bin" # replaces the old Bun-compiled binary at the same path
 
