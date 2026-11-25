@@ -21,6 +21,11 @@
       ],
       "message": "test-audit clock: anchor a fixture time to a fixed instant the test holds the clock at, never the real clock at load (docs/testing.md)"
     },
+    "hosted-predicate-wait": {
+      "paths": ["ios/CowtailTests/"],
+      "patterns": ["\\bXCTNSPredicateExpectation\\("],
+      "message": "test-audit snapshot: wait for a hosted screen through HostedScreen.waitUntil, which checks between run-loop turns; an NSPredicate expectation can miss a true condition while the main thread is busy (docs/testing.md)"
+    },
     "clock-unscoped-crons": {
       "paths": ["web/"],
       "patterns": [

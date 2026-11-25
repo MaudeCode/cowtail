@@ -31,20 +31,14 @@ final class HostedHistoryTests: XCTestCase {
         let alertID = "alert-crashloop"
         screen.assertVisible([chip])
         XCTAssertEqual(screen.element(chip)?.accessibilityLabel, "Remove filter approval")
-        let filtered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated {
-                store.history.stats != nil && !store.history.items.contains { $0.id == alertID }
-            }
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [filtered], timeout: 10), .completed)
+        XCTAssertTrue(HostedScreen.waitUntil {
+            store.history.stats != nil && !store.history.items.contains { $0.id == alertID }
+        })
 
-        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated {
-                screen.element(chip) == nil && store.history.items.contains { $0.id == alertID }
-            }
-        }, object: nil)
         try screen.activate(chip)
-        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 10), .completed)
+        XCTAssertTrue(HostedScreen.waitUntil {
+            screen.element(chip) == nil && store.history.items.contains { $0.id == alertID }
+        })
     }
 
     private struct HistoryStack: View {
