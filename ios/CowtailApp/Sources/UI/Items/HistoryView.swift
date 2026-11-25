@@ -82,7 +82,7 @@ struct HistoryView: View {
                             Text(chip.title)
                             Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
                         }
-                        .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
+                        .font(.cowtailMono(11, weight: .medium, relativeTo: .caption))
                         .foregroundStyle(palette.ink)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -153,7 +153,7 @@ struct HistoryView: View {
                     HStack(spacing: 4) {
                         Circle().fill(outcome.tint(palette)).frame(width: 7, height: 7)
                         Text("\(outcome.label) \(stats.outcomeMix[outcome] ?? 0)")
-                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .font(.cowtailMono(11, relativeTo: .caption))
                             .foregroundStyle(palette.mutedInk)
                     }
                 }

@@ -38,7 +38,6 @@ struct ContentView: View {
             .tag(AppTab.history)
             .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
             .accessibilityIdentifier("tab.history")
-
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(palette.accent)

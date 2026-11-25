@@ -387,15 +387,7 @@ struct SettingsView: View {
     }
 
     private func link(_ title: String, url: URL) -> some View {
-        Link(destination: url) {
-            HStack {
-                Text(title).font(.cowtailSans(14, relativeTo: .body))
-                Spacer()
-                Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold))
-            }
-            .foregroundStyle(palette.ink)
-        }
-        .cowtailRow()
+        CowtailLinkRow(title: title, url: url)
     }
 
     private func note(_ text: String, tint: Color) -> some View {

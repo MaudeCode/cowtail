@@ -78,6 +78,28 @@ struct CowtailKeyValueRow: View {
     }
 }
 
+/// A row that opens a page outside the app, its whole 44 pt height tappable.
+struct CowtailLinkRow: View {
+    @Environment(\.cowtailPalette) private var palette
+
+    let title: String
+    let url: URL
+
+    var body: some View {
+        Link(destination: url) {
+            HStack {
+                Text(title).font(.cowtailSans(14, relativeTo: .body))
+                Spacer()
+                Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold))
+            }
+            .foregroundStyle(palette.ink)
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .cowtailRow()
+    }
+}
+
 /// Every in-content action is an icon with an accessible name, in a system button style with a hit
 /// area of at least 44 × 44 pt. The glyph follows the body text style, so Dynamic Type scales it.
 struct CowtailIconButton: View {

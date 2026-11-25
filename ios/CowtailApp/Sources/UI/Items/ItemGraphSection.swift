@@ -41,7 +41,8 @@ struct ItemGraphSection: View {
         }
     }
 
-    /// The mockup's small segmented control; the system one crowds out a long expression.
+    /// The mockup's small segmented control; the system one crowds out a long expression. Each
+    /// segment draws small and still takes a 44 × 44 pt hit area.
     private var rangeControl: some View {
         HStack(spacing: 0) {
             ForEach(ItemGraphRange.allCases, id: \.self) { option in
@@ -49,18 +50,22 @@ struct ItemGraphSection: View {
                     range = option
                 } label: {
                     Text(option.rawValue)
-                        .font(.cowtailMono(11, weight: option == range ? .semibold : .regular, relativeTo: .caption2))
+                        .font(.cowtailMono(11, weight: option == range ? .semibold : .regular, relativeTo: .caption))
                         .foregroundStyle(option == range ? palette.ink : palette.mutedInk)
-                        .frame(width: 36, height: 22)
-                        .background(option == range ? palette.surfaceRaised : .clear)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            option == range ? palette.surfaceRaised : .clear,
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        )
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(option == range ? .isSelected : [])
                 .accessibilityIdentifier("button.graph-range.\(option.rawValue)")
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).stroke(palette.border, lineWidth: 1))
         .fixedSize()
     }
 
@@ -108,7 +113,7 @@ struct ItemGraphSection: View {
 
     private func label(_ text: String, _ tint: Color) -> some View {
         Text(text)
-            .font(.cowtailMono(9, relativeTo: .caption2))
+            .font(.cowtailMono(9, relativeTo: .caption))
             .foregroundStyle(tint)
     }
 }

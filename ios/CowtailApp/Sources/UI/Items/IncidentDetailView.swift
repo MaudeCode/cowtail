@@ -285,7 +285,7 @@ struct AddIncidentItemSheet: View {
                                         .foregroundStyle(palette.ink)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     Text(ItemFormat.time(item.createdAt))
-                                        .font(.cowtailMono(11, relativeTo: .caption2))
+                                        .font(.cowtailMono(11, relativeTo: .caption))
                                         .foregroundStyle(palette.mutedInk)
                                 }
                                 .contentShape(Rectangle())

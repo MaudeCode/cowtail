@@ -187,17 +187,7 @@ struct ItemDetailView: View {
             .padding(.vertical, 6)
         }
         ForEach(links, id: \.self) { link in
-            Link(destination: link.url) {
-                HStack {
-                    Text(link.label)
-                        .font(.cowtailSans(14, relativeTo: .body))
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .font(.footnote.weight(.semibold))
-                }
-                .foregroundStyle(palette.ink)
-            }
-            .cowtailRow()
+            CowtailLinkRow(title: link.label, url: link.url)
         }
     }
 
@@ -218,7 +208,7 @@ struct ItemDetailView: View {
                         CowtailStatusBadge(title: fix.scope.rawValue, tint: fix.scope.tint)
                         Spacer()
                         Text(fix.timestamp.formatted(date: .abbreviated, time: .shortened))
-                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .font(.cowtailMono(11, relativeTo: .caption))
                             .foregroundStyle(palette.mutedInk)
                     }
                     Text(fix.description)
@@ -242,7 +232,7 @@ struct ItemDetailView: View {
             ForEach(detail.priorOccurrences) { prior in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(ItemFormat.day(prior.firedAt))
-                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .font(.cowtailMono(11, relativeTo: .caption))
                         .foregroundStyle(palette.mutedInk)
                     CowtailStatusBadge(title: prior.outcome.label, tint: prior.outcome.tint(palette))
                     Text(prior.cause)
@@ -250,7 +240,7 @@ struct ItemDetailView: View {
                         .foregroundStyle(palette.ink)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(prior.fixCommitText)
-                        .font(.cowtailMono(11, relativeTo: .caption2))
+                        .font(.cowtailMono(11, relativeTo: .caption))
                         .foregroundStyle(palette.mutedInk)
                 }
                 .cowtailRow()
@@ -342,7 +332,7 @@ struct ItemTimeline: View {
                             .padding(.top, 5)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(event.heading)
-                                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption2))
+                                .font(.cowtailMono(11, weight: .medium, relativeTo: .caption))
                                 .foregroundStyle(event.tint(palette))
                             if !event.text.isEmpty {
                                 Text(event.text)
@@ -352,7 +342,7 @@ struct ItemTimeline: View {
                         }
                         Spacer(minLength: 8)
                         Text(ItemFormat.time(event.at))
-                            .font(.cowtailMono(11, relativeTo: .caption2))
+                            .font(.cowtailMono(11, relativeTo: .caption))
                             .foregroundStyle(palette.mutedInk)
                     }
                     .accessibilityElement(children: .combine)
@@ -379,7 +369,7 @@ struct ItemTimeline: View {
                             .foregroundStyle(palette.mutedInk)
                         if let block = step.block {
                             Text(block)
-                                .font(.cowtailMono(11, relativeTo: .caption2))
+                                .font(.cowtailMono(11, relativeTo: .caption))
                                 .foregroundStyle(palette.ink)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 9)

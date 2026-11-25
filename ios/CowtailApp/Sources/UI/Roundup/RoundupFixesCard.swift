@@ -5,7 +5,7 @@ private struct RoundupScopeBadge: View {
 
     var body: some View {
         Text(scope.label)
-            .font(.cowtailMono(10, weight: .medium, relativeTo: .caption2))
+            .font(.cowtailMono(10, weight: .medium, relativeTo: .caption))
             .foregroundStyle(scope.tint)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
