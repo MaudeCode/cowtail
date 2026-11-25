@@ -433,6 +433,26 @@ describe("background sync", () => {
     expect(syncs().map(({ itemIds }) => itemIds)).toEqual([[acked]]);
   });
 
+  test("a batch's items handled in separate windows are named together once none is live", async () => {
+    const t = await newBackendWithSources("cron");
+    const first = await createItem(t, { urgency: "today", title: "Backup verify failed" });
+    const second = await createItem(t, { urgency: "today", title: "Merge queue stalled" });
+    await advance(t, 5 * MINUTE);
+    expect(alertPushes()[0]).toMatchObject({
+      data: { type: "item_batch", itemIds: [first, second] },
+    });
+
+    await act(t, first, { type: "ack" });
+    await advance(t, ITEM_SYNC_WINDOW_MS);
+    await act(t, second, { type: "ack" });
+    await advance(t, ITEM_SYNC_WINDOW_MS);
+
+    expect(syncs().map(({ itemIds }) => itemIds.toSorted())).toEqual([
+      [first],
+      [first, second].toSorted(),
+    ]);
+  });
+
   test("an item stops being live once, whether acked, snoozed, answered, resolved or expired", async () => {
     const t = await newBackendWithSources("cron");
     const acked = await createItem(t, { urgency: "today", title: "Acked" });

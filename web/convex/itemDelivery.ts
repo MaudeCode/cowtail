@@ -128,6 +128,27 @@ export function itemSyncPush(itemIds: string[], badge: number) {
   };
 }
 
+// One sync lists item ids up to this many bytes, well inside APNs' 4 KB; more go in further
+// pushes. A batch's ids, at most BATCH_IDS_BYTES, always fit in one.
+const SYNC_IDS_BYTES = 3000;
+
+/** The handled items as pushes that fit APNs, each group (an item, or a batch) in one push. */
+export function itemSyncPushes(groups: string[][], badge: number) {
+  const pushes: string[][] = [];
+  let current: string[] = [];
+  for (const group of groups) {
+    const joined = [...current, ...group];
+    if (current.length > 0 && encoder.encode(JSON.stringify(joined)).length > SYNC_IDS_BYTES) {
+      pushes.push(current);
+      current = [...group];
+    } else {
+      current = joined;
+    }
+  }
+  if (current.length > 0) pushes.push(current);
+  return pushes.map((itemIds) => itemSyncPush(itemIds, badge));
+}
+
 // --- Quiet hours --------------------------------------------------------------------
 
 function clockMinutes(value: string) {
@@ -197,7 +218,7 @@ const planBatchRef = makeFunctionReference<
 const planItemSyncRef = makeFunctionReference<
   "mutation",
   { syncId: Id<"itemSyncPushes">; now: number },
-  (ReturnType<typeof itemSyncPush> & { userId: string }) | null
+  { userId: string; pushes: ReturnType<typeof itemSyncPush>[] } | null
 >("itemDelivery:planItemSync");
 const recordPushRef = makeFunctionReference<
   "mutation",
@@ -396,9 +417,49 @@ export const planBatch = internalMutation({
   },
 });
 
+const isHandled = (item: Doc<"items"> | null) => !item || !itemIsLive(item);
+
+// The `today` batches that pushed this item.
+async function pushedBatches(ctx: QueryCtx, itemId: Id<"items">) {
+  const events = await ctx.db
+    .query("itemEvents")
+    .withIndex("by_item_at", (q) => q.eq("itemId", itemId))
+    .collect();
+  const batches: Doc<"itemPushBatches">[] = [];
+  for (const event of events) {
+    if (event.type !== "notified" || event.payload.decision !== "pushed") continue;
+    const batchId = ctx.db.normalizeId("itemPushBatches", String(event.payload.batchId ?? ""));
+    const batch = batchId && (await ctx.db.get(batchId));
+    if (batch) batches.push(batch);
+  }
+  return batches;
+}
+
 /**
- * Closes the items that stopped being live since its window opened into one background push,
- * carrying the badge as it stands when it sends. An item live again by then is left out, so
+ * The handled items grouped for the app, which removes a batch notification only when one push
+ * names all its items: an item, joined by every item of its batch once none of them is live,
+ * though the others were handled in earlier windows.
+ */
+async function handledGroups(ctx: QueryCtx, itemIds: Id<"items">[]) {
+  const seen = new Set<string>();
+  const groups: string[][] = [];
+  for (const id of itemIds) {
+    if (!isHandled(await ctx.db.get(id))) continue;
+    const group = [String(id)];
+    for (const batch of await pushedBatches(ctx, id)) {
+      const members = await Promise.all(batch.itemIds.map((member) => ctx.db.get(member)));
+      if (members.every(isHandled)) group.push(...batch.itemIds.map(String));
+    }
+    const fresh = [...new Set(group)].filter((member) => !seen.has(member));
+    for (const member of fresh) seen.add(member);
+    if (fresh.length > 0) groups.push(fresh);
+  }
+  return groups;
+}
+
+/**
+ * Closes the items that stopped being live since its window opened into background pushes,
+ * carrying the badge as it stands when they send. An item live again by then is left out, so
  * its notification stays.
  */
 export const planItemSync = internalMutation({
@@ -408,13 +469,9 @@ export const planItemSync = internalMutation({
     if (!sync || sync.sentAt !== undefined) return null;
     await ctx.db.patch(syncId, { sentAt: now });
     const userId = cowtailOwnerUserId();
-    const handled: string[] = [];
-    for (const id of sync.itemIds) {
-      const item = await ctx.db.get(id);
-      if (!item || !itemIsLive(item)) handled.push(String(id));
-    }
-    if (!userId || handled.length === 0) return null;
-    return { userId, ...itemSyncPush(handled, await ownerBadgeCount(ctx)) };
+    const groups = await handledGroups(ctx, sync.itemIds);
+    if (!userId || groups.length === 0) return null;
+    return { userId, pushes: itemSyncPushes(groups, await ownerBadgeCount(ctx)) };
   },
 });
 
@@ -489,6 +546,8 @@ export const flushItemSync = internalAction({
   args: { syncId: v.id("itemSyncPushes") },
   handler: async (ctx, { syncId }) => {
     const planned = await ctx.runMutation(planItemSyncRef, { syncId, now: Date.now() });
-    if (planned) await sendPushToUser(ctx, planned);
+    if (!planned) return;
+    for (const push of planned.pushes)
+      await sendPushToUser(ctx, { userId: planned.userId, ...push });
   },
 });

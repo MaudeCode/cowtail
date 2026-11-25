@@ -2,7 +2,7 @@ import { itemKinds, type ItemKind } from "@maudecode/cowtail-protocol";
 import { describe, expect, test } from "vitest";
 
 import type { Id } from "./_generated/dataModel";
-import { batchPush, itemPush, itemSyncPush } from "./itemDelivery";
+import { batchPush, itemPush, itemSyncPush, itemSyncPushes } from "./itemDelivery";
 import { apnsDeliveryHeaders, buildApnsPayload } from "./pushActions";
 
 describe("APNS payload construction", () => {
@@ -55,6 +55,30 @@ describe("APNs delivery", () => {
       itemIds: ["item-1", "item-2"],
       aps: { "content-available": 1 },
     });
+  });
+});
+
+describe("item sync payloads", () => {
+  // Convex ids are 32 characters.
+  const ids = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, n) => `${prefix}${n}`.padEnd(32, "j"));
+
+  test("a burst too large for one push splits into pushes inside 4 KB, a batch never split", () => {
+    const batch = ids("b", 42);
+    const groups = [...ids("a", 70).map((id) => [id]), batch, ...ids("c", 70).map((id) => [id])];
+
+    const pushes = itemSyncPushes(groups, 9);
+
+    expect(pushes.length).toBeGreaterThan(1);
+    for (const push of pushes) {
+      const bytes = Buffer.byteLength(buildApnsPayload({ deviceToken: "device-token", ...push }));
+      expect(bytes).toBeLessThanOrEqual(4096);
+      expect(push.data.badge).toBe(9);
+    }
+    expect(pushes.flatMap((push) => push.data.itemIds)).toEqual(groups.flat());
+    expect(pushes.filter((push) => push.data.itemIds.includes(batch[0]))[0].data.itemIds).toEqual(
+      expect.arrayContaining(batch),
+    );
   });
 });
 

@@ -627,6 +627,8 @@ describe("inbox bounds", () => {
 
     const inbox = itemInboxResponseSchema.parse(response.json);
     expect(inbox.counts.withHermes).toBe(500);
+    // The bound is for display: every open item keeps its notification.
+    expect(inbox.liveItemIds).toHaveLength(501);
     expect([inbox.withHermes[0]?.title, inbox.withHermes.at(-1)?.title]).toEqual([
       "Flood 500",
       "Flood 1",

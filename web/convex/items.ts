@@ -443,18 +443,25 @@ function investigationResult(alert: Doc<"alerts">) {
   return rootCause || action || ownerNote ? { rootCause, action, ownerNote } : undefined;
 }
 
-// The app badge: open items that need the owner.
+// The app badge, open items that need the owner, and the live items whose notification stays,
+// from every open item rather than the inbox's bounded read.
 // ponytail: reads every open item per push; add a counter when open items number thousands.
-export async function ownerBadgeCount(ctx: QueryCtx) {
+export async function ownerNotificationState(ctx: QueryCtx) {
   const open = await ctx.db
     .query("items")
     .withIndex("by_state_updatedAt", (q) => q.eq("state", "open"))
     .collect();
-  let count = 0;
+  let badge = 0;
+  const liveItemIds: string[] = [];
   for (const item of open) {
-    if (itemNeedsOwner(item, (await alertContext(ctx, item)).workflow)) count += 1;
+    if (itemIsLive(item)) liveItemIds.push(String(item._id));
+    if (itemNeedsOwner(item, (await alertContext(ctx, item)).workflow)) badge += 1;
   }
-  return count;
+  return { badge, liveItemIds };
+}
+
+export async function ownerBadgeCount(ctx: QueryCtx) {
+  return (await ownerNotificationState(ctx)).badge;
 }
 
 export async function itemRecord(ctx: QueryCtx, item: Doc<"items">) {
@@ -981,8 +988,7 @@ export const inbox = internalQuery({
       withHermes: oneRecordPerIncident(withHermes, seen),
       upcoming: oneRecordPerIncident(upcoming, seen),
       handled: oneRecordPerIncident(handled, seen),
-      badge: await ownerBadgeCount(ctx),
-      liveItemIds: active.filter(itemIsLive).map((item) => String(item._id)),
+      ...(await ownerNotificationState(ctx)),
     };
   },
 });
