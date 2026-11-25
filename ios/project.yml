@@ -60,6 +60,9 @@ targets:
           - DMMono-Medium.ttf
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+        # Background pushes wake the app to set the badge and drop pushes for handled items.
+        UIBackgroundModes:
+          - remote-notification
         UILaunchScreen: {}
     sources:
       - path: CowtailApp/Sources

@@ -593,6 +593,10 @@ describe("inbox", () => {
       ids(inbox.upcoming),
       ids(inbox.handled),
     ]).toEqual([[approval.id], [acked.id, working.id], [reminder.id, monday.id], [today.id]]);
+    // The badge counts what needs the owner; every open item keeps its notification, the
+    // `today` failure that does not need the owner included.
+    expect(inbox.badge).toBe(1);
+    expect(inbox.liveItemIds.toSorted()).toEqual([approval.id, working.id].toSorted());
   });
 });
 

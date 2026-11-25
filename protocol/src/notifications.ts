@@ -53,11 +53,23 @@ export const itemPushDataSchema = z.object({
 });
 
 // The custom data of a summary push for a batch of `today` items, from Cowtail; the app
-// opens the inbox.
+// opens the inbox. `itemIds` lists the batch, so the app removes the push once none of them
+// is live; it is absent when the list would not fit in the push, and the push then stays.
 export const itemBatchPushDataSchema = z.object({
   type: z.literal("item_batch"),
   count: z.number().int().min(2),
+  itemIds: z.array(nonEmptyStringSchema).min(2).optional(),
   source: sourceInfoSchema,
+});
+
+// The custom data of a background push (`content-available`, no alert) sent a few seconds
+// after items stop being live: the app sets `badge` and removes those items' delivered
+// notifications. iOS throttles background pushes, so the inbox's `badge` and `liveItemIds`
+// stay the guarantee and this push is only the fast path.
+export const itemSyncPushDataSchema = z.object({
+  type: z.literal("item_sync"),
+  badge: z.number().int().nonnegative(),
+  itemIds: z.array(nonEmptyStringSchema).min(1),
 });
 
 export const notificationPreferencesResponseSchema = z.object({
@@ -101,6 +113,7 @@ export type UrgencyOverrides = z.infer<typeof urgencyOverridesSchema>;
 export type ItemNotificationCategory = z.infer<typeof itemNotificationCategorySchema>;
 export type ItemPushData = z.infer<typeof itemPushDataSchema>;
 export type ItemBatchPushData = z.infer<typeof itemBatchPushDataSchema>;
+export type ItemSyncPushData = z.infer<typeof itemSyncPushDataSchema>;
 export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
 export type NotificationPreferencesResponse = z.infer<typeof notificationPreferencesResponseSchema>;
 export type NotificationPreferencesUpdateRequest = z.infer<

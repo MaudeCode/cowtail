@@ -151,6 +151,7 @@ final class CowtailStore: ObservableObject {
     private let sessionToken: @MainActor () async -> String?
     private let authenticator: any ApprovalAuthenticating
     private let requiresApprovalAuthentication: @MainActor () -> Bool
+    private let notificationCenter: any DeliveredNotificationCenter
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Cowtail",
         category: "store"
@@ -167,12 +168,14 @@ final class CowtailStore: ObservableObject {
         authenticator: any ApprovalAuthenticating = DeviceOwnerAuthenticator(),
         requiresApprovalAuthentication: @escaping @MainActor () -> Bool = {
             NotificationManager.shared.requiresApprovalAuthentication
-        }
+        },
+        notificationCenter: any DeliveredNotificationCenter = SystemNotificationCenter()
     ) {
         self.api = api
         self.sessionToken = sessionToken
         self.authenticator = authenticator
         self.requiresApprovalAuthentication = requiresApprovalAuthentication
+        self.notificationCenter = notificationCenter
     }
 
     // MARK: Inbox and cluster
@@ -300,6 +303,7 @@ final class CowtailStore: ObservableObject {
                 shown.showingPending(pending.request, on: pending.itemID)
             }
             unconfirmedItemIDs.removeAll()
+            await DeliveredNotifications.show(badge: read.badge, liveItemIDs: read.liveItemIDs, in: notificationCenter)
             return true
         } catch {
             guard !NetworkErrorClassifier.isCancellation(error) else { return false }

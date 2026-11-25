@@ -144,6 +144,9 @@ export function inbox(
     withHermes,
     upcoming,
     handled,
+    badge: lists.badge ?? needsYou.length,
+    // Needs-you items are always live; a test that reads the rest names them.
+    liveItemIds: lists.liveItemIds ?? needsYou.map((item) => item.id),
   };
 }
 

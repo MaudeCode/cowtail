@@ -6,17 +6,21 @@ import { createPrivateKey, sign } from "node:crypto";
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import {
+  apnsPriorityValidator,
+  apnsPushTypeValidator,
   apsExtrasValidator,
   parseApnsEnvironment,
+  type ApnsDelivery,
   type ApnsEnvironment,
   type ApsExtras,
   type PushData,
 } from "./apns";
 
-type SendApnsNotificationArgs = {
+// A background push carries no alert, so it has no title or body.
+type SendApnsNotificationArgs = ApnsDelivery & {
   deviceToken: string;
-  title: string;
-  body: string;
+  title?: string;
+  body?: string;
   data?: PushData;
   aps?: ApsExtras;
 };
@@ -92,6 +96,9 @@ export function buildApnsPayload(args: SendApnsNotificationArgs): string {
   const customData = { ...args.data };
   delete customData.aps;
   const extras = args.aps ?? {};
+  if (args.pushType === "background") {
+    return JSON.stringify({ ...customData, aps: { "content-available": 1 } });
+  }
 
   return JSON.stringify({
     ...customData,
@@ -108,6 +115,11 @@ export function buildApnsPayload(args: SendApnsNotificationArgs): string {
       category: extras.category,
     },
   });
+}
+
+/** The headers that say how APNs delivers the push; an alert at once unless told otherwise. */
+export function apnsDeliveryHeaders({ pushType = "alert", priority = 10 }: ApnsDelivery) {
+  return { "apns-push-type": pushType, "apns-priority": String(priority) };
 }
 
 async function sendApnsNotification(args: SendApnsNotificationArgs): Promise<ApnsSuccess> {
@@ -140,8 +152,7 @@ async function sendApnsNotification(args: SendApnsNotificationArgs): Promise<Apn
       ":path": `/3/device/${args.deviceToken}`,
       authorization: `bearer ${jwt}`,
       "apns-topic": config.topic,
-      "apns-push-type": "alert",
-      "apns-priority": "10",
+      ...apnsDeliveryHeaders(args),
       "content-type": "application/json",
       "content-length": Buffer.byteLength(payload).toString(),
     });
@@ -209,10 +220,12 @@ function isPushData(value: unknown): value is PushData {
 export const sendApnsToDevice = internalAction({
   args: {
     deviceToken: v.string(),
-    title: v.string(),
-    body: v.string(),
+    title: v.optional(v.string()),
+    body: v.optional(v.string()),
     data: v.optional(v.any()),
     aps: v.optional(apsExtrasValidator),
+    pushType: v.optional(apnsPushTypeValidator),
+    priority: v.optional(apnsPriorityValidator),
   },
   handler: async (_ctx, args) => {
     const data = isPushData(args.data) ? args.data : undefined;
@@ -224,6 +237,8 @@ export const sendApnsToDevice = internalAction({
         body: args.body,
         data,
         aps: args.aps,
+        pushType: args.pushType,
+        priority: args.priority,
       });
 
       return {

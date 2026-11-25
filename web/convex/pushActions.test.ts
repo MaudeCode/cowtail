@@ -2,8 +2,8 @@ import { itemKinds, type ItemKind } from "@maudecode/cowtail-protocol";
 import { describe, expect, test } from "vitest";
 
 import type { Id } from "./_generated/dataModel";
-import { batchPush, itemPush } from "./itemDelivery";
-import { buildApnsPayload } from "./pushActions";
+import { batchPush, itemPush, itemSyncPush } from "./itemDelivery";
+import { apnsDeliveryHeaders, buildApnsPayload } from "./pushActions";
 
 describe("APNS payload construction", () => {
   test("does not let custom data override server-owned aps fields", () => {
@@ -30,6 +30,30 @@ describe("APNS payload construction", () => {
         },
         sound: "default",
       },
+    });
+  });
+});
+
+describe("APNs delivery", () => {
+  test("an alert goes as an alert at priority 10 unless the caller says otherwise", () => {
+    expect(apnsDeliveryHeaders({})).toEqual({ "apns-push-type": "alert", "apns-priority": "10" });
+    expect(apnsDeliveryHeaders({ pushType: "background", priority: 5 })).toEqual({
+      "apns-push-type": "background",
+      "apns-priority": "5",
+    });
+  });
+
+  test("an item sync goes as a background push at priority 5 with the badge and item ids", () => {
+    const sync = itemSyncPush(["item-1", "item-2"], 4);
+    expect(apnsDeliveryHeaders(sync)).toEqual({
+      "apns-push-type": "background",
+      "apns-priority": "5",
+    });
+    expect(JSON.parse(buildApnsPayload({ deviceToken: "device-token", ...sync }))).toEqual({
+      type: "item_sync",
+      badge: 4,
+      itemIds: ["item-1", "item-2"],
+      aps: { "content-available": 1 },
     });
   });
 });
@@ -110,6 +134,27 @@ describe("item push payloads", () => {
       expect(bytes).toBeLessThanOrEqual(4096);
       expect(pushed.body).toContain("…");
     }
+  });
+
+  test("a batch lists its item ids while they fit, and stays inside APNs' 4 KB", () => {
+    const longest = {
+      ...item("fyi", "today"),
+      title: "Ä".repeat(500),
+      sourceInfo: { slug: "s".repeat(32), displayName: "Ä".repeat(40) },
+    };
+    // Convex ids are 32 characters.
+    const batch = (size: number) =>
+      Array.from({ length: size }, (_, n) => ({
+        ...longest,
+        _id: String(n).padStart(32, "j") as Id<"items">,
+      }));
+
+    const fits = batchPush(batch(42), 7, longest.sourceInfo);
+    expect(fits.data).toMatchObject({ type: "item_batch", count: 42 });
+    expect((fits.data as { itemIds?: string[] }).itemIds).toHaveLength(42);
+    const bytes = Buffer.byteLength(buildApnsPayload({ deviceToken: "device-token", ...fits }));
+    expect(bytes).toBeLessThanOrEqual(4096);
+    expect(batchPush(batch(43), 7, longest.sourceInfo).data).not.toHaveProperty("itemIds");
   });
 
   test("a push names its source, with the icon URL only when the source has an icon", () => {

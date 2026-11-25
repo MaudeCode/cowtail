@@ -3,6 +3,7 @@ import type {
   ItemKind,
   ItemNotificationCategory,
   ItemPushData,
+  ItemSyncPushData,
   ItemUrgency,
   QuietHours,
   SourceInfo,
@@ -13,9 +14,9 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import type { ApsExtras } from "./apns";
+import type { ApnsDelivery, ApsExtras } from "./apns";
 import { appendItemEvent, ownerBadgeCount, type ItemDeliveryReason } from "./items";
-import { itemKindTakesAck } from "./itemModel";
+import { itemIsLive, itemKindTakesAck } from "./itemModel";
 import { coveringWindow } from "./maintenance";
 import { effectivePreferences, preferencesRow } from "./notificationPreferences";
 import { cowtailOwnerUserId } from "./owner";
@@ -66,6 +67,8 @@ async function pushItem(ctx: QueryCtx, item: Doc<"items">): Promise<PushItem> {
 const TITLE_BYTES = 400;
 const BODY_BYTES = 2000;
 const THREAD_BYTES = 400;
+// A batch lists its item ids only while they fit beside its body.
+const BATCH_IDS_BYTES = 1500;
 
 const encoder = new TextEncoder();
 const jsonBytes = (text: string) => encoder.encode(JSON.stringify(text)).length - 2;
@@ -106,11 +109,22 @@ export function batchPush(items: PushItem[], badge: number, cowtail: SourceInfo)
   const shown = items.slice(0, 2).map((item) => item.title);
   const more = items.length - shown.length;
   const suffix = more > 0 ? `, ${more} more` : "";
+  const itemIds = items.map((item) => String(item._id));
+  const data: ItemBatchPushData = { type: "item_batch", count: items.length, source: cowtail };
+  if (encoder.encode(JSON.stringify(itemIds)).length <= BATCH_IDS_BYTES) data.itemIds = itemIds;
   return {
     title: `${items.length} new items`,
     body: fit(shown.join(", "), BODY_BYTES - jsonBytes(suffix)) + suffix,
-    data: { type: "item_batch", count: items.length, source: cowtail },
+    data,
     aps: { mutableContent: 1, interruptionLevel: "active", badge },
+  };
+}
+
+// A background push only the app reads; Apple takes it at priority 5.
+export function itemSyncPush(itemIds: string[], badge: number) {
+  const data: ItemSyncPushData = { type: "item_sync", badge, itemIds };
+  return { data, pushType: "background", priority: 5 } satisfies ApnsDelivery & {
+    data: ItemSyncPushData;
   };
 }
 
@@ -180,6 +194,11 @@ const planBatchRef = makeFunctionReference<
   { batchId: Id<"itemPushBatches">; now: number },
   Planned
 >("itemDelivery:planBatch");
+const planItemSyncRef = makeFunctionReference<
+  "mutation",
+  { syncId: Id<"itemSyncPushes">; now: number },
+  (ReturnType<typeof itemSyncPush> & { userId: string }) | null
+>("itemDelivery:planItemSync");
 const recordPushRef = makeFunctionReference<
   "mutation",
   { itemIds: Id<"items">[]; payload: Record<string, unknown>; now: number }
@@ -377,6 +396,28 @@ export const planBatch = internalMutation({
   },
 });
 
+/**
+ * Closes the items that stopped being live since its window opened into one background push,
+ * carrying the badge as it stands when it sends. An item live again by then is left out, so
+ * its notification stays.
+ */
+export const planItemSync = internalMutation({
+  args: { syncId: v.id("itemSyncPushes"), now: v.number() },
+  handler: async (ctx, { syncId, now }) => {
+    const sync = await ctx.db.get(syncId);
+    if (!sync || sync.sentAt !== undefined) return null;
+    await ctx.db.patch(syncId, { sentAt: now });
+    const userId = cowtailOwnerUserId();
+    const handled: string[] = [];
+    for (const id of sync.itemIds) {
+      const item = await ctx.db.get(id);
+      if (!item || !itemIsLive(item)) handled.push(String(id));
+    }
+    if (!userId || handled.length === 0) return null;
+    return { userId, ...itemSyncPush(handled, await ownerBadgeCount(ctx)) };
+  },
+});
+
 export const recordPush = internalMutation({
   args: {
     itemIds: v.array(v.id("items")),
@@ -439,5 +480,15 @@ export const flushBatch = internalAction({
         size: planned.itemIds.length,
       });
     }
+  },
+});
+
+// iOS throttles background pushes, so this is only the fast path; the app also applies the
+// inbox's `badge` and `liveItemIds` on every load and every return to the foreground.
+export const flushItemSync = internalAction({
+  args: { syncId: v.id("itemSyncPushes") },
+  handler: async (ctx, { syncId }) => {
+    const planned = await ctx.runMutation(planItemSyncRef, { syncId, now: Date.now() });
+    if (planned) await sendPushToUser(ctx, planned);
   },
 });

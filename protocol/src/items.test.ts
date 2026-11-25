@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   itemCreateRequestSchema,
   itemEventRecordSchema,
+  itemInboxResponseSchema,
   itemRecordSchema,
   priorOccurrenceSchema,
 } from "./items.ts";
@@ -79,6 +80,25 @@ describe("item records", () => {
       itemRecordSchema.parse({ ...snoozed, availableActions: unsnooze }).availableActions,
     ).toEqual(unsnooze);
     expect(itemRecordSchema.safeParse({ ...snoozed, actions: unsnooze }).success).toBe(false);
+  });
+});
+
+describe("the inbox", () => {
+  test("carries the badge and the live item ids the app applies to its notifications", () => {
+    const inbox = {
+      ok: true,
+      counts: { needsYou: 0, withHermes: 0, handled: 0 },
+      needsYou: [],
+      withHermes: [],
+      handled: [],
+    };
+    expect(itemInboxResponseSchema.safeParse(inbox).success).toBe(false);
+    expect(
+      itemInboxResponseSchema.parse({ ...inbox, badge: 2, liveItemIds: ["item-1"] }),
+    ).toMatchObject({ badge: 2, liveItemIds: ["item-1"] });
+    expect(
+      itemInboxResponseSchema.safeParse({ ...inbox, badge: -1, liveItemIds: [] }).success,
+    ).toBe(false);
   });
 });
 

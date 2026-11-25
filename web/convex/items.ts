@@ -20,6 +20,7 @@ import {
   alertWorkflowState,
   itemAvailableActions,
   itemInvestigationStep,
+  itemIsLive,
   itemNeedsOwner,
   itemOutcome,
   itemSubtitle,
@@ -102,6 +103,30 @@ async function scheduleDelivery(ctx: MutationCtx, itemId: Id<"items">, reason: I
   await ctx.scheduler.runAfter(0, deliverItemRef, { itemId, reason });
 }
 
+// Items that stop being live within this window go out in one background push.
+export const ITEM_SYNC_WINDOW_MS = 3_000;
+
+const flushItemSyncRef = makeFunctionReference<"action", { syncId: Id<"itemSyncPushes"> }>(
+  "itemDelivery:flushItemSync",
+);
+
+// The item stopped being live: the owner's devices update their badge and drop its push.
+async function queueItemSync(ctx: MutationCtx, itemId: Id<"items">, now: number) {
+  const pending = await ctx.db
+    .query("itemSyncPushes")
+    .withIndex("by_sentAt", (q) => q.eq("sentAt", undefined))
+    .first();
+  if (pending) {
+    if (!pending.itemIds.includes(itemId)) {
+      await ctx.db.patch(pending._id, { itemIds: [...pending.itemIds, itemId] });
+    }
+    return;
+  }
+  const sendAt = now + ITEM_SYNC_WINDOW_MS;
+  const syncId = await ctx.db.insert("itemSyncPushes", { sendAt, itemIds: [itemId] });
+  await ctx.scheduler.runAt(sendAt, flushItemSyncRef, { syncId });
+}
+
 const urgencyRank: Record<ItemUrgency, number> = { whenever: 0, today: 1, now: 2 };
 
 function raisesUrgency(from: ItemUrgency, to: ItemUrgency) {
@@ -154,6 +179,9 @@ export async function transitionItem(
   await ctx.db.patch(item._id, { state: to, ...timing });
   if (to === "snoozed") await leaveTodayBatch(ctx, item._id);
   if (notify && to === "open") await scheduleDelivery(ctx, item._id, delivery);
+  if (notify && itemIsLive(item) && !itemIsLive({ ...item, state: to })) {
+    await queueItemSync(ctx, item._id, at);
+  }
   await appendItemEvent(
     ctx,
     item._id,
@@ -690,6 +718,7 @@ export const applyAction = internalMutation({
       // The producer closes the item once it has applied the answer; until then the item
       // waits on the producer, not the owner.
       await patchItemContent(ctx, item._id, { updatedAt: now, answeredAt: now });
+      if (itemIsLive(item)) await queueItemSync(ctx, item._id, now);
     }
   },
 });
@@ -952,6 +981,8 @@ export const inbox = internalQuery({
       withHermes: oneRecordPerIncident(withHermes, seen),
       upcoming: oneRecordPerIncident(upcoming, seen),
       handled: oneRecordPerIncident(handled, seen),
+      badge: await ownerBadgeCount(ctx),
+      liveItemIds: active.filter(itemIsLive).map((item) => String(item._id)),
     };
   },
 });

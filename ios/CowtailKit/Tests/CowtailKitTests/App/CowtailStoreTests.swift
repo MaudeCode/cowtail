@@ -17,13 +17,15 @@ final class CowtailStoreTests: XCTestCase {
     private func store(
         api: FakeItemAPI,
         authenticator: FakeAuthenticator = FakeAuthenticator(allows: true),
-        requiresAuthentication: Bool = false
+        requiresAuthentication: Bool = false,
+        notificationCenter: FakeNotificationCenter = FakeNotificationCenter()
     ) -> CowtailStore {
         CowtailStore(
             api: api,
             sessionToken: { "session-token" },
             authenticator: authenticator,
-            requiresApprovalAuthentication: { requiresAuthentication }
+            requiresApprovalAuthentication: { requiresAuthentication },
+            notificationCenter: notificationCenter
         )
     }
 
@@ -65,6 +67,25 @@ final class CowtailStoreTests: XCTestCase {
         )
     }
 
+    func testAnInboxLoadSetsTheServersBadgeAndKeepsOnlyLiveItemsNotifications() async {
+        var inbox = ItemInbox(needsYou: [approval], withHermes: [], handled: [])
+        inbox.badge = 1
+        // The open `today` fyi does not need the owner, and is still live.
+        inbox.liveItemIDs = ["approval-1", "fyi-today"]
+        let center = FakeNotificationCenter(delivered: [
+            DeliveredItemNotification(identifier: "approval", itemIDs: ["approval-1"]),
+            DeliveredItemNotification(identifier: "fyi", itemIDs: ["fyi-today"]),
+            DeliveredItemNotification(identifier: "acked", itemIDs: ["acked-1"]),
+            DeliveredItemNotification(identifier: "roundup", itemIDs: []),
+        ])
+
+        await store(api: FakeItemAPI(inbox: inbox), notificationCenter: center).refresh()
+
+        let badge = await center.badge
+        let remaining = await center.delivered.map(\.identifier)
+        XCTAssertEqual(badge, 1)
+        XCTAssertEqual(remaining, ["approval", "fyi", "roundup"])
+    }
     func testRemovingAMemberShowsAtOnceAndARefusalPutsItBack() async {
         let api = FakeItemAPI(inbox: .empty)
         await api.seedIncident(storageOutage)
@@ -634,7 +655,8 @@ final class CowtailStoreTests: XCTestCase {
                 return "session-token"
             },
             authenticator: FakeAuthenticator(allows: true),
-            requiresApprovalAuthentication: { false }
+            requiresApprovalAuthentication: { false },
+            notificationCenter: FakeNotificationCenter()
         )
         await store.loadHistory(HistoryFilter())
 
@@ -740,7 +762,10 @@ private actor FakeItemAPI: CowtailAPIClient {
             throw inboxError
         }
         // Totals follow the lists, as the server counts them.
-        return ItemInbox(needsYou: inbox.needsYou, withHermes: inbox.withHermes, upcoming: inbox.upcoming, handled: inbox.handled)
+        var read = ItemInbox(needsYou: inbox.needsYou, withHermes: inbox.withHermes, upcoming: inbox.upcoming, handled: inbox.handled)
+        read.badge = inbox.badge
+        read.liveItemIDs = inbox.liveItemIDs
+        return read
     }
 
     func fetchItems(_ query: ItemListQuery, sessionToken _: String) async throws -> ItemPage {

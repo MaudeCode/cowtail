@@ -314,6 +314,11 @@ export const itemInboxResponseSchema = z.object({
   withHermes: z.array(itemRecordSchema),
   upcoming: z.array(itemRecordSchema).optional(),
   handled: z.array(itemRecordSchema),
+  // The app badge, the same count every item push carries.
+  badge: z.number().int().nonnegative(),
+  // Every open item the owner has not answered, incidents' members included: the items whose
+  // delivered notification stays. The app removes the others.
+  liveItemIds: z.array(nonEmptyStringSchema),
 });
 
 export const itemGetResponseSchema = z.object({

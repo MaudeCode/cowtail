@@ -2,6 +2,7 @@ import {
   itemCreateResponseSchema,
   itemGetResponseSchema,
   maintenanceWindowResponseSchema,
+  itemSyncPushDataSchema,
   notificationPreferencesResponseSchema,
 } from "@maudecode/cowtail-protocol";
 import { makeFunctionReference } from "convex/server";
@@ -16,6 +17,7 @@ import {
   seedSession,
   stubEnv,
 } from "../test/convexHarness";
+import { ITEM_SYNC_WINDOW_MS } from "./items";
 
 // The APNs transport is the existing /api/push/send path; these tests watch what reaches it.
 const sendPushToUser = vi.hoisted(() =>
@@ -87,22 +89,25 @@ async function setPreferences(t: Backend, preferences: Record<string, unknown>) 
   return notificationPreferencesResponseSchema.parse(response.json).preferences;
 }
 
-const pushTitles = () =>
-  sendPushToUser.mock.calls.map(([, args]) => (args as { title: string }).title);
+// Background syncs leave through the same sender; alert pushes are the ones the owner sees.
+const sent = () => sendPushToUser.mock.calls.map(([, args]) => args as Record<string, unknown>);
+const alertPushes = () => sent().filter((args) => args.pushType !== "background");
+const syncPushes = () => sent().filter((args) => args.pushType === "background");
+const pushTitles = () => alertPushes().map((args) => args.title);
 
 describe("item delivery", () => {
   test("a now item pushes at once and again every 10 minutes, three more times at most", async () => {
     const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "now", title: "Restart ingress in edge?" });
-    expect(sendPushToUser).toHaveBeenCalledTimes(1);
-    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+    expect(alertPushes()).toHaveLength(1);
+    expect(alertPushes()[0]).toMatchObject({
       userId: OWNER,
       title: "Restart ingress in edge?",
       aps: { interruptionLevel: "time-sensitive" },
     });
 
     await advance(t, 60 * MINUTE);
-    expect(sendPushToUser).toHaveBeenCalledTimes(4);
+    expect(alertPushes()).toHaveLength(4);
     expect((await decisions(t, id)).map(({ decision, attempt }) => [decision, attempt])).toEqual([
       ["pushed", 0],
       ["pushed", 1],
@@ -115,7 +120,7 @@ describe("item delivery", () => {
     const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "now" });
     await advance(t, 10 * MINUTE);
-    expect(sendPushToUser).toHaveBeenCalledTimes(2);
+    expect(alertPushes()).toHaveLength(2);
 
     const ack = await request(t, `/api/me/items/${id}/actions`, {
       method: "POST",
@@ -125,7 +130,7 @@ describe("item delivery", () => {
     expect(ack.status).toBe(200);
     await advance(t, 60 * MINUTE);
 
-    expect(sendPushToUser).toHaveBeenCalledTimes(2);
+    expect(alertPushes()).toHaveLength(2);
     expect((await decisions(t, id)).at(-1)).toMatchObject({
       trigger: "resend",
       decision: "skipped",
@@ -140,11 +145,11 @@ describe("item delivery", () => {
     ids.push(await createItem(t, { urgency: "today", title: "Merge queue stalled" }));
     await advance(t, 2 * MINUTE);
     ids.push(await createItem(t, { urgency: "today", title: "Cert renews in 9 days" }));
-    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(alertPushes()).toEqual([]);
 
     await advance(t, MINUTE);
-    expect(sendPushToUser).toHaveBeenCalledTimes(1);
-    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+    expect(alertPushes()).toHaveLength(1);
+    expect(alertPushes()[0]).toMatchObject({
       title: "3 new items",
       body: "Backup verify failed, Merge queue stalled, 1 more",
       data: { type: "item_batch", count: 3 },
@@ -172,7 +177,7 @@ describe("item delivery", () => {
     const id = await createItem(t, { urgency: "whenever" });
     await advance(t, 60 * MINUTE);
 
-    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(alertPushes()).toEqual([]);
     expect(await decisions(t, id)).toEqual([
       { trigger: "created", attempt: 0, decision: "skipped", why: "whenever" },
     ]);
@@ -208,7 +213,7 @@ describe("item delivery", () => {
     expect(await createItem(t, { urgency: "now", dedupeKey: "disk:osd-4" })).toBe(id);
 
     expect((await getItem(t, id)).item.urgency).toBe("now");
-    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(alertPushes()).toHaveLength(1);
     expect((await decisions(t, id)).map(({ trigger, decision }) => [trigger, decision])).toEqual([
       ["created", "skipped"],
       ["urgency_raised", "pushed"],
@@ -258,8 +263,8 @@ describe("reminders", () => {
       to: "open",
       reason: "reminder",
     });
-    expect(sendPushToUser).toHaveBeenCalledTimes(1);
-    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+    expect(alertPushes()).toHaveLength(1);
+    expect(alertPushes()[0]).toMatchObject({
       title: "Check the disk shipment",
       aps: { interruptionLevel: "active" },
     });
@@ -280,7 +285,7 @@ describe("reminders", () => {
 
     await advance(t, 30 * MINUTE);
 
-    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(alertPushes()).toHaveLength(1);
     expect((await triggers(t, id)).filter(([, decision]) => decision === "pushed")).toEqual([
       ["reminder", "pushed"],
     ]);
@@ -301,7 +306,7 @@ describe("reminders", () => {
 
     await advance(t, 30 * MINUTE);
 
-    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(alertPushes()).toEqual([]);
   });
 
   test("a now item snoozed between its re-sends pushes its reminder and no older re-send", async () => {
@@ -341,7 +346,7 @@ describe("reminders", () => {
     await advance(t, 30 * MINUTE);
 
     expect((await getItem(t, id)).item.state).toBe("expired");
-    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(alertPushes()).toEqual([]);
   });
 
   test("an item created with a future remindAt sends nothing until then, then returns the same way", async () => {
@@ -357,17 +362,106 @@ describe("reminders", () => {
     });
 
     await advance(t, 119 * MINUTE);
-    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(alertPushes()).toEqual([]);
     expect(await decisions(t, id)).toEqual([]);
 
     await advance(t, 60 * MINUTE);
     expect((await states(t, id)).at(-1)).toMatchObject({ to: "open", reason: "reminder" });
-    expect(sendPushToUser).toHaveBeenCalledTimes(1);
-    expect(sendPushToUser.mock.calls[0][1]).toMatchObject({
+    expect(alertPushes()).toHaveLength(1);
+    expect(alertPushes()[0]).toMatchObject({
       title: "Ping about the renewal",
       aps: { interruptionLevel: "active" },
     });
     expect(await triggers(t, id)).toEqual([["reminder", "pushed"]]);
+  });
+});
+
+describe("background sync", () => {
+  async function act(t: Backend, id: string, body: Record<string, unknown>) {
+    const response = await request(t, `/api/me/items/${id}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body,
+    });
+    expect(response.status).toBe(200);
+  }
+  const syncs = () => syncPushes().map((args) => itemSyncPushDataSchema.parse(args.data));
+
+  test("items handled on the web within a few seconds send one background push with the badge left", async () => {
+    const t = await newBackendWithSources("cron");
+    const approval = (title: string) => createItem(t, { kind: "approval", urgency: "now", title });
+    const [first, second, third] = [
+      await approval("Restart ingress?"),
+      await approval("Drain node-3?"),
+      await approval("Rotate the key?"),
+    ];
+
+    await act(t, first, { type: "ack" });
+    await advance(t, 1_000);
+    await act(t, second, { type: "ack" });
+    expect(syncPushes()).toEqual([]);
+
+    await advance(t, ITEM_SYNC_WINDOW_MS);
+    expect(syncPushes()).toEqual([
+      {
+        userId: OWNER,
+        pushType: "background",
+        priority: 5,
+        data: { type: "item_sync", badge: 1, itemIds: [first, second] },
+      },
+    ]);
+
+    // The window closed with its push; the next handled item opens a new one.
+    await act(t, third, { type: "ack" });
+    await advance(t, ITEM_SYNC_WINDOW_MS);
+    expect(syncs().map(({ badge, itemIds }) => [badge, itemIds])).toEqual([
+      [1, [first, second]],
+      [0, [third]],
+    ]);
+  });
+
+  test("an item live again before the push sends is left out of it", async () => {
+    const t = await newBackendWithSources("cron");
+    const back = await createItem(t, { urgency: "today", title: "Snoozed and back" });
+    const acked = await createItem(t, { urgency: "today", title: "Acked" });
+
+    await act(t, back, { type: "snooze", until: NOW + 60 * MINUTE });
+    await act(t, acked, { type: "ack" });
+    await act(t, back, { type: "unsnooze" });
+    await advance(t, ITEM_SYNC_WINDOW_MS);
+
+    expect(syncs().map(({ itemIds }) => itemIds)).toEqual([[acked]]);
+  });
+
+  test("an item stops being live once, whether acked, snoozed, answered, resolved or expired", async () => {
+    const t = await newBackendWithSources("cron");
+    const acked = await createItem(t, { urgency: "today", title: "Acked" });
+    const snoozed = await createItem(t, { urgency: "whenever", title: "Snoozed" });
+    const answered = await createItem(t, {
+      kind: "question",
+      urgency: "now",
+      title: "Answered",
+      actions: [{ type: "reply" }],
+    });
+    const resolved = await createItem(t, { urgency: "today", title: "Resolved" });
+    const expired = await createItem(t, { urgency: "today", expiresAt: NOW + MINUTE });
+    const resolve = (id: string) =>
+      request(t, `/api/items/${id}/events`, {
+        method: "POST",
+        bearer: SERVICE,
+        body: { type: "state_changed", to: "resolved" },
+      });
+
+    await act(t, acked, { type: "ack" });
+    await act(t, snoozed, { type: "snooze", until: NOW + 60 * MINUTE });
+    await act(t, answered, { type: "reply", text: "Pool B" });
+    await resolve(resolved);
+    // Already not live: an acked item that resolves syncs nothing more.
+    await resolve(acked);
+    await advance(t, 2 * MINUTE);
+
+    const handled = syncs().flatMap(({ itemIds }) => itemIds);
+    expect(handled.toSorted()).toEqual([acked, snoozed, answered, resolved, expired].toSorted());
   });
 });
 
@@ -389,7 +483,7 @@ describe("maintenance windows", () => {
     const id = await createItem(t, { urgency: "now", title: "Gateway restarted" });
     await advance(t, 30 * MINUTE);
 
-    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(alertPushes()).toEqual([]);
     expect((await getItem(t, id)).item.maintenanceWindowId).toBe(window.id);
     expect(await decisions(t, id)).toEqual([
       {
@@ -462,7 +556,7 @@ describe("maintenance windows", () => {
       ["media", window.id],
       ["edge", undefined],
     ]);
-    expect(sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(alertPushes()).toHaveLength(1);
   });
 
   test("a today item batched before a window starts drops out of the batch", async () => {
@@ -471,7 +565,7 @@ describe("maintenance windows", () => {
     await startWindow(t, { sources: ["hermes"] });
     await advance(t, 5 * MINUTE);
 
-    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(alertPushes()).toEqual([]);
     expect((await decisions(t, id)).map(({ decision, why }) => [decision, why])).toEqual([
       ["batched", undefined],
       ["skipped", "maintenance"],

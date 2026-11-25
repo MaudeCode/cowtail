@@ -332,7 +332,9 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
                 needsYou: inbox.needsYou.map(Self.makeItem),
                 withHermes: inbox.withHermes.map(Self.makeItem),
                 upcoming: (inbox.upcoming ?? []).map(Self.makeItem),
-                handled: inbox.handled.map(Self.makeItem)
+                handled: inbox.handled.map(Self.makeItem),
+                badge: inbox.badge,
+                liveItemIDs: Set(inbox.liveItemIds)
             )
         case .unauthorized(let response):
             throw CowtailAPIError.requestFailed(try response.body.json.error)

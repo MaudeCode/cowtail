@@ -2484,6 +2484,10 @@ extension Components {
             internal var upcoming: [Components.Schemas.ItemRecord]?
             /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/handled`.
             internal var handled: [Components.Schemas.ItemRecord]
+            /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/badge`.
+            internal var badge: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ItemInboxResponse/liveItemIds`.
+            internal var liveItemIds: [Swift.String]
             /// Creates a new `ItemInboxResponse`.
             ///
             /// - Parameters:
@@ -2493,13 +2497,17 @@ extension Components {
             ///   - withHermes:
             ///   - upcoming:
             ///   - handled:
+            ///   - badge:
+            ///   - liveItemIds:
             internal init(
                 ok: Swift.Bool,
                 counts: Components.Schemas.ItemInboxResponse.CountsPayload,
                 needsYou: [Components.Schemas.ItemRecord],
                 withHermes: [Components.Schemas.ItemRecord],
                 upcoming: [Components.Schemas.ItemRecord]? = nil,
-                handled: [Components.Schemas.ItemRecord]
+                handled: [Components.Schemas.ItemRecord],
+                badge: Swift.Int,
+                liveItemIds: [Swift.String]
             ) {
                 self.ok = ok
                 self.counts = counts
@@ -2507,6 +2515,8 @@ extension Components {
                 self.withHermes = withHermes
                 self.upcoming = upcoming
                 self.handled = handled
+                self.badge = badge
+                self.liveItemIds = liveItemIds
             }
             internal enum CodingKeys: String, CodingKey {
                 case ok
@@ -2515,6 +2525,8 @@ extension Components {
                 case withHermes
                 case upcoming
                 case handled
+                case badge
+                case liveItemIds
             }
         }
         /// - Remark: Generated from `#/components/schemas/ItemSourcesResponse`.

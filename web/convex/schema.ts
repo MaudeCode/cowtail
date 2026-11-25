@@ -164,6 +164,15 @@ export default defineSchema({
     sentAt: v.optional(v.number()),
   }).index("by_sentAt", ["sentAt"]),
 
+  // Items that stopped being live within a few seconds, sent as one background push. Kept
+  // apart from itemPushBatches, which joinTodayBatch and leaveTodayBatch read as `today` items
+  // waiting to be announced.
+  itemSyncPushes: defineTable({
+    sendAt: v.number(),
+    itemIds: v.array(v.id("items")),
+    sentAt: v.optional(v.number()),
+  }).index("by_sentAt", ["sentAt"]),
+
   // Hermes outbound webhook deliveries already ingested, so a redelivery stores nothing.
   hermesHookDeliveries: defineTable({
     deliveryId: v.string(),
