@@ -1,4 +1,10 @@
-import { itemKinds, itemOutcomes, type ItemStatsResponse } from "@maudecode/cowtail-protocol";
+import {
+  itemKinds,
+  itemListRanges,
+  itemOutcomes,
+  type ItemListRange,
+  type ItemStatsResponse,
+} from "@maudecode/cowtail-protocol";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -14,19 +20,15 @@ import { itemsQuery, sourcesQuery, statsQuery, type ItemFilter } from "../lib/qu
 const FILTER_KEYS = ["q", "source", "kind", "outcome", "range", "from", "to"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
-// History opens on the last 24 hours. `range=all` is all time, and a From or To date replaces
-// the range.
-const RANGE_DAYS = { "24h": 1, "7d": 7, "30d": 30, "90d": 90 } as const;
-type RangeKey = keyof typeof RANGE_DAYS;
-const DEFAULT_RANGE: RangeKey = "24h";
-const RANGE_KEYS = Object.keys(RANGE_DAYS) as RangeKey[];
-const DAY_MS = 24 * 60 * 60 * 1000;
+// History opens on the last 24 hours, which the server measures. `range=all` is all time, and
+// a From or To date replaces the range.
+const DEFAULT_RANGE: ItemListRange = "24h";
 
-function rangeOf(params: URLSearchParams): RangeKey | undefined {
+function rangeOf(params: URLSearchParams): ItemListRange | undefined {
   if (params.get("from") || params.get("to")) return undefined;
   const range = params.get("range");
   if (range === "all") return undefined;
-  return RANGE_KEYS.find((key) => key === range) ?? DEFAULT_RANGE;
+  return itemListRanges.find((key) => key === range) ?? DEFAULT_RANGE;
 }
 
 function chipText(key: FilterKey, value: string) {
@@ -159,7 +161,7 @@ function FilterPopup({
       <Picker
         label="Range"
         value={rangeOf(params) ?? ""}
-        options={RANGE_KEYS}
+        options={itemListRanges}
         onChange={(v) => set("range", v || "all")}
       />
       <div className="grid grid-cols-2 gap-2">
@@ -173,9 +175,6 @@ function FilterPopup({
 export default function History() {
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState(false);
-
-  // Read once, so the last 24 hours stay one query while the page is open.
-  const [openedAt] = useState(Date.now);
 
   const set = (key: FilterKey, value: string) =>
     setParams(
@@ -198,7 +197,8 @@ export default function History() {
     source: params.get("source") ?? undefined,
     kind: params.get("kind") ?? undefined,
     outcome: params.get("outcome") ?? undefined,
-    from: from ? parseLocalDate(from).getTime() : range && openedAt - RANGE_DAYS[range] * DAY_MS,
+    range,
+    from: from ? parseLocalDate(from).getTime() : undefined,
     to: to ? parseLocalDateEnd(to).getTime() : undefined,
   };
   const items = useInfiniteQuery({ ...itemsQuery(filter), placeholderData: keepPreviousData });

@@ -2324,6 +2324,8 @@ extension Components {
             internal var items: [Components.Schemas.ItemRecord]
             /// - Remark: Generated from `#/components/schemas/ItemListResponse/nextCursor`.
             internal var nextCursor: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ItemListResponse/from`.
+            internal var from: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/ItemListResponse/DaysPayload`.
             internal struct DaysPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/ItemListResponse/DaysPayload/date`.
@@ -2358,18 +2360,21 @@ extension Components {
             ///   - count:
             ///   - items:
             ///   - nextCursor:
+            ///   - from:
             ///   - days:
             internal init(
                 ok: Swift.Bool,
                 count: Swift.Int,
                 items: [Components.Schemas.ItemRecord],
                 nextCursor: Swift.String? = nil,
+                from: Swift.Int? = nil,
                 days: Components.Schemas.ItemListResponse.DaysPayload? = nil
             ) {
                 self.ok = ok
                 self.count = count
                 self.items = items
                 self.nextCursor = nextCursor
+                self.from = from
                 self.days = days
             }
             internal enum CodingKeys: String, CodingKey {
@@ -2377,6 +2382,7 @@ extension Components {
                 case count
                 case items
                 case nextCursor
+                case from
                 case days
             }
         }

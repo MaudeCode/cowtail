@@ -3,6 +3,7 @@ import {
   itemGetResponseSchema,
   itemInboxResponseSchema,
   itemListResponseSchema,
+  itemStatsResponseSchema,
   itemResponseSchema,
   itemSourcesResponseSchema,
   snoozeOptionsResponseSchema,
@@ -512,6 +513,34 @@ describe("item list", () => {
 
     expect([first?.id, second]).toEqual([fresh.id, undefined]);
     expect(all.map((item) => item.createdAt)).toEqual([NOW, NOW - 86_400_000]);
+  });
+
+  test("a range lists what was created within it on the server's clock and names its start", async () => {
+    const t = await newBackendWithSources("cron");
+    const day = 24 * 60 * 60 * 1000;
+    await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Two days old",
+    });
+    vi.advanceTimersByTime(2 * day);
+    const fresh = await createItem(t, {
+      source: "cron",
+      kind: "fyi",
+      urgency: "whenever",
+      title: "Today",
+    });
+    const read = async (path: string) => (await request(t, path, { bearer: SERVICE })).json;
+
+    const page = itemListResponseSchema.parse(await read("/api/items?range=24h"));
+    const stats = itemStatsResponseSchema.parse(await read("/api/items/stats?range=24h"));
+
+    expect(page.items.map((item) => item.id)).toEqual([fresh.id]);
+    // The clock moved two days past NOW, so the last 24 hours start one day past it.
+    expect([page.from, stats.from]).toEqual([NOW + day, NOW + day]);
+    expect((await request(t, "/api/items?range=1y", { bearer: SERVICE })).status).toBe(400);
+    expect((await request(t, "/api/items/stats?range=1y", { bearer: SERVICE })).status).toBe(400);
   });
 
   test("a page reads at most limit items and nextCursor continues it", async () => {

@@ -38,13 +38,14 @@ private func fetchHealthSummaryWithRetry(
 
 /// The History tab's filter. Everything but `search` shows as a removable chip.
 struct HistoryFilter: Hashable, Sendable {
-    enum Range: Int, CaseIterable, Identifiable, Sendable {
-        case day = 1
-        case week = 7
-        case month = 30
-        case quarter = 90
+    /// A window ending now, in the protocol's values; the server measures it on its own clock.
+    enum Range: String, CaseIterable, Identifiable, Sendable {
+        case day = "24h"
+        case week = "7d"
+        case month = "30d"
+        case quarter = "90d"
 
-        var id: Int { rawValue }
+        var id: String { rawValue }
     }
 
     var source: String?
@@ -54,14 +55,14 @@ struct HistoryFilter: Hashable, Sendable {
     var range: Range? = .day
     var search = ""
 
-    func query(now: Date) -> ItemListQuery {
+    func query() -> ItemListQuery {
         let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines)
         return ItemListQuery(
             source: source,
             kind: kind,
             outcome: outcome,
             search: trimmed.isEmpty ? nil : trimmed,
-            from: range.map { now.addingTimeInterval(-Double($0.rawValue) * 86_400) }
+            range: range
         )
     }
 }
@@ -717,7 +718,7 @@ final class CowtailStore: ObservableObject {
         isLoadingHistory = true
         defer { isLoadingHistory = false }
 
-        var firstPage = filter.query(now: .now)
+        var firstPage = filter.query()
         firstPage.limit = min(500, max(firstPage.limit, shown))
         let query = firstPage
         do {
@@ -727,7 +728,7 @@ final class CowtailStore: ObservableObject {
             let (loadedPage, loadedStats, loadedSources) = try await (page, stats, sources)
             guard filter == historyFilter else { return }
             historySources = loadedSources
-            historyQuery = query
+            historyQuery = query.continuing(loadedPage)
             historyItems = loadedPage.items
             historyDayCounts = Self.dayCounts(loadedPage.days)
             historyCursor = loadedPage.nextCursor
@@ -768,8 +769,8 @@ final class CowtailStore: ObservableObject {
         var query = query
         var page = try await api.fetchItems(query, sessionToken: token)
         var pages = 1
-        while page.items.isEmpty, let cursor = page.nextCursor, pages < 10 {
-            query.cursor = cursor
+        while page.items.isEmpty, page.nextCursor != nil, pages < 10 {
+            query = query.continuing(page)
             page = try await api.fetchItems(query, sessionToken: token)
             pages += 1
         }

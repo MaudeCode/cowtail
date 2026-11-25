@@ -258,6 +258,11 @@ export const itemEventAppendRequestSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+// A window ending now, which the server measures on its own clock. A `from` replaces it.
+export const itemListRanges = ["24h", "7d", "30d", "90d"] as const;
+export const itemListRangeSchema = z.enum(itemListRanges);
+export type ItemListRange = z.infer<typeof itemListRangeSchema>;
+
 // A state filter lists the most recently updated items first; any other list, the newest
 // created first. A page reads at most `limit` items and can hold fewer once filtered; follow
 // `nextCursor` until it is absent.
@@ -270,6 +275,7 @@ export const itemListQuerySchema = z.object({
   alertId: nonEmptyStringSchema.optional(),
   // Matches title, subtitle and body, ignoring case.
   q: nonEmptyStringSchema.max(200).optional(),
+  range: itemListRangeSchema.optional(),
   from: timestampSchema.optional(),
   to: timestampSchema.optional(),
   limit: z.number().int().min(1).max(500).optional(),
@@ -281,6 +287,9 @@ export const itemListResponseSchema = z.object({
   count: z.number().int().nonnegative(),
   items: z.array(itemRecordSchema),
   nextCursor: nonEmptyStringSchema.optional(),
+  // The lower bound the server applied, a `range` resolved; a continuation sends it as `from`
+  // so every page shares the first page's bounds.
+  from: timestampSchema.optional(),
   // Each `createdDate` on this page, in page order, with how many items created that day
   // match the filters across the whole list, not only this page. A count reads at most the
   // day's first 1,000 items. Optional so a client still
@@ -381,6 +390,7 @@ const itemStatsMaxRangeMs = 92 * 24 * 60 * 60 * 1000;
 // A source, kind or outcome narrows them to the items History lists under that filter.
 export const itemStatsQuerySchema = z
   .object({
+    range: itemListRangeSchema.optional(),
     from: timestampSchema.optional(),
     to: timestampSchema.optional(),
     source: itemSourceSchema.optional(),

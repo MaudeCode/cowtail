@@ -145,8 +145,8 @@ const priorOccurrence = {
 };
 
 const HOUR = 60 * 60_000;
-// History's default range, as the server query carries it.
-const LAST_DAY = `from=${NOW - 24 * HOUR}`;
+// History's default range, which the server resolves on its own clock.
+const LAST_DAY = "range=24h";
 
 // The alert item's metric: one series crossing its threshold while it fired.
 const graph = {
@@ -846,6 +846,44 @@ describe("History's filter", () => {
     expect(address()).toBe("/history?range=all");
     await waitFor(() =>
       expect(calls.map((call) => call.path)).toContain("/actions/api/items?limit=100"),
+    );
+  });
+
+  test("Load more continues the last 24 hours from the start the server resolved", async () => {
+    const start = NOW - 24 * HOUR;
+    const older = item({
+      id: "item-older",
+      title: "Older handled alert",
+      createdDate: "2026-11-24",
+    });
+    const { calls } = stubApi(
+      signedIn({
+        "GET /actions/api/items/sources": { ok: true, sources: [] },
+        [`GET /actions/api/items/stats?${LAST_DAY}`]: stats,
+        [`GET /actions/api/items?${LAST_DAY}&limit=100`]: {
+          ok: true,
+          count: 1,
+          items: [fixed],
+          nextCursor: "page-2",
+          from: start,
+          days: [{ date: "2026-11-25", count: 1 }],
+        },
+        [`GET /actions/api/items?from=${start}&cursor=page-2&limit=100`]: {
+          ok: true,
+          count: 1,
+          items: [older],
+          from: start,
+          days: [{ date: "2026-11-24", count: 1 }],
+        },
+      }),
+    );
+    renderApp("/history");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Load more" }));
+
+    expect(await screen.findByRole("link", { name: "Older handled alert" })).toBeInTheDocument();
+    expect(calls.map((call) => call.path)).toContain(
+      `/actions/api/items?from=${start}&cursor=page-2&limit=100`,
     );
   });
 

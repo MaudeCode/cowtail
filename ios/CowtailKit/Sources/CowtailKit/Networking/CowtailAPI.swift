@@ -350,6 +350,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             outcome: query.outcome.flatMap { .init(rawValue: $0.rawValue) },
             alertId: query.alertID,
             q: query.search,
+            range: query.range.flatMap { .init(rawValue: $0.rawValue) },
             from: query.from.map(Self.milliseconds),
             to: query.to.map(Self.milliseconds),
             limit: query.limit,
@@ -361,7 +362,8 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             return ItemPage(
                 items: page.items.map(Self.makeItem),
                 nextCursor: page.nextCursor,
-                days: (page.days ?? []).map { ItemPage.Day(date: $0.date, count: $0.count) }
+                days: (page.days ?? []).map { ItemPage.Day(date: $0.date, count: $0.count) },
+                from: page.from.map(Self.date)
             )
         case .badRequest(let response):
             throw CowtailAPIError.requestFailed(try response.body.json.error)
@@ -418,6 +420,7 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
 
     func fetchItemStats(_ scope: ItemListQuery, sessionToken: String) async throws -> ItemStats {
         let query = Operations.GetItemStats.Input.Query(
+            range: scope.range.flatMap { .init(rawValue: $0.rawValue) },
             from: scope.from.map(Self.milliseconds),
             to: scope.to.map(Self.milliseconds),
             source: scope.source,

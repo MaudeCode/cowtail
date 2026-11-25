@@ -388,11 +388,24 @@ struct ItemListQuery: Hashable, Sendable {
     var kind: ItemKind?
     var outcome: ItemOutcome?
     var search: String?
+    var range: HistoryFilter.Range?
     var from: Date?
     var to: Date?
     var alertID: String?
     var cursor: String?
     var limit = 100
+
+    /// The query for the page after `page`. The start the server resolved replaces the range,
+    /// so every page shares the first page's bounds.
+    func continuing(_ page: ItemPage) -> ItemListQuery {
+        var next = self
+        if let from = page.from {
+            next.from = from
+            next.range = nil
+        }
+        next.cursor = page.nextCursor
+        return next
+    }
 }
 
 struct ItemPage: Equatable, Sendable {
@@ -405,6 +418,8 @@ struct ItemPage: Equatable, Sendable {
     let nextCursor: String?
     /// The page's days, in page order, each counted across the whole filtered list.
     var days: [Day] = []
+    /// The lower bound the server applied, its range resolved.
+    var from: Date?
 }
 
 struct ItemStats: Equatable, Sendable {

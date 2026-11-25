@@ -1472,6 +1472,13 @@ internal struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "range",
+                    value: input.query.range
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "from",
                     value: input.query.from
                 )
@@ -1963,6 +1970,13 @@ internal struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "range",
+                    value: input.query.range
+                )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,

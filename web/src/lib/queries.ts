@@ -22,6 +22,7 @@ import {
   type ItemActionRequest,
   type ItemInboxResponse,
   type ItemGraphRange,
+  type ItemListRange,
   type MaintenanceWindowListResponse,
   type MaintenanceWindowStartRequest,
   type NotificationPreferences,
@@ -293,9 +294,12 @@ export type ItemFilter = {
   source?: string;
   kind?: string;
   outcome?: string;
+  range?: ItemListRange;
   from?: number;
   to?: number;
 };
+
+type ItemPageParam = { range: undefined; from?: number; cursor: string };
 
 export const statsQuery = ({ q: _q, ...filter }: ItemFilter = {}) =>
   queryOptions({
@@ -309,11 +313,13 @@ export const itemsQuery = (filter: ItemFilter) =>
     queryKey: ["items", filter],
     queryFn: ({ pageParam }) =>
       api(
-        `/api/items${search({ ...filter, limit: HISTORY_PAGE_SIZE, cursor: pageParam })}`,
+        `/api/items${search({ ...filter, ...pageParam, limit: HISTORY_PAGE_SIZE })}`,
         itemListResponseSchema,
       ),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.nextCursor,
+    initialPageParam: undefined as ItemPageParam | undefined,
+    // A continuation carries the first page's resolved start in place of its range.
+    getNextPageParam: (page): ItemPageParam | undefined =>
+      page.nextCursor ? { range: undefined, from: page.from, cursor: page.nextCursor } : undefined,
   });
 
 type InboxSection = "needsYou" | "withHermes" | "upcoming";

@@ -64,6 +64,7 @@ import {
   itemInboxResponseSchema,
   itemSourcesResponseSchema,
   itemListQuerySchema,
+  itemListRangeSchema,
   itemListResponseSchema,
   itemResponseSchema,
   itemStatsQuerySchema,
@@ -115,7 +116,7 @@ import { hermesHookItem } from "./hermesHooks";
 import { itemErrorCode } from "./items";
 import { itemGraph, type RangeSeries } from "./itemGraph";
 import { expireWindowSilences, silenceWindow } from "./maintenance";
-import { resolveItemStatsRange } from "./itemStats";
+import { resolveItemStatsRange, resolveRangeStart } from "./itemStats";
 import {
   exchangeOidcCode,
   fetchOidcDiscovery,
@@ -1732,6 +1733,7 @@ app.get("/api/items", async (c) => {
     outcome: nonEmptyString(c.req.query("outcome")),
     alertId: nonEmptyString(c.req.query("alertId")),
     q: nonEmptyString(c.req.query("q")),
+    range: nonEmptyString(c.req.query("range")),
     from: parseOptionalQueryTimestamp(c.req.query("from")),
     to: parseOptionalQueryTimestamp(c.req.query("to")),
     limit: limit === undefined ? undefined : Number(limit),
@@ -1739,11 +1741,14 @@ app.get("/api/items", async (c) => {
   });
   if (!parsedQuery.success) return jsonError(formatIssues(parsedQuery.error.issues));
 
+  const { range: _range, ...query } = parsedQuery.data;
+  const from = resolveRangeStart(parsedQuery.data, Date.now());
   let page: { items: unknown[]; nextCursor?: string };
   try {
     page = await c.env.runQuery((internal as any).items.list, {
-      ...parsedQuery.data,
-      limit: parsedQuery.data.limit ?? ITEM_LIST_DEFAULT_LIMIT,
+      ...query,
+      from,
+      limit: query.limit ?? ITEM_LIST_DEFAULT_LIMIT,
       timeZone: resolveRoundupTimeZone(),
     });
   } catch (error) {
@@ -1751,7 +1756,9 @@ app.get("/api/items", async (c) => {
     if (parsedQuery.data.cursor) return jsonError("Invalid cursor");
     throw error;
   }
-  return c.json(itemListResponseSchema.parse({ ok: true, count: page.items.length, ...page }));
+  return c.json(
+    itemListResponseSchema.parse({ ok: true, count: page.items.length, ...page, from }),
+  );
 });
 
 // GET /api/items/stats — outcome mix, time to resolve, noise, repeats, daily volume and firing
@@ -1760,12 +1767,20 @@ app.get("/api/items/stats", async (c) => {
   if (authError) return authError;
 
   const timeZone = resolveRoundupTimeZone();
+  const parsedWindow = itemListRangeSchema
+    .optional()
+    .safeParse(nonEmptyString(c.req.query("range")));
+  if (!parsedWindow.success) return jsonError(formatIssues(parsedWindow.error.issues));
+  const now = Date.now();
   const range = resolveItemStatsRange(
     {
-      from: parseOptionalQueryTimestamp(c.req.query("from")),
+      from: resolveRangeStart(
+        { from: parseOptionalQueryTimestamp(c.req.query("from")), range: parsedWindow.data },
+        now,
+      ),
       to: parseOptionalQueryTimestamp(c.req.query("to")),
     },
-    Date.now(),
+    now,
     timeZone,
   );
   const parsedRange = itemStatsQuerySchema.safeParse({

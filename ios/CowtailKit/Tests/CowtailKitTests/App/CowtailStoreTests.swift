@@ -598,20 +598,19 @@ final class CowtailStoreTests: XCTestCase {
     }
 
     func testHistoryOpensOnTheLast24Hours() {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-
-        XCTAssertEqual(HistoryFilter().query(now: now).from, now.addingTimeInterval(-86_400))
+        XCTAssertEqual(HistoryFilter().query().range, .day)
     }
 
     func testAHistoryContinuationKeepsTheFirstPagesDateBounds() async {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
         let item = { (id: String) in
             Item(id: id, source: "cron", kind: .fyi, urgency: .today, title: id, createdAt: .now, createdDate: "2026-11-24")
         }
         let api = FakeItemAPI(
             inbox: .empty,
             pagesByCursor: [
-                "": ItemPage(items: [item("first")], nextCursor: "page-2"),
-                "page-2": ItemPage(items: [item("second")], nextCursor: nil),
+                "": ItemPage(items: [item("first")], nextCursor: "page-2", from: start),
+                "page-2": ItemPage(items: [item("second")], nextCursor: nil, from: start),
             ]
         )
         let store = store(api: api)
@@ -619,11 +618,12 @@ final class CowtailStoreTests: XCTestCase {
 
         await store.loadMoreHistory()
 
+        // The first page asks for the range; the next carries the start the server resolved.
         let queries = await api.listQueries
         XCTAssertEqual(store.historyItems.map(\.id), ["first", "second"])
         XCTAssertEqual(queries.map(\.cursor), [nil, "page-2"])
-        XCTAssertEqual(queries.map(\.from).count, 2)
-        XCTAssertEqual(queries.first?.from, queries.last?.from)
+        XCTAssertEqual(queries.map(\.range), [.day, nil])
+        XCTAssertEqual(queries.map(\.from), [nil, start])
     }
 
     func testRefreshingHistoryKeepsAsManyItemsAsAreShown() async {

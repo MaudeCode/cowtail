@@ -1503,6 +1503,10 @@
             "type": "string",
             "minLength": 1
           },
+          "from": {
+            "type": "integer",
+            "minimum": 0
+          },
           "days": {
             "type": "array",
             "items": {
@@ -4250,6 +4254,20 @@
           },
           {
             "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "90d"
+              ]
+            },
+            "required": false,
+            "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "integer",
               "minimum": 0
             },
@@ -4501,6 +4519,20 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "90d"
+              ]
+            },
+            "required": false,
+            "name": "range",
+            "in": "query"
+          },
           {
             "schema": {
               "type": "integer",

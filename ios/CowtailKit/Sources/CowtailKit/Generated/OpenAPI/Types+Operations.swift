@@ -2731,6 +2731,15 @@ internal enum Operations {
                 internal var alertId: Swift.String?
                 /// - Remark: Generated from `#/paths/items/GET/query/q`.
                 internal var q: Swift.String?
+                /// - Remark: Generated from `#/paths/items/GET/query/range`.
+                internal enum RangePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case _24h = "24h"
+                    case _7d = "7d"
+                    case _30d = "30d"
+                    case _90d = "90d"
+                }
+                /// - Remark: Generated from `#/paths/items/GET/query/range`.
+                internal var range: Operations.ListItems.Input.Query.RangePayload?
                 /// - Remark: Generated from `#/paths/items/GET/query/from`.
                 internal var from: Swift.Int?
                 /// - Remark: Generated from `#/paths/items/GET/query/to`.
@@ -2749,6 +2758,7 @@ internal enum Operations {
                 ///   - outcome:
                 ///   - alertId:
                 ///   - q:
+                ///   - range:
                 ///   - from:
                 ///   - to:
                 ///   - limit:
@@ -2761,6 +2771,7 @@ internal enum Operations {
                     outcome: Operations.ListItems.Input.Query.OutcomePayload? = nil,
                     alertId: Swift.String? = nil,
                     q: Swift.String? = nil,
+                    range: Operations.ListItems.Input.Query.RangePayload? = nil,
                     from: Swift.Int? = nil,
                     to: Swift.Int? = nil,
                     limit: Swift.Int? = nil,
@@ -2773,6 +2784,7 @@ internal enum Operations {
                     self.outcome = outcome
                     self.alertId = alertId
                     self.q = q
+                    self.range = range
                     self.from = from
                     self.to = to
                     self.limit = limit
@@ -3755,6 +3767,15 @@ internal enum Operations {
         internal struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/items/stats/GET/query`.
             internal struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/items/stats/GET/query/range`.
+                internal enum RangePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case _24h = "24h"
+                    case _7d = "7d"
+                    case _30d = "30d"
+                    case _90d = "90d"
+                }
+                /// - Remark: Generated from `#/paths/items/stats/GET/query/range`.
+                internal var range: Operations.GetItemStats.Input.Query.RangePayload?
                 /// - Remark: Generated from `#/paths/items/stats/GET/query/from`.
                 internal var from: Swift.Int?
                 /// - Remark: Generated from `#/paths/items/stats/GET/query/to`.
@@ -3785,18 +3806,21 @@ internal enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - range:
                 ///   - from:
                 ///   - to:
                 ///   - source:
                 ///   - kind:
                 ///   - outcome:
                 internal init(
+                    range: Operations.GetItemStats.Input.Query.RangePayload? = nil,
                     from: Swift.Int? = nil,
                     to: Swift.Int? = nil,
                     source: Swift.String? = nil,
                     kind: Operations.GetItemStats.Input.Query.KindPayload? = nil,
                     outcome: Operations.GetItemStats.Input.Query.OutcomePayload? = nil
                 ) {
+                    self.range = range
                     self.from = from
                     self.to = to
                     self.source = source
