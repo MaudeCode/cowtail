@@ -108,7 +108,7 @@ final class AppRuntime {
                 appleAccountManager: appleAccountManager,
                 appSessionManager: appSessionManager,
                 cowtailStore: CowtailStore(api: seededAPI, authenticator: SeededApprovalAuthenticator()),
-                oidcSignIn: OIDCSignIn(api: seededAPI),
+                oidcSignIn: OIDCSignIn(api: seededAPI, presenter: SeededWebAuthenticationPresenter()),
                 notificationManager: notificationManager,
                 themeSettings: themeSettings,
                 universalLinkRouter: universalLinkRouter,

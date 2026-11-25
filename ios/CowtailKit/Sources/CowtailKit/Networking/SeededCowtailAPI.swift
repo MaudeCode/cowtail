@@ -372,3 +372,10 @@ actor SeededCowtailAPI: CowtailAPIClient, AuthAPIClient, RoundupDataClient {
 struct SeededApprovalAuthenticator: ApprovalAuthenticating {
     func authenticate(reason _: String) async -> Bool { true }
 }
+
+/// UI tests cannot drive the system sign-in sheet; the seeded provider signs the owner straight in.
+struct SeededWebAuthenticationPresenter: WebAuthenticationPresenting {
+    func authenticate(url _: URL, callbackScheme: String) async throws -> URL {
+        URL(string: "\(callbackScheme)://oidc?code=ui-test-code")!
+    }
+}

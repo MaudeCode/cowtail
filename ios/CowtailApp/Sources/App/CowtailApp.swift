@@ -27,7 +27,7 @@ struct CowtailApp: App {
     var body: some Scene {
         WindowGroup {
             ThemedRoot {
-                ContentView()
+                RootView()
                     .environmentObject(appleAccountManager)
                     .environmentObject(appSessionManager)
                     .environmentObject(cowtailStore)
