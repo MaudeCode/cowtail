@@ -223,6 +223,10 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
 .ios .fld{background:none;border:0;padding:0;min-height:0;color:var(--tx)}
 .ios pre{background:var(--fill);border-left:0;border-radius:8px;color:var(--tx)}
 .ios.phone{position:relative}
+.ios-split{display:grid;grid-template-columns:minmax(235px,1fr) minmax(310px,1.55fr);max-width:760px;border:1px solid var(--ln2)}
+.ios-split>section+section{border-inline-start:1px solid var(--ln2)}
+.ios-split [aria-current]{background:var(--ln)}
+@media(max-width:620px){.ios-split{grid-template-columns:minmax(0,1fr)}.ios-split>section:first-child{display:none}.ios-split>section+section{border-inline-start:0}}
 .ios .node{border:0;padding:8px 12px;position:relative}
 .ios .node+.node{border-top:1px solid var(--sep)}
 .ios .tl li{border-color:var(--sep)}
@@ -299,6 +303,31 @@ figcaption{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px
  </div>
 </div>
 <p class="fn">Upcoming is empty here, so its section is hidden. Rows carry no buttons: a tap opens the item, a swipe or long press acts on it.</p></figure>
+
+<figure id="ios-inbox-wide"><figcaption>Inbox and selected item <span class="k">COW-68</span></figcaption>
+<div class="m ios ios-split">
+ <section aria-label="Inbox">
+  <div class="nb"><span class="sp"></span><span class="tg"><button class="tb" title="Start a maintenance window"><svg><use href="#wrench"/></svg></button><button class="tb" title="Settings"><svg><use href="#gear"/></svg></button></span></div>
+  <div class="lt">Inbox</div>
+  <div class="lst">
+   <div class="chips hd"><span class="chip"><i class="dot"></i>cluster</span><span class="chip"><i class="dot"></i>hermes</span></div>
+   <div class="sh"><span>Needs you</span><span>2</span></div>
+   <div class="cell tp ic" aria-current="true"><span class="src"><svg><use href="#bell"/></svg></span><div class="g"><div class="t">KubePodCrashLooping</div><div class="s">Alertmanager · investigation failed</div></div></div>
+   <div class="cell tp ic"><span class="src"><svg><use href="#spark"/></svg></span><div class="g"><div class="t">Restart ingress?</div><div class="s">Hermes · approval</div></div></div>
+  </div>
+ </section>
+ <section aria-label="Selected item">
+  <div class="nb"></div>
+  <div class="lst">
+   <div class="lt">KubePodCrashLooping</div>
+   <div class="chips hd"><span class="chip">Alertmanager</span><span class="chip">Investigation failed</span></div>
+   <div class="sh">Details</div>
+   <div class="cell">The transcoder pod restarted six times.</div>
+   <div class="sh">Timeline</div>
+   <div class="cell">Hermes checked the previous container logs.</div>
+  </div>
+ </section>
+</div></figure>
 
 <figure id="ios-inbox-loading"><figcaption>Inbox, loading <span class="k">COW-64</span></figcaption>
 <div class="m phone ios" data-tab="Inbox">
@@ -1044,7 +1073,7 @@ $ du -sh /var/lib/* | sort -h | tail -3
 <h2 id="rules">Rules</h2>
 <h3 class="rh" id="rules-both">Both</h3>
 <ul class="rules">
-<li>This page is the visual spec for COW-9, COW-12, COW-13, COW-14, COW-16, COW-17, COW-18, COW-19, COW-21, COW-22, COW-32, COW-34, COW-59, COW-60, COW-62, COW-63 and COW-72. A ticket decides behaviour, data and API. This page decides layout, grouping, order and controls.</li>
+<li>This page is the visual spec for COW-9, COW-12, COW-13, COW-14, COW-16, COW-17, COW-18, COW-19, COW-21, COW-22, COW-32, COW-34, COW-59, COW-60, COW-62, COW-63, COW-68 and COW-72. A ticket decides behaviour, data and API. This page decides layout, grouping, order and controls.</li>
 <li>Colour and type are the Cowtail dark palette, Space Grotesk and DM Mono, from <code>web/src/index.css</code> and the iOS theme system. Light mode and the other iOS theme keep this layout with their own palette. The iOS figures draw light or dark from this page's appearance.</li>
 <li>Sample data is invented. A glyph in the source-icon position stands for that source's uploaded icon.</li>
 <li>A control the app has today, and that no ticket removes, stays in the nearest section.</li>
@@ -1062,7 +1091,7 @@ $ du -sh /var/lib/* | sort -h | tail -3
 <ul class="rules">
 <li>iOS follows Apple's Human Interface Guidelines. Cowtail's identity stays in its palette, accent tint, app icon and typefaces, not in custom layout. A phone 393 pt wide is drawn 320 px wide, so 44 pt is 36 px.</li>
 <li>Four tabs: Inbox, Cluster, Hermes, History. Settings is not a tab: a toolbar button on Inbox pushes it. Cluster health stays as the chip under the Inbox title.</li>
-<li>Every tab is a <code>NavigationStack</code> with a navigation-bar title, large on a tab's root and inline once pushed. No screen hides the bar or draws its own title.</li>
+<li>At compact width, a <code>NavigationStack</code> pushes the selected item. At regular width, Inbox, History and Hermes place the list next to the selection in a <code>NavigationSplitView</code>. The Cluster page stays centered in one column. Navigation-bar titles are large on a tab’s root and inline once pushed.</li>
 <li>Content is a <code>List</code> or <code>Form</code> with system sections and headers, in the default inset-grouped style. Settings is an inset-grouped <code>Form</code> with Account, Notifications, Urgency overrides, Appearance, Devices, Developer and Links, in that order. A section's count sits in its header.</li>
 <li>Page actions are toolbar items in the navigation bar: maintenance and Settings on Inbox, the filter on History, Add, Request postmortem and Resolve on an incident.</li>
 <li>Per-row actions are swipe actions and a context menu. Rows carry no buttons, and a tap anywhere on a row opens it. A trailing full swipe acknowledges, and Snooze follows it; without Acknowledge there is no full swipe. A leading swipe approves or unsnoozes. A long press shows every action the server lists for the item, then its alert calls.</li>

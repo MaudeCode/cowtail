@@ -19,7 +19,7 @@ Every added or changed test passes the `test-audit` skill's authoring gate and i
 
 - `ios/CowtailKit/Tests/CowtailKitTests`: the app's logic, which the `CowtailKit` package builds and tests on macOS with no simulator. Run `pnpm run test:ios:unit`. The app compiles the package's sources into its own module (`ios/project.yml`), so they need no public API. Put new logic and its tests here: CI runs them on every iOS change, in seconds.
 - `ios/CowtailTests`: only tests that need the installed app, such as the fonts its bundle registers. Run `pnpm run test:ios:hosted`. CI runs them in the `ios-sim` suite, on a booted simulator, which costs the hosted Mac about 7 minutes. `ios-sim`'s rule in `.github/ci-suites.json` lists every path these tests cover, and `script/ci/suites.test.ts` fails when an app-hosted test or a listed path does not route there. Every release runs `ios-sim`.
-- `ios/CowtailUITests`: UI tests, run locally with `pnpm run test:ios:ui`.
+- `ios/CowtailUITests`: UI tests, run locally with `pnpm run test:ios:ui`. The `ios` suite runs the one Inbox split-view test on an iPad because it needs to measure both columns on screen.
 
 ## Checks in CI
 
@@ -31,9 +31,9 @@ Every added or changed test passes the `test-audit` skill's authoring gate and i
 
 - web, CLI, protocol and scripts: Vitest's JUnit reporter, switched on in CI with `--reporter=default --reporter=junit --outputFile.junit=<path>`
 - iOS package tests: the `swift test` log of `ios/CowtailKit`
-- iOS app-hosted tests: `xcrun xcresulttool get test-results tests` on the result bundle `ios/scripts/test.sh` keeps at `ios/build/TestResults.xcresult`. CI runs no UI test; `pnpm run test:ios:ui` runs them locally
+- iOS app-hosted tests: `xcrun xcresulttool get test-results tests` on the result bundle `ios/scripts/test.sh` keeps at `ios/build/TestResults.xcresult`. `pnpm run test:ios:ui` runs the full UI suite locally
 
-A test over budget is split or proved at a cheaper layer. `overBudget` in `script/ci/test-durations.json` lists a test only with the COW ticket that brings it under. UI tests stay out of hosted CI, since launching the app alone takes 15 to 27 s there; COW-44 moves their checks into hosted in-process tests.
+A test over budget is split or proved at a cheaper layer. `overBudget` in `script/ci/test-durations.json` lists a test only with the COW ticket that brings it under. Prefer in-process tests when they can observe the contract.
 
 ## Fixing a defective test
 

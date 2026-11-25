@@ -49,5 +49,6 @@ struct CowtailApp: App {
                 _ = universalLinkRouter.handle(url)
             }
         }
+        .defaultSize(width: 820, height: 960)
     }
 }

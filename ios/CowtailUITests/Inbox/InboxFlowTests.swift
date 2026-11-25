@@ -2,6 +2,21 @@ import XCTest
 
 @MainActor
 final class InboxFlowTests: XCTestCase {
+    func testSelectingAnItemKeepsTheInboxBesideItsDetail() {
+        let app = AppLaunching.configuredApp(scenario: "inbox_populated")
+        app.launch()
+
+        let row = app.element("row.item.alert-crashloop")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        let title = app.element("text.item.title")
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertEqual(title.label, "KubePodCrashLooping")
+        XCTAssertTrue(row.isHittable, "The inbox row must remain visible beside its detail")
+        XCTAssertLessThan(row.frame.maxX, title.frame.minX)
+    }
+
     func testInboxShowsItsThreeSectionsInTheFiguresOrder() {
         let app = AppLaunching.configuredApp(scenario: "inbox_populated")
         app.launch()

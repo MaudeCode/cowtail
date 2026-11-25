@@ -164,7 +164,7 @@ struct HistoryView: View {
     }
 
     private var roundupRow: some View {
-        NavigationLink(value: AppRoute.roundup(router.roundupRoute)) {
+        CowtailRouteLink(value: AppRoute.roundup(router.roundupRoute)) {
             HStack {
                 Text("Roundup")
                     .font(.cowtailSans(14, weight: .medium, relativeTo: .body))
