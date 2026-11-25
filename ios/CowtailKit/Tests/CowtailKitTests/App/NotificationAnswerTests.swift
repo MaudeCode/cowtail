@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import XCTest
 @testable import CowtailKit
 
@@ -55,6 +56,79 @@ final class NotificationAnswerTests: XCTestCase {
         let posted = await approve(answeredWith: .init(json: Self.approvedItem))
 
         XCTAssertEqual(posted, [])
+    }
+
+    /// iOS calls the delegate through its Objective-C entry point and asserts that the completion
+    /// handler runs on the main thread. An acknowledgement that finished elsewhere aborted the app.
+    func testALockScreenAcknowledgementCompletesOnTheMainThread() async throws {
+        let transport = RecordingTransport(routes: [Self.actionRoute: .init(json: Self.approvedItem)])
+        let notifications = NotificationManager(
+            api: CowtailAPI(transport: transport),
+            notificationCenter: FakeNotificationCenter()
+        )
+        let response = try Self.response(
+            to: Self.notification(categoryIdentifier: ItemNotifications.Category.ack),
+            action: ItemNotifications.Action.acknowledge.rawValue
+        )
+
+        let completedOnMainThread = await withCheckedContinuation { continuation in
+            typealias DidReceive = @convention(c) (
+                NSObject, Selector, NSObject, UNNotificationResponse, @convention(block) () -> Void
+            ) -> Void
+            let selector = NSSelectorFromString("userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:")
+            let completionHandler: @convention(block) () -> Void = {
+                continuation.resume(returning: Thread.isMainThread)
+            }
+            unsafeBitCast(notifications.method(for: selector), to: DidReceive.self)(
+                notifications, selector, NSObject(), response, completionHandler
+            )
+        }
+
+        XCTAssertTrue(completedOnMainThread)
+        XCTAssertEqual(transport.requests(Self.actionRoute).count, 1)
+    }
+
+    func testAPushShownInTheForegroundCompletesOnTheMainThread() async throws {
+        let notifications = NotificationManager(
+            api: CowtailAPI(transport: RecordingTransport(routes: [:])),
+            notificationCenter: FakeNotificationCenter()
+        )
+        let notification = try Self.notification(categoryIdentifier: ItemNotifications.Category.ack)
+
+        let completedOnMainThread = await withCheckedContinuation { continuation in
+            typealias WillPresent = @convention(c) (
+                NSObject, Selector, NSObject, UNNotification, @convention(block) (UNNotificationPresentationOptions) -> Void
+            ) -> Void
+            let selector = NSSelectorFromString("userNotificationCenter:willPresentNotification:withCompletionHandler:")
+            let completionHandler: @convention(block) (UNNotificationPresentationOptions) -> Void = { _ in
+                continuation.resume(returning: Thread.isMainThread)
+            }
+            unsafeBitCast(notifications.method(for: selector), to: WillPresent.self)(
+                notifications, selector, NSObject(), notification, completionHandler
+            )
+        }
+
+        XCTAssertTrue(completedOnMainThread)
+    }
+
+    /// item-1's push as iOS delivers it. UserNotifications offers no public initializer, so these
+    /// use the class methods it builds delivered notifications with.
+    private static func notification(categoryIdentifier: String) throws -> UNNotification {
+        let content = UNMutableNotificationContent()
+        content.title = "Restart deployer"
+        content.categoryIdentifier = categoryIdentifier
+        content.threadIdentifier = "deployer:restart"
+        content.userInfo = ["itemId": "item-1"]
+        let request = UNNotificationRequest(identifier: "item-1", content: content, trigger: nil)
+        return try XCTUnwrap((UNNotification.self as AnyObject)
+            .perform(NSSelectorFromString("notificationWithRequest:date:"), with: request, with: Date(timeIntervalSince1970: 0))
+            .takeUnretainedValue() as? UNNotification)
+    }
+
+    private static func response(to notification: UNNotification, action: String) throws -> UNNotificationResponse {
+        try XCTUnwrap((UNNotificationResponse.self as AnyObject)
+            .perform(NSSelectorFromString("responseWithNotification:actionIdentifier:"), with: notification, with: action)
+            .takeUnretainedValue() as? UNNotificationResponse)
     }
 
     /// Approves item-1 from its push against a server that answers the action as given.
