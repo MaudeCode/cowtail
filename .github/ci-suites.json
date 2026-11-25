@@ -42,7 +42,8 @@
         ".github/actionlint.yaml",
         ".codex/**",
         ".githooks/**",
-        ".linear-cli-workspace"
+        ".linear-cli-workspace",
+        "install-release"
       ],
       "suites": []
     },

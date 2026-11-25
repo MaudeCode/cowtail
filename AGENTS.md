@@ -162,6 +162,11 @@ Releases are tag-last: the release workflow is dispatched with a version, publis
   - re-run the failed jobs, or dispatch the same version again from the same commit
   - [`script/release/published.mjs`](./script/release/published.mjs) checks TestFlight, npm and the registry before each publish: an artifact already published from this commit is skipped, one from another commit fails the job
   - after something published from a commit that has since changed, release the next version
+- The owner's Mac:
+  - a shared deployer on the Mac watches this repository's tags, checks each new release tag out and runs [`install-release`](./install-release) at its root; the repository's webhook reports a new tag at once
+  - `install-release` installs that version of the CLI npm package with the Node that `.node-version` pins, puts `cowtail` on the user's `PATH`, and fails unless `cowtail --version` prints the tag; running it twice changes nothing
+  - the deployer tries each tag once and installs only a higher version than the last it tried; after a failed install, fix the cause and release the next version
+  - the CLI's own config is left as it is
 
 Important boundary:
 
