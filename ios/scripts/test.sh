@@ -13,6 +13,14 @@ DESTINATION="${COWTAIL_IOS_TEST_DESTINATION:-platform=iOS Simulator,name=${DEVIC
 
 count="$#"
 for target in "$@"; do
+  case "$target" in
+    CowtailTests|CowtailTests/*)
+      # The test host's own scene must use the seeded API before any fixture is mounted.
+      export TEST_RUNNER_UI_TESTING=1
+      export TEST_RUNNER_UI_TEST_SCENARIO=signed_out
+      export TEST_RUNNER_UI_TEST_RESET_STATE=1
+      ;;
+  esac
   set -- "$@" "-only-testing:${target}"
 done
 shift "${count}"
