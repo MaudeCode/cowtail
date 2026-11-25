@@ -12,5 +12,14 @@
   ],
   "filePattern": "(?:\\.test\\.tsx?|/(?:tests?|\\w+Tests)/.+\\.(?:tsx?|swift)|(?:^|/)vitest\\.config\\.ts)$",
   "excludeFilePattern": "/node_modules/|^web/dist/",
-  "baseline": "script/ci/test-rules-baseline.json"
+  "baseline": "script/ci/test-rules-baseline.json",
+  "rules": {
+    "clock-fixture-now": {
+      "paths": [""],
+      "patterns": [
+        "^(?:export\\s+)?(?:const|let|var)\\s+\\w+\\s*=\\s*(?:Date\\.now\\(\\)|new Date\\(\\))"
+      ],
+      "message": "test-audit clock: anchor a fixture time to a fixed instant the test holds the clock at, never the real clock at load (docs/testing.md)"
+    }
+  }
 }
