@@ -9,6 +9,7 @@ import { afterEach, expect, test } from "vitest";
 const baseFile = createRequire(import.meta.url).resolve("@maudecode/ci/rules/test-rules.base.json");
 const sleepMessage = JSON.parse(readFileSync(baseFile, "utf8")).rules["clock-sleep"].message;
 const config = JSON.parse(readFileSync(resolve(import.meta.dirname, "test-rules.json"), "utf8"));
+const fixtureNowMessage = config.rules["clock-fixture-now"].message;
 
 const trees: string[] = [];
 afterEach(() => {
@@ -48,6 +49,20 @@ test("a fixed sleep fails the rules command with the clock-sleep message, and th
   expect(failed.output).toContain(`web/src/poll.test.ts:2 clock-sleep: ${sleepMessage}`);
 
   expect(scan(source.replace(sleep, ""))).toEqual({
+    status: 0,
+    output: expect.stringContaining("none above the baseline"),
+  });
+});
+
+test("a module-level fixture time read from the real clock fails with the clock-fixture-now message, and one inside a test passes", () => {
+  // Assembled so this file's own source holds no top-level real-clock constant for the rule to count.
+  const now = ["export const NOW", "Date.now();"].join(" = ");
+
+  const failed = scan(`${now}\n`);
+  expect(failed.status).toBe(1);
+  expect(failed.output).toContain(`web/src/poll.test.ts:1 clock-fixture-now: ${fixtureNowMessage}`);
+
+  expect(scan(`test("reads now", () => {\n  const start = Date.now();\n});\n`)).toEqual({
     status: 0,
     output: expect.stringContaining("none above the baseline"),
   });

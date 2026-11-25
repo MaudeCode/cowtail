@@ -1,7 +1,7 @@
 import type { IncidentGetResponse, ItemInboxResponse } from "@maudecode/cowtail-protocol";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { useLocation } from "react-router-dom";
 
 import { AppRoutes } from "./App";
@@ -1148,8 +1148,6 @@ describe("Hermes", () => {
   });
 
   test("Home's Hermes block shows the heartbeat with the model, then the failing cron count", async () => {
-    // Ages read the clock: hold it at the fixtures' time, and leave timers real.
-    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     stubApi(signedIn({ "GET /actions/api/items/inbox": inbox() }));
 
     renderApp("/");
@@ -1253,9 +1251,11 @@ describe("Hermes", () => {
     const rows = ["Disk usage", "Restart script runner", "Tail gateway log"].map(
       (name) => screen.getByRole("button", { name }).closest("div.border-b")!.textContent,
     );
-    expect(rows[0]).toMatch(/^Disk usagerunning · 0:0\d·/);
-    expect(rows[1]).toMatch(/^Restart script runnerexit 0·\d\d:\d\d$/);
-    expect(rows[2]).toMatch(/^Tail gateway logexit 1·\d\d:\d\d$/);
+    expect(rows).toEqual([
+      `Disk usagerunning · 0:07·${formatClock(recentRuns[0].createdAt)}`,
+      `Restart script runnerexit 0·${formatClock(recentRuns[1].createdAt)}`,
+      `Tail gateway logexit 1·${formatClock(recentRuns[2].createdAt)}`,
+    ]);
   });
 
   test("/hermes sends a run whose reply was lost again under the same request, so it queues once", async () => {

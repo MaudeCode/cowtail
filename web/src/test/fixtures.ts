@@ -15,7 +15,10 @@ import type {
 // Synthetic replies shaped by the protocol schemas the app parses every reply with.
 
 const MINUTE = 60_000;
-export const NOW = Date.now();
+// A fixed local noon, never the real clock: a fixture minutes before real now falls on the
+// previous day just after midnight, and the page then words its time as a date. The suite's
+// setup holds the clock at NOW for every test.
+export const NOW = new Date(2026, 10, 25, 12).getTime();
 
 export function item(overrides: Partial<ItemRecord> = {}): ItemRecord {
   return {
