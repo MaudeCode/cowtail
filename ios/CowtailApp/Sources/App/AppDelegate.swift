@@ -6,7 +6,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         Task { @MainActor in
-            NotificationManager.shared.didRegister(deviceToken: deviceToken)
+            await NotificationManager.shared.didRegister(deviceToken: deviceToken)
         }
     }
 
