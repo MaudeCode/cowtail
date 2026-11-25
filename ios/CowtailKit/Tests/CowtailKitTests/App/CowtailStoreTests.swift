@@ -608,17 +608,18 @@ final class CowtailStoreTests: XCTestCase {
         XCTAssertEqual(store.historyItems.map(\.id), ["older"])
     }
 
+    private let failed = Item(
+        id: "failed",
+        source: "cron",
+        kind: .failure,
+        urgency: .today,
+        title: "Backup failed",
+        actions: [.ack, .snooze],
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+        createdDate: "2027-01-15"
+    )
+
     func testAnActionShowsOnItsHistoryRowAtOnceAndARefusalPutsTheRowBack() async {
-        let failed = Item(
-            id: "failed",
-            source: "cron",
-            kind: .failure,
-            urgency: .today,
-            title: "Backup failed",
-            actions: [.ack, .snooze],
-            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
-            createdDate: "2027-01-15"
-        )
         let api = FakeItemAPI(inbox: .empty, pagesByCursor: ["": ItemPage(items: [failed], nextCursor: nil)])
         let store = store(api: api)
         await store.loadHistory(HistoryFilter())
@@ -633,6 +634,39 @@ final class CowtailStoreTests: XCTestCase {
 
         XCTAssertEqual(store.historyItems.first?.state, .open)
         XCTAssertEqual(store.historyItems.first?.availableActions, [.ack, .snooze])
+    }
+
+    func testAnActionWhoseReplyWasLostRereadsItsHistoryRow() async {
+        let api = FakeItemAPI(
+            inbox: .empty,
+            actionError: URLError(.timedOut),
+            pagesByCursor: ["": ItemPage(items: [failed], nextCursor: nil)]
+        )
+        let store = store(api: api)
+        await store.loadHistory(HistoryFilter())
+
+        await store.perform(.ack, on: failed)
+
+        // The write never landed: History's read shows the item still open.
+        XCTAssertEqual(store.historyItems.first?.state, .open)
+        XCTAssertEqual(store.historyItems.first?.availableActions, [.ack, .snooze])
+    }
+
+    func testAnActionShowsOnItsIncidentMemberAtOnceAndARefusalPutsItBack() async {
+        let api = FakeItemAPI(inbox: .empty)
+        await api.seedIncident(storageOutage)
+        let store = store(api: api)
+        await store.loadIncident(id: "incident-1")
+        let member = storageOutage.members[0]
+        await api.hold(itemID: member.id)
+
+        let snoozing = Task { await store.perform(.snooze(until: Date(timeIntervalSince1970: 1_800_003_600)), on: member) }
+        await api.waitUntilHeld()
+        XCTAssertEqual(store.incidents["incident-1"]?.members.first?.state, .snoozed)
+        await api.releaseHeld(with: CowtailAPIError.refused("The item is closed"))
+        await snoozing.value
+
+        XCTAssertEqual(store.incidents["incident-1"], storageOutage)
     }
 
     func testHistoryOpensOnTheLast24Hours() {

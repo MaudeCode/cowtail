@@ -518,7 +518,7 @@ final class CowtailStore: ObservableObject {
 
         let inboxBefore = inbox
         let detailBefore = details[item.id]
-        let historyBefore = historyItems.first { $0.id == item.id }
+        let listsBefore = shownInLists(item.id)
         showOptimistically(request, on: item)
         let pending = PendingSnooze(itemID: item.id, request: request)
         switch request {
@@ -537,6 +537,7 @@ final class CowtailStore: ObservableObject {
             )
             pendingSnoozes.removeAll { $0.id == pending.id }
             succeeded = true
+            showEverywhere(updated)
             if details[item.id] != nil {
                 details[item.id]?.item = updated
                 await loadDetail(itemID: item.id)
@@ -545,9 +546,7 @@ final class CowtailStore: ObservableObject {
         } catch CowtailAPIError.refused(let message) {
             restore(item.id, from: inboxBefore)
             details[item.id] = detailBefore
-            if let historyBefore {
-                replaceHistoryItem(historyBefore)
-            }
+            showInLists(listsBefore)
             actionErrors[item.id] = message
         } catch {
             // The write may or may not have landed. Keep showing it, and take no new action on
@@ -561,6 +560,13 @@ final class CowtailStore: ObservableObject {
             }
             if detailBefore != nil {
                 await loadDetail(itemID: item.id)
+            }
+            // History and the incidents show the write too; only the server's lists say whether it landed.
+            if historyItems.contains(where: { $0.id == item.id }) {
+                await loadHistory(historyFilter)
+            }
+            for id in listsBefore.compactMap(\.incidentID) {
+                await loadIncident(id: id)
             }
         }
     }
@@ -587,14 +593,42 @@ final class CowtailStore: ObservableObject {
         inbox = inbox?.showing(request, on: item)
         let shown = ItemInbox.item(item, showing: request)
         details[item.id]?.item = shown
-        replaceHistoryItem(shown)
+        showEverywhere(shown)
     }
 
-    /// History's row for the item, where it lists one; the next read brings the server's own.
-    private func replaceHistoryItem(_ item: Item) {
-        if let index = historyItems.firstIndex(where: { $0.id == item.id }) {
-            historyItems[index] = item
+    /// One list's copy of an item: History's when `incidentID` is nil, else that incident's member.
+    private struct ShownItem {
+        let item: Item
+        let incidentID: String?
+    }
+
+    /// Each copy of the item that History and the loaded incidents show.
+    private func shownInLists(_ itemID: String) -> [ShownItem] {
+        let history = historyItems.first { $0.id == itemID }.map { ShownItem(item: $0, incidentID: nil) }
+        let members = confirmedIncidents.compactMap { id, detail in
+            detail.members.first { $0.id == itemID }.map { ShownItem(item: $0, incidentID: id) }
         }
+        return [history].compactMap { $0 } + members
+    }
+
+    /// Puts each copy back in its own list.
+    private func showInLists(_ copies: [ShownItem]) {
+        for copy in copies {
+            if let id = copy.incidentID {
+                guard let index = confirmedIncidents[id]?.members.firstIndex(where: { $0.id == copy.item.id }) else { continue }
+                confirmedIncidents[id]?.members[index] = copy.item
+                // A read that started before this is older than what the write shows.
+                incidentWriteGenerations[id, default: 0] += 1
+                confirm(nil, incidentID: id)
+            } else if let index = historyItems.firstIndex(where: { $0.id == copy.item.id }) {
+                historyItems[index] = copy.item
+            }
+        }
+    }
+
+    /// Shows the item in every list that holds a copy of it.
+    private func showEverywhere(_ item: Item) {
+        showInLists(shownInLists(item.id).map { ShownItem(item: item, incidentID: $0.incidentID) })
     }
 
     /// The snooze picker's presets, worked out by the server in this device's zone.
