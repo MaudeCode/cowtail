@@ -62,12 +62,13 @@ struct InboxView: View {
         }
     }
 
+    /// Each count keeps its words together and wraps whole at large text sizes.
     private func counts(_ inbox: ItemInbox) -> some View {
-        HStack(spacing: 18) {
+        FlowLayout(spacing: 18) {
             count(inbox.counts.needsYou, "need you")
             count(inbox.counts.withHermes, "with Hermes")
-            Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 6)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("strip.inbox.counts")

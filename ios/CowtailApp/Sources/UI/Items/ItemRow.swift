@@ -14,6 +14,7 @@ struct ItemRow: View {
 
     @EnvironmentObject private var store: CowtailStore
     @Environment(\.cowtailPalette) private var palette
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         if let incident = item.incident {
@@ -24,8 +25,12 @@ struct ItemRow: View {
     }
 
     private var itemRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 10) {
+        // At accessibility text sizes the row's buttons go under its summary, which keeps the width.
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+        return VStack(alignment: .leading, spacing: 6) {
+            layout {
                 NavigationLink(value: AppRoute.item(item.id)) {
                     HStack(alignment: .top, spacing: 10) {
                         ItemSourceIcon(item: item)

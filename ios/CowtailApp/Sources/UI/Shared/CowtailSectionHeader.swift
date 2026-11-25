@@ -147,6 +147,8 @@ struct CowtailIconButton: View {
         )
         .frame(minWidth: Self.minimumSide, minHeight: Self.minimumSide)
         .contentShape(.rect)
+        // A crowded row never squeezes the circle into its neighbour.
+        .fixedSize()
         .disabled(isBusy)
         .accessibilityLabel(title)
         .help(title)
