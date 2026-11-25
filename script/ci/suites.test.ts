@@ -36,6 +36,11 @@ describe(".github/ci-suites.json", () => {
     expect(selected("ios/CowtailUITests/Support/AppLaunching.swift")).toEqual(["global", "ios"]);
   });
 
+  // This file's own test is in the global suite; a routing change builds no app.
+  test("a change to the suites file runs only the global suite", () => {
+    expect(selected(".github/ci-suites.json")).toEqual(["global"]);
+  });
+
   test("a Markdown change runs no suite", () => {
     expect(selected("README.md")).toEqual([]);
   });
