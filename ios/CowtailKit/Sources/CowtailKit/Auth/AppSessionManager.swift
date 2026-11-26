@@ -67,13 +67,14 @@ final class AppSessionManager: ObservableObject {
             let sessionToken,
             !sessionToken.isEmpty,
             let userID,
-            !userID.isEmpty,
-            let expiresAt
+            !userID.isEmpty
         else {
             return false
         }
 
-        if expiresAt <= Date() {
+        // The server slides expiry on use, so a past stored expiry never drops a session. It only
+        // sends a Pocket ID session through renewal, which also revives one the server let lapse.
+        if let expiresAt, expiresAt <= Date(), hasRenewableOIDCSession {
             return false
         }
 
@@ -174,7 +175,9 @@ final class AppSessionManager: ObservableObject {
                 let session = try await request()
                 guard self.refreshToken == refreshToken, !Task.isCancelled else { return nil }
                 guard let session else {
-                    self.clearSession()
+                    // Only a sign-out drops a session: keep it, and say renewal failed.
+                    self.sessionState = .failed
+                    self.lastError = "Cowtail did not renew the session."
                     return nil
                 }
                 self.store(session, provider: provider)

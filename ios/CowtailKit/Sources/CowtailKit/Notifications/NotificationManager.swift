@@ -461,10 +461,6 @@ final class NotificationManager: NSObject, ObservableObject {
                 ? "Created Cowtail device registration."
                 : "Updated existing Cowtail device registration."
         } catch {
-            // A session the server no longer accepts ends here, so the next sync signs in afresh.
-            if case .session = credential, error.localizedDescription.localizedCaseInsensitiveContains("Unauthorized") {
-                appSessionManager.invalidateSession()
-            }
             serverRegistrationState = .failed
             serverRegistrationMessage = userFacingServerError(for: error)
         }
@@ -731,13 +727,6 @@ final class NotificationManager: NSObject, ObservableObject {
 
     private func handleDailyRoundupPreferenceError(_ error: Error, restoring previous: AppNotificationPreferences) {
         preferences = previous
-
-        if error.localizedDescription.localizedCaseInsensitiveContains("Unauthorized") {
-            appSessionManager.invalidateSession()
-            dailyRoundupPreferenceRequiresSignIn = true
-            dailyRoundupPreferenceError = "Sign in with Apple again to update your roundup settings."
-            return
-        }
 
         dailyRoundupPreferenceRequiresSignIn = false
         dailyRoundupPreferenceError = error.localizedDescription
