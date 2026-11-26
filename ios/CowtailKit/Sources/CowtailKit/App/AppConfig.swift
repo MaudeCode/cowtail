@@ -6,13 +6,13 @@ enum AppConfig {
     static let healthSummaryURL = requiredURL("CowtailHealthSummaryURL")
     static let alertWriteURL = requiredURL("CowtailAlertWriteURL")
     static let authSessionURL = requiredURL("CowtailAuthSessionURL")
-    static let notificationPreferencesURL = requiredURL("CowtailNotificationPreferencesURL")
     static let pushRegistrationURL = requiredURL("CowtailPushRegistrationURL")
     static let pushUnregistrationURL = requiredURL("CowtailPushUnregistrationURL")
     static let roundupTimeZoneIdentifier = requiredString("CowtailRoundupTimeZone")
     static let publicSiteHost = publicSiteURL.host?.lowercased() ?? ""
     static let alertAPIBaseURL = alertWriteURL.deletingLastPathComponent()
     static let oidcStartURL = alertAPIBaseURL.appendingPathComponent("auth/oidc/start")
+    static let notificationPreferencesURL = alertAPIBaseURL.appendingPathComponent("me/notification-preferences")
 
     static func alertDetailURL(for alertID: String) -> URL? {
         let encodedID = alertID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? alertID
@@ -79,7 +79,6 @@ enum AppConfig {
                 "CowtailHealthSummaryURL": "https://cowtail.example.com/actions/api/health",
                 "CowtailAlertWriteURL": "https://convex-actions.example.com/api/alerts",
                 "CowtailAuthSessionURL": "https://convex-actions.example.com/api/auth/session",
-                "CowtailNotificationPreferencesURL": "https://convex-actions.example.com/api/me/notification-preferences",
                 "CowtailPushRegistrationURL": "https://convex-actions.example.com/api/push/register",
                 "CowtailPushUnregistrationURL": "https://convex-actions.example.com/api/push/unregister",
                 "CowtailRoundupTimeZone": "America/New_York",
