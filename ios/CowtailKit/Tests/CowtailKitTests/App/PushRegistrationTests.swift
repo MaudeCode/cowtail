@@ -69,6 +69,17 @@ final class PushRegistrationTests: XCTestCase {
         XCTAssertEqual(sessions.validSessionToken(), "oidc-session")
     }
 
+    /// A lapsed session that can renew goes through renewal instead of resending a token the server refuses.
+    func testASessionPastItsStoredExpiryWithARenewalCredentialRenewsAndStaysSignedIn() {
+        sessions.store(
+            AppAuthSession(token: "oidc-session", userID: "owner", expiresAt: .distantPast, refreshToken: "renewal"),
+            provider: "Pocket ID"
+        )
+
+        XCTAssertNil(sessions.validSessionToken())
+        XCTAssertTrue(sessions.isSignedIn)
+    }
+
     /// The server stops pushing to a device when the session that registered it ends.
     func testANewSessionRegistersTheDeviceAgain() async {
         let transport = RecordingTransport(routes: [

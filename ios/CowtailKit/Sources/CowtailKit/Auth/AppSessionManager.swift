@@ -72,6 +72,12 @@ final class AppSessionManager: ObservableObject {
             return false
         }
 
+        // The server slides expiry on use, so a past stored expiry never drops a session. It only
+        // sends a Pocket ID session through renewal, which also revives one the server let lapse.
+        if let expiresAt, expiresAt <= Date(), hasRenewableOIDCSession {
+            return false
+        }
+
         if isAppleSession, let appleUserID = AppleAccountManager.shared.userID, appleUserID != userID {
             return false
         }
