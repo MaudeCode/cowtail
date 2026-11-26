@@ -127,15 +127,13 @@ import {
   verifyOidcIdToken,
 } from "./oidcIdentity";
 import { validateOpenClawLimit } from "./openclawModel";
+import { SESSION_TTL_MS } from "./authSessions";
 import { cowtailOwnerUserId, cowtailWebOrigin } from "./owner";
 import { sendPushToUser } from "./pushDelivery";
 import { resolveRoundupTimeZone } from "./roundup";
 import { snoozeOptions } from "./itemModel";
 import { SOURCE_TOKEN_PREFIX, sourceIconError } from "./sources";
 
-const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-// Renew native Pocket ID sessions before the provider's default inactivity window expires.
-const OIDC_APP_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "cowtail_session";
 // The web Sign in with Apple's `state.nonce` while the browser is at Apple. Apple posts the
 // reply cross-site, so only a SameSite=None cookie comes back with it.
@@ -368,7 +366,7 @@ async function pkceChallenge(verifier: string): Promise<string> {
 // and the OIDC iOS hand-off all issue through it.
 async function issueSession(ctx: ActionCtx, userId: string, refreshToken?: string) {
   const token = createOpaqueToken();
-  const expiresAt = Date.now() + (refreshToken ? OIDC_APP_SESSION_TTL_MS : AUTH_SESSION_TTL_MS);
+  const expiresAt = Date.now() + SESSION_TTL_MS;
   await ctx.runMutation(internal.authSessions.createSession, {
     userId,
     tokenHash: await sha256Hex(token),
@@ -2630,7 +2628,7 @@ async function signInBrowser(c: AppSessionContext, ownerUserId: string) {
     secure: true,
     sameSite: "Lax",
     path: "/",
-    maxAge: AUTH_SESSION_TTL_MS / 1000,
+    maxAge: SESSION_TTL_MS / 1000,
   });
   return c.redirect("/", 302);
 }
@@ -2757,7 +2755,7 @@ app.post("/api/auth/oidc/refresh", async (c) => {
     if (!grant.refreshToken) return jsonError("Pocket ID returned no renewal credential.", 502);
 
     const token = createOpaqueToken();
-    const expiresAt = Date.now() + OIDC_APP_SESSION_TTL_MS;
+    const expiresAt = Date.now() + SESSION_TTL_MS;
     const renewed = await c.env.runMutation(internal.authSessions.renewOidcSession, {
       id: current._id,
       previousRefreshHash,

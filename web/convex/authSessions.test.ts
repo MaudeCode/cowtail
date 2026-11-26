@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   evaluateSessionByIdValidation,
   evaluateSessionTokenHashVerification,
+  SESSION_TTL_MS,
   verifyRealtimeConvexToken,
 } from "./authSessions";
 
@@ -68,7 +69,7 @@ describe("auth session helpers", () => {
     });
   });
 
-  test("accepts valid sessions and returns the lastUsedAt touch patch", () => {
+  test("accepts valid sessions and slides their expiry from this use", () => {
     expect(
       evaluateSessionTokenHashVerification(
         {
@@ -79,9 +80,14 @@ describe("auth session helpers", () => {
         100,
       ),
     ).toEqual({
-      result: { ok: true, sessionId: "session-1", userId: "user-1", expiresAt: 200 },
+      result: {
+        ok: true,
+        sessionId: "session-1",
+        userId: "user-1",
+        expiresAt: 100 + SESSION_TTL_MS,
+      },
       sessionId: "session-1",
-      patch: { lastUsedAt: 100 },
+      patch: { lastUsedAt: 100, expiresAt: 100 + SESSION_TTL_MS },
     });
   });
 

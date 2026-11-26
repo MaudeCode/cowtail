@@ -42,6 +42,33 @@ final class PushRegistrationTests: XCTestCase {
         XCTAssertNil(body["identityToken"])
     }
 
+    /// Only a sign-out ends a session: a refused request leaves it in place.
+    func testARefusedRegistrationKeepsTheSession() async {
+        sessions.store(
+            AppAuthSession(token: "oidc-session", userID: "owner", expiresAt: .distantFuture),
+            provider: "Pocket ID"
+        )
+        let transport = RecordingTransport(routes: [
+            "POST /api/push/register": .init(status: .unauthorized, json: #"{"ok":false,"error":"Unauthorized"}"#),
+        ])
+        let notifications = NotificationManager(api: CowtailAPI(transport: transport), deviceToken: "apns-device")
+
+        await notifications.syncDeviceRegistration()
+
+        XCTAssertEqual(notifications.serverRegistrationState, .failed)
+        XCTAssertEqual(sessions.validSessionToken(), "oidc-session")
+    }
+
+    /// The server slides a session's expiry on each use, so the app's stored copy is no reason to drop it.
+    func testASessionPastItsStoredExpiryIsStillUsed() {
+        sessions.store(
+            AppAuthSession(token: "oidc-session", userID: "owner", expiresAt: .distantPast),
+            provider: "Pocket ID"
+        )
+
+        XCTAssertEqual(sessions.validSessionToken(), "oidc-session")
+    }
+
     /// The server stops pushing to a device when the session that registered it ends.
     func testANewSessionRegistersTheDeviceAgain() async {
         let transport = RecordingTransport(routes: [

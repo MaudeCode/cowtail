@@ -4,6 +4,14 @@ import { internalMutation, internalQuery, mutation, query } from "./_generated/s
 
 export const REALTIME_CONVEX_TOKEN_ENV_VAR = "COWTAIL_REALTIME_CONVEX_TOKEN";
 
+// A session lasts this long after its last use: every verified request extends it, so only a
+// sign-out or this long without use ends it.
+export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function sessionUsePatch(now: number) {
+  return { lastUsedAt: now, expiresAt: now + SESSION_TTL_MS };
+}
+
 type StoredAuthSession = {
   _id: string;
   userId: string;
@@ -53,21 +61,22 @@ export function evaluateSessionTokenHashVerification<SessionId extends string>(
   | {
       result: { ok: true; sessionId: string; userId: string; expiresAt: number };
       sessionId: SessionId;
-      patch: { lastUsedAt: number };
+      patch: { lastUsedAt: number; expiresAt: number };
     } {
   if (!session || session.revokedAt !== undefined || session.expiresAt <= now) {
     return { result: { ok: false } };
   }
 
+  const patch = sessionUsePatch(now);
   return {
     result: {
       ok: true,
       sessionId: String(session._id),
       userId: session.userId,
-      expiresAt: session.expiresAt,
+      expiresAt: patch.expiresAt,
     },
     sessionId: session._id,
-    patch: { lastUsedAt: now },
+    patch,
   };
 }
 
@@ -187,9 +196,7 @@ export const touchSession = internalMutation({
     id: v.id("authSessions"),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, {
-      lastUsedAt: Date.now(),
-    });
+    await ctx.db.patch(args.id, sessionUsePatch(Date.now()));
   },
 });
 
