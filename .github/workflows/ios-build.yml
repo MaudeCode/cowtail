@@ -107,7 +107,6 @@ jobs:
           bundle-ids: |
             ${{ env.BUNDLE_ID }}
             ${{ env.NOTIFICATION_SERVICE_BUNDLE_ID }}
-          internal-testing-only: true
 
       - name: Write iOS project env
         env:
