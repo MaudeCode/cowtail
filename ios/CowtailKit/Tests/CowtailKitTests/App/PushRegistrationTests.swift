@@ -69,6 +69,27 @@ final class PushRegistrationTests: XCTestCase {
         XCTAssertEqual(sessions.validSessionToken(), "oidc-session")
     }
 
+    func testRestoringAfterAnIncompleteKeychainReadPreservesTheProviderAndRenewalCredential() async {
+        let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
+        for provider in ["Pocket ID", AppSessionManager.appleProvider] {
+            let refresh = provider == AppSessionManager.appleProvider ? nil : "refresh"
+            sessions.store(
+                AppAuthSession(token: "saved", userID: "owner", expiresAt: .distantFuture, refreshToken: refresh),
+                provider: provider
+            )
+            keychain.remove("appSession.token")
+            sessions.configure()
+            XCTAssertNil(sessions.validSessionToken())
+            XCTAssertEqual(keychain.string(for: "appSession.oidcRefreshToken"), refresh)
+            XCTAssertEqual(keychain.string(for: "appSession.userID"), "owner")
+            keychain.set("saved", for: "appSession.token")
+            let restored = await sessions.refreshSessionIfPossible()
+            XCTAssertEqual(sessions.provider, provider)
+            XCTAssertEqual(restored, "saved")
+            sessions.invalidateSession()
+        }
+    }
+
     /// A lapsed session that can renew goes through renewal instead of resending a token the server refuses.
     func testASessionPastItsStoredExpiryWithARenewalCredentialRenewsAndStaysSignedIn() {
         sessions.store(

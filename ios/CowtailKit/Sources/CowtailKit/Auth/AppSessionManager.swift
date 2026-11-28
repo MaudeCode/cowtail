@@ -34,6 +34,7 @@ final class AppSessionManager: ObservableObject {
     private let userIDKey = "appSession.userID"
     private let expiresAtKey = "appSession.expiresAt"
     private let providerKey = "appSession.provider"
+    private(set) var needsKeychainRestore = false
     private var isUITesting = false
     private var sessionToken: String?
     private var oidcRefreshToken: String?
@@ -44,17 +45,18 @@ final class AppSessionManager: ObservableObject {
 
     func configure() {
         isUITesting = false
-        sessionToken = keychain.string(for: tokenKey)
-        oidcRefreshToken = keychain.string(for: oidcRefreshKey)
-        userID = keychain.string(for: userIDKey) ?? defaults.string(forKey: userIDKey)
-        provider = defaults.string(forKey: providerKey)
-
-        if let rawExpiresAt = defaults.object(forKey: expiresAtKey) as? Double {
-            expiresAt = Date(timeIntervalSince1970: rawExpiresAt)
-        }
-
-        if !hasValidPersistedSession && !hasRenewableOIDCSession {
-            clearSession()
+        do {
+            let token = try keychain.readString(for: tokenKey)
+            let refresh = try keychain.readString(for: oidcRefreshKey)
+            let savedUserID = try keychain.readString(for: userIDKey)
+            sessionToken = token
+            oidcRefreshToken = refresh
+            userID = savedUserID ?? defaults.string(forKey: userIDKey)
+            provider = defaults.string(forKey: providerKey)
+            expiresAt = (defaults.object(forKey: expiresAtKey) as? Double).map(Date.init(timeIntervalSince1970:))
+            needsKeychainRestore = (token == nil && userID != nil) || (token != nil && userID == nil)
+        } catch {
+            needsKeychainRestore = true
             return
         }
 
@@ -106,9 +108,6 @@ final class AppSessionManager: ObservableObject {
             return sessionToken
         }
 
-        if !hasRenewableOIDCSession {
-            clearSession()
-        }
         return nil
     }
 
@@ -116,6 +115,11 @@ final class AppSessionManager: ObservableObject {
         if isUITesting {
             return sessionToken
         }
+
+        if needsKeychainRestore {
+            configure()
+        }
+        guard !needsKeychainRestore else { return nil }
 
         if let token = validSessionToken() {
             print("[roundup-debug] AppSessionManager.refreshSessionIfPossible using cached session")
@@ -134,6 +138,8 @@ final class AppSessionManager: ObservableObject {
                 try await api.refreshOIDCSession(sessionToken: sessionToken, refreshToken: oidcRefreshToken)
             }
         }
+
+        guard isAppleSession else { return nil }
 
         guard let appleUserID = AppleAccountManager.shared.userID, !appleUserID.isEmpty else {
             print("[roundup-debug] AppSessionManager.refreshSessionIfPossible no Apple user ID")
@@ -195,6 +201,7 @@ final class AppSessionManager: ObservableObject {
     }
 
     func clearSession() {
+        needsKeychainRestore = false
         oidcRefreshToken = nil
         clearStoredSession()
         applyUITestState(
@@ -232,9 +239,15 @@ final class AppSessionManager: ObservableObject {
     }
 
     func appleIdentityDidChange() {
-        // An Apple identity change leaves a session from another provider alone.
-        if !isAppleSession, hasValidPersistedSession || hasRenewableOIDCSession {
-            return
+        if needsKeychainRestore {
+            configure()
+        }
+        // A completed interactive Apple sign-in may replace an incomplete saved account.
+        // A background callback cannot assume an unreadable session belongs to Apple.
+        if needsKeychainRestore || !isAppleSession {
+            guard !hasValidPersistedSession, !hasRenewableOIDCSession,
+                  AppleAccountManager.shared.identityToken != nil else { return }
+            invalidateSession()
         }
 
         if AppleAccountManager.shared.userID == nil {
@@ -255,6 +268,7 @@ final class AppSessionManager: ObservableObject {
 
     /// The one place a new session is kept, whichever provider signed in.
     func store(_ session: AppAuthSession, provider: String) {
+        needsKeychainRestore = false
         sessionToken = session.token
         oidcRefreshToken = session.refreshToken
         userID = session.userID
@@ -276,6 +290,7 @@ final class AppSessionManager: ObservableObject {
     }
 
     func resetForUITesting() {
+        needsKeychainRestore = false
         isUITesting = true
         refreshTask?.cancel()
         refreshTask = nil

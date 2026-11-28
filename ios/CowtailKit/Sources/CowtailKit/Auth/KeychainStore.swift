@@ -9,6 +9,11 @@ struct KeychainStore {
     }
 
     func string(for key: String) -> String? {
+        try? readString(for: key)
+    }
+
+    /// Only a missing item reads as nil. A locked device may refuse reads while still permitting deletion.
+    func readString(for key: String) throws -> String? {
         #if COWTAIL_PACKAGE
             MemoryKeychain.items.withLock { $0[itemKey(key)] }
         #else
@@ -18,10 +23,15 @@ struct KeychainStore {
 
             var item: CFTypeRef?
             let status = SecItemCopyMatching(query as CFDictionary, &item)
-            guard status == errSecSuccess,
-                  let data = item as? Data,
-                  let string = String(data: data, encoding: .utf8) else {
+            if status == errSecItemNotFound {
                 return nil
+            }
+            guard status == errSecSuccess else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            }
+            guard let data = item as? Data,
+                  let string = String(data: data, encoding: .utf8) else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(errSecDecode))
             }
 
             return string
