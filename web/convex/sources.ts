@@ -99,13 +99,17 @@ export const getBySlug = internalQuery({
 });
 
 // The source a token belongs to. Lookup is by the token's digest, never by the token.
+export function sourceByTokenHash(ctx: QueryCtx, tokenHash: string) {
+  return ctx.db
+    .query("sources")
+    .withIndex("by_tokenHash", (q) => q.eq("tokenHash", tokenHash))
+    .unique();
+}
+
 export const getByTokenHash = internalQuery({
   args: { tokenHash: v.string() },
   handler: async (ctx, { tokenHash }) => {
-    const source = await ctx.db
-      .query("sources")
-      .withIndex("by_tokenHash", (q) => q.eq("tokenHash", tokenHash))
-      .unique();
+    const source = await sourceByTokenHash(ctx, tokenHash);
     return source ? { slug: source.slug, enabled: source.enabled } : null;
   },
 });

@@ -52,6 +52,8 @@ import {
   itemActionQuerySchema,
   itemActionRequestSchema,
   itemCreateRequestSchema,
+  messageSendRequestSchema,
+  messageAcceptedSchema,
   maintenanceWindowListResponseSchema,
   maintenanceWindowResponseSchema,
   maintenanceWindowStartRequestSchema,
@@ -155,8 +157,12 @@ function bearerToken(c: { req: { header(name: string): string | undefined } }) {
   return /^Bearer\s+(\S+)$/.exec(c.req.header("authorization")?.trim() ?? "")?.[1];
 }
 
-// A source token reaches item ingest and its own items' events, and nothing else.
-const SOURCE_TOKEN_ROUTES = [/^\/api\/items$/, /^\/api\/items\/[^/]+\/events$/];
+// Source tokens post messages, items and events on their own items.
+const SOURCE_TOKEN_ROUTES = [
+  /^\/api\/messages$/,
+  /^\/api\/items$/,
+  /^\/api\/items\/[^/]+\/events$/,
+];
 app.use("/api/*", async (c, next) => {
   const sourceRoute =
     c.req.method === "POST" && SOURCE_TOKEN_ROUTES.some((route) => route.test(c.req.path));
@@ -1617,6 +1623,20 @@ async function requireItemProducer(c: RouteContext): Promise<{ source?: string }
   }
   return requireServiceOrWorkerAuth(c) ?? {};
 }
+
+// A durable message is accepted even when the recipient has no push devices.
+app.post("/api/messages", async (c) => {
+  const token = bearerToken(c);
+  if (!token?.startsWith(SOURCE_TOKEN_PREFIX)) return jsonError("Source token required", 401);
+  const parsed = messageSendRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return jsonError(formatIssues(parsed.error.issues));
+  const result = await c.env.runMutation((internal as any).items.acceptMessage, {
+    ...parsed.data,
+    tokenHash: await sha256Hex(token),
+  });
+  if (!result) return jsonError("Forbidden", 403);
+  return c.json(messageAcceptedSchema.parse({ ok: true, ...result }));
+});
 
 // POST /api/items — create an item, or count a repeat into the open item with its dedupeKey
 app.post("/api/items", async (c) => {

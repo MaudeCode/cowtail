@@ -9,6 +9,7 @@ import {
   optionalTrimmedString,
   parseFutureTime,
   parseKeyValuePairs,
+  parseLinks,
   parseTimestamp,
   requireNonEmptyString,
 } from "../../lib/parse.ts";
@@ -59,9 +60,7 @@ export class NotifyCommand extends JsonCommand {
       title: requireNonEmptyString(this.title, "title"),
       body: optionalTrimmedString(this.body),
       dedupeKey: optionalTrimmedString(this.dedupeKey),
-      links: this.links
-        ? parseKeyValuePairs(this.links, "link").map(([label, url]) => ({ label, url }))
-        : undefined,
+      links: parseLinks(this.links),
       context: this.contextPairs
         ? Object.fromEntries(parseKeyValuePairs(this.contextPairs, "context"))
         : undefined,

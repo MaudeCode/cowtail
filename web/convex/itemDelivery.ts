@@ -50,7 +50,7 @@ export type Push = {
 
 type PushItem = Pick<
   Doc<"items">,
-  "_id" | "kind" | "urgency" | "title" | "body" | "dedupeKey" | "alertId"
+  "_id" | "kind" | "urgency" | "title" | "body" | "dedupeKey" | "alertId" | "message"
 > & { sourceInfo: SourceInfo; approvalNeedsAuth?: boolean };
 
 // The owner's setting decides the approval category, so every device protects it alike.
@@ -98,7 +98,7 @@ export function itemPush(item: PushItem, badge: number): Push {
       interruptionLevel: interruptionLevels[item.urgency],
       threadId: fit(item.dedupeKey ?? String(item._id), THREAD_BYTES),
       badge,
-      category: itemCategory(item.kind, item.approvalNeedsAuth),
+      ...(item.message ? {} : { category: itemCategory(item.kind, item.approvalNeedsAuth) }),
     },
   };
 }
@@ -317,7 +317,17 @@ export const planDelivery = internalMutation({
       return await skip("snoozed");
     }
 
-    if (item.urgency === "today") {
+    // General-purpose messages normally interrupt once, immediately. Ordinary messages
+    // still join the held batch during the owner's quiet hours.
+    if (item.message && reason === "resend") return await skip("alert_once");
+    const { quietHours } =
+      item.message && item.urgency === "today"
+        ? effectivePreferences(await preferencesRow(ctx, userId))
+        : { quietHours: null };
+    if (
+      item.urgency === "today" &&
+      (!item.message || (quietHours && quietHoursEndAt(now, quietHours) !== undefined))
+    ) {
       const batchId = await joinTodayBatch(ctx, itemId, now);
       await recordDecision(ctx, itemId, now, {
         ...decided,
@@ -329,7 +339,7 @@ export const planDelivery = internalMutation({
 
     // ponytail: a now item reopened inside 10 minutes runs a second re-send chain beside the
     // first; key the chain to the push that started it if that double push matters.
-    if (attempt < MAX_RESENDS) {
+    if (!item.message && attempt < MAX_RESENDS) {
       await ctx.scheduler.runAt(now + RESEND_INTERVAL_MS, deliverItemRef, {
         itemId,
         reason: "resend",

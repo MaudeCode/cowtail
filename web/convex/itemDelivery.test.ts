@@ -96,6 +96,48 @@ const syncPushes = () => sent().filter((args) => args.pushType === "background")
 const pushTitles = () => alertPushes().map((args) => args.title);
 
 describe("item delivery", () => {
+  test("a registered service sends a message once and retries retain its accepted ID", async () => {
+    const t = await newBackendWithSources("cron");
+    const registration = await request(t, "/api/sources", {
+      method: "POST",
+      bearer: SERVICE,
+      body: { slug: "library", displayName: "Library" },
+    });
+    const bearer = (registration.json as { token: string }).token;
+    const message = "Your hold is ready";
+    const send = async (idempotencyKey?: string) => {
+      const response = await request(t, "/api/messages", {
+        method: "POST",
+        bearer,
+        body: { message, idempotencyKey },
+      });
+      expect(response.status).toBe(200);
+      return (response.json as { id: string }).id;
+    };
+    const first = await send("hold-5");
+    await advance(t, 1, { only: [] });
+    expect(alertPushes()).toEqual([
+      expect.objectContaining({
+        title: "Library",
+        body: message,
+        data: expect.objectContaining({ itemId: first }),
+        aps: expect.objectContaining({ interruptionLevel: "active" }),
+      }),
+    ]);
+    const acknowledgement = await request(t, `/api/me/items/${first}/actions`, {
+      method: "POST",
+      bearer: await ownerSession(t),
+      body: { type: "ack" },
+    });
+    expect(acknowledgement.status).toBe(200);
+    expect(await send("hold-5")).toBe(first);
+    const second = await send();
+    expect(second).not.toBe(first);
+    expect((await getItem(t, second)).item).toMatchObject({ body: message, source: "library" });
+    await advance(t, 60 * MINUTE, { only: [] });
+    expect(pushTitles()).toEqual(["Library", "Library"]);
+  });
+
   test("a now item pushes at once and again every 10 minutes, three more times at most", async () => {
     const t = await newBackendWithSources("cron");
     const id = await createItem(t, { urgency: "now", title: "Restart ingress in edge?" });

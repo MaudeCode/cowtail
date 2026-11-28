@@ -57,6 +57,7 @@ export default defineSchema({
     .index("by_status_timestamp", ["status", "timestamp"]),
 
   items: defineTable(itemFields)
+    .index("by_source_messageKey", ["source", "message.idempotencyKey"])
     .index("by_state_updatedAt", ["state", "updatedAt"])
     .index("by_dedupeKey", ["dedupeKey"])
     .index("by_source_createdAt", ["source", "createdAt"])
