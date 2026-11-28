@@ -17,6 +17,7 @@ import {
   NOW,
   preferences,
   recentRuns,
+  runningRunReply,
   SESSION,
   signedIn,
   stats,
@@ -1328,7 +1329,23 @@ describe("Hermes", () => {
   });
 
   test("/hermes shows the newest run's output and ends each recent run in its exit code and time", async () => {
-    stubApi(signedIn());
+    // Keep the test's wall clock and fixture times on the same local day,
+    // even when hosted CI starts just after midnight.
+    const now = new Date(2026, 5, 15, 12).getTime();
+    vi.useFakeTimers({ now, toFake: ["Date"] });
+    const at = (time: number | undefined) => (time === undefined ? undefined : now + (time - NOW));
+    const runs = recentRuns.map((run) => ({
+      ...run,
+      createdAt: at(run.createdAt)!,
+      startedAt: at(run.startedAt),
+      finishedAt: at(run.finishedAt),
+    }));
+    stubApi(
+      signedIn({
+        "GET /actions/api/hermes/status": { ...hermesStatus, recentRuns: runs },
+        "GET /actions/api/me/runbook/runs/run-3": { ...runningRunReply, run: runs[0] },
+      }),
+    );
 
     renderApp("/hermes");
 

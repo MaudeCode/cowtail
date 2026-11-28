@@ -108,6 +108,23 @@ class CowtailClient:
     def claim_job(self, job_id: str | None = None, lease_seconds: int = 900) -> dict[str, Any]:
         return self._request("POST", "/api/investigation-jobs/claim", {"jobId": job_id, "workerId": self.worker_id, "leaseSeconds": lease_seconds})
 
+    def claim_bound_job(self, job_id: str, lease_seconds: int, execution: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/investigation-jobs/claim", {
+            "jobId": job_id, "workerId": self.worker_id, "leaseSeconds": lease_seconds,
+            "execution": execution,
+        })
+
+    def expired_executions(self, cursor: str | None) -> dict[str, Any]:
+        return self._request("GET", "/api/investigation-jobs/expired-executions", query={"cursor": cursor})
+
+    def report_stopped_execution(self, job_id: str, execution: dict[str, Any], outcome: str) -> dict[str, Any]:
+        return self._request("POST", f"/api/investigation-jobs/{job_id}/execution-stopped", {
+            "execution": execution, "outcome": outcome,
+        })
+
+    def reconcile_job(self, job_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", f"/api/investigation-jobs/{job_id}/reconcile-recovery", body)
+
     def get_job(self, job_id: str) -> dict[str, Any]:
         return self._request("GET", f"/api/investigation-jobs/{job_id}")
 

@@ -7,6 +7,7 @@ import re
 import subprocess
 from typing import Any
 
+from . import recovery
 from .cowtail_client import CowtailClient, CowtailError, cowtail_available
 from .handoff import BLOCKER_KINDS, BOUNDARIES, ContinuationNeeded, guarded_action
 
@@ -19,6 +20,7 @@ _ACTIONS = [
     "job.claim",
     "job.get",
     "job.renew",
+    "job.reconcile",
     "job.complete",
     "job.fail",
     "job.handoff",
@@ -109,6 +111,8 @@ COWTAIL_SCHEMA: dict[str, Any] = {
             "alert_id": {"type": "string"},
             "job_id": {"type": "string"},
             "claim_token": {"type": "string"},
+            "prior_effects": {"type": "string", "description": "For job.reconcile: verified prior effects and pending work, with identifiers and findings, not secrets."},
+            "resource_ownership": {"type": "string", "description": "For job.reconcile: verified resource, PR, ticket and maintenance ownership and what will be reused or left alone."},
             "lease_seconds": {"type": "integer", "default": 900},
             "from_ms": {"type": "integer"},
             "to_ms": {"type": "integer"},
@@ -263,6 +267,7 @@ def _compact_large_job_context(result: dict[str, Any]) -> dict[str, Any]:
     compact: dict[str, Any] = {
         "ok": result.get("ok", True),
         "claimed": result.get("claimed"),
+        "recoveryInstructions": result.get("recoveryInstructions"),
         "claimToken": claim_token,
         "relatedAlertCount": len(related),
         "relatedAlertIds": alert_ids,
@@ -377,11 +382,40 @@ def handle_cowtail(args: dict[str, Any], client: CowtailClient | None = None) ->
         if action == "fix.write":
             return _ok(result=client.write_fix(_payload(args)))
         if action == "job.claim":
-            result = client.claim_job(
-                args.get("job_id") if isinstance(args.get("job_id"), str) else None,
-                _int_arg(args, "lease_seconds", 900),
-            )
+            job_id = args.get("job_id") if isinstance(args.get("job_id"), str) else None
+            lease = _int_arg(args, "lease_seconds", 900)
+            execution = recovery.current_execution() if job_id else None
+            if not execution and recovery.is_repair_webhook():
+                return _err("Cowtail cannot identify this webhook execution; no investigation was claimed")
+            result = client.claim_bound_job(job_id, lease, execution) if execution else client.claim_job(job_id, lease)
+            if result.get("claimed") and result.get("job", {}).get("recoveryPending"):
+                recovery.require_reconciliation(execution, job_id)
+                result["recoveryInstructions"] = (
+                    "Before any external write, reconcile the stopped execution against current state. "
+                    "Read its recorded evidence, the exact alerts, live target state, existing tickets, "
+                    "branches, PRs, operations, and maintenance ownership. Do not replay a write where the "
+                    "result is unknown or seize another owner's resource. Continue only within the "
+                    "existing approval policy and reuse completed work. If a previous operation or owner "
+                    "is still active, observe it to completion or retain the genuine boundary. "
+                    "Use read-only cluster and Cowtail tools and call job.reconcile with the verified "
+                    "prior_effects and resource_ownership before mutation tools are enabled."
+                )
+            elif result.get("claimed"):
+                recovery.allow_claimed_session(execution)
             return _ok(result=_compact_large_job_context(result))
+        if action == "job.reconcile":
+            job_id = _required(args, "job_id")
+            execution = recovery.current_execution()
+            if not recovery.owns_preflight(execution, job_id):
+                return _err("This execution does not own the reconciliation gate")
+            result = client.reconcile_job(job_id, {
+                "claimToken": _required(args, "claim_token"),
+                "priorEffects": _required(args, "prior_effects"),
+                "resourceOwnership": _required(args, "resource_ownership"),
+            })
+            if result.get("reconciled"):
+                recovery.finish_reconciliation(execution, job_id)
+            return _ok(result=result)
         if action == "job.get":
             return _ok(result=_compact_large_job_context(client.get_job(_required(args, "job_id"))))
         if action == "job.renew":

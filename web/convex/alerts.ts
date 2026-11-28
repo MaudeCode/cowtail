@@ -473,6 +473,10 @@ export const applyOwnerAction = internalMutation({
         status: "queued",
         nextAttemptAt: args.now,
         attempts: 0,
+        execution: undefined,
+        recoveryPending: undefined,
+        reconciliation: undefined,
+        recoveryFrom: undefined,
         claimedBy: undefined,
         claimToken: undefined,
         claimedAt: undefined,
@@ -493,6 +497,7 @@ export const applyOwnerAction = internalMutation({
         await ctx.db.patch(delivery._id, {
           status: "pending",
           attempts: 0,
+          jobAttempts: 0,
           lastAttemptAt: undefined,
           nextAttemptAt: args.now,
           lastStatusCode: undefined,

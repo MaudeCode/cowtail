@@ -5,6 +5,13 @@ import type { MutationCtx } from "./_generated/server";
 import { patchAlert } from "./alerts";
 import { recordAlertDispatch, recordAlertHermesUpdate } from "./items";
 
+const executionValidator = v.object({
+  deliveryId: v.id("jobDeliveries"),
+  admissionId: v.string(),
+  sessionId: v.string(),
+  generation: v.number(),
+});
+
 const EVIDENCE_OUTPUT_LIMIT_BYTES = 4096;
 const EVIDENCE_TRUNCATED_MARKER = "\n… [output truncated]";
 
@@ -121,6 +128,7 @@ export const claim = internalMutation({
     workerId: v.string(),
     claimToken: v.string(),
     leaseSeconds: v.number(),
+    execution: v.optional(executionValidator),
     now: v.number(),
   },
   handler: async (ctx, args) => {
@@ -133,12 +141,33 @@ export const claim = internalMutation({
           )
           .first();
 
-    if (!job || job.status !== "queued" || job.nextAttemptAt > args.now) {
+    if (
+      !job ||
+      job.status !== "queued" ||
+      job.nextAttemptAt > args.now ||
+      job.attempts >= job.maxAttempts
+    ) {
       return null;
+    }
+
+    if (args.execution) {
+      const delivery = await ctx.db.get(args.execution.deliveryId);
+      if (!delivery || delivery.jobId !== job._id || (delivery.jobAttempts ?? 0) !== job.attempts)
+        return null;
+    }
+    if (job.recoveryPending) {
+      if (
+        !args.execution ||
+        args.execution.admissionId === job.recoveryFrom?.admissionId ||
+        args.execution.sessionId === job.recoveryFrom?.sessionId ||
+        (await recoveryHeld(ctx, job))
+      )
+        return null;
     }
 
     await ctx.db.patch(job._id, {
       status: "claimed",
+      execution: args.execution,
       claimedBy: args.workerId,
       claimToken: args.claimToken,
       claimedAt: args.now,
@@ -180,6 +209,8 @@ export const complete = internalMutation({
     if (!job || job.status !== "claimed" || job.claimToken !== args.claimToken) {
       throw new Error("job is not claimed by this token");
     }
+    if (job.recoveryPending)
+      throw new Error("reconcile prior execution before completing this job");
     await resolvedMembers(ctx, await investigationMemberIds(ctx, job));
     await ctx.db.patch(args.id, {
       status: "done",
@@ -218,6 +249,8 @@ export const completeBatch = internalMutation({
       throw new Error("job is not claimed by this token");
     }
 
+    if (job.recoveryPending)
+      throw new Error("reconcile prior execution before completing this job");
     const memberIds = await investigationMemberIds(ctx, job);
     const expected = new Set(memberIds.map(String));
     const received = new Set(args.results.map((result) => String(result.alertId)));
@@ -275,6 +308,132 @@ export const completeBatch = internalMutation({
   },
 });
 
+async function enqueueClaimRetry(ctx: MutationCtx, job: Doc<"investigationJobs">, now: number) {
+  const delay = Math.min(60 * 60 * 1000, 60 * 1000 * 5 ** Math.max(job.attempts - 1, 0));
+  const nextAttemptAt = now + delay;
+  // A new delivery ID is required: Hermes deduplicates the previous request.
+  await ctx.db.insert("jobDeliveries", {
+    jobId: job._id,
+    target: "hermes:cowtail-alert-job",
+    status: "pending",
+    attempts: 0,
+    jobAttempts: job.attempts,
+    nextAttemptAt,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return nextAttemptAt;
+}
+
+async function recoveryHeld(ctx: MutationCtx, job: Doc<"investigationJobs">) {
+  const event = await ctx.db.get(job.sourceEventId);
+  if (!event || job.errorHistory.some((error) => !error.retryable)) return true;
+  const members = await Promise.all(
+    (event.investigationAlertIds ?? [job.alertId]).map((id) => ctx.db.get(id)),
+  );
+  return members.some((alert) => !alert || alert.ownerDisposition);
+}
+
+export const expiredExecutions = internalQuery({
+  args: { now: v.number(), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { now, cursor }) => {
+    const page = await ctx.db
+      .query("investigationJobs")
+      .withIndex("by_status_leaseUntil", (q) =>
+        q.eq("status", "claimed").gt("leaseUntil", 0).lte("leaseUntil", now),
+      )
+      .paginate({ cursor, numItems: 20 });
+    return {
+      cursor: page.isDone ? null : page.continueCursor,
+      jobs: page.page.flatMap((job) =>
+        job.execution ? [{ jobId: job._id, execution: job.execution }] : [],
+      ),
+    };
+  },
+});
+
+export const recoverStoppedExecution = internalMutation({
+  args: {
+    id: v.id("investigationJobs"),
+    execution: executionValidator,
+    outcome: v.union(v.literal("completed"), v.literal("failed")),
+    now: v.number(),
+  },
+  handler: async (ctx, { id, execution, outcome, now }) => {
+    const job = await ctx.db.get(id);
+    if (
+      !job ||
+      job.status !== "claimed" ||
+      job.leaseUntil === undefined ||
+      job.leaseUntil > now ||
+      job.execution?.deliveryId !== execution.deliveryId ||
+      job.execution.admissionId !== execution.admissionId ||
+      job.execution.sessionId !== execution.sessionId ||
+      job.execution.generation !== execution.generation ||
+      (await recoveryHeld(ctx, job))
+    ) {
+      return { status: "unchanged" };
+    }
+    const exhausted = job.attempts >= job.maxAttempts;
+    const error = exhausted
+      ? `Hermes execution ${outcome} without settling the investigation; claim attempt limit reached`
+      : `Hermes execution ${outcome} without settling the investigation; scheduling a replacement`;
+    const nextAttemptAt = exhausted ? job.nextAttemptAt : await enqueueClaimRetry(ctx, job, now);
+    // Holding the job read and writing both rows in one transaction fences duplicate reports,
+    // renewals, owner dispositions and other terminal mutations.
+    await ctx.db.patch(id, {
+      status: exhausted ? "deadletter" : "queued",
+      nextAttemptAt,
+      claimedBy: undefined,
+      claimToken: undefined,
+      claimedAt: undefined,
+      leaseUntil: undefined,
+      execution: undefined,
+      recoveryPending: !exhausted,
+      reconciliation: undefined,
+      recoveryFrom: execution,
+      lastError: error,
+      errorHistory: [
+        ...job.errorHistory,
+        { at: now, phase: "execution-recovery", error, retryable: !exhausted },
+      ],
+      updatedAt: now,
+      ...(exhausted ? { deadletteredAt: now, deadletterReason: error } : {}),
+    });
+    return { status: exhausted ? "deadletter" : "queued" };
+  },
+});
+
+export const reconcileRecovery = internalMutation({
+  args: {
+    id: v.id("investigationJobs"),
+    claimToken: v.string(),
+    priorEffects: v.string(),
+    resourceOwnership: v.string(),
+    now: v.number(),
+  },
+  handler: async (ctx, { id, claimToken, priorEffects, resourceOwnership, now }) => {
+    const job = await ctx.db.get(id);
+    if (
+      !job ||
+      job.status !== "claimed" ||
+      job.claimToken !== claimToken ||
+      !job.recoveryPending ||
+      !job.execution ||
+      job.leaseUntil === undefined ||
+      job.leaseUntil <= now ||
+      (await recoveryHeld(ctx, job))
+    )
+      return { reconciled: false };
+    await ctx.db.patch(id, {
+      recoveryPending: false,
+      reconciliation: { priorEffects, resourceOwnership, at: now },
+      updatedAt: now,
+    });
+    return { reconciled: true };
+  },
+});
+
 export const fail = internalMutation({
   args: {
     id: v.id("investigationJobs"),
@@ -299,29 +458,17 @@ export const fail = internalMutation({
     ];
     const shouldRetry = args.retryable && job.attempts < job.maxAttempts;
     if (shouldRetry) {
-      const delayMs = Math.min(60 * 60 * 1000, 60 * 1000 * 5 ** Math.max(job.attempts - 1, 0));
+      const nextAttemptAt = await enqueueClaimRetry(ctx, job, args.now);
       await ctx.db.patch(args.id, {
         status: "queued",
-        nextAttemptAt: args.now + delayMs,
+        execution: undefined,
+        nextAttemptAt,
         claimedBy: undefined,
         claimToken: undefined,
         claimedAt: undefined,
         leaseUntil: undefined,
         lastError: args.error,
         errorHistory,
-        updatedAt: args.now,
-      });
-      // The previous delivery acknowledged the preceding claim. Retrying that
-      // request ID would only hit Hermes deduplication, so persist a fresh one
-      // atomically with releasing the claim. The existing cron drains it.
-      await ctx.db.insert("jobDeliveries", {
-        jobId: job._id,
-        target: "hermes:cowtail-alert-job",
-        status: "pending",
-        attempts: 0,
-        jobAttempts: job.attempts,
-        nextAttemptAt: args.now + delayMs,
-        createdAt: args.now,
         updatedAt: args.now,
       });
       return { status: "queued" };
@@ -353,6 +500,10 @@ export const requeue = internalMutation({
       status: "queued",
       nextAttemptAt: args.now,
       attempts: 0,
+      execution: undefined,
+      recoveryPending: undefined,
+      reconciliation: undefined,
+      recoveryFrom: undefined,
       claimedBy: undefined,
       claimToken: undefined,
       claimedAt: undefined,

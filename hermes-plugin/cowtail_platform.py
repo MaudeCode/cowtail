@@ -27,6 +27,7 @@ from typing import Any, Callable
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 
+from . import recovery
 from .cowtail_client import CowtailClient, CowtailError, cowtail_available, cowtail_platform_enabled
 from .runbook import execute_run, maudeutils_configured, runbook_catalog
 
@@ -239,6 +240,7 @@ class CowtailAdapter(BasePlatformAdapter):
     def __init__(self, config: PlatformConfig):
         super().__init__(config=config, platform=Platform(PLATFORM))
         self._client = CowtailClient()
+        self._recovery_cursor: str | None = None
         self._tasks: list[asyncio.Task] = []
         # Answers Hermes applied whose confirmation Cowtail has not taken yet, by response id.
         # A lease that lapses brings the answer back; it is confirmed again, never reapplied.
@@ -257,13 +259,16 @@ class CowtailAdapter(BasePlatformAdapter):
             logger.warning("[cowtail] COWTAIL_API_BASE and COWTAIL_WORKER_TOKEN are required")
             return False
         self._mark_connected()
-        self._tasks = [
-            asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.apply_responses)),
-            asyncio.create_task(self._every(HEARTBEAT_SECONDS, self.send_heartbeat)),
-            asyncio.create_task(self._every(POSTMORTEM_POLL_SECONDS, self.deliver_postmortem_requests)),
-        ]
-        if maudeutils_configured():
-            self._tasks.append(asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.start_runbook_runs)))
+        if recovery.route():
+            self._tasks.append(asyncio.create_task(self._every(60, self.recover_stopped_jobs)))
+        if cowtail_platform_enabled():
+            self._tasks.extend([
+                asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.apply_responses)),
+                asyncio.create_task(self._every(HEARTBEAT_SECONDS, self.send_heartbeat)),
+                asyncio.create_task(self._every(POSTMORTEM_POLL_SECONDS, self.deliver_postmortem_requests)),
+            ])
+            if maudeutils_configured():
+                self._tasks.append(asyncio.create_task(self._every(RESPONSE_POLL_SECONDS, self.start_runbook_runs)))
         return True
 
     async def disconnect(self) -> None:
@@ -352,6 +357,9 @@ class CowtailAdapter(BasePlatformAdapter):
             return []
         return None
 
+    async def recover_stopped_jobs(self) -> None:
+        self._recovery_cursor = await asyncio.to_thread(recovery.sweep, self._client, self._recovery_cursor)
+
     async def send_heartbeat(self) -> None:
         snapshot = await asyncio.to_thread(collect_snapshot)
         await asyncio.to_thread(self._client.heartbeat, snapshot)
@@ -359,6 +367,8 @@ class CowtailAdapter(BasePlatformAdapter):
     # -- Items out -----------------------------------------------------------------------
 
     async def _post_item(self, body: str, title: str, **fields: Any) -> SendResult:
+        if not cowtail_platform_enabled():
+            return SendResult(success=False, error="Cowtail is connected for investigation recovery only")
         payload = {"source": "hermes", "title": _title(title), "body": body[:BODY_LIMIT], **fields}
         try:
             created = await asyncio.to_thread(self._client.create_item, payload)
@@ -369,6 +379,8 @@ class CowtailAdapter(BasePlatformAdapter):
     async def send(
         self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
+        if not cowtail_platform_enabled():
+            return SendResult(success=False, error="Cowtail is connected for investigation recovery only")
         metadata = metadata or {}
         if chat_id.startswith(INCIDENT_CHAT_PREFIX):
             # Hermes's reply to a postmortem request is the incident's postmortem, not an item.
@@ -446,7 +458,7 @@ class CowtailAdapter(BasePlatformAdapter):
 def _env_enablement() -> dict | None:
     """Seeds the cron home channel so ``deliver: cowtail`` resolves once the platform is on."""
     if not cowtail_platform_enabled():
-        return None
+        return {"enabled": True} if recovery.route() and cowtail_available() else None
     from gateway.platforms._shared import seed_extra_from_env
 
     return seed_extra_from_env((), home_env="COWTAIL_HOME_CHANNEL", home_default="owner")
@@ -459,8 +471,8 @@ def register_platform(ctx) -> None:
         adapter_factory=CowtailAdapter,
         check_fn=cowtail_available,
         validate_config=lambda config: cowtail_available(),
-        is_connected=lambda config: cowtail_platform_enabled(),
-        required_env=["COWTAIL_API_BASE", "COWTAIL_WORKER_TOKEN", "COWTAIL_PLATFORM_ENABLED"],
+        is_connected=lambda config: cowtail_available() and (cowtail_platform_enabled() or bool(recovery.route())),
+        required_env=["COWTAIL_API_BASE", "COWTAIL_WORKER_TOKEN"],
         env_enablement_fn=_env_enablement,
         cron_deliver_env_var="COWTAIL_HOME_CHANNEL",
         max_message_length=BODY_LIMIT,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .recovery import guard_reconciliation, clear_preflight
 from .handlers import COWTAIL_SCHEMA, check_cowtail_available, handle_cowtail
 
 
@@ -15,6 +16,8 @@ def register(ctx) -> None:
         check_fn=check_cowtail_available,
         emoji="🐄",
     )
+    ctx.register_hook("pre_tool_call", guard_reconciliation)
+    ctx.register_hook("on_session_end", clear_preflight)
     try:
         from .cowtail_platform import register_platform
     except ImportError:
