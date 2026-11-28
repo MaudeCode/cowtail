@@ -70,6 +70,13 @@ final class PushRegistrationTests: XCTestCase {
     }
 
     func testRestoringAfterAnIncompleteKeychainReadPreservesTheProviderAndRenewalCredential() async {
+        let previousAPI = sessions.api
+        defer { sessions.api = previousAPI }
+        let renewal = "POST /api/auth/oidc/refresh"
+        let transport = RecordingTransport(routes: [
+            renewal: .init(json: #"{"ok":true,"session":{"token":"renewed","userId":"owner","expiresAt":4102444800000,"refreshToken":"rotated"}}"#),
+        ])
+        sessions.api = CowtailAPI(transport: transport)
         let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
         for provider in ["Pocket ID", AppSessionManager.appleProvider] {
             let refresh = provider == AppSessionManager.appleProvider ? nil : "refresh"
@@ -86,9 +93,10 @@ final class PushRegistrationTests: XCTestCase {
             keychain.set("saved", for: "appSession.token")
             let restored = await sessions.refreshSessionIfPossible()
             XCTAssertEqual(sessions.provider, provider)
-            XCTAssertEqual(restored, "saved")
+            XCTAssertEqual(restored, refresh == nil ? "saved" : "renewed")
             sessions.invalidateSession()
         }
+        XCTAssertEqual(transport.requests(renewal).count, 1)
     }
 
     /// A lapsed session that can renew goes through renewal instead of resending a token the server refuses.
