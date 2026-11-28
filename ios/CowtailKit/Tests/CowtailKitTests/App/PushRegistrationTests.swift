@@ -70,14 +70,22 @@ final class PushRegistrationTests: XCTestCase {
     }
 
     func testRestoringAfterAnIncompleteKeychainReadPreservesTheProviderAndRenewalCredential() async {
+        let previousAPI = sessions.api
+        defer { sessions.api = previousAPI }
+        let renewal = "POST /api/auth/oidc/refresh"
+        let transport = RecordingTransport(routes: [
+            renewal: .init(json: #"{"ok":true,"session":{"token":"renewed","userId":"owner","expiresAt":4102444800000,"refreshToken":"rotated"}}"#),
+        ])
+        sessions.api = CowtailAPI(transport: transport)
         let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
         for provider in ["Pocket ID", AppSessionManager.appleProvider] {
             let refresh = provider == AppSessionManager.appleProvider ? nil : "refresh"
-            sessions.store(
-                AppAuthSession(token: "saved", userID: "owner", expiresAt: .distantFuture, refreshToken: refresh),
-                provider: provider
-            )
-            keychain.remove("appSession.token")
+            // An installation from before the single Keychain record.
+            keychain.set("owner", for: "appSession.userID")
+            if let refresh {
+                keychain.set(refresh, for: "appSession.oidcRefreshToken")
+            }
+            UserDefaults.cowtail.set(provider, forKey: "appSession.provider")
             sessions.configure()
             XCTAssertNil(sessions.validSessionToken())
             XCTAssertEqual(keychain.string(for: "appSession.oidcRefreshToken"), refresh)
@@ -85,9 +93,10 @@ final class PushRegistrationTests: XCTestCase {
             keychain.set("saved", for: "appSession.token")
             let restored = await sessions.refreshSessionIfPossible()
             XCTAssertEqual(sessions.provider, provider)
-            XCTAssertEqual(restored, "saved")
+            XCTAssertEqual(restored, refresh == nil ? "saved" : "renewed")
             sessions.invalidateSession()
         }
+        XCTAssertEqual(transport.requests(renewal).count, 1)
     }
 
     /// A lapsed session that can renew goes through renewal instead of resending a token the server refuses.

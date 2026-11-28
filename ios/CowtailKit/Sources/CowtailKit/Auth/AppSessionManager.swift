@@ -29,6 +29,16 @@ final class AppSessionManager: ObservableObject {
     var api: any AuthAPIClient = CowtailAPI()
     private let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
     private let defaults = UserDefaults.cowtail
+    private struct StoredSession: Codable {
+        let session: AppAuthSession
+        let provider: String
+        let renewAfter: Date
+    }
+
+    private let storedSessionKey = "appSession.credentials"
+    private var pendingSave: StoredSession?
+    private var renewAfter = Date.distantPast
+    private var renewalRefused = false
     private let tokenKey = "appSession.token"
     private let oidcRefreshKey = "appSession.oidcRefreshToken"
     private let userIDKey = "appSession.userID"
@@ -45,7 +55,20 @@ final class AppSessionManager: ObservableObject {
 
     func configure() {
         isUITesting = false
+        if pendingSave != nil {
+            persistPendingSession()
+            return
+        }
         do {
+            if let value = try keychain.readString(for: storedSessionKey) {
+                let record = try JSONDecoder().decode(StoredSession.self, from: Data(value.utf8))
+                apply(record)
+                needsKeychainRestore = false
+                sessionState = hasValidPersistedSession ? .ready : .idle
+                return
+            }
+            // Sessions saved by earlier releases upgrade on their next successful renewal.
+            renewAfter = .distantPast
             let token = try keychain.readString(for: tokenKey)
             let refresh = try keychain.readString(for: oidcRefreshKey)
             let savedUserID = try keychain.readString(for: userIDKey)
@@ -66,6 +89,7 @@ final class AppSessionManager: ObservableObject {
 
     var hasValidPersistedSession: Bool {
         guard
+            !renewalRefused,
             let sessionToken,
             !sessionToken.isEmpty,
             let userID,
@@ -90,7 +114,15 @@ final class AppSessionManager: ObservableObject {
     /// Signed in while an Apple identity or a session from any provider exists; the app's root
     /// shows the tabs only then.
     var isSignedIn: Bool {
-        AppleAccountManager.shared.userID != nil || hasValidPersistedSession || hasRenewableOIDCSession
+        signedInUserID != nil
+    }
+
+    var signedInUserID: String? {
+        guard !renewalRefused else { return nil }
+        if hasValidPersistedSession || hasRenewableOIDCSession {
+            return userID
+        }
+        return isAppleSession ? AppleAccountManager.shared.userID : nil
     }
 
     private var hasRenewableOIDCSession: Bool {
@@ -99,7 +131,7 @@ final class AppSessionManager: ObservableObject {
     }
 
     /// Sessions stored before providers were recorded came from Apple.
-    private var isAppleSession: Bool {
+    var isAppleSession: Bool {
         (provider ?? Self.appleProvider) == Self.appleProvider
     }
 
@@ -119,24 +151,23 @@ final class AppSessionManager: ObservableObject {
         if needsKeychainRestore {
             configure()
         }
-        guard !needsKeychainRestore else { return nil }
-
-        if let token = validSessionToken() {
-            print("[roundup-debug] AppSessionManager.refreshSessionIfPossible using cached session")
-            logger.debug("refreshSessionIfPossible using cached session")
-            return token
-        }
+        guard !needsKeychainRestore || pendingSave != nil else { return nil }
 
         if let refreshTask {
-            print("[roundup-debug] AppSessionManager.refreshSessionIfPossible awaiting in-flight refresh")
-            logger.debug("refreshSessionIfPossible awaiting in-flight refresh")
             return await refreshTask.value
         }
-
         if hasRenewableOIDCSession, let provider, let sessionToken, let oidcRefreshToken {
-            return await renewSession(provider: provider) { [api] in
+            guard !renewalRefused else { return nil }
+            if Date() < renewAfter, let valid = validSessionToken() {
+                return valid
+            }
+
+            return await renewSession(provider: provider, fallback: validSessionToken()) { [api] in
                 try await api.refreshOIDCSession(sessionToken: sessionToken, refreshToken: oidcRefreshToken)
             }
+        }
+        if let token = validSessionToken() {
+            return token
         }
 
         guard isAppleSession else { return nil }
@@ -164,13 +195,14 @@ final class AppSessionManager: ObservableObject {
 
     private func renewSession(
         provider: String,
+        fallback: String? = nil,
         request: @escaping @Sendable () async throws -> AppAuthSession?
     ) async -> String? {
         sessionState = .refreshing
         lastError = nil
         let refreshToken = UUID()
         self.refreshToken = refreshToken
-        let task = Task<String?, Never> {
+        let task = Task<String?, Never> { [api] in
             defer {
                 if self.refreshToken == refreshToken {
                     self.refreshTask = nil
@@ -179,20 +211,33 @@ final class AppSessionManager: ObservableObject {
             }
             do {
                 let session = try await request()
-                guard self.refreshToken == refreshToken, !Task.isCancelled else { return nil }
+                guard self.refreshToken == refreshToken, !Task.isCancelled else {
+                    // A sign-out or a new sign-in won while the server was issuing a bearer.
+                    if let session {
+                        try await api.logout(sessionToken: session.token)
+                    }
+                    return nil
+                }
                 guard let session else {
                     // Only a sign-out drops a session: keep it, and say renewal failed.
                     self.sessionState = .failed
-                    self.lastError = "Cowtail did not renew the session."
+                    self.renewalRefused = true
+                    self.lastError = "Sign in with \(provider) again to renew your session."
                     return nil
                 }
-                self.store(session, provider: provider)
+                self.install(session, provider: provider)
                 return session.token
             } catch {
                 guard self.refreshToken == refreshToken, !Task.isCancelled else { return nil }
                 self.logger.error("Session renewal failed: \(error.localizedDescription, privacy: .public)")
                 self.sessionState = .failed
                 self.lastError = error.localizedDescription
+                if let fallback, NetworkErrorClassifier.isTransientConnectionFailure(error) || (error as? CowtailAPIError)?.isTemporaryFailure == true {
+                    // The server still authorizes every use of this bearer. Back off after a
+                    // temporary failure without replaying the caller's operation.
+                    self.renewAfter = Date().addingTimeInterval(60)
+                    return fallback
+                }
                 return nil
             }
         }
@@ -217,7 +262,6 @@ final class AppSessionManager: ObservableObject {
     func invalidateSession() {
         print("[roundup-debug] AppSessionManager.invalidateSession")
         logger.debug("invalidateSession")
-        refreshTask?.cancel()
         refreshTask = nil
         refreshToken = nil
         clearSession()
@@ -227,6 +271,7 @@ final class AppSessionManager: ObservableObject {
     @discardableResult
     func signOut() -> Task<Void, Never>? {
         let token = sessionToken
+        let renewal = refreshTask
         invalidateSession()
         guard let token, !token.isEmpty else { return nil }
         return Task { [api, logger] in
@@ -235,6 +280,7 @@ final class AppSessionManager: ObservableObject {
             } catch {
                 logger.error("signOut logout failed: \(error.localizedDescription, privacy: .public)")
             }
+            _ = await renewal?.value
         }
     }
 
@@ -245,7 +291,7 @@ final class AppSessionManager: ObservableObject {
         // A completed interactive Apple sign-in may replace an incomplete saved account.
         // A background callback cannot assume an unreadable session belongs to Apple.
         if needsKeychainRestore || !isAppleSession {
-            guard !hasValidPersistedSession, !hasRenewableOIDCSession,
+            guard !hasValidPersistedSession, !hasRenewableOIDCSession || renewalRefused,
                   AppleAccountManager.shared.identityToken != nil else { return }
             invalidateSession()
         }
@@ -268,25 +314,47 @@ final class AppSessionManager: ObservableObject {
 
     /// The one place a new session is kept, whichever provider signed in.
     func store(_ session: AppAuthSession, provider: String) {
+        // An interactive sign-in supersedes any older request still returning.
+        refreshTask = nil
+        refreshToken = nil
+        install(session, provider: provider)
+    }
+
+    private func install(_ session: AppAuthSession, provider: String) {
+        let day: TimeInterval = 86400
+        let record = StoredSession(session: session, provider: provider,
+                                   renewAfter: min(Date().addingTimeInterval(day), session.expiresAt.addingTimeInterval(-day)))
+        apply(record)
         needsKeychainRestore = false
-        sessionToken = session.token
-        oidcRefreshToken = session.refreshToken
-        userID = session.userID
-        expiresAt = session.expiresAt
-        self.provider = provider
+        renewalRefused = false
         sessionState = .ready
         lastError = nil
+        pendingSave = record
+        persistPendingSession()
+    }
 
-        if let refreshToken = session.refreshToken {
-            keychain.set(refreshToken, for: oidcRefreshKey)
-        } else {
-            keychain.remove(oidcRefreshKey)
+    private func apply(_ record: StoredSession) {
+        sessionToken = record.session.token
+        oidcRefreshToken = record.session.refreshToken
+        userID = record.session.userID
+        expiresAt = record.session.expiresAt
+        provider = record.provider
+        renewAfter = record.renewAfter
+    }
+
+    private func persistPendingSession() {
+        guard let pendingSave else { return }
+        do {
+            let data = try JSONEncoder().encode(pendingSave)
+            try keychain.write(String(decoding: data, as: UTF8.self), for: storedSessionKey)
+            self.pendingSave = nil
+            needsKeychainRestore = false
+            lastError = nil
+            removeLegacySession()
+        } catch {
+            needsKeychainRestore = true
+            lastError = "Cowtail could not save the renewed session. Unlock the device to retry."
         }
-        keychain.set(session.token, for: tokenKey)
-        keychain.set(session.userID, for: userIDKey)
-        defaults.set(session.userID, forKey: userIDKey)
-        defaults.set(session.expiresAt.timeIntervalSince1970, forKey: expiresAtKey)
-        defaults.set(provider, forKey: providerKey)
     }
 
     func resetForUITesting() {
@@ -329,6 +397,14 @@ final class AppSessionManager: ObservableObject {
     }
 
     private func clearStoredSession() {
+        pendingSave = nil
+        renewalRefused = false
+        renewAfter = .distantPast
+        keychain.remove(storedSessionKey)
+        removeLegacySession()
+    }
+
+    private func removeLegacySession() {
         keychain.remove(tokenKey)
         keychain.remove(oidcRefreshKey)
         keychain.remove(userIDKey)
