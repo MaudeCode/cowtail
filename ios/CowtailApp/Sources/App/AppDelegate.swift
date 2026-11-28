@@ -1,6 +1,10 @@
 import UIKit
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    func applicationProtectedDataDidBecomeAvailable(_ application: UIApplication) {
+        AppRuntime.restoreCredentialsIfNeeded()
+    }
+
     func application(
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data

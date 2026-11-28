@@ -33,6 +33,15 @@ final class AppRuntime {
         self.roundupDataClient = roundupDataClient
     }
 
+    static func restoreCredentialsIfNeeded() {
+        if AppleAccountManager.shared.needsKeychainRestore {
+            AppleAccountManager.shared.configure()
+        }
+        if AppSessionManager.shared.needsKeychainRestore {
+            AppSessionManager.shared.configure()
+        }
+    }
+
     static func current() -> AppRuntime {
         currentRuntime
     }

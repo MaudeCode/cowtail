@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Sign-in while no session or Apple identity exists, the notification step after a sign-in, then the tabs.
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     // Observed so an Apple sign-in or sign-out redraws the root.
     @EnvironmentObject private var appleAccountManager: AppleAccountManager
     @EnvironmentObject private var appSessionManager: AppSessionManager
@@ -23,6 +24,11 @@ struct RootView: View {
                             .accessibilityHidden(true)
                             .allowsHitTesting(false)
                     }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                AppRuntime.restoreCredentialsIfNeeded()
             }
         }
         .onChange(of: appSessionManager.isSignedIn) { _, isSignedIn in
