@@ -38,7 +38,7 @@ import { withRunbookCalls } from "./runbookModel";
 import { approvalsNeedAuth, preferencesRow } from "./notificationPreferences";
 import { dateOnlyForInstant, resolveRoundupWindow } from "./roundup";
 import { cowtailOwnerUserId } from "./owner";
-import { sourceInfo } from "./sources";
+import { sourceByTokenHash, sourceInfo } from "./sources";
 import { groupAlertItem, incidentMembers, incidentSummary, settleIncident } from "./incidents";
 
 type ItemFields = WithoutSystemFields<Doc<"items">>;
@@ -624,6 +624,53 @@ export async function createItem(
   );
   return { id: String(id), created: true, occurrenceCount: 1 };
 }
+
+// Authenticate and accept in the same transaction so token rotation and concurrent retries
+// cannot race the insert. A message key survives acknowledgement and resolution.
+export const acceptMessage = internalMutation({
+  args: {
+    tokenHash: v.string(),
+    message: v.string(),
+    title: v.optional(v.string()),
+    priority: v.optional(v.union(v.literal("normal"), v.literal("urgent"), v.literal("silent"))),
+    links: createItemRequest.fields.links,
+    idempotencyKey: v.optional(v.string()),
+  },
+  returns: v.union(v.null(), v.object({ id: v.id("items"), created: v.boolean() })),
+  handler: async (ctx, { tokenHash, message, title, priority, links, idempotencyKey }) => {
+    const sender = await sourceByTokenHash(ctx, tokenHash);
+    if (!sender?.enabled) return null;
+    if (idempotencyKey !== undefined) {
+      const existing = await ctx.db
+        .query("items")
+        .withIndex("by_source_messageKey", (q) =>
+          q.eq("source", sender.slug).eq("message.idempotencyKey", idempotencyKey),
+        )
+        .unique();
+      if (existing) return { id: existing._id, created: false };
+    }
+    const urgency = priority === "urgent" ? "now" : priority === "silent" ? "whenever" : "today";
+    const id = await transitionItem(
+      ctx,
+      {
+        create: {
+          source: sender.slug,
+          kind: "fyi",
+          urgency,
+          title: title ?? sender.displayName,
+          body: message,
+          links: links ?? [],
+          actions: [],
+          context: {},
+          message: { title, idempotencyKey },
+        },
+      },
+      "open",
+      { actor: sender.slug, at: Date.now() },
+    );
+    return { id, created: true };
+  },
+});
 
 export const create = internalMutation({
   args: { ...createItemRequest.fields, now: v.number() },

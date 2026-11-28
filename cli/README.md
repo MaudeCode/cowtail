@@ -2,6 +2,16 @@
 
 Cowtail CLI for Cowtail backend actions.
 
+## Send a message
+
+Configure the CLI with the registered service's token as `pushBearerToken`, then run
+`cowtail send "Your hold is ready for pickup"`. The equivalent request is
+`POST /api/messages` with that bearer token and JSON `{"message":"Your hold is ready for pickup"}`.
+The response includes the accepted message ID even if the recipient has no device online.
+Supply `--idempotency-key` when retrying a send, or omit it to create a separate message.
+Optional `--title`, `--link "View hold=https://library.example/hold"` and
+`--priority normal|urgent|silent` control the presentation.
+
 ## Goals
 - Ship as an npm package that runs on Node
 - Keep the codebase in TypeScript

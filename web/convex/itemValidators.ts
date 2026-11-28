@@ -52,6 +52,10 @@ export const itemFields = {
   links: v.array(v.object({ label: v.string(), url: v.string() })),
   context: v.record(v.string(), v.string()),
   dedupeKey: v.optional(v.string()),
+  // Present only on general-purpose messages. Keep the original optional title.
+  message: v.optional(
+    v.object({ title: v.optional(v.string()), idempotencyKey: v.optional(v.string()) }),
+  ),
   occurrenceCount: v.number(),
   actions: v.array(itemActionValidator),
   replyTo: v.optional(v.record(v.string(), v.any())),

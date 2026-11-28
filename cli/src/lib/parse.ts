@@ -152,3 +152,7 @@ export function parseKeyValuePairs(
     return [key, entry];
   });
 }
+
+export function parseLinks(values: string[] | undefined) {
+  return values && parseKeyValuePairs(values, "link").map(([label, url]) => ({ label, url }));
+}

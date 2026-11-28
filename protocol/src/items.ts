@@ -237,6 +237,21 @@ export const itemCreateRequestSchema = z.object({
   remindAt: timestampSchema.optional(),
 });
 
+// A registered service can send an ordinary notification with text alone.
+export const messageSendRequestSchema = z.strictObject({
+  message: nonEmptyStringSchema.max(20_000),
+  title: nonEmptyStringSchema.max(500).optional(),
+  priority: z.enum(["normal", "urgent", "silent"]).optional(),
+  links: z.array(itemLinkSchema).max(20).optional(),
+  idempotencyKey: nonEmptyStringSchema.max(500).optional(),
+});
+
+export const messageAcceptedSchema = z.object({
+  ok: z.literal(true),
+  id: nonEmptyStringSchema,
+  created: z.boolean(),
+});
+
 export const itemCreateResponseSchema = z.object({
   ok: z.literal(true),
   id: nonEmptyStringSchema,

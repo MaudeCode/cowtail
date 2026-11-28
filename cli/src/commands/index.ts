@@ -1,3 +1,4 @@
+import { SendCommand } from "./items/send.ts";
 import { alertCommandGroup } from "./alert/index.ts";
 import { configCommandGroup } from "./config/index.ts";
 import { fixCommandGroup } from "./fix/index.ts";
@@ -38,6 +39,11 @@ export const leafCommandTargets = new Map(
 );
 
 export const standaloneCommands = [
+  {
+    path: "send",
+    description: "Send a message from a registered service.",
+    commandClass: SendCommand,
+  },
   {
     path: `notify`,
     description: NOTIFY_DESCRIPTION,

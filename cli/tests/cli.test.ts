@@ -921,6 +921,8 @@ describe("built binary source commands", () => {
       };
       if (request.headers.authorization !== "Bearer secret-token") {
         response.writeHead(401).end();
+      } else if (line === "POST /actions/api/messages") {
+        reply({ id: "msg-1", created: true });
       } else if (line === "POST /actions/api/sources") {
         reply({ source, token: "cts_first" });
       } else if (line === "GET /actions/api/sources") {
@@ -959,6 +961,16 @@ describe("built binary source commands", () => {
 
   beforeEach(() => {
     requests.length = 0;
+  });
+
+  test("send accepts message text as its only argument", async () => {
+    expect(await run("send", "Your hold is ready")).toMatchObject({
+      status: 0,
+      stdout: "Accepted message msg-1\n",
+    });
+    expect(requests.map(({ line, body }) => [line, JSON.parse(body.toString())])).toEqual([
+      ["POST /actions/api/messages", { message: "Your hold is ready" }],
+    ]);
   });
 
   test("sources add registers the source and prints its token once", async () => {
