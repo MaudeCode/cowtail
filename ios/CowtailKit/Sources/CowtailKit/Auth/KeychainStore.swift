@@ -39,6 +39,10 @@ struct KeychainStore {
     }
 
     func set(_ value: String, for key: String) {
+        try? write(value, for: key)
+    }
+
+    func write(_ value: String, for key: String) throws {
         #if COWTAIL_PACKAGE
             MemoryKeychain.items.withLock { $0[itemKey(key)] = value }
         #else
@@ -54,9 +58,15 @@ struct KeychainStore {
                 return
             }
 
+            guard updateStatus == errSecItemNotFound else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(updateStatus))
+            }
             var createQuery = query
             createQuery[kSecValueData as String] = data
-            SecItemAdd(createQuery as CFDictionary, nil)
+            let status = SecItemAdd(createQuery as CFDictionary, nil)
+            guard status == errSecSuccess else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            }
         #endif
     }
 

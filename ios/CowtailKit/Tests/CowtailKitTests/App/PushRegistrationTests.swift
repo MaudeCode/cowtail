@@ -73,11 +73,12 @@ final class PushRegistrationTests: XCTestCase {
         let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "Cowtail")
         for provider in ["Pocket ID", AppSessionManager.appleProvider] {
             let refresh = provider == AppSessionManager.appleProvider ? nil : "refresh"
-            sessions.store(
-                AppAuthSession(token: "saved", userID: "owner", expiresAt: .distantFuture, refreshToken: refresh),
-                provider: provider
-            )
-            keychain.remove("appSession.token")
+            // An installation from before the single Keychain record.
+            keychain.set("owner", for: "appSession.userID")
+            if let refresh {
+                keychain.set(refresh, for: "appSession.oidcRefreshToken")
+            }
+            UserDefaults.cowtail.set(provider, forKey: "appSession.provider")
             sessions.configure()
             XCTAssertNil(sessions.validSessionToken())
             XCTAssertEqual(keychain.string(for: "appSession.oidcRefreshToken"), refresh)

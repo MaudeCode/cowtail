@@ -112,6 +112,50 @@ final class OIDCSignInTests: XCTestCase {
         XCTAssertTrue(presenter.openedURLs.isEmpty)
     }
 
+    func testConcurrentActiveRequestsRenewOnceBeforeExpiryAndRestoreTheRotatedSession() async {
+        let route = "POST /api/auth/oidc/refresh"
+        let transport = RecordingTransport(routes: [
+            route: .init(json: #"{"ok":true,"session":{"token":"rotated","userId":"owner","expiresAt":4102444800000,"refreshToken":"next-grant"}}"#),
+        ])
+        sessions.api = CowtailAPI(transport: transport)
+        sessions.store(AppAuthSession(token: "original", userID: "owner", expiresAt: Date().addingTimeInterval(1800), refreshToken: "grant"), provider: "Pocket ID")
+        sessions.configure()
+        let manager = sessions
+        async let first = manager.refreshSessionIfPossible()
+        async let second = manager.refreshSessionIfPossible()
+        let results = await [first, second]
+        XCTAssertEqual(results, ["rotated", "rotated"])
+        XCTAssertEqual(transport.requests(route).count, 1)
+        sessions.configure()
+        XCTAssertEqual(sessions.validSessionToken(), "rotated")
+        XCTAssertEqual(sessions.provider, "Pocket ID")
+    }
+
+    func testTransientEarlyRenewalFailureKeepsTheBearerAndBacksOff() async {
+        let route = "POST /api/auth/oidc/refresh"
+        let transport = RecordingTransport(routes: [route: .init(failure: URLError(.notConnectedToInternet))])
+        sessions.api = CowtailAPI(transport: transport)
+        sessions.store(AppAuthSession(token: "original", userID: "owner", expiresAt: Date().addingTimeInterval(1800), refreshToken: "grant"), provider: "Pocket ID")
+        sessions.configure()
+        let first = await sessions.refreshSessionIfPossible()
+        let next = await sessions.refreshSessionIfPossible()
+        XCTAssertEqual([first, next], ["original", "original"])
+        XCTAssertEqual(transport.requests(route).count, 1)
+    }
+
+    func testRefusedRenewalOffersSignInWithoutLosingTheProvider() async {
+        let route = "POST /api/auth/oidc/refresh"
+        let transport = RecordingTransport(routes: [route: .init(status: .unauthorized, json: #"{"ok":false,"error":"Sign in again"}"#)])
+        sessions.api = CowtailAPI(transport: transport)
+        sessions.store(AppAuthSession(token: "old", userID: "owner", expiresAt: .distantPast, refreshToken: "grant"), provider: "Pocket ID")
+        sessions.configure()
+        let token = await sessions.refreshSessionIfPossible()
+        XCTAssertNil(token)
+        XCTAssertFalse(sessions.isSignedIn)
+        XCTAssertEqual(sessions.provider, "Pocket ID")
+        XCTAssertEqual(transport.requests(route).count, 1)
+    }
+
     func testSignOutRevokesTheSessionAndClearsItForEitherProvider() async {
         for provider in [AppSessionManager.appleProvider, "Pocket ID"] {
             let transport = RecordingTransport(routes: ["POST /api/auth/logout": .init(json: #"{"ok":true}"#)])

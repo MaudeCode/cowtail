@@ -368,7 +368,7 @@ final class NotificationManager: NSObject, ObservableObject {
             return "Cowtail can send alert notifications to this device."
         }
 
-        if pushUserID == nil {
+        if !appSessionManager.isSignedIn {
             return "Sign in once so Cowtail has a stable identifier for this device."
         }
 
@@ -432,7 +432,7 @@ final class NotificationManager: NSObject, ObservableObject {
             return
         }
 
-        guard pushUserID != nil else {
+        guard appSessionManager.isSignedIn else {
             serverRegistrationState = .waitingForIdentity
             serverRegistrationMessage = "Sign in to attach this device token to a Cowtail identity."
             return
@@ -505,28 +505,20 @@ final class NotificationManager: NSObject, ObservableObject {
 
     private static let signInAgainMessage = "Sign in again so Cowtail can verify this device."
 
-    /// The session's user when there is a session, else the Apple account's.
-    private var pushUserID: String? {
-        if appSessionManager.hasValidPersistedSession, let userID = appSessionManager.userID {
-            return userID
-        }
-        return AppleAccountManager.shared.userID
-    }
-
     /// The app session, made from the Apple identity when there is none yet; the Apple
     /// identity token itself when no session can be had.
     private func pushCredential() async -> PushCredential? {
         if let sessionToken = await appSessionManager.refreshSessionIfPossible() {
             return .session(sessionToken)
         }
-        if let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty {
+        if appSessionManager.isAppleSession, let identityToken = AppleAccountManager.shared.identityToken, !identityToken.isEmpty {
             return .appleIdentity(identityToken)
         }
         return nil
     }
 
     func appleIdentityDidChange() {
-        if AppleAccountManager.shared.userID == nil {
+        if !appSessionManager.isSignedIn {
             preferences = AppNotificationPreferences()
             dailyRoundupPreferenceRequiresSignIn = true
             dailyRoundupPreferenceError = nil
@@ -542,7 +534,7 @@ final class NotificationManager: NSObject, ObservableObject {
         }
 
         // Preferences belong to the session, whichever provider signed in.
-        guard AppleAccountManager.shared.userID != nil || appSessionManager.hasValidPersistedSession else {
+        guard appSessionManager.isSignedIn else {
             preferences = AppNotificationPreferences()
             dailyRoundupPreferenceRequiresSignIn = true
             dailyRoundupPreferenceError = nil

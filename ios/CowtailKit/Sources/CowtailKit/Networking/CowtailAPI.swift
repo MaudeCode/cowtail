@@ -290,6 +290,8 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
             throw CowtailAPIError.refused(try response.body.json.error)
         case .notFound(let response):
             throw CowtailAPIError.refused(try response.body.json.error)
+        case .undocumented(let statusCode, _) where (500 ... 599).contains(statusCode) || statusCode == 429:
+            throw CowtailAPIError.temporaryFailure("Pocket ID renewal failed with HTTP \(statusCode).")
         case .undocumented(let statusCode, _):
             throw CowtailAPIError.requestFailed("Pocket ID renewal failed with HTTP \(statusCode).")
         }
@@ -1001,12 +1003,20 @@ actor CowtailAPI: CowtailAPIClient, AuthAPIClient {
 
 enum CowtailAPIError: LocalizedError {
     case requestFailed(String)
+    case temporaryFailure(String)
+
+    var isTemporaryFailure: Bool {
+        if case .temporaryFailure = self {
+            return true
+        }
+        return false
+    }
     /// The server answered and turned the request down; nothing changed.
     case refused(String)
 
     var errorDescription: String? {
         switch self {
-        case .requestFailed(let body), .refused(let body):
+        case .requestFailed(let body), .refused(let body), .temporaryFailure(let body):
             return body
         }
     }
@@ -1051,7 +1061,7 @@ typealias NotificationPreferencesUpdateRequest = Components.Schemas.Notification
 typealias AlertHumanActionRequest = Components.Schemas.AlertHumanActionRequest
 typealias AlertHumanActionResponse = Components.Schemas.AlertHumanActionResponse
 
-struct AppAuthSession: Sendable {
+struct AppAuthSession: Codable, Sendable {
     let token: String
     let userID: String
     let expiresAt: Date
